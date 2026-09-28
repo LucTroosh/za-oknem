@@ -30,18 +30,30 @@ npm start
 ```
 
 Domyślnie łączy się z `http://localhost:8000`. Na emulatorze Androida ustaw
-`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`, na fizycznym urządzeniu — LAN IP hosta.
+`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`, na fizycznym urządzeniu — LAN IP hosta
+(patrz niżej). Zobacz `.env.example` w `apps/mobile/`.
+
+#### Fizyczne urządzenie (Android, Expo Go)
+
+Trzy rzeczy, które inaczej kosztują długą sesję debugowania:
+
+1. **Wersja Expo Go musi zgadzać się z SDK projektu** (obecnie SDK 52). Wersja ze
+   Sklepu Play bywa nowsza i wtedy aplikacja się nie uruchomi ("Project is
+   incompatible..."). Zainstaluj właściwą wersję ze strony:
+   `https://expo.dev/go?sdkVersion=52&platform=android&device=true`.
+2. **`localhost` na telefonie to sam telefon**, nie Twój komputer. Ustaw
+   `EXPO_PUBLIC_API_URL` na adres LAN komputera (np. `http://192.168.1.42:8000`),
+   znajdziesz go przez `ipconfig getifaddr en0` (macOS Wi-Fi) / `hostname -I`
+   (Linux). Telefon i komputer muszą być w tej samej sieci Wi-Fi (nie dane
+   komórkowe). Szybki test bez Expo: otwórz ten adres w przeglądarce na telefonie
+   — jeśli tam też nie działa, problem jest sieciowy/firewall, nie w aplikacji.
+3. **Zmiana `EXPO_PUBLIC_*` wymaga czyszczenia cache**, bo wartość jest wypiekana
+   w bundlu JS przy starcie: `npx expo start -c`, a na telefonie całkowicie zamknij
+   i otwórz Expo Go od nowa (samo "reload" nie wystarczy).
 
 ## Status implementacji
 
-TASK-0.1 (repository foundation) — patrz `docs/tasks/TASK-0.1-repository-foundation.md`
-dla pełnych acceptance criteria.
-
-**Nie zweryfikowane w tej sesji:** `docker compose up`, `alembic upgrade head` i
-`npm install` nie zostały odpalone end-to-end przeze mnie — środowisko, w którym
-pisałem ten kod, ma zablokowany dostęp do PyPI i npm registry (polityka sieciowa
-sesji, potwierdzone bezpośrednim testem, nie zgaduję). Kod jest napisany starannie
-i zgodnie ze standardowymi wzorcami (FastAPI/Alembic/Expo Router), ale **pierwsza
-realna weryfikacja to Twoje `docker compose up` lokalnie albo zielone CI na GitHubie**
-(GitHub Actions ma pełny dostęp do sieci, w przeciwieństwie do tej sesji) — dopóki
-jedno z nich nie przejdzie, TASK-0.1 nie jest formalnie Done.
+TASK-0.1 (repository foundation) — patrz `docs/tasks/TASK-0.1-repository-foundation.md`.
+Phase 4, pierwszy vertical slice (GIOŚ → connector → PostgreSQL → FastAPI →
+React Native → PM2.5 na ekranie) zweryfikowany end-to-end na żywym API i fizycznym
+urządzeniu Android — patrz `docs/architecture/Development-Master-Plan-v1.2.md` §107.
