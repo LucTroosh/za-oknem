@@ -9,6 +9,7 @@ guess a polling frequency before it's verified. Run it yourself for now:
 """
 
 import argparse
+import logging
 import sys
 from datetime import UTC, datetime
 
@@ -19,6 +20,8 @@ from app.connectors.gios.parser import GiosParseError, find_pm25_sensor, latest_
 from app.db import SessionLocal
 from app.models import Measurement
 
+logger = logging.getLogger(__name__)
+
 
 def ingest_station(station: dict, db) -> bool:
     """Returns True if a new PM2.5 reading was stored. One station's failure is
@@ -28,13 +31,13 @@ def ingest_station(station: dict, db) -> bool:
         sensors = client.fetch_sensors(str(station_id))
         sensor = find_pm25_sensor(sensors)
         if sensor is None:
-            print(f"station {station_id}: no PM2.5 sensor, skipping")
+            logger.info("station %s: no PM2.5 sensor, skipping", station_id)
             return False
 
         data = client.fetch_sensor_data(str(sensor["Identyfikator stanowiska"]))
         result = latest_value(data)
         if result is None:
-            print(f"station {station_id}: no recent PM2.5 values, skipping")
+            logger.info("station %s: no recent PM2.5 values, skipping", station_id)
             return False
 
         observed_at, value = result
@@ -46,7 +49,7 @@ def ingest_station(station: dict, db) -> bool:
             fetched_at=datetime.now(UTC),
         )
     except (client.GiosApiError, GiosParseError) as exc:
-        print(f"station {station_id}: FAILED ({exc}), skipping — see rule #1", file=sys.stderr)
+        logger.warning("station %s: FAILED (%s), skipping — see rule #1", station_id, exc)
         return False
 
     exists = (
@@ -55,7 +58,7 @@ def ingest_station(station: dict, db) -> bool:
         .first()
     )
     if exists:
-        print(f"station {station_id}: reading already stored, skipping")
+        logger.info("station %s: reading already stored, skipping", station_id)
         return False
 
     db.add(Measurement(**record))
@@ -64,7 +67,9 @@ def ingest_station(station: dict, db) -> bool:
     except IntegrityError:
         db.rollback()  # race with another ingest run — fine, reading exists now
         return False
-    print(f"station {station_id} ({record['station_name']}): PM2.5 = {value} {record['unit']}")
+    logger.info(
+        "station %s (%s): PM2.5 = %s %s", station_id, record["station_name"], value, record["unit"]
+    )
     return True
 
 
@@ -77,6 +82,7 @@ def main() -> None:
         "--list", action="store_true", help="preview one page of stations and exit"
     )
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     if args.list:
         # One page only (fast, one request) — the full catalog is 15+ pages and

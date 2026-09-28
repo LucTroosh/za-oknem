@@ -9,6 +9,7 @@ follow-up work; per ADR-004 fetch this every 3h once scheduled, not more often:
 """
 
 import argparse
+import logging
 import sys
 from datetime import UTC, datetime
 
@@ -19,6 +20,8 @@ from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize
 from app.db import SessionLocal
 from app.models import GeoArea, WeatherSnapshot
 
+logger = logging.getLogger(__name__)
+
 
 def ingest_geo_area(area: GeoArea, db) -> int:
     """Returns the number of new snapshot rows stored. One geo_area's failure is
@@ -27,7 +30,7 @@ def ingest_geo_area(area: GeoArea, db) -> int:
         payload = client.fetch_current(area.latitude, area.longitude)
         records = normalize(geo_area_id=area.id, payload=payload, fetched_at=datetime.now(UTC))
     except (client.OpenMeteoApiError, OpenMeteoParseError) as exc:
-        print(f"geo_area {area.slug}: FAILED ({exc}), skipping — see rule #1", file=sys.stderr)
+        logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
         return 0
 
     stored = 0
@@ -47,7 +50,7 @@ def ingest_geo_area(area: GeoArea, db) -> int:
             continue
         stored += 1
 
-    print(f"geo_area {area.slug} ({area.name}): stored {stored}/{len(records)} params")
+    logger.info("geo_area %s (%s): stored %s/%s params", area.slug, area.name, stored, len(records))
     return stored
 
 
@@ -55,6 +58,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Open-Meteo current-weather ingest (Phase 5).")
     parser.add_argument("--slug", action="append", dest="slugs", default=[])
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     db = SessionLocal()
     try:
