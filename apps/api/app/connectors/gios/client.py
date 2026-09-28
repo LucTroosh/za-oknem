@@ -39,24 +39,47 @@ def _get(path: str) -> dict:
     raise GiosApiError(f"GET {path} failed after retry: {last_error}") from last_error
 
 
+_last_list_call_at = 0.0
+
+
+def _throttle_list_endpoint() -> None:
+    """Enforce the 2 req/min spacing across EVERY list-type endpoint call
+    (station/findAll page walks AND station/sensors) — not just consecutive page
+    walks. Codex review (PR #1/#2) flagged that per-station fetch_sensors() calls
+    during multi-station ingest weren't covered by the old per-page-only delay,
+    which could exhaust the limit and silently skip stations."""
+    global _last_list_call_at
+    wait = LIST_ENDPOINT_DELAY_SECONDS - (time.monotonic() - _last_list_call_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_list_call_at = time.monotonic()
+
+
 def fetch_station_page(page: int = 0, size: int = 20) -> dict:
     """GET one page of /station/findAll, raw (with pagination metadata under
     'totalPages'/'links'). For CLI preview (--list) without paying the cost of
     walking every page."""
+    _throttle_list_endpoint()
     return _get(f"/station/findAll?page={page}&size={size}")
 
 
 def _iter_station_pages() -> Iterator[list[dict]]:
-    """Walks every page of /station/findAll, sleeping between requests to respect
-    the 2 req/min limit. Only for callers that actually need the full catalog."""
+    """Walks every page of /station/findAll (rate-limited via fetch_station_page).
+    Only for callers that actually need the full catalog."""
     page = 0
     while True:
         resp = fetch_station_page(page=page, size=STATION_PAGE_SIZE)
-        yield resp["Lista stacji pomiarowych"]
+        try:
+            stations = resp["Lista stacji pomiarowych"]
+        except KeyError as exc:
+            # A shape we don't recognize must fail loudly as our own error type,
+            # not a raw KeyError that ingest_station() doesn't know to catch
+            # (rule #1: isolate failures, don't crash the whole ingest run).
+            raise GiosApiError(f"unexpected findAll response shape: missing {exc}") from exc
+        yield stations
         page += 1
         if page >= resp.get("totalPages", 1):
             return
-        time.sleep(LIST_ENDPOINT_DELAY_SECONDS)
 
 
 def fetch_all_stations() -> list[dict]:
@@ -83,12 +106,17 @@ def find_stations(station_ids: set[str]) -> list[dict]:
 
 
 def fetch_sensors(station_id: str) -> list[dict]:
-    """GET /station/sensors/{stationId}.
+    """GET /station/sensors/{stationId} — also a 2 req/min list endpoint, throttled
+    the same as station/findAll (see _throttle_list_endpoint).
     ponytail: assumes one page is enough — real stations have a handful of sensors
     (verified: 5 for station 11), no pagination handling here. Add it if a station
     is ever seen with more than one page's worth."""
+    _throttle_list_endpoint()
     resp = _get(f"/station/sensors/{station_id}")
-    return resp["Lista stanowisk pomiarowych dla podanej stacji"]
+    try:
+        return resp["Lista stanowisk pomiarowych dla podanej stacji"]
+    except KeyError as exc:
+        raise GiosApiError(f"unexpected sensors response shape: missing {exc}") from exc
 
 
 def fetch_sensor_data(sensor_id: str) -> dict:
