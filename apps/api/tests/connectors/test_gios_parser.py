@@ -1,9 +1,8 @@
-"""Tests for the GIOŚ parser using a payload shaped per documented API schema.
+"""Tests for the GIOŚ parser using a payload shaped per a LIVE response.
 
-NOT captured from a live response (see docs/data/source-registry.md — this sandbox
-had no network route to api.gios.gov.pl). If the real API differs, these tests will
-pass but production will fail loudly (parser raises GiosParseError, not silent wrong
-data) — that failure is the signal to update this fixture, not evidence of a bug here.
+Captured 2026-09-28 against api.gios.gov.pl (station 38 "Kłodzko, ul. Szkolna",
+sensor 25988, PM2.5) — see docs/data/source-registry.md. Field names are the real
+Polish JSON-LD keys, not a guess.
 """
 
 from datetime import datetime
@@ -19,31 +18,53 @@ from app.connectors.gios.parser import (
 )
 
 STATION = {
-    "id": 114,
-    "stationName": "Warszawa-Marszałkowska",
-    "gegrLat": "52.223278",
-    "gegrLon": "21.058628",
+    "Identyfikator stacji": 38,
+    "Kod stacji": "DsKlodzSzkol",
+    "Nazwa stacji": "Kłodzko, ul. Szkolna",
+    "WGS84 φ N": "50.433493",
+    "WGS84 λ E": "16.653660",
+    "Identyfikator miasta": 368,
+    "Nazwa miasta": "Kłodzko",
+    "Gmina": "Kłodzko",
+    "Powiat": "kłodzki",
+    "Województwo": "DOLNOŚLĄSKIE",
+    "Ulica": "ul. Szkolna 8",
 }
 
 SENSORS = [
-    {"id": 642, "stationId": 114, "param": {"paramFormula": "PM10", "paramCode": "PM10"}},
-    {"id": 643, "stationId": 114, "param": {"paramFormula": "PM2.5", "paramCode": "PM2.5"}},
+    {
+        "Identyfikator stanowiska": 25987,
+        "Identyfikator stacji": 38,
+        "Wskaźnik": "pył zawieszony PM10",
+        "Wskaźnik - wzór": "PM10",
+        "Wskaźnik - kod": "PM10",
+        "Id wskaźnika": 3,
+    },
+    {
+        "Identyfikator stanowiska": 25988,
+        "Identyfikator stacji": 38,
+        "Wskaźnik": "pył zawieszony PM2.5",
+        "Wskaźnik - wzór": "PM2.5",
+        "Wskaźnik - kod": "PM2.5",
+        "Id wskaźnika": 69,
+    },
 ]
 
 SENSOR_DATA = {
-    "key": "PM2.5",
-    "values": [
-        {"date": "2026-09-28 14:00:00", "value": None},
-        {"date": "2026-09-28 13:00:00", "value": 12.34},
-        {"date": "2026-09-28 15:00:00", "value": 18.5},  # out of order on purpose
-    ],
+    "Lista danych pomiarowych": [
+        {"Kod stanowiska": "DsKlodzSzkol-PM2.5-1g", "Data": "2026-09-28 19:00:00", "Wartość": None},
+        {"Kod stanowiska": "DsKlodzSzkol-PM2.5-1g", "Data": "2026-09-28 17:00:00", "Wartość": 6.8},
+        # out of order on purpose — real data is descending, but the parser must not
+        # assume that
+        {"Kod stanowiska": "DsKlodzSzkol-PM2.5-1g", "Data": "2026-09-28 18:00:00", "Wartość": 8.2},
+    ]
 }
 
 
 def test_find_pm25_sensor_picks_correct_one():
     sensor = find_pm25_sensor(SENSORS)
     assert sensor is not None
-    assert sensor["id"] == 643
+    assert sensor["Identyfikator stanowiska"] == 25988
 
 
 def test_find_pm25_sensor_returns_none_when_absent():
@@ -52,36 +73,38 @@ def test_find_pm25_sensor_returns_none_when_absent():
 
 def test_latest_value_skips_nulls_and_picks_max_by_date():
     result = latest_value(SENSOR_DATA)
-    assert result == (datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ), 18.5)
+    assert result == (datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ), 8.2)
 
 
 def test_latest_value_returns_none_when_all_null():
-    assert latest_value({"values": [{"date": "2026-09-28 14:00:00", "value": None}]}) is None
+    data = {"Lista danych pomiarowych": [{"Data": "2026-09-28 14:00:00", "Wartość": None}]}
+    assert latest_value(data) is None
 
 
 def test_normalize_maps_fields_correctly():
     sensor = find_pm25_sensor(SENSORS)
-    observed_at = datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ)
+    observed_at = datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ)
     record = normalize(
         station=STATION,
         sensor=sensor,
         observed_at=observed_at,
-        value=18.5,
-        fetched_at=datetime(2026, 9, 28, 15, 5, 0, tzinfo=GIOS_TZ),
+        value=8.2,
+        fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
     )
-    assert record["station_id"] == "114"
+    assert record["station_id"] == "38"
+    assert record["station_name"] == "Kłodzko, ul. Szkolna"
     assert record["param_code"] == "PM2.5"
-    assert record["value"] == 18.5
-    assert record["source_record_id"] == f"643:{observed_at.isoformat()}"
+    assert record["value"] == 8.2
+    assert record["source_record_id"] == f"25988:{observed_at.isoformat()}"
 
 
 def test_normalize_rejects_bad_coordinates():
-    bad_station = {**STATION, "gegrLat": "200.0"}
+    bad_station = {**STATION, "WGS84 φ N": "200.0"}
     with pytest.raises(GiosParseError):
         normalize(
             station=bad_station,
             sensor=SENSORS[1],
-            observed_at=datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ),
-            value=18.5,
-            fetched_at=datetime(2026, 9, 28, 15, 5, 0, tzinfo=GIOS_TZ),
+            observed_at=datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ),
+            value=8.2,
+            fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
         )
