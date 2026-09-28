@@ -54,9 +54,13 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `/station/sensors/{stationId}`, `/data/getData/{sensorId}`, `/aqindex/getIndex/{stationId}`.
   Starsze endpointy bez `/v1/` wycofane 30.06.2025 — potwierdzone w dokumentacji GIOŚ
   (nie zgadywane).
-- **frequency:** nie zweryfikowana co do rzeczywistego cyklu publikacji nowych pomiarów
-  stacji (zgodnie z ADR-004 — do ustalenia przed produkcyjnym schedulerem, nie blokuje
-  jednorazowego/manualnego ingestu na tym etapie)
+- **frequency:** ZWERYFIKOWANE na żywo 2026-09-28: lista stacji (`/station/findAll`)
+  deklaruje `sy:updatePeriod: year` we własnym `meta` — aktualizuje się raz na rok, więc
+  cache'ować długo (dni/tygodnie), nigdy odpytywać przy każdym ingest. Dane pomiarowe
+  (`/data/getData/{sensorId}`) są godzinowe (kod stanowiska kończy się na `-1g` = "1
+  godzina", potwierdzone na żywym przykładzie). Zgodnie z ADR-004: scheduler docelowo
+  co godzinę dla danych, raz na dzień/tydzień dla listy stacji — do ostatecznego
+  ustalenia w Phase 5.
 - **coverage:** Polska (sieć stacji GIOŚ, liczba i lokalizacje zmienne)
 - **license:** dane publiczne sektora publicznego — wymagane "jasne i wyraźne wskazanie
   źródła" przy republikacji (cytat z dokumentacji GIOŚ)
@@ -69,11 +73,16 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   1500 zapytań/min (dane bieżące i indeks jakości powietrza) — wg dokumentacji GIOŚ
 - **attribution:** "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)" — wymagane w
   ekranie Źródła
-- **status:** VERIFIED (endpoint, limity i wymóg atrybucji potwierdzone w oficjalnej
-  dokumentacji 2026-09-28). **Kształt JSON odpowiedzi NIE zweryfikowany na żywo** —
-  sandbox, w którym pisany był connector, nie miał dostępu sieciowego do tego hosta.
-  Parser oparty na udokumentowanym, stabilnym schemacie tego API — wymaga potwierdzenia
-  jednym realnym wywołaniem przed oznaczeniem jako APPROVED.
+- **status:** VERIFIED na żywo 2026-09-28 (użytkownik uruchomił connector przeciwko
+  prawdziwemu API). **Realny kształt odpowiedzi różni się istotnie od pierwotnie
+  zakładanego, udokumentowanego schematu** — API zwraca JSON-LD z polskimi kluczami
+  (`Lista stacji pomiarowych`, `Identyfikator stacji`, `Nazwa stacji`, `WGS84 φ N`,
+  `WGS84 λ E`, `Wskaźnik - wzór`, `Lista danych pomiarowych`, `Data`, `Wartość` itd.),
+  nie angielskim camelCase jak sugerowała dokumentacja. Listy (`/station/findAll`,
+  `/station/sensors`) są **paginowane** (`totalPages`, `links.next/prev/first/last`) —
+  domyślnie 20 pozycji/strona. Connector przepisany pod realny kształt (`client.py`,
+  `parser.py`) po tej weryfikacji; `find_stations()` w kliencie celowo unika
+  przechodzenia całej (rate-limited) listy stron przy szukaniu znanego ID stacji.
 - **last_verified_at:** 2026-09-28
 
 ## imgw

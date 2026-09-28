@@ -23,7 +23,7 @@ from app.models import Measurement
 def ingest_station(station: dict, db) -> bool:
     """Returns True if a new PM2.5 reading was stored. One station's failure is
     logged and skipped — it must not abort ingestion for the rest (rule #1)."""
-    station_id = station.get("id")
+    station_id = station.get("Identyfikator stacji")
     try:
         sensors = client.fetch_sensors(str(station_id))
         sensor = find_pm25_sensor(sensors)
@@ -31,7 +31,7 @@ def ingest_station(station: dict, db) -> bool:
             print(f"station {station_id}: no PM2.5 sensor, skipping")
             return False
 
-        data = client.fetch_sensor_data(str(sensor["id"]))
+        data = client.fetch_sensor_data(str(sensor["Identyfikator stanowiska"]))
         result = latest_value(data)
         if result is None:
             print(f"station {station_id}: no recent PM2.5 values, skipping")
@@ -74,16 +74,21 @@ def main() -> None:
     )
     parser.add_argument("--station-id", action="append", dest="station_ids", default=[])
     parser.add_argument(
-        "--list", action="store_true", help="list stations and exit, fetch nothing else"
+        "--list", action="store_true", help="preview one page of stations and exit"
     )
     args = parser.parse_args()
 
-    stations = client.fetch_all_stations()
-
     if args.list:
-        for s in stations[:20]:
-            print(f"{s['id']}: {s['stationName']}")
-        print(f"... {len(stations)} stations total. Re-run with --station-id <id>.")
+        # One page only (fast, one request) — the full catalog is 15+ pages and
+        # rate-limited to 2 req/min (see client.fetch_all_stations if you really
+        # need the whole thing).
+        page = client.fetch_station_page()
+        for s in page["Lista stacji pomiarowych"]:
+            print(f"{s['Identyfikator stacji']}: {s['Nazwa stacji']}")
+        print(
+            f"... page 1 of {page.get('totalPages')} total pages. Station list is "
+            "rate-limited (2 req/min) — re-run with --station-id <id> once you have one."
+        )
         return
 
     if not args.station_ids:
@@ -91,7 +96,7 @@ def main() -> None:
         sys.exit(1)
 
     wanted = {str(sid) for sid in args.station_ids}
-    matched = [s for s in stations if str(s["id"]) in wanted]
+    matched = client.find_stations(wanted)
 
     db = SessionLocal()
     try:

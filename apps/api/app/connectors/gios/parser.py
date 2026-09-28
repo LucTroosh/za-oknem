@@ -1,9 +1,9 @@
 """Parse / validate / normalize raw GIOŚ JSON into Measurement-ready dicts.
 
-Field names below (stationName, gegrLat/gegrLon, param.paramFormula, values[].date/value)
-are based on the documented, stable shape of this API — NOT verified against a live
-response in this environment. If real data doesn't match, this will raise KeyError/
-ValueError loudly (never silently return wrong data) — see Source Registry note.
+Field names below were verified against a LIVE response 2026-09-28 (see
+docs/data/source-registry.md) — the real API is JSON-LD with Polish keys, not the
+English camelCase shape this file originally (wrongly) assumed before we had network
+access to test it against the live service.
 """
 
 from datetime import datetime
@@ -25,8 +25,7 @@ class GiosParseError(Exception):
 def find_pm25_sensor(sensors: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Vertical slice scope (Master Plan §108): PM2.5 only, not the full parameter set."""
     for sensor in sensors:
-        param = sensor.get("param", {})
-        if param.get("paramFormula") == PM25_FORMULA:
+        if sensor.get("Wskaźnik - wzór") == PM25_FORMULA:
             return sensor
     return None
 
@@ -34,19 +33,19 @@ def find_pm25_sensor(sensors: list[dict[str, Any]]) -> dict[str, Any] | None:
 def latest_value(data: dict[str, Any]) -> tuple[datetime, float] | None:
     """Pick the most recent non-null reading. Don't assume the API returns values
     pre-sorted — find the max by timestamp explicitly."""
-    values = data.get("values")
+    values = data.get("Lista danych pomiarowych")
     if not isinstance(values, list):
-        raise GiosParseError(f"expected 'values' list, got: {type(values)!r}")
+        raise GiosParseError(f"expected 'Lista danych pomiarowych' list, got: {type(values)!r}")
 
     readings: list[tuple[datetime, float]] = []
     for entry in values:
-        if entry.get("value") is None:
+        if entry.get("Wartość") is None:
             continue
         try:
-            observed_at = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S").replace(
+            observed_at = datetime.strptime(entry["Data"], "%Y-%m-%d %H:%M:%S").replace(
                 tzinfo=GIOS_TZ
             )
-            readings.append((observed_at, float(entry["value"])))
+            readings.append((observed_at, float(entry["Wartość"])))
         except (KeyError, ValueError, TypeError) as exc:
             raise GiosParseError(f"malformed value entry {entry!r}: {exc}") from exc
 
@@ -67,11 +66,11 @@ def normalize(
     Raises GiosParseError on anything missing/out of range — a bad station must not
     silently produce a wrong reading (rule #1: one broken source, isolated failure)."""
     try:
-        station_id = str(station["id"])
-        station_name = str(station["stationName"])
-        latitude = float(station["gegrLat"])
-        longitude = float(station["gegrLon"])
-        sensor_id = str(sensor["id"])
+        station_id = str(station["Identyfikator stacji"])
+        station_name = str(station["Nazwa stacji"])
+        latitude = float(station["WGS84 φ N"])
+        longitude = float(station["WGS84 λ E"])
+        sensor_id = str(sensor["Identyfikator stanowiska"])
     except (KeyError, TypeError, ValueError) as exc:
         raise GiosParseError(f"malformed station/sensor payload: {exc}") from exc
 
