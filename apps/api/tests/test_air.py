@@ -51,19 +51,19 @@ def teardown_function() -> None:
 
 
 def _measurement(**overrides) -> Measurement:
-    defaults = dict(
-        source_id="gios",
-        source_record_id="rec-1",
-        station_id="38",
-        station_name="Kłodzko, ul. Szkolna",
-        latitude=50.433493,
-        longitude=16.65366,
-        param_code="PM2.5",
-        value=11.5,
-        unit="µg/m³",
-        observed_at=datetime.now(UTC),
-        fetched_at=datetime.now(UTC),
-    )
+    defaults = {
+        "source_id": "gios",
+        "source_record_id": "rec-1",
+        "station_id": "38",
+        "station_name": "Kłodzko, ul. Szkolna",
+        "latitude": 50.433493,
+        "longitude": 16.65366,
+        "param_code": "PM2.5",
+        "value": 11.5,
+        "unit": "µg/m³",
+        "observed_at": datetime.now(UTC),
+        "fetched_at": datetime.now(UTC),
+    }
     defaults.update(overrides)
     return Measurement(**defaults)
 
