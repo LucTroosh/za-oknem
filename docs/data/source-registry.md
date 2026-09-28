@@ -27,7 +27,10 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **caching:** wymagany snapshot w bazie (ADR-001), zero zapytań on-demand per użytkownik
 - **rate_limit:** 600/min, 5000/h, 10000/dzień, 300000/miesiąc (darmowy tier)
 - **attribution:** "Weather data by Open-Meteo.com (CC BY 4.0)" — wymagane w ekranie Źródła
-- **status:** VERIFIED (licencja i limity sprawdzone 2026-09-28; nie zaimplementowany)
+- **status:** IMPLEMENTED (connector `open_meteo` — client/parser/ingest — oraz
+  `GET /api/v1/weather/latest` gotowe 2026-09-28; pierwsza żywa weryfikacja
+  kształtu JSON nastąpi przy pierwszym realnym uruchomieniu ingestu, patrz
+  uwaga o robots.txt wyżej — connector waliduje i rzuca błąd zamiast zgadywać)
 - **last_verified_at:** 2026-09-28
 
 ## cams_ads (Copernicus Atmosphere Data Store — pyłki, CAMS Air)
