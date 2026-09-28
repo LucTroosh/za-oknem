@@ -24,6 +24,21 @@ dev = [
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+# Explicit selection so upgrading ruff never silently changes what's enforced
+# (today's default is just E4/E7/E9/F - too little to catch real mistakes, but
+# an implicit default can also grow stricter under us with no diff to review).
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import order)
+    "UP",  # pyupgrade (modern Python idioms)
+    "B",   # flake8-bugbear (common bug patterns)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+
 [tool.ruff.lint.flake8-bugbear]
 # fastapi.Depends() in an argument default is the framework's own dependency-
 # injection idiom, not a mutable-default bug — this is the documented fix,
