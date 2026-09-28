@@ -31,6 +31,9 @@ hydrologia, alerty — dla Polski, na start Android, MVP bez mapy i bez obowiąz
     zewnętrznego API na żądanie użytkownika (patrz ADR-001).
 15. Przed użyciem produkcyjnym każde źródło przechodzi Source Approval Gate i ma wpis w
     `docs/data/source-registry.md` (licencja, commercial_use, rate_limit, attribution, status).
+16. Częstotliwość fetchowania per connector = rzeczywisty, zweryfikowany cykl aktualizacji
+    danego źródła (patrz ADR-004), nigdy zgadywana stała "na wszelki wypadek". Wyjątek tylko
+    dla źródeł safety-critical (ostrzeżenia) i tylko z jawnym uzasadnieniem w Source Registry.
 
 ## Stack (nie zmieniać bez ADR)
 

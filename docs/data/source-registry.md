@@ -9,7 +9,10 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **owner:** OpenMeteo GmbH (Szwajcaria)
 - **connector:** `open_meteo`
 - **endpoint:** api.open-meteo.com (forecast + air-quality)
-- **frequency:** wg ADR-001 — snapshot per aktywna gmina, harmonogram do ustalenia w Phase 5
+- **frequency:** wg ADR-001 (snapshot per aktywna gmina) + ADR-004 (częstotliwość =
+  rzeczywisty cykl aktualizacji źródła). **Nie zweryfikowany jeszcze** dokładny cykl
+  odświeżania modelu pogodowego Open-Meteo — do potwierdzenia przed implementacją w
+  Phase 5 (sprawdzić dokumentację, nie zakładać "co godzinę" bez sprawdzenia).
 - **coverage:** globalne, w tym Polska
 - **license:** CC BY 4.0 (atrybucja wymagana)
 - **commercial_use:** NIE na darmowym tierze — patrz ADR-003. Rewizja wymagana przed
@@ -27,7 +30,8 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **connector:** `cams` (do zaprojektowania — inny kształt niż API pogodowe: pobranie
   pliku NetCDF/GRIB dla wycinka Polski, nie zapytanie per-punkt)
 - **endpoint:** ads.atmosphere.copernicus.eu (wymaga rejestracji, klucz API)
-- **frequency:** raz dziennie (prognoza pyłków aktualizowana raz/dzień, 4 dni naprzód)
+- **frequency:** raz dziennie (prognoza pyłków aktualizowana raz/dzień, 4 dni naprzód) —
+  zgodne z ADR-004, fetch nie częściej niż ten cykl
 - **coverage:** Europa, w tym Polska (tylko powierzchnia, brak pionowego profilu)
 - **license:** dane opisane przez Copernicus jako dostępne bez ograniczeń użycia,
   wymagana widoczna atrybucja programu Copernicus (Licence to Use Copernicus Products)
@@ -46,3 +50,7 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 
 - **status:** DISCOVERY — do weryfikacji w Phase 3/4 (pierwszy vertical slice).
   Nie blokuje Task 0.1.
+- **frequency:** nie zweryfikowana — ustalić rzeczywisty cykl publikacji pomiarów
+  (GIOŚ) i ostrzeżeń (IMGW) przy Source Approval Gate, zgodnie z ADR-004. Ostrzeżenia
+  mogą kwalifikować się do wyjątku "safety-critical, pollować częściej" z ADR-004 —
+  decyzja przy implementacji, nie teraz.
