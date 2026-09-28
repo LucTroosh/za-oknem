@@ -1,0 +1,145 @@
+"""Tests for GET /api/v1/air/latest: freshness thresholds and response shaping.
+
+The query in air.py uses Postgres' DISTINCT ON (rule #2: Postgres is the source
+of truth) — SQLite can't compile that, so this suite fakes the DB session's
+execute() to test the Python-level logic (row -> dict, freshness computation,
+empty-list handling) instead of the SQL itself. The query was already verified
+against a live Postgres end-to-end (README's manual smoke test, and the live
+physical-device run) — this suite doesn't re-prove the SQL, only the code
+around it.
+"""
+
+from datetime import UTC, datetime, timedelta
+
+from fastapi.testclient import TestClient
+
+from app.api.v1.air import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
+from app.db import get_db
+from app.main import app
+from app.models import Measurement
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _FakeSession:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def execute(self, _stmt):
+        return _FakeResult(self._rows)
+
+
+def _client_with_rows(rows: list[Measurement]) -> TestClient:
+    def _override():
+        yield _FakeSession(rows)
+
+    app.dependency_overrides[get_db] = _override
+    return TestClient(app)
+
+
+def teardown_function() -> None:
+    app.dependency_overrides.pop(get_db, None)
+
+
+def _measurement(**overrides) -> Measurement:
+    defaults = {
+        "source_id": "gios",
+        "source_record_id": "rec-1",
+        "station_id": "38",
+        "station_name": "Kłodzko, ul. Szkolna",
+        "latitude": 50.433493,
+        "longitude": 16.65366,
+        "param_code": "PM2.5",
+        "value": 11.5,
+        "unit": "µg/m³",
+        "observed_at": datetime.now(UTC),
+        "fetched_at": datetime.now(UTC),
+    }
+    defaults.update(overrides)
+    return Measurement(**defaults)
+
+
+# --- freshness() thresholds --------------------------------------------------
+# Margins (1 min) instead of exact boundaries — freshness() calls datetime.now()
+# internally, so an exact-boundary test would be flaky by the execution gap.
+
+
+def test_freshness_within_fresh_threshold():
+    assert freshness(datetime.now(UTC) - (FRESH_MAX_AGE - timedelta(minutes=1))) == "FRESH"
+
+
+def test_freshness_just_past_fresh_threshold_is_recent():
+    assert freshness(datetime.now(UTC) - (FRESH_MAX_AGE + timedelta(minutes=1))) == "RECENT"
+
+
+def test_freshness_within_recent_threshold():
+    assert freshness(datetime.now(UTC) - (RECENT_MAX_AGE - timedelta(minutes=1))) == "RECENT"
+
+
+def test_freshness_just_past_recent_threshold_is_stale():
+    assert freshness(datetime.now(UTC) - (RECENT_MAX_AGE + timedelta(minutes=1))) == "STALE"
+
+
+# --- GET /api/v1/air/latest ---------------------------------------------------
+
+
+def test_latest_air_quality_returns_empty_list_when_no_rows():
+    client = _client_with_rows([])
+
+    response = client.get("/api/v1/air/latest")
+
+    assert response.status_code == 200
+    assert response.json() == {"stations": []}
+
+
+def test_latest_air_quality_shapes_response_from_rows():
+    row = _measurement(observed_at=datetime.now(UTC))
+    client = _client_with_rows([row])
+
+    body = client.get("/api/v1/air/latest").json()
+
+    assert body == {
+        "stations": [
+            {
+                "station_id": "38",
+                "station_name": "Kłodzko, ul. Szkolna",
+                "latitude": 50.433493,
+                "longitude": 16.65366,
+                "pm25": 11.5,
+                "unit": "µg/m³",
+                "observed_at": row.observed_at.isoformat(),
+                "freshness": "FRESH",
+                "source": "gios",
+            }
+        ]
+    }
+
+
+def test_latest_air_quality_marks_old_reading_stale():
+    row = _measurement(observed_at=datetime.now(UTC) - timedelta(hours=10))
+    client = _client_with_rows([row])
+
+    body = client.get("/api/v1/air/latest").json()
+
+    assert body["stations"][0]["freshness"] == "STALE"
+
+
+def test_latest_air_quality_handles_multiple_stations():
+    rows = [
+        _measurement(station_id="38", source_record_id="a"),
+        _measurement(station_id="99", station_name="Other station", source_record_id="b"),
+    ]
+    client = _client_with_rows(rows)
+
+    body = client.get("/api/v1/air/latest").json()
+
+    assert {s["station_id"] for s in body["stations"]} == {"38", "99"}

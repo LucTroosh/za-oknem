@@ -17,7 +17,18 @@ jobs:
       - run: uv run ruff --version
       - run: uv run ruff check --output-format=github .
       - run: uv run mypy app
-      - run: uv run pytest
+      - name: pytest (with error annotations)
+        run: |
+          uv run pytest 2>&1 | tee /tmp/pytest.out
+        continue-on-error: true
+        id: pytest
+      - name: Report pytest failure
+        if: steps.pytest.outcome == 'failure'
+        run: |
+          while IFS= read -r line; do
+            echo "::error::pytest: $line"
+          done < /tmp/pytest.out
+          exit 1
 
   mobile:
     runs-on: ubuntu-latest
