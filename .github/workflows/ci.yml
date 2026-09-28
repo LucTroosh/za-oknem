@@ -33,7 +33,17 @@ jobs:
       - name: alembic upgrade head
         run: uv run alembic upgrade head
       - name: alembic check (fails if models drifted from migrations - rule #4)
-        run: uv run alembic check
+        run: |
+          uv run alembic check 2>&1 | tee /tmp/alembic-check.out
+        continue-on-error: true
+        id: alembic_check
+      - name: Report alembic check failure
+        if: steps.alembic_check.outcome == 'failure'
+        run: |
+          while IFS= read -r line; do
+            echo "::error::alembic check: $line"
+          done < /tmp/alembic-check.out
+          exit 1
       - name: mypy (with error annotations)
         run: |
           uv run mypy app 2>&1 | tee /tmp/mypy.out
