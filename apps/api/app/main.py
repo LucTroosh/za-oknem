@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health
+from app.api.v1 import air, health
 from app.config import settings
 
 app = FastAPI(title="Za Oknem API")
@@ -14,3 +14,4 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(air.router, prefix="/api/v1")
