@@ -54,3 +54,4 @@ jobs:
           exit 1
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm test
