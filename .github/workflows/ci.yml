@@ -16,7 +16,18 @@ jobs:
       - run: uv sync --dev
       - run: uv run ruff --version
       - run: uv run ruff check --output-format=github .
-      - run: uv run mypy app
+      - name: mypy (with error annotations)
+        run: |
+          uv run mypy app 2>&1 | tee /tmp/mypy.out
+        continue-on-error: true
+        id: mypy
+      - name: Report mypy failure
+        if: steps.mypy.outcome == 'failure'
+        run: |
+          while IFS= read -r line; do
+            echo "::error::mypy: $line"
+          done < /tmp/mypy.out
+          exit 1
       - name: pytest (with error annotations)
         run: |
           uv run pytest 2>&1 | tee /tmp/pytest.out
