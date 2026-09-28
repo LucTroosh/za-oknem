@@ -51,33 +51,37 @@ export default function Home() {
     load().finally(() => setRefreshing(false));
   }, [load]);
 
+  // FlatList (and its RefreshControl) stays mounted regardless of state — Codex
+  // review flagged that hiding it on the empty/error case left no way to
+  // pull-to-refresh after fixing the underlying problem (e.g. running ingest)
+  // without restarting the screen.
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Za Oknem — PM2.5</Text>
-
-      {state === "loading" && <Text>Ładowanie...</Text>}
-      {state === "error" && <Text>Błąd połączenia z API</Text>}
-      {state === "ready" && stations.length === 0 && (
-        <Text>Brak danych — uruchom ingest na backendzie.</Text>
-      )}
-
-      {state === "ready" && stations.length > 0 && (
-        <FlatList
-          style={styles.list}
-          data={stations}
-          keyExtractor={(item) => item.station_id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item }) => (
-            <View style={styles.row}>
-              <Text style={styles.stationName}>{item.station_name}</Text>
-              <Text style={styles.pm25}>
-                {item.pm25} {item.unit}
-              </Text>
-              <Text style={styles.freshness}>{FRESHNESS_LABEL[item.freshness]}</Text>
-            </View>
-          )}
-        />
-      )}
+      <FlatList
+        style={styles.list}
+        data={stations}
+        keyExtractor={(item) => item.station_id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListEmptyComponent={
+          <Text>
+            {state === "loading"
+              ? "Ładowanie..."
+              : state === "error"
+                ? "Błąd połączenia z API — pociągnij w dół, aby spróbować ponownie."
+                : "Brak danych — uruchom ingest na backendzie, potem pociągnij w dół."}
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <View style={styles.row}>
+            <Text style={styles.stationName}>{item.station_name}</Text>
+            <Text style={styles.pm25}>
+              {item.pm25} {item.unit}
+            </Text>
+            <Text style={styles.freshness}>{FRESHNESS_LABEL[item.freshness]}</Text>
+          </View>
+        )}
+      />
     </View>
   );
 }
