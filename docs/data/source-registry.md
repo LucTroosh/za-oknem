@@ -9,10 +9,16 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **owner:** OpenMeteo GmbH (Szwajcaria)
 - **connector:** `open_meteo`
 - **endpoint:** api.open-meteo.com (forecast + air-quality)
-- **frequency:** wg ADR-001 (snapshot per aktywna gmina) + ADR-004 (częstotliwość =
-  rzeczywisty cykl aktualizacji źródła). **Nie zweryfikowany jeszcze** dokładny cykl
-  odświeżania modelu pogodowego Open-Meteo — do potwierdzenia przed implementacją w
-  Phase 5 (sprawdzić dokumentację, nie zakładać "co godzinę" bez sprawdzenia).
+- **frequency:** ZWERYFIKOWANE wg dokumentacji Open-Meteo (open-meteo.com/en/docs,
+  sekcja "Update frequency" per model): ICON (DWD, domyślny model dla Europy/Polski)
+  odświeża się co 3h; GFS/HRRR (NOAA) co godzinę; ECMWF co 6h. Ponieważ domyślnie
+  używamy modelu europejskiego (ICON), zgodnie z ADR-004 fetch **co 3h**, nie co
+  godzinę "na wszelki wypadek". Uwaga: dokładny kształt odpowiedzi JSON (pola pod
+  `current`/`current_units`) potwierdzony z oficjalnej dokumentacji tekstowej, ale
+  **nie zweryfikowany na żywym przykładzie w tej sesji** (endpoint API blokowany przez
+  robots.txt dla narzędzi fetch w tym środowisku) — connector waliduje kształt i
+  rzuca czytelny błąd zamiast zgadywać, pierwsza żywa weryfikacja to najbliższy
+  realny `docker compose exec api python -m app.connectors.open_meteo.ingest`.
 - **coverage:** globalne, w tym Polska
 - **license:** CC BY 4.0 (atrybucja wymagana)
 - **commercial_use:** NIE na darmowym tierze — patrz ADR-003. Rewizja wymagana przed
