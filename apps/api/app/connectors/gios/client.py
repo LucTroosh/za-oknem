@@ -54,7 +54,7 @@ def _get(path: str, *, throttle: bool = False) -> dict:
     # `throttle` re-checks the list-endpoint spacing before EACH attempt (including
     # the retry) — Codex review found the retry itself could exceed 2/min otherwise.
     last_error: Exception | None = None
-    for attempt in range(2):
+    for _attempt in range(2):
         if throttle:
             _throttle_list_endpoint()
         try:

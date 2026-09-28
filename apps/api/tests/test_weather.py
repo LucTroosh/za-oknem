@@ -47,7 +47,13 @@ def teardown_function() -> None:
 
 
 def _area(**overrides) -> GeoArea:
-    defaults = {"id": 1, "slug": "klodzko", "name": "Kłodzko", "latitude": 50.43, "longitude": 16.65}
+    defaults = {
+        "id": 1,
+        "slug": "klodzko",
+        "name": "Kłodzko",
+        "latitude": 50.43,
+        "longitude": 16.65,
+    }
     defaults.update(overrides)
     return GeoArea(**defaults)
 
