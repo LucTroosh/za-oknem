@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Za Oknem",
+    "slug": "za-oknem",
+    "version": "0.1.0",
+    "scheme": "za-oknem",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "android": {
+      "package": "pl.zaoknem.app"
+    },
+    "ios": {
+      "bundleIdentifier": "pl.zaoknem.app",
+      "supportsTablet": false
+    }
+  }
+}
