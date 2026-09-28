@@ -39,8 +39,9 @@ jobs:
       - name: Report lint results
         run: |
           if [ ! -s /tmp/eslint.json ]; then
-            echo "::error::eslint produced no JSON report (crashed before running) — stderr:"
-            cat /tmp/eslint.stderr
+            while IFS= read -r line; do
+              echo "::error::eslint crash: $line"
+            done < /tmp/eslint.stderr
             exit 1
           fi
           node -e '
