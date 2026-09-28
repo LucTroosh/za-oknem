@@ -10,7 +10,7 @@ guess a polling frequency before it's verified. Run it yourself for now:
 
 import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 
@@ -43,7 +43,7 @@ def ingest_station(station: dict, db) -> bool:
             sensor=sensor,
             observed_at=observed_at,
             value=value,
-            fetched_at=datetime.now(timezone.utc),
+            fetched_at=datetime.now(UTC),
         )
     except (client.GiosApiError, GiosParseError) as exc:
         print(f"station {station_id}: FAILED ({exc}), skipping — see rule #1", file=sys.stderr)

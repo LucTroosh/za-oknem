@@ -10,7 +10,13 @@ from datetime import datetime
 
 import pytest
 
-from app.connectors.gios.parser import GiosParseError, find_pm25_sensor, latest_value, normalize
+from app.connectors.gios.parser import (
+    GIOS_TZ,
+    GiosParseError,
+    find_pm25_sensor,
+    latest_value,
+    normalize,
+)
 
 STATION = {
     "id": 114,
@@ -46,7 +52,7 @@ def test_find_pm25_sensor_returns_none_when_absent():
 
 def test_latest_value_skips_nulls_and_picks_max_by_date():
     result = latest_value(SENSOR_DATA)
-    assert result == (datetime(2026, 9, 28, 15, 0, 0), 18.5)
+    assert result == (datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ), 18.5)
 
 
 def test_latest_value_returns_none_when_all_null():
@@ -55,17 +61,18 @@ def test_latest_value_returns_none_when_all_null():
 
 def test_normalize_maps_fields_correctly():
     sensor = find_pm25_sensor(SENSORS)
+    observed_at = datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ)
     record = normalize(
         station=STATION,
         sensor=sensor,
-        observed_at=datetime(2026, 9, 28, 15, 0, 0),
+        observed_at=observed_at,
         value=18.5,
-        fetched_at=datetime(2026, 9, 28, 15, 5, 0),
+        fetched_at=datetime(2026, 9, 28, 15, 5, 0, tzinfo=GIOS_TZ),
     )
     assert record["station_id"] == "114"
     assert record["param_code"] == "PM2.5"
     assert record["value"] == 18.5
-    assert record["source_record_id"] == "643:2026-09-28T15:00:00"
+    assert record["source_record_id"] == f"643:{observed_at.isoformat()}"
 
 
 def test_normalize_rejects_bad_coordinates():
@@ -74,7 +81,7 @@ def test_normalize_rejects_bad_coordinates():
         normalize(
             station=bad_station,
             sensor=SENSORS[1],
-            observed_at=datetime(2026, 9, 28, 15, 0, 0),
+            observed_at=datetime(2026, 9, 28, 15, 0, 0, tzinfo=GIOS_TZ),
             value=18.5,
-            fetched_at=datetime(2026, 9, 28, 15, 5, 0),
+            fetched_at=datetime(2026, 9, 28, 15, 5, 0, tzinfo=GIOS_TZ),
         )

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -16,7 +16,7 @@ RECENT_MAX_AGE = timedelta(hours=6)
 
 
 def freshness(observed_at: datetime) -> str:
-    age = datetime.now(timezone.utc) - observed_at
+    age = datetime.now(UTC) - observed_at
     if age <= FRESH_MAX_AGE:
         return "FRESH"
     if age <= RECENT_MAX_AGE:

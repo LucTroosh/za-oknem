@@ -8,9 +8,14 @@ ValueError loudly (never silently return wrong data) — see Source Registry not
 
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 PM25_FORMULA = "PM2.5"
 PM25_UNIT = "µg/m³"
+# GIOŚ timestamps are naive local Polish time, not UTC — converting them to UTC-aware
+# datetimes here (instead of leaving them naive, or wrongly treating them as UTC) is
+# what makes the freshness comparison in app/api/v1/air.py correct.
+GIOS_TZ = ZoneInfo("Europe/Warsaw")
 
 
 class GiosParseError(Exception):
@@ -38,7 +43,8 @@ def latest_value(data: dict[str, Any]) -> tuple[datetime, float] | None:
         if entry.get("value") is None:
             continue
         try:
-            observed_at = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S")
+            naive = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S")
+            observed_at = naive.replace(tzinfo=GIOS_TZ)
             readings.append((observed_at, float(entry["value"])))
         except (KeyError, ValueError, TypeError) as exc:
             raise GiosParseError(f"malformed value entry {entry!r}: {exc}") from exc
