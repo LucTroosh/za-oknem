@@ -21,6 +21,20 @@ uv sync --dev
 uv run alembic upgrade head
 ```
 
+### Ingest danych (manualny, Phase 4/5 — scheduler to osobny task)
+
+```bash
+docker compose exec api python -m app.connectors.gios.ingest --list
+docker compose exec api python -m app.connectors.gios.ingest --station-id 38
+
+docker compose exec api python -m app.connectors.open_meteo.ingest
+docker compose exec api python -m app.connectors.open_meteo.ingest --slug klodzko
+```
+
+`open_meteo.ingest` bez flag ładuje pogodę dla wszystkich wierszy w `geo_areas`
+(seed z ADR-005). Zgodnie z ADR-004 docelowy scheduler ma odpytywać co 3h — nie
+częściej.
+
 ### Mobile (Expo)
 
 ```bash
