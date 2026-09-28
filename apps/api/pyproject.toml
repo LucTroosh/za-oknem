@@ -33,6 +33,14 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+# Incremental tightening (item 21, hardening) - not jumping straight to --strict,
+# which would demand type annotations across connector code (e.g. ingest.py's
+# untyped `db` params) that isn't this task's scope. These four catch real bugs
+# with near-zero false-positive risk on an otherwise loosely-typed codebase.
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
 
 [build-system]
 requires = ["hatchling"]
