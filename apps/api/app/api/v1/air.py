@@ -39,7 +39,8 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     rows = db.execute(stmt).scalars().all()
 
     if not rows:
-        return {"stations": []}  # no data != zero (Principle: §43) — empty list, not fabricated 0s
+        # no data != zero (Principle §43) — empty list, not fabricated 0s
+        return {"stations": []}
 
     return {
         "stations": [

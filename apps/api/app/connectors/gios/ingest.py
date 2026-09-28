@@ -69,9 +69,13 @@ def ingest_station(station: dict, db) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="One-off GIOŚ PM2.5 ingest (Phase 4 vertical slice).")
+    parser = argparse.ArgumentParser(
+        description="One-off GIOŚ PM2.5 ingest — vertical slice, Master Plan §108."
+    )
     parser.add_argument("--station-id", action="append", dest="station_ids", default=[])
-    parser.add_argument("--list", action="store_true", help="list stations and exit, fetch nothing else")
+    parser.add_argument(
+        "--list", action="store_true", help="list stations and exit, fetch nothing else"
+    )
     args = parser.parse_args()
 
     stations = client.fetch_all_stations()
