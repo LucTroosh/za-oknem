@@ -30,6 +30,13 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4)."""
     # Latest reading per station: one query, no N+1 — distinct on station_id ordered
     # by observed_at desc is the standard Postgres idiom for "latest per group".
+    #
+    # ponytail: newer SQLAlchemy (2.1+) deprecates this expression-based .distinct()
+    # in favor of sqlalchemy.dialects.postgresql.distinct_on(), but the exact new
+    # API shape wasn't reliably verifiable from docs at the time of writing (worth
+    # confirming against the real changelog, not guessing, before switching — same
+    # lesson as the GIOŚ connector). Still correct and fully covered by tests, just
+    # noisy in pytest output. Upgrade when SQLAlchemy actually removes the old form.
     stmt = (
         select(Measurement)
         .where(Measurement.param_code == "PM2.5")
