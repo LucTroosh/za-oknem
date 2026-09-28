@@ -10,12 +10,30 @@ jobs:
     defaults:
       run:
         working-directory: apps/api
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: za_oknem
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --dev
       - run: uv run ruff --version
       - run: uv run ruff check --output-format=github .
+      - name: alembic upgrade head
+        run: uv run alembic upgrade head
+      - name: alembic check (fails if models drifted from migrations - rule #4)
+        run: uv run alembic check
       - name: mypy (with error annotations)
         run: |
           uv run mypy app 2>&1 | tee /tmp/mypy.out
