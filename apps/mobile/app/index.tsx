@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import { FRESHNESS_LABEL, freshnessOf } from "./freshness";
+
 // Android emulator: 10.0.2.2, iOS simulator/web: localhost. Override with
 // EXPO_PUBLIC_API_URL when running on a physical device (your machine's LAN IP).
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// Matches app/api/v1/air.py's response shape (see apps/api). No shared
-// api-contract package yet (packages/api-contract is still a placeholder) —
-// hand-typed here, one endpoint doesn't justify generating an OpenAPI client.
-type Freshness = "FRESH" | "RECENT" | "STALE";
-
+// No shared api-contract package yet (packages/api-contract is still a
+// placeholder) — hand-typed here, one endpoint doesn't justify generating an
+// OpenAPI client.
 type Station = {
   station_id: string;
   station_name: string;
@@ -19,25 +19,6 @@ type Station = {
 };
 
 type LoadState = "loading" | "ready" | "error";
-
-const FRESHNESS_LABEL: Record<Freshness, string> = {
-  FRESH: "świeże",
-  RECENT: "niedawne",
-  STALE: "nieaktualne",
-};
-
-// Mirrors the thresholds in apps/api/app/api/v1/air.py — recomputed client-side
-// (Codex review) so the label doesn't freeze at whatever it was on load while the
-// screen stays mounted for hours. Keep both in sync if the backend thresholds change.
-const FRESH_MAX_AGE_MS = 2 * 60 * 60 * 1000;
-const RECENT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-
-function freshnessOf(observedAt: string, now: number): Freshness {
-  const age = now - new Date(observedAt).getTime();
-  if (age <= FRESH_MAX_AGE_MS) return "FRESH";
-  if (age <= RECENT_MAX_AGE_MS) return "RECENT";
-  return "STALE";
-}
 
 export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
