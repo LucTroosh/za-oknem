@@ -29,6 +29,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      - name: npm install (with error annotations)
+        run: |
+          npm install 2> /tmp/npm-install.stderr
+        continue-on-error: true
+        id: npm_install
+      - name: Report npm install failure
+        if: steps.npm_install.outcome == 'failure'
+        run: |
+          while IFS= read -r line; do
+            echo "::error::npm install: $line"
+          done < /tmp/npm-install.stderr
+          exit 1
       - run: npm run lint
       - run: npm run typecheck
