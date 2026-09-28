@@ -43,8 +43,9 @@ def latest_value(data: dict[str, Any]) -> tuple[datetime, float] | None:
         if entry.get("value") is None:
             continue
         try:
-            naive = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S")
-            observed_at = naive.replace(tzinfo=GIOS_TZ)
+            observed_at = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S").replace(
+                tzinfo=GIOS_TZ
+            )
             readings.append((observed_at, float(entry["value"])))
         except (KeyError, ValueError, TypeError) as exc:
             raise GiosParseError(f"malformed value entry {entry!r}: {exc}") from exc
