@@ -30,5 +30,29 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run lint
+      - name: Lint (with annotations)
+        run: |
+          npx eslint . --format json --output-file /tmp/eslint.json 2> /tmp/eslint.stderr
+          echo "eslint exit code: $?" || true
+        continue-on-error: true
+        id: eslint_run
+      - name: Report lint results
+        run: |
+          if [ ! -s /tmp/eslint.json ]; then
+            echo "::error::eslint produced no JSON report (crashed before running) — stderr:"
+            cat /tmp/eslint.stderr
+            exit 1
+          fi
+          node -e '
+            const results = require("/tmp/eslint.json");
+            let hasError = false;
+            for (const r of results) {
+              for (const m of r.messages) {
+                hasError = true;
+                const level = m.severity === 2 ? "error" : "warning";
+                console.log(`::${level} file=${r.filePath},line=${m.line || 1},col=${m.column || 1}::${m.ruleId || ""} ${m.message}`);
+              }
+            }
+            process.exit(hasError ? 1 : 0);
+          '
       - run: npm run typecheck
