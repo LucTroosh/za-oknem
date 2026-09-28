@@ -26,10 +26,37 @@ class GiosApiError(Exception):
     """Raised when GIOŚ returns an unexpected status or unparseable body."""
 
 
-def _get(path: str) -> dict:
+_last_list_call_at = 0.0
+
+
+def _throttle_list_endpoint() -> None:
+    """Enforce the 2 req/min spacing across EVERY list-type endpoint call
+    (station/findAll page walks AND station/sensors) — not just consecutive page
+    walks. Codex review flagged that per-station fetch_sensors() calls during
+    multi-station ingest weren't covered by the old per-page-only delay, which
+    could exhaust the limit and silently skip stations.
+
+    ponytail: this timestamp is per-process only — two separate CLI invocations
+    (e.g. `--list` then `--station-id` moments later) don't see each other's
+    throttle state, so back-to-back manual runs can still exceed 2/min (flagged
+    by Codex on PR #3). Not fixed here: the real scheduler (Phase 5) runs as one
+    coordinated worker process, which is the right place for cross-invocation
+    rate-limit state (e.g. via Redis), not this on-demand Phase 4 CLI."""
+    global _last_list_call_at
+    wait = LIST_ENDPOINT_DELAY_SECONDS - (time.monotonic() - _last_list_call_at)
+    if wait > 0:
+        time.sleep(wait)
+    _last_list_call_at = time.monotonic()
+
+
+def _get(path: str, *, throttle: bool = False) -> dict:
     # Single retry on failure (rule #5: timeout + controlled retry, not infinite).
+    # `throttle` re-checks the list-endpoint spacing before EACH attempt (including
+    # the retry) — Codex review found the retry itself could exceed 2/min otherwise.
     last_error: Exception | None = None
     for attempt in range(2):
+        if throttle:
+            _throttle_list_endpoint()
         try:
             response = httpx.get(f"{BASE_URL}{path}", timeout=TIMEOUT)
             response.raise_for_status()
@@ -39,28 +66,11 @@ def _get(path: str) -> dict:
     raise GiosApiError(f"GET {path} failed after retry: {last_error}") from last_error
 
 
-_last_list_call_at = 0.0
-
-
-def _throttle_list_endpoint() -> None:
-    """Enforce the 2 req/min spacing across EVERY list-type endpoint call
-    (station/findAll page walks AND station/sensors) — not just consecutive page
-    walks. Codex review (PR #1/#2) flagged that per-station fetch_sensors() calls
-    during multi-station ingest weren't covered by the old per-page-only delay,
-    which could exhaust the limit and silently skip stations."""
-    global _last_list_call_at
-    wait = LIST_ENDPOINT_DELAY_SECONDS - (time.monotonic() - _last_list_call_at)
-    if wait > 0:
-        time.sleep(wait)
-    _last_list_call_at = time.monotonic()
-
-
 def fetch_station_page(page: int = 0, size: int = 20) -> dict:
     """GET one page of /station/findAll, raw (with pagination metadata under
     'totalPages'/'links'). For CLI preview (--list) without paying the cost of
     walking every page."""
-    _throttle_list_endpoint()
-    return _get(f"/station/findAll?page={page}&size={size}")
+    return _get(f"/station/findAll?page={page}&size={size}", throttle=True)
 
 
 def _iter_station_pages() -> Iterator[list[dict]]:
@@ -111,8 +121,7 @@ def fetch_sensors(station_id: str) -> list[dict]:
     ponytail: assumes one page is enough — real stations have a handful of sensors
     (verified: 5 for station 11), no pagination handling here. Add it if a station
     is ever seen with more than one page's worth."""
-    _throttle_list_endpoint()
-    resp = _get(f"/station/sensors/{station_id}")
+    resp = _get(f"/station/sensors/{station_id}", throttle=True)
     try:
         return resp["Lista stanowisk pomiarowych dla podanej stacji"]
     except KeyError as exc:
