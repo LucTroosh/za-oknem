@@ -3,15 +3,15 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app import models  # noqa: F401 — import registers models on Base.metadata
 from app.config import settings
+from app.db import Base
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# No domain models yet (Phase 0 non-goal) — target_metadata stays None until
-# Phase 2/3 introduces SQLAlchemy models to autogenerate against.
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def get_url() -> str:

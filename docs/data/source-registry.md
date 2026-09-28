@@ -46,11 +46,37 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   zweryfikowany)
 - **last_verified_at:** 2026-09-28
 
-## gios / imgw
+## gios (GIOŚ — jakość powietrza, stacje pomiarowe)
 
-- **status:** DISCOVERY — do weryfikacji w Phase 3/4 (pierwszy vertical slice).
-  Nie blokuje Task 0.1.
-- **frequency:** nie zweryfikowana — ustalić rzeczywisty cykl publikacji pomiarów
-  (GIOŚ) i ostrzeżeń (IMGW) przy Source Approval Gate, zgodnie z ADR-004. Ostrzeżenia
-  mogą kwalifikować się do wyjątku "safety-critical, pollować częściej" z ADR-004 —
-  decyzja przy implementacji, nie teraz.
+- **owner:** Główny Inspektorat Ochrony Środowiska (Polska, instytucja publiczna)
+- **connector:** `gios`
+- **endpoint:** `https://api.gios.gov.pl/pjp-api/v1/rest/` — `/station/findAll`,
+  `/station/sensors/{stationId}`, `/data/getData/{sensorId}`, `/aqindex/getIndex/{stationId}`.
+  Starsze endpointy bez `/v1/` wycofane 30.06.2025 — potwierdzone w dokumentacji GIOŚ
+  (nie zgadywane).
+- **frequency:** nie zweryfikowana co do rzeczywistego cyklu publikacji nowych pomiarów
+  stacji (zgodnie z ADR-004 — do ustalenia przed produkcyjnym schedulerem, nie blokuje
+  jednorazowego/manualnego ingestu na tym etapie)
+- **coverage:** Polska (sieć stacji GIOŚ, liczba i lokalizacje zmienne)
+- **license:** dane publiczne sektora publicznego — wymagane "jasne i wyraźne wskazanie
+  źródła" przy republikacji (cytat z dokumentacji GIOŚ)
+- **commercial_use:** brak jawnego zakazu w znalezionej dokumentacji — do potwierdzenia
+  przy pełnym Source Approval Gate przed produkcją
+- **redistribution:** dozwolona z atrybucją źródła
+- **caching:** zgodnie z regułą #14 (CLAUDE.md) — mobile API czyta wyłącznie z naszej
+  bazy, nigdy nie woła GIOŚ na żądanie użytkownika
+- **rate_limit:** 2 zapytania/min (endpointy standardowe, np. listy stacji),
+  1500 zapytań/min (dane bieżące i indeks jakości powietrza) — wg dokumentacji GIOŚ
+- **attribution:** "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)" — wymagane w
+  ekranie Źródła
+- **status:** VERIFIED (endpoint, limity i wymóg atrybucji potwierdzone w oficjalnej
+  dokumentacji 2026-09-28). **Kształt JSON odpowiedzi NIE zweryfikowany na żywo** —
+  sandbox, w którym pisany był connector, nie miał dostępu sieciowego do tego hosta.
+  Parser oparty na udokumentowanym, stabilnym schemacie tego API — wymaga potwierdzenia
+  jednym realnym wywołaniem przed oznaczeniem jako APPROVED.
+- **last_verified_at:** 2026-09-28
+
+## imgw
+
+- **status:** DISCOVERY — do weryfikacji przy rozszerzaniu o hydrologię/ostrzeżenia
+  (Phase 9/11). Nie blokuje pierwszego vertical slice (GIOŚ → PM2.5).
