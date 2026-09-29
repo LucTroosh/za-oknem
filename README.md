@@ -4,6 +4,38 @@ Lokalny agregator danych środowiskowych dla Polski. Pełna specyfikacja:
 [`docs/architecture/Development-Master-Plan-v1.2.md`](docs/architecture/Development-Master-Plan-v1.2.md).
 Zasady pracy nad kodem: [`CLAUDE.md`](CLAUDE.md).
 
+## Szybki test dzisiaj
+
+Minimalna ścieżka od zera do PM2.5 + pogody na ekranie telefonu/emulatora:
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+
+cd apps/api
+uv sync --dev
+uv run alembic upgrade head
+
+python -m app.connectors.gios.ingest --list          # znajdź --station-id blisko siebie
+python -m app.connectors.gios.ingest --station-id 38
+python -m app.connectors.open_meteo.ingest            # wszystkie geo_areas (seed ADR-005)
+
+curl http://localhost:8000/api/v1/dashboard/latest    # powinno zwrócić air + weather
+```
+
+Jeśli `dashboard.air` jest `null` dla Twojej lokalizacji — najbliższa stacja GIOŚ
+jest dalej niż 50 km (ADR-006, próg celowo konserwatywny) albo nie zrobiłeś
+ingestu dla stacji w pobliżu.
+
+```bash
+cd apps/mobile
+npm install
+npm start
+```
+
+Zobacz sekcję "Fizyczne urządzenie" niżej, jeśli testujesz na realnym telefonie, nie
+w emulatorze.
+
 ## Uruchomienie lokalne
 
 ```bash

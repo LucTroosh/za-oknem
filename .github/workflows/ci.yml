@@ -27,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          # No committed uv.lock yet (see note in root README/CLAUDE.md follow-up) -
+          # pyproject.toml is the next best cache key.
+          cache-dependency-glob: apps/api/pyproject.toml
       - run: uv sync --dev
       - run: uv run ruff --version
       - run: uv run ruff check --output-format=github .
@@ -79,6 +84,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          # actions/setup-node's built-in npm cache requires a committed
+          # package-lock.json (none exists yet - separate gap from this task).
+          # Caching npm's own download cache dir directly works without one.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('apps/mobile/package.json') }}
+          restore-keys: ${{ runner.os }}-npm-
       - name: npm install (with error annotations)
         run: |
           npm install 2> /tmp/npm-install.stderr
