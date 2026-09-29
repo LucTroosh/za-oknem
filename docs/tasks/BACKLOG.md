@@ -166,7 +166,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       renderuje tylko `temperature_2m`, TASK-5.5 dotyczy wyłącznie
       prognozy, a żaden późniejszy task nie wraca po dew point/
       visibility/UV; dodać je do API/mobile current-weather presentation
-      w tym samym tasku.
+      w tym samym tasku. **Rozszerzenie zakresu (Codex, runda 6):** §5
+      Master Planu wymienia jako MVP całą listę pól current-weather —
+      temperatura odczuwalna, wilgotność, punkt rosy, ciśnienie,
+      zachmurzenie, opady, deszcz, śnieg, wiatr, porywy, kierunek wiatru,
+      widoczność, UV, kod warunków — nie tylko te 3 dodane wyżej. Connector
+      po tym tasku będzie zapisywał większość z nich (`WeatherSnapshot`),
+      ale żaden task nie ujawnia ich w API/mobile poza temperaturą i (z tej
+      poprawki) dew point/visibility/UV. Zakres API/mobile presentation w
+      tym tasku obejmuje więc pełny zestaw MVP z §5, nie tylko 3 pola
+      wymagające dociągnięcia z `hourly`.
 - [ ] **TASK-5.5:** Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
       się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
       `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
@@ -369,10 +378,22 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       obejmuje też realną ścieżkę zasilania** — sam model bez źródła danych
       zostaje pustą tabelą, a TASK-9.6 (Alert Engine) zakłada istniejące
       rekordy `Event`. Dziś istniejące connectory (np. IMGW warnings) piszą
-      wprost do `Alert`, nie ma workflow tworzącego `Event`. Zdefiniować
-      albo dedykowane źródło/proces (z Source Approval Gate, rule #15, jeśli
-      to zewnętrzne dane) albo świadomie ograniczyć MVP do samego modelu bez
-      populacji i odnotować to jako non-goal w ADR-013.
+      wprost do `Alert`, nie ma workflow tworzącego `Event`. **Korekta
+      (Codex, runda 6) — poprzednia wersja pozwalała po cichu wyrzucić
+      scope z MVP:** "istotne lokalne zagrożenia" i "zweryfikowane zdarzenia
+      środowiskowe" to explicit pozycje MVP w §9 Master Planu ("ALERTY I
+      ZDARZENIA"), nie Future — "świadomie ograniczyć MVP do samego modelu
+      bez populacji" byłoby cichym zdjęciem zatwierdzonego zakresu MVP przez
+      wpis w ADR, nie decyzją do podjęcia w treści taska. Ten task nie ma
+      dziś zidentyfikowanego źródła danych dla tej kategorii (IMGW ostrzega
+      przez `Alert`, nie przez zdarzenia zweryfikowane) — **BLOKADA:
+      potrzebna Twoja decyzja o źródle** (np. RCB/RSO, informacje służb,
+      albo ręczny/administracyjny workflow zgłaszania zdarzeń), tym samym
+      wzorcem jak TASK-8.5 (CAMS) blokuje na kluczu API. Do czasu decyzji:
+      przygotować kontrakt modelu/ingestu, ale nie zamykać Phase 9 (TASK-9.6
+      zależny od realnych rekordów `Event`) bez albo działającego źródła,
+      albo jawnej rewizji zakresu MVP w ADR-013 zatwierdzonej przez Ciebie
+      (rule #12) — nie przez implementatora po cichu.
 - [ ] **TASK-9.5:** Geo-matching alertów → lokalizacja (zależne od
       TASK-6.2) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
       **Zakres obejmuje też `dashboard_latest()`** — TASK-7.2 dodał tam
