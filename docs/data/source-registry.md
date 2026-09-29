@@ -128,7 +128,7 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `stan_wody`. Mogą być `null` dla stacji bez zdefiniowanego progu (potwierdzone
   na żywo, np. stacje na jeziorach: "Żukowo", "Borucino") — to nie błąd, tylko
   brak progu dla tej stacji. `normalize()` emituje je jako osobne rekordy
-  Measurement (`water_level_warning_cm`/`water_level_alarm_cm`), status
+  Measurement (`water_level_warn_cm`/`water_level_alarm_cm`), status
   NORMAL/WARNING/ALARM/UNKNOWN liczony deterministycznie przy odczycie w
   `GET /api/v1/hydro/latest` — prosta komparacja liczb opublikowanych przez
   źródło, nie interpretacja LLM (rule #10)

@@ -13,7 +13,7 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
 
 - `imgw_hydro/parser.py`: `normalize()` zwraca teraz listę 1-3 rekordów
   Measurement (wzorzec jak w `open_meteo/parser.py`) — `water_level_cm` zawsze,
-  plus `water_level_warning_cm`/`water_level_alarm_cm` gdy próg zdefiniowany
+  plus `water_level_warn_cm`/`water_level_alarm_cm` gdy próg zdefiniowany
   (`stan_ostrzegawczy`/`stan_alarmowy` nie są `null`).
 - `imgw_hydro/ingest.py`: `ingest_station()` zwraca liczbę zapisanych rekordów
   (0-3) zamiast `bool`, iteruje po liście z `normalize()`.
@@ -44,6 +44,17 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
 - [x] Stacja z samymi progami (bez aktualnego `stan_wody`) nie pojawia się w
       odpowiedzi — zachowanie sprzed tej zmiany bez regresji (test:
       `test_latest_hydro_ignores_threshold_only_station`).
+- [x] Każdy `param_code` mieści się w `VARCHAR(20)` (`Measurement.param_code`)
+      — Codex review PR #42: `water_level_warning_cm` (22 znaki) zostałoby
+      odrzucone przez PostgreSQL, SQLite tego nie egzekwuje, więc testy by
+      tego nie złapały. Zmieniono na `water_level_warn_cm` (19 znaków), dodano
+      test wprost sprawdzający limit (test:
+      `test_param_codes_fit_the_varchar20_column`).
+- [x] Wycofany przez IMGW próg (kiedyś publikowany, potem `null`) nie zostaje
+      na zawsze "najnowszym" rekordem — `/hydro/latest` honoruje próg tylko z
+      tego samego cyklu ingestu co aktualny odczyt (ten sam `observed_at`),
+      bez zmiany schematu (test:
+      `test_latest_hydro_ignores_stale_threshold_from_earlier_batch`).
 
 ## Tests
 
