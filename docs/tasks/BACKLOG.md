@@ -200,7 +200,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       stacji w promieniu 50 km — użytkownik poza tą garstką dostanie
       poprawną gminę, ale zero danych o powietrzu. Dodać do zakresu
       odkrycie/dobór stacji GIOŚ per aktywna gmina (katalog stacji + ich
-      polling), nie tylko geo-matching bez danych do dopasowania.
+      polling), nie tylko geo-matching bez danych do dopasowania. **(8)
+      Zawężenie dashboardu do wybranej lokalizacji** — `dashboard_latest()`
+      dziś zwraca `areas` dla KAŻDEGO wiersza `geo_areas`
+      (`dashboard.py:25-88`); przy pełnym imporcie ~2.5k gmin z (1) ten sam
+      request liczyłby i pobierał dane dla całego kraju zamiast pojedynczej
+      lokalizacji użytkownika. TASK-12.2 tylko rozszerza selektor, żaden
+      task nie dodaje kontraktu "wybrana lokalizacja" do requestu. Dodać
+      parametr (np. `geo_area_id`/`observed_area_code`) zawężający agregat
+      do lokalizacji z manualnego wyboru (TASK-12.2) lub GPS-resolve z (5).
 
 ### Phase 7 — Dashboard (dokończenie)
 
@@ -211,12 +219,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `GET /api/v1/dashboard/latest` dziś nie zwraca w ogóle identyfikatora
       źródła dla `weather` (`air` ma `station_name`, ale ani jeden blok nie
       ma pełnego tekstu atrybucji). Realny zakres: dodać do
-      `dashboard_latest()` pole `source` (id źródła) + `attribution` (pełny
+      `dashboard_latest()` pola `source` (id źródła) + `attribution` (pełny
       tekst z `source-registry.md`, dosłownie — np. "Weather data by
       Open-Meteo.com (CC BY 4.0)", "Dane: Główny Inspektorat Ochrony
-      Środowiska (GIOŚ)") w obu blokach (`air`, `weather`), potem dopiero
-      ekran mobile renderujący te dwa pola per sekcja (nie tylko nazwę
-      stacji). **Wzorzec obowiązuje dla każdej kolejnej sekcji danych** —
+      Środowiska (GIOŚ)") **+ `observed_at`** (kontrakt source-transparency
+      to source+timestamp+freshness razem, nie samo źródło — dziś oba bloki
+      zwracają `freshness`, ale nie `observed_at`, więc użytkownik widzi
+      "FRESH", ale nie widzi KIEDY) w obu blokach (`air`, `weather`), potem
+      dopiero ekran mobile renderujący te trzy pola per sekcja (nie tylko
+      nazwę stacji). **Wzorzec obowiązuje dla każdej kolejnej sekcji danych** —
       TASK-7.2 (IMGW hydro/alerty), TASK-8.8 (CAMS pyłki), TASK-11.5
       (kąpieliska/Sanepid) muszą dodać `source`+`attribution` do swoich
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
@@ -401,7 +412,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 - [ ] **TASK-13.1:** Source health / stale monitoring — rozszerzenie
       istniejącego per-wiersz freshness o widoczny status źródła
-      (przydatne razem z TASK-7.4).
+      (przydatne razem z TASK-7.4). **Pełny zakres §44 Master Planu**: last
+      attempted/successful fetch, duration, records fetched/processed,
+      validation errors, duplicate rate, stale rate, source availability —
+      dzisiejszy scheduler (ADR-007) trzyma stan tylko w pamięci procesu i
+      nie ma historii runów, więc po restarcie/nieudanym fetchu operator nie
+      odtworzy tych sygnałów. Zakres obejmuje trwałe (DB lub zewnętrzny
+      monitoring z TASK-13.2) przechowanie per-run telemetrii, nie tylko
+      aktualnego stanu.
 - [ ] **TASK-13.2:** Monitoring/error-reporting (§69 Master Planu) —
       **korekta: sam `logging` NIE wystarczy** (poprzednia wersja tego tasku
       błędnie na to pozwalała). §69 wymaga realnego capture wyjątków
@@ -451,6 +469,16 @@ stawiać produkcyjnej infry dla appki bez pełnego MVP) — ale wypisane
 jawnie, żeby kolejka faktycznie prowadziła do wydania, nie kończyła się na
 placeholderze.
 
+- [ ] **TASK-15.0:** Source Approval Gate — domknięcie wszystkich źródeł
+      przed produkcją (rule #15). `source-registry.md` ma dziś realne dziury
+      mimo statusu IMPLEMENTED: GIOŚ ma `commercial_use` "do potwierdzenia
+      przy pełnym Source Approval Gate przed produkcją" (linia 76-77),
+      Open-Meteo nigdy nie miał żywej weryfikacji kształtu JSON (linia
+      18-33). TASK-6.2 dokłada GUS/TERYT/PRG (granice gmin) bez wpisu w
+      registry i bez gate w ogóle. Zakres: przejść każde źródło do statusu
+      VERIFIED/APPROVED (albo świadomie udokumentować akceptowane ryzyko)
+      zanim TASK-15.2 wdroży produkcję — inaczej kolejka może zakończyć się
+      publikacją niezatwierdzonych źródeł.
 - [ ] **TASK-15.1:** Środowisko staging (osobne od dev/produkcji) na VPS.
 - [ ] **TASK-15.2:** Środowisko produkcyjne + wdrożenie TASK-1.1 (backup
       poza VPS) i regularnego testu odtworzenia w praktyce (nie tylko kod
