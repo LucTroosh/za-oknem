@@ -74,12 +74,44 @@ class TestRunImgwHydro:
         assert ingest_mock.call_args_list[0].kwargs["fetched_at"].tzinfo == UTC
 
 
+class TestRunImgwWarningsHydro:
+    def test_ingests_every_parsed_warning(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_warnings_client,
+            "fetch_warnings",
+            MagicMock(return_value=[{"numer": "1"}, {"numer": "2"}]),
+        )
+        monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
+        ingest_mock = MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_warning", ingest_mock)
+
+        scheduler.run_imgw_warningshydro()
+
+        assert ingest_mock.call_count == 2
+
+    def test_empty_message_shape_ingests_nothing(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_warnings_client,
+            "fetch_warnings",
+            MagicMock(return_value={"message": "Brak"}),
+        )
+        ingest_mock = MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_warning", ingest_mock)
+
+        scheduler.run_imgw_warningshydro()
+
+        ingest_mock.assert_not_called()
+
+
 class TestMain:
     def _mock_all_jobs(self, monkeypatch):
         mocks = {
             "run_open_meteo": MagicMock(),
             "run_gios": MagicMock(),
             "run_imgw_hydro": MagicMock(),
+            "run_imgw_warningshydro": MagicMock(),
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)

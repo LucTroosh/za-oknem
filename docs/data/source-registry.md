@@ -124,19 +124,34 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   realnym uruchomieniu ingestu)
 - **last_verified_at:** 2026-09-29
 
-## imgw_alerts (ostrzeżenia hydrologiczne/meteo — Alert, PRZYSZŁY task)
+## imgw_warningshydro (ostrzeżenia hydrologiczne — Alert)
 
-- **connector:** brak — endpoint zweryfikowany, model `Alert` po naszej stronie
-  jeszcze nie istnieje (ADR-008 non-goal)
-- **endpoint:** `/api/data/warningshydro`, `/api/data/warningsmeteo` — zweryfikowane
-  na żywo 2026-09-29 (WebFetch). Kształt: lista obiektów ostrzeżeń
-  (`stopień`, `data_od`, `data_do`, `prawdopodobieństwo`, `zdarzenie`,
-  `obszary[].wojewodztwo`) — **uwaga**: `warningsmeteo` przy braku aktywnych
-  ostrzeżeń zwraca obiekt `{"message": "Brak ostrzeżeń meteorologicznych"}`, nie
-  pustą listę (zweryfikowane; nie sprawdzono czy `warningshydro` zachowuje się
-  identycznie — do potwierdzenia przed implementacją, nie zgadywać).
+- **connector:** `imgw_warningshydro` (client/parser/ingest) — model `Alert`
+  (ADR-009), oddzielny od `imgw_hydro`/Measurement (rule #7)
+- **endpoint:** `https://danepubliczne.imgw.pl/api/data/warningshydro` —
+  zweryfikowane na żywo 2026-09-29 (WebFetch). Kształt: lista obiektów
+  ostrzeżeń (`stopień`, `data_od`, `data_do`, `prawdopodobieństwo`, `zdarzenie`,
+  `obszary[].wojewodztwo`) lub `{"message": "..."}` przy braku aktywnych
+  ostrzeżeń (parsowane defensywnie jako pusta lista — patrz ADR-009; kształt
+  pustego stanu potwierdzony na żywo tylko dla `warningsmeteo`, dla
+  `warningshydro` obsłużony tym samym kodem "na wszelki wypadek", nie
+  zweryfikowany osobno).
+- **frequency:** NIEZNANA z dokumentacji — ADR-009 przyjmuje roboczo 1h
+  (source-critical, ale bez potwierdzonego realnego cyklu — rule #16 wyjątek
+  dla ostrzeżeń, z jawnym uzasadnieniem tutaj)
 - **license/rate_limit/attribution:** jak `imgw_hydro` wyżej (ten sam regulamin)
-- **status:** DISCOVERY — endpoint i licencja zweryfikowane, ale to Alert (rule #7),
-  nie Measurement; wymaga osobnego ADR i modelu danych, nie doklejenia do
-  `imgw_hydro` (patrz ADR-008)
+- **status:** IMPLEMENTED — connector, model `Alert`, `GET /api/v1/alerts/latest`
+  i scheduler (`run_imgw_warningshydro`, co 1h) gotowe 2026-09-29;
+  `severity_raw` przechowywane bez reinterpretacji (rule #10)
+- **last_verified_at:** 2026-09-29
+
+## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, PRZYSZŁY task)
+
+- **connector:** brak — osobny task, nie doklejać do `imgw_warningshydro`
+  (inny endpoint, inny kształt danych mimo wspólnego wzorca)
+- **endpoint:** `https://danepubliczne.imgw.pl/api/data/warningsmeteo` —
+  zweryfikowane na żywo 2026-09-29; przy braku ostrzeżeń zwraca
+  `{"message": "Brak ostrzeżeń meteorologicznych"}` (potwierdzone na żywo)
+- **license/rate_limit/attribution:** jak `imgw_hydro` wyżej (ten sam regulamin)
+- **status:** DISCOVERY
 - **last_verified_at:** 2026-09-29

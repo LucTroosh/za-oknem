@@ -20,9 +20,11 @@ python -m app.connectors.gios.ingest --list          # znajdź --station-id blis
 python -m app.connectors.gios.ingest --station-id 38
 python -m app.connectors.open_meteo.ingest            # wszystkie geo_areas (seed ADR-005)
 python -m app.connectors.imgw_hydro.ingest            # wszystkie stacje hydro, jednym wywołaniem
+python -m app.connectors.imgw_warningshydro.ingest    # ostrzeżenia hydrologiczne (Alert, ADR-009)
 
 curl http://localhost:8000/api/v1/dashboard/latest    # powinno zwrócić air + weather
 curl http://localhost:8000/api/v1/hydro/latest        # stan wody, osobny endpoint (ADR-008)
+curl http://localhost:8000/api/v1/alerts/latest       # aktywne ostrzeżenia, osobny endpoint (ADR-009)
 ```
 
 Jeśli `dashboard.air` jest `null` dla Twojej lokalizacji — najbliższa stacja GIOŚ
@@ -31,9 +33,10 @@ ingestu dla stacji w pobliżu.
 
 **Automatyczne odświeżanie zamiast ręcznego ingestu** (ADR-007): ustaw
 `GIOS_STATION_IDS=38,42` (Twoje stacje, przecinkami) w `.env`, potem
-`docker compose up scheduler` — pętla sama woła `open_meteo` co 3h, `gios` co 1h i
-`imgw_hydro` co 1h (wszystkie stacje, bez konfiguracji), bez ręcznego CLI. Puste
-`GIOS_STATION_IDS` = scheduler pomija GIOŚ (jawnie loguje, nie zgaduje stacji).
+`docker compose up scheduler` — pętla sama woła `open_meteo` co 3h, `gios` co 1h,
+`imgw_hydro` co 1h i `imgw_warningshydro` co 1h (wszystkie stacje/ostrzeżenia, bez
+konfiguracji), bez ręcznego CLI. Puste `GIOS_STATION_IDS` = scheduler pomija GIOŚ
+(jawnie loguje, nie zgaduje stacji).
 
 ```bash
 cd apps/mobile
@@ -71,11 +74,14 @@ docker compose exec api python -m app.connectors.open_meteo.ingest
 docker compose exec api python -m app.connectors.open_meteo.ingest --slug klodzko
 
 docker compose exec api python -m app.connectors.imgw_hydro.ingest
+docker compose exec api python -m app.connectors.imgw_warningshydro.ingest
 ```
 
 `open_meteo.ingest` bez flag ładuje pogodę dla wszystkich wierszy w `geo_areas`
 (seed z ADR-005), `imgw_hydro.ingest` — analogicznie, dla wszystkich stacji
 hydrologicznych IMGW (jedno wywołanie API, bez flag do wyboru stacji — ADR-008).
+`imgw_warningshydro.ingest` — ostrzeżenia hydrologiczne, tym samym wzorcem
+jednego wywołania bez flag (Alert, nie Measurement — rule #7, ADR-009).
 
 ### Mobile (Expo)
 
