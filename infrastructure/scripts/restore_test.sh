@@ -107,14 +107,25 @@ fi
 WORKDIR="$(mktemp -d)"
 DB_CREATED=""
 cleanup() {
+  # Zachowujemy oryginalny kod wyjścia głównego przebiegu — jeśli test już
+  # zawiódł, sprzątanie nie ma zamieniać tego na "sukces" (i odwrotnie).
+  local exit_code=$?
   rm -rf "$WORKDIR"
   # "jednorazowa baza" ma taką pozostać — bez tego każdy przebieg (np. z crona,
   # TASK-15.2) trwale zostawia pełną kopię danych produkcyjnych na instancji
   # Postgresa (Codex review). Sprzątamy przy każdym wyjściu, sukces czy błąd.
+  # `|| true` (poprzednia wersja) połykało błąd DROP i skrypt kończył się
+  # sukcesem nawet gdy baza testowa (pełna kopia danych produkcyjnych)
+  # zostawała trwale na instancji — monitoring odnotowałby to jako zdany test
+  # odtworzenia mimo porzuconej kopii danych (Codex review, runda 9).
   if [ -n "$DB_CREATED" ]; then
-    psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 \
-      -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null 2>&1 || true
+    if ! psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 \
+      -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null 2>&1; then
+      echo "[restore_test] BŁĄD: nie udało się usunąć bazy testowej ${RESTORE_TEST_DB} — została na instancji, wymaga ręcznego sprzątnięcia." >&2
+      exit_code=1
+    fi
   fi
+  exit "$exit_code"
 }
 trap cleanup EXIT
 
