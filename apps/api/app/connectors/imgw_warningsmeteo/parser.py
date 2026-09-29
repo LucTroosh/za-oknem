@@ -30,7 +30,11 @@ def parse_warnings(payload: Any) -> list[dict[str, Any]]:
     warnings" message-dict shape. Anything else is an unrecognized shape -
     fail loud (rule #10), don't guess."""
     if isinstance(payload, dict):
-        if payload.get("message") == NO_WARNINGS_MESSAGE:
+        # Whole-dict equality, not just the "message" key: an extra field (an
+        # "error" flag alongside the right text, say) means this isn't the
+        # verified shape either, and must fail loud rather than be read as a
+        # valid empty snapshot (rule #10; Codex review, PR #38).
+        if payload == {"message": NO_WARNINGS_MESSAGE}:
             return []
         raise ImgwWarningsMeteoParseError(f"unrecognized dict shape: {payload!r}")
     if isinstance(payload, list):
