@@ -113,7 +113,7 @@ Alerts/Settings/push/profilu).
 | push notifications | ⬜ TODO |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
-| source transparency | 🟡 PARTIAL — nazwa stacji/źródła widoczna w danych z API, brak dedykowanego ekranu "Źródła" |
+| source transparency | ⬜ TODO — API zwraca `station_name`, ale mobile (`app/index.tsx`) go nie renderuje (tylko nazwę geo_area i freshness); `/dashboard/latest` nie ma identyfikatora źródła ani dla air, ani dla weather — użytkownik dziś nie widzi żadnej atrybucji źródła |
 | freshness (UI) | ✅ DONE — etykieta freshness pokazywana per sekcja |
 | loading / error / stale / no-data states | 🟡 PARTIAL — loading/error/ready obsłużone; stale i no-data nie mają jeszcze dedykowanych stanów UI (§59, §80) |
 
