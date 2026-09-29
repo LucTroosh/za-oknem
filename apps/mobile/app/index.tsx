@@ -40,6 +40,13 @@ type DashboardArea = {
 
 type LoadState = "loading" | "ready" | "error";
 
+// Codex review (round 2): toLocaleTimeString() alone made an observation from
+// yesterday 14:00 look identical to one from today 14:00 — STALE only gives a
+// broad age bucket, not the actual day. Date + time together, always.
+function formatObservedAt(iso: string): string {
+  return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
+}
+
 export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
   const [areas, setAreas] = useState<DashboardArea[]>([]);
@@ -107,7 +114,7 @@ export default function Home() {
                     </Text>
                   ))}
                   <Text style={styles.attribution}>
-                    {item.air.attribution} · {new Date(item.air.observed_at).toLocaleTimeString("pl-PL")}
+                    {item.air.attribution} · {formatObservedAt(item.air.observed_at)}
                   </Text>
                 </View>
               ) : (
@@ -121,8 +128,7 @@ export default function Home() {
                     <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
                   </Text>
                   <Text style={styles.attribution}>
-                    {item.weather.attribution} ·{" "}
-                    {new Date(item.weather.observed_at).toLocaleTimeString("pl-PL")}
+                    {item.weather.attribution} · {formatObservedAt(item.weather.observed_at)}
                   </Text>
                 </View>
               ) : (
