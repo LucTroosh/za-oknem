@@ -499,7 +499,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       nie ma historii runów, więc po restarcie/nieudanym fetchu operator nie
       odtworzy tych sygnałów. Zakres obejmuje trwałe (DB lub zewnętrzny
       monitoring z TASK-13.2) przechowanie per-run telemetrii, nie tylko
-      aktualnego stanu.
+      aktualnego stanu. **Brakujący element (Codex):** ADR-001 wprost wymaga
+      "licznik dziennych wywołań per źródło w bazie, alert przy 70% dziennego
+      limitu", a ADR-004 rozszerza ten wymóg na każdy connector — żaden task
+      w tej kolejce tego nie implementuje. Bez tego rosnący zbiór aktywnych
+      gmin (TASK-6.2) może po cichu wyczerpać limit Open-Meteo/CAMS i
+      zostawić pogodę/pyłki stale dla wszystkich, zanim ktokolwiek to
+      zauważy. Zakres TASK-13.1 obejmuje więc też ten licznik+alert, nie
+      tylko listę sygnałów z §44.
 - [ ] **TASK-13.2:** Monitoring/error-reporting (§69 Master Planu) —
       **korekta: sam `logging` NIE wystarczy** (poprzednia wersja tego tasku
       błędnie na to pozwalała). §69 wymaga realnego capture wyjątków
@@ -696,6 +703,16 @@ tego mylić ze statusem "zrobione" dla Phase 0-4 wyżej.
   nie wymaga). Realna kolejka (Celery/RQ/coś podobnego) dopiero gdy liczba
   connectorów/częstotliwość fetchowania realnie tego zażąda — nie jest to
   "zrobione" w Phase 0-4, tylko świadomie pominięte na razie, tak jak Redis.
+  **Konkretny trigger do rewizji (Codex):** `scheduler.py` jest jednowątkowy
+  i sekwencyjny — `main()` czeka na pełne zakończenie `run_open_meteo()`
+  (synchroniczny request per gmina) zanim sprawdzi, czy `run_imgw_warningshydro`
+  (bezpieczeństwo — ostrzeżenia) jest już due w tej samej iteracji. TASK-6.2
+  planuje pełny import TERYT (~2.5k gmin) z pollingiem pogody ograniczonym do
+  "aktywnych" gmin (punkt 4) — jeśli ten zbiór urośnie do setek/tysięcy, spowolnienie
+  Open-Meteo może opóźniać odświeżanie ostrzeżeń o godziny. Rewizja tego non-goalu
+  (bounded concurrency, osobny proces dla warningshydro, albo jawna bramka
+  wydajnościowa przed release) jest więc częścią TASK-6.2/Phase 15, nie
+  nieokreślonym "kiedyś" — nie zamykać Phase 15 bez tego sprawdzenia.
 - **Monitoring/alerting produkcyjny poza `logging`** — patrz TASK-13.2
   (Phase 13), świadomie odłożone do momentu, gdy aplikacja ma realny ruch
   produkcyjny do monitorowania; do tego czasu structured `logging` +
