@@ -371,11 +371,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (endpoint musi istnieć).
 - [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
       Engine z Phase 9 i tokenów z TASK-10.1/TASK-10.5).
-- [ ] **TASK-10.3:** Preferencje powiadomień (mobile) — użytkownik wybiera,
-      jakie kategorie alertów/dla jakich lokalizacji dostaje push (§Phase 10
-      Master Planu: "notification preferences"). Bez tego TASK-10.2 wysyła
-      wszystko do wszystkich zarejestrowanych urządzeń, co narusza ideę
-      geo-relevance z Phase 9.
+- [ ] **TASK-10.3:** Preferencje powiadomień — użytkownik wybiera, jakie
+      kategorie alertów/dla jakich lokalizacji dostaje push (§Phase 10
+      Master Planu: "notification preferences"). **Nie tylko mobile UI** —
+      Notification Engine (TASK-10.2) decyduje server-side, zanim klient w
+      ogóle się odezwie (app w tle/zabita), więc preferencje muszą mieć
+      model + endpoint per-urządzenie (nie lokalny stan appki) i TASK-10.2
+      musi je faktycznie sprawdzać przed wysyłką — inaczej zmiana ustawień
+      nie ma efektu, a TASK-10.2 nadal wysyła wszystko do wszystkich.
 - [ ] **TASK-10.4:** Deep links z powiadomienia do konkretnego
       alertu/ekranu w appce (§Phase 10 Master Planu: "deep links"). Zależne
       od TASK-9.7 (ekran Alerty, żeby było dokąd linkować).
@@ -402,7 +405,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       przyczyna zamknięcia, sezon, wyniki badań, daty (Master Plan MVP:
       `/api/v1/water`) — czyta wyłącznie z naszej bazy (rule #14). Bez tego
       TASK-11.2/11.3 zbierają dane, których użytkownik nigdy nie zobaczy
-      poza samym faktem zamknięcia jako alertu.
+      poza samym faktem zamknięcia jako alertu. **Zakres obejmuje freshness
+      (rule #8)** — TASK-7.4 pokrywa tylko `/air`, `/hydro`, `/alerts`,
+      `/weather`, nie `/water`; przy danych bezpieczeństwa (otwarte/
+      zamknięte kąpielisko) brak rozróżnienia FRESH/STALE jest szczególnie
+      ryzykowny — nieaktualny status "otwarte" wygląda identycznie jak
+      aktualny.
 - [ ] **TASK-11.5:** Sekcja kąpielisk na mobile (status, badania, sezon) —
       dopiero po TASK-11.4. Wzorzec `source`/`attribution` z TASK-7.1
       (Sanepid/GIS) dotyczy też tej sekcji.
