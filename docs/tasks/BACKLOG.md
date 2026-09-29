@@ -241,10 +241,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ograniczać liczbę niezależnych requestów). Zakres: dodać `alerts`
       (niefiltrowane — TASK-9.7 dodaje filtrowanie po lokalizacji dopiero po
       Phase 9) do `dashboard_latest()`, potem sekcja alertów na mobile
-      czyta z agregatu. Hydrologia (`/api/v1/hydrology`, §8) nie jest
-      wymieniona w §55 jako część agregatu — zostaje osobnym fetchem na
-      mobile, czysto frontendowa robota. Wzorzec `source`/`attribution` z
-      TASK-7.1 (IMGW) dotyczy obu.
+      czyta z agregatu. Hydrologia (realny endpoint: `GET /api/v1/hydro/
+      latest` w `apps/api/app/api/v1/hydro.py` — nie `/api/v1/hydrology`,
+      uważać przy implementacji mobile fetcha; §8) nie jest wymieniona w
+      §55 jako część agregatu — zostaje osobnym fetchem na mobile, czysto
+      frontendowa robota. Wzorzec `source`/`attribution` z TASK-7.1 (IMGW)
+      dotyczy obu.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -324,7 +326,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       listą, szczegółem alertu (treść źródłowa, timestamp, źródło — rule
       #10: LLM nigdy nie jest źródłem prawdy dla alertów, więc pokazujemy
       oryginalny tekst, nie streszczenie), i filtrowaniem po lokalizacji
-      (TASK-9.5).
+      (TASK-9.5). **Zakres obejmuje bottom navigation (§57: Home/Alerty/
+      Settings)** — dziś root layout to sam stack, więc ten ekran (i później
+      Settings z TASK-12.1) powstałby bez sposobu, żeby użytkownik się do
+      niego dostał. Wprowadzić tab layout tutaj, jako pierwszy task, który
+      faktycznie potrzebuje drugiej zakładki (Settings z TASK-12.1 dokłada
+      tylko trzecią do gotowego layoutu).
 - [ ] Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
@@ -345,8 +352,17 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       protection wprost, nie jako opcjonalny przykład użycia Redis w
       TASK-15.4 — bez tego dowolny klient może masowo tworzyć/odświeżać
       rekordy urządzeń i zasilać push niezweryfikowanymi tokenami.
+- [ ] **TASK-10.5:** Mobile client push registration (`expo-notifications`)
+      — TASK-10.1 kończy się na backendzie (model + endpoint), ale żaden
+      task nie prosi o uprawnienie powiadomień, nie pobiera Expo push
+      tokena ani nie wysyła go do `POST /api/v1/devices` z appki. Bez tego
+      TASK-10.2 (Notification Engine) zakłada tokeny, których żaden klient
+      nigdy nie zarejestrował — świeża instalacja nie dostanie push w
+      ogóle. Zakres: permission request, pobranie tokena, wysyłka przy
+      starcie + cykl odświeżania (token refresh). Zależne od TASK-10.1
+      (endpoint musi istnieć).
 - [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
-      Engine z Phase 9 i tokenów z TASK-10.1).
+      Engine z Phase 9 i tokenów z TASK-10.1/TASK-10.5).
 - [ ] **TASK-10.3:** Preferencje powiadomień (mobile) — użytkownik wybiera,
       jakie kategorie alertów/dla jakich lokalizacji dostaje push (§Phase 10
       Master Planu: "notification preferences"). Bez tego TASK-10.2 wysyła
@@ -389,7 +405,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 ### Phase 12 — Settings / Profiles
 
 - [ ] **TASK-12.1:** Ekran Settings (mobile) — placeholder/skeleton, potem
-      realne preferencje.
+      realne preferencje. Bottom navigation (§57) wprowadzone już w TASK-9.7
+      (pierwszy ekran wymagający drugiej zakładki) — tu tylko dodać trzecią
+      zakładkę do istniejącego tab layoutu, nie tworzyć nawigacji od nowa.
 - [ ] **TASK-12.6:** Pozostałe sekcje Settings z §60 Master Planu — location/
       profile/allergies/outdoor/notifications pokrywają TASK-12.2/12.3/
       12.4/10.3, ale §60 wymienia też **data & privacy, sources, about**, dla
@@ -418,7 +436,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (prawdopodobnie: lokalny profil per-urządzenie, nie serwerowe konto).
       "outdoor" tu to tylko przechowana preferencja (czy ta osoba w ogóle
       chce widzieć `OutdoorCard`) — sam silnik interpretacji to TASK-7.6/
-      7.7/7.8 (Phase 7), nie duplikować logiki tutaj.
+      7.7/7.8 (Phase 7), nie duplikować logiki tutaj. **Zakres obejmuje też
+      realne zastosowanie preferencji** — karty pyłkowa/outdoor powstały
+      wcześniej (Phase 7/8) i żaden późniejszy task nie wraca do nich, żeby
+      uwzględnić allergy/family/outdoor z tego tasku; bez tej integracji
+      zmiana ustawień nie ma żadnego efektu w produkcie. Dodać krok
+      "zastosuj profil" po TASK-12.4 do dashboardu/kart pyłkowej/outdoor.
 
 ### Phase 13 — Data Quality / Observability
 
