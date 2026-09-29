@@ -43,4 +43,5 @@ def test_fetch_weather_passes_coordinates_and_params(monkeypatch):
     assert kwargs["params"]["latitude"] == 50.43
     assert kwargs["params"]["longitude"] == 16.65
     assert kwargs["params"]["current"] == client.CURRENT_PARAMS
+    assert kwargs["params"]["hourly"] == client.HOURLY_PARAMS
     assert kwargs["params"]["daily"] == client.DAILY_PARAMS

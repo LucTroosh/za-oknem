@@ -3,9 +3,17 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.api.v1.hydro import FRESH_MAX_AGE, RECENT_MAX_AGE, compute_status, freshness
+from app.api.v1.hydro import (
+    FRESH_MAX_AGE,
+    RECENT_MAX_AGE,
+    HydroLatestResponse,
+    compute_status,
+    freshness,
+)
 from app.db import get_db
 from app.main import app
 from app.models import Measurement
@@ -169,3 +177,54 @@ def test_compute_status_alarm_at_threshold():
 
 def test_compute_status_unknown_without_thresholds():
     assert compute_status(225.0, warning=None, alarm=None) == "UNKNOWN"
+
+
+# --- HydroLatestResponse (TASK-API-3: response_model enforces a shape) --------
+
+
+def test_hydro_latest_response_rejects_missing_required_field():
+    with pytest.raises(ValidationError):
+        HydroLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "150190130",
+                        # station_name missing
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "water_level_cm": 120.0,
+                        "warning_level_cm": None,
+                        "alarm_level_cm": None,
+                        "status": "UNKNOWN",
+                        "unit": "cm",
+                        "observed_at": "2026-09-29T12:00:00+00:00",
+                        "freshness": "FRESH",
+                        "source": "imgw_hydro",
+                    }
+                ]
+            }
+        )
+
+
+def test_hydro_latest_response_rejects_unknown_status():
+    with pytest.raises(ValidationError):
+        HydroLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "150190130",
+                        "station_name": "Test",
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "water_level_cm": 120.0,
+                        "warning_level_cm": None,
+                        "alarm_level_cm": None,
+                        "status": "not_a_real_status",
+                        "unit": "cm",
+                        "observed_at": "2026-09-29T12:00:00+00:00",
+                        "freshness": "FRESH",
+                        "source": "imgw_hydro",
+                    }
+                ]
+            }
+        )

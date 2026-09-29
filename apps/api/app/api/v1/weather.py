@@ -63,9 +63,25 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
                 "name": area.name,
                 "latitude": area.latitude,
                 "longitude": area.longitude,
+                # Rough summary only ("most recent of any param") — NOT authoritative
+                # per param. `current` params (temperature etc.) refresh every ingest
+                # cycle, but the `hourly`-derived ones (dew_point/visibility/uv_index,
+                # TASK-5.4) can silently stay stale for cycles when that part of the
+                # payload fails while `current` still succeeds (rule #1 isolation) —
+                # the max() here would then report this object as FRESH even though
+                # some params are actually STALE. Use params.<code>.freshness for the
+                # real per-param status (Codex review).
                 "observed_at": latest_observed_at.isoformat(),
                 "freshness": freshness(latest_observed_at),
-                "params": {p.param_code: {"value": p.value, "unit": p.unit} for p in params},
+                "params": {
+                    p.param_code: {
+                        "value": p.value,
+                        "unit": p.unit,
+                        "observed_at": p.observed_at.isoformat(),
+                        "freshness": freshness(p.observed_at),
+                    }
+                    for p in params
+                },
                 "source": "open_meteo",
             }
         )
