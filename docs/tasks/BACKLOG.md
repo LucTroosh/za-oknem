@@ -617,12 +617,21 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       konkretnych kontroli technicznych: payload limits, CORS, security
       headers, firewall, osobne credentials, Docker hardening,
       dependency updates. Żaden task w kolejce (tu ani w Phase 15) tego
-      nie implementuje/weryfikuje. Zakres tego tasku obejmuje więc
-      remediację i weryfikację całej listy z §64 jako acceptance
-      condition (część — firewall, Docker, credentials — faktycznie
-      wdrażana dopiero z realną infrastrukturą TASK-15.1/15.2, ale
-      TASK-14.2 jest miejscem, gdzie ta lista zostaje sprawdzona checklistą
-      przed release, nie pominięta w ciszy).
+      nie implementuje/weryfikuje. **Korekta (Codex, runda 5) — poprzednia
+      wersja tworzyła cykl zależności:** wymaganie "remediacji i weryfikacji
+      całej listy z §64" jako acceptance condition TASK-14.2 jest
+      niewykonalne, bo firewall/Docker hardening/osobne credentials
+      wdraża dopiero realna infrastruktura w Phase 15 (`### Phase 15` —
+      "wykonanie odłożone aż Phase 0-14 zamknięte"), a TASK-14.2 należy do
+      Phase 14, więc nie może zależeć od pracy z fazy, która startuje
+      dopiero PO jego zamknięciu. Poprawiony zakres: TASK-14.2 weryfikuje i
+      wdraża tylko kontrole z §64 niewymagające produkcyjnej infrastruktury
+      (payload limits, CORS, security headers, proces aktualizacji
+      zależności) jako własne acceptance criteria; firewall, Docker
+      hardening i osobne credentials produkcyjne zostają jawnie acceptance
+      criteria TASK-15.1/15.2 (nie TASK-14.2) — TASK-14.2 kończy się
+      checklistą §64 z jawnie oznaczonymi pozycjami "do TASK-15.1/15.2",
+      nie próbą ich wdrożenia przed istnieniem środowiska produkcyjnego.
 - [ ] **TASK-14.3:** Przegląd zgodności analytics/monitoringu z gotową
       Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
       odpowiadają temu, co deklaruje Privacy Policy z TASK-14.2) —
