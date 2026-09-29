@@ -44,6 +44,18 @@ class TestParseWarnings:
         with pytest.raises(ImgwWarningsHydroParseError):
             parse_warnings({"unexpected": "shape"})
 
+    def test_raises_on_message_dict_with_extra_fields(self):
+        # A diagnostic/rate-limit response could carry a "message" key alongside
+        # other fields - only the exact single-key shape is the verified empty
+        # state, so anything else must fail loud, not look like zero warnings
+        # (rule #10; same gap Codex review caught on warningsmeteo, PR #38).
+        with pytest.raises(ImgwWarningsHydroParseError):
+            parse_warnings({"message": "Brak ostrzeżeń", "error": "stale response"})
+
+    def test_raises_on_non_string_message_value(self):
+        with pytest.raises(ImgwWarningsHydroParseError):
+            parse_warnings({"message": None})
+
     def test_raises_on_unrecognized_type(self):
         with pytest.raises(ImgwWarningsHydroParseError):
             parse_warnings("not a list or dict")
