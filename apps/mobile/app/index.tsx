@@ -19,9 +19,9 @@ type DashboardArea = {
   name: string;
   air: {
     station_name: string;
-    pm25: number;
-    unit: string;
-    freshness: Freshness;
+    // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
+    // — freshness is per-param since each param can be observed at a different time.
+    params: Record<string, { value: number; unit: string; freshness: Freshness }>;
   } | null;
   weather: {
     freshness: Freshness;
@@ -90,12 +90,16 @@ export default function Home() {
             <Text style={styles.stationName}>{item.name}</Text>
             <View style={styles.metricsRow}>
               {item.air ? (
-                <Text style={styles.metric}>
-                  PM2.5: {item.air.pm25} {item.air.unit}{" "}
-                  <Text style={styles.freshness}>({FRESHNESS_LABEL[item.air.freshness]})</Text>
-                </Text>
+                <View>
+                  {Object.entries(item.air.params).map(([code, param]) => (
+                    <Text key={code} style={styles.metric}>
+                      {code}: {param.value} {param.unit}{" "}
+                      <Text style={styles.freshness}>({FRESHNESS_LABEL[param.freshness]})</Text>
+                    </Text>
+                  ))}
+                </View>
               ) : (
-                <Text style={styles.metric}>PM2.5: brak stacji w pobliżu</Text>
+                <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
               )}
               {item.weather?.params.temperature_2m ? (
                 <Text style={styles.metric}>

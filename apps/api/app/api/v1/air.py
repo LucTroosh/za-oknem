@@ -27,9 +27,14 @@ def freshness(observed_at: datetime) -> str:
 @router.get("/air/latest")
 def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) — never calls GIOŚ on request.
-    Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4)."""
-    # Latest reading per station: one query, no N+1 — distinct on station_id ordered
-    # by observed_at desc is the standard Postgres idiom for "latest per group".
+    Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).
+
+    TASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —
+    each station now returns a `params` dict keyed by param code instead of a single
+    top-level `pm25` field."""
+    # Latest reading per (station, param): one query, no N+1 — distinct on
+    # (station_id, param_code) ordered by observed_at desc is the standard Postgres
+    # idiom for "latest per group", extended to two grouping columns.
     #
     # ponytail: newer SQLAlchemy (2.1+) deprecates this expression-based .distinct()
     # in favor of sqlalchemy.dialects.postgresql.distinct_on(), but the exact new
@@ -39,9 +44,8 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     # noisy in pytest output. Upgrade when SQLAlchemy actually removes the old form.
     stmt = (
         select(Measurement)
-        .where(Measurement.param_code == "PM2.5")
-        .distinct(Measurement.station_id)
-        .order_by(Measurement.station_id, Measurement.observed_at.desc())
+        .distinct(Measurement.station_id, Measurement.param_code)
+        .order_by(Measurement.station_id, Measurement.param_code, Measurement.observed_at.desc())
     )
     rows = db.execute(stmt).scalars().all()
 
@@ -49,19 +53,24 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
         # no data != zero (Principle §43) — empty list, not fabricated 0s
         return {"stations": []}
 
-    return {
-        "stations": [
+    stations: dict[str, dict] = {}
+    for row in rows:
+        station = stations.setdefault(
+            row.station_id,
             {
                 "station_id": row.station_id,
                 "station_name": row.station_name,
                 "latitude": row.latitude,
                 "longitude": row.longitude,
-                "pm25": row.value,
-                "unit": row.unit,
-                "observed_at": row.observed_at.isoformat(),
-                "freshness": freshness(row.observed_at),
+                "params": {},
                 "source": "gios",
-            }
-            for row in rows
-        ]
-    }
+            },
+        )
+        station["params"][row.param_code] = {
+            "value": row.value,
+            "unit": row.unit,
+            "observed_at": row.observed_at.isoformat(),
+            "freshness": freshness(row.observed_at),
+        }
+
+    return {"stations": list(stations.values())}

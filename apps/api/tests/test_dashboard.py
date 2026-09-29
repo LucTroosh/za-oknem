@@ -108,6 +108,7 @@ def test_dashboard_matches_station_within_threshold():
     assert area["slug"] == "klodzko"
     assert area["air"]["station_id"] == "38"
     assert area["air"]["distance_km"] == 0.0
+    assert area["air"]["params"]["PM2.5"]["value"] == 11.5
     assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
 
 
@@ -155,4 +156,16 @@ def test_dashboard_marks_stale_air_reading():
 
     body = client.get("/api/v1/dashboard/latest").json()
 
-    assert body["areas"][0]["air"]["freshness"] == "STALE"
+    assert body["areas"][0]["air"]["params"]["PM2.5"]["freshness"] == "STALE"
+
+
+def test_dashboard_groups_multiple_params_for_nearest_station():
+    pm25 = _station(param_code="PM2.5", value=11.5, source_record_id="a")
+    no2 = _station(param_code="NO2", value=8.0, unit="µg/m³", source_record_id="b")
+    client = _client([GeoArea(**KLODZKO)], [pm25, no2], [])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    params = body["areas"][0]["air"]["params"]
+    assert set(params) == {"PM2.5", "NO2"}
+    assert params["NO2"]["value"] == 8.0

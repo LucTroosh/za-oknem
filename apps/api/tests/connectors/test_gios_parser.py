@@ -13,6 +13,7 @@ from app.connectors.gios.parser import (
     GIOS_TZ,
     GiosParseError,
     find_pm25_sensor,
+    find_sensor,
     latest_value,
     normalize,
 )
@@ -71,6 +72,16 @@ def test_find_pm25_sensor_returns_none_when_absent():
     assert find_pm25_sensor([SENSORS[0]]) is None
 
 
+def test_find_sensor_picks_by_formula():
+    sensor = find_sensor(SENSORS, "PM10")
+    assert sensor is not None
+    assert sensor["Identyfikator stanowiska"] == 25987
+
+
+def test_find_sensor_returns_none_when_absent():
+    assert find_sensor(SENSORS, "NO2") is None
+
+
 def test_latest_value_skips_nulls_and_picks_max_by_date():
     result = latest_value(SENSOR_DATA)
     assert result == (datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ), 8.2)
@@ -106,5 +117,30 @@ def test_normalize_rejects_bad_coordinates():
             sensor=SENSORS[1],
             observed_at=datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ),
             value=8.2,
+            fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
+        )
+
+
+def test_normalize_uses_param_specific_unit():
+    sensor = find_sensor(SENSORS, "PM10")
+    record = normalize(
+        station=STATION,
+        sensor=sensor,
+        observed_at=datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ),
+        value=15.0,
+        fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
+    )
+    assert record["param_code"] == "PM10"
+    assert record["unit"] == "µg/m³"
+
+
+def test_normalize_rejects_unknown_param_code():
+    unknown_sensor = {"Identyfikator stanowiska": 999, "Wskaźnik - wzór": "XYZ"}
+    with pytest.raises(GiosParseError):
+        normalize(
+            station=STATION,
+            sensor=unknown_sensor,
+            observed_at=datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ),
+            value=1.0,
             fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
         )

@@ -114,10 +114,14 @@ def test_latest_air_quality_shapes_response_from_rows():
                 "station_name": "Kłodzko, ul. Szkolna",
                 "latitude": 50.433493,
                 "longitude": 16.65366,
-                "pm25": 11.5,
-                "unit": "µg/m³",
-                "observed_at": row.observed_at.isoformat(),
-                "freshness": "FRESH",
+                "params": {
+                    "PM2.5": {
+                        "value": 11.5,
+                        "unit": "µg/m³",
+                        "observed_at": row.observed_at.isoformat(),
+                        "freshness": "FRESH",
+                    }
+                },
                 "source": "gios",
             }
         ]
@@ -130,7 +134,7 @@ def test_latest_air_quality_marks_old_reading_stale():
 
     body = client.get("/api/v1/air/latest").json()
 
-    assert body["stations"][0]["freshness"] == "STALE"
+    assert body["stations"][0]["params"]["PM2.5"]["freshness"] == "STALE"
 
 
 def test_latest_air_quality_handles_multiple_stations():
@@ -143,3 +147,20 @@ def test_latest_air_quality_handles_multiple_stations():
     body = client.get("/api/v1/air/latest").json()
 
     assert {s["station_id"] for s in body["stations"]} == {"38", "99"}
+
+
+def test_latest_air_quality_groups_multiple_params_per_station():
+    rows = [
+        _measurement(param_code="PM2.5", value=11.5, source_record_id="a"),
+        _measurement(param_code="PM10", value=20.0, unit="µg/m³", source_record_id="b"),
+        _measurement(param_code="CO", value=0.3, unit="mg/m³", source_record_id="c"),
+    ]
+    client = _client_with_rows(rows)
+
+    body = client.get("/api/v1/air/latest").json()
+
+    assert len(body["stations"]) == 1
+    params = body["stations"][0]["params"]
+    assert set(params) == {"PM2.5", "PM10", "CO"}
+    assert params["CO"]["value"] == 0.3
+    assert params["CO"]["unit"] == "mg/m³"

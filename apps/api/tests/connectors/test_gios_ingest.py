@@ -28,21 +28,37 @@ def test_ingest_station_stores_new_reading(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored is True
+    assert stored == 1  # only PM2.5 has a sensor in SENSORS; other params skip
     rows = db_session.query(Measurement).all()
     assert len(rows) == 1
     assert rows[0].station_id == "38"
     assert rows[0].value == 8.2
 
 
-def test_ingest_station_skips_when_no_pm25_sensor(monkeypatch, db_session):
-    only_pm10 = [{"Identyfikator stanowiska": 1, "Wskaźnik - wzór": "PM10"}]
-    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=only_pm10))
+def test_ingest_station_stores_one_reading_per_available_sensor(monkeypatch, db_session):
+    sensors = [
+        {"Identyfikator stanowiska": 25988, "Wskaźnik - wzór": "PM2.5"},
+        {"Identyfikator stanowiska": 1, "Wskaźnik - wzór": "PM10"},
+        {"Identyfikator stanowiska": 2, "Wskaźnik - wzór": "NO2"},
+    ]
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=sensors))
+    monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored is False
-    assert db_session.query(Measurement).count() == 0
+    assert stored == 3
+    assert {r.param_code for r in db_session.query(Measurement).all()} == {"PM2.5", "PM10", "NO2"}
+
+
+def test_ingest_station_skips_params_with_no_sensor(monkeypatch, db_session):
+    only_pm10 = [{"Identyfikator stanowiska": 1, "Wskaźnik - wzór": "PM10"}]
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=only_pm10))
+    monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+
+    stored = ingest.ingest_station(STATION, db_session)
+
+    assert stored == 1
+    assert db_session.query(Measurement).one().param_code == "PM10"
 
 
 def test_ingest_station_skips_when_no_recent_values(monkeypatch, db_session):
@@ -53,7 +69,7 @@ def test_ingest_station_skips_when_no_recent_values(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 
@@ -64,8 +80,8 @@ def test_ingest_station_skips_duplicate_reading(monkeypatch, db_session):
     first = ingest.ingest_station(STATION, db_session)
     second = ingest.ingest_station(STATION, db_session)
 
-    assert first is True
-    assert second is False
+    assert first == 1
+    assert second == 0
     assert db_session.query(Measurement).count() == 1
 
 
@@ -77,11 +93,13 @@ def test_ingest_station_isolates_api_failure(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 
-def test_ingest_station_isolates_parse_failure(monkeypatch, db_session):
+def test_ingest_station_isolates_parse_failure_per_param(monkeypatch, db_session):
+    """One param's malformed data (fetch_sensor_data raising) must not skip the
+    others — rule #1 isolation now applies per-param, not just per-station."""
     monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
     monkeypatch.setattr(
         client, "fetch_sensor_data", MagicMock(side_effect=GiosParseError("bad shape"))
@@ -89,7 +107,7 @@ def test_ingest_station_isolates_parse_failure(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 
