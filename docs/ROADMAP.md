@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #39)
+**Ostatnia aktualizacja:** 2026-09-29 (po PR #41)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -39,8 +39,8 @@ Alerts/Settings/push/profilu).
 
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
-| temperatura, wilgotność, wiatr, kod warunków | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard |
-| odczuwalna, punkt rosy, ciśnienie, zachmurzenie, opady/deszcz/śnieg, porywy, kierunek wiatru, widoczność, UV | ⬜ TODO — obecny connector pobiera tylko 4/15 pól MVP (`temperature_2m, relative_humidity_2m, wind_speed_10m, weather_code`) |
+| temperatura, wilgotność, wiatr (prędkość+kierunek+porywy), kod warunków, odczuwalna, ciśnienie, zachmurzenie, opady/deszcz/śnieg | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard (12/15 pól MVP, PR #41) |
+| punkt rosy, widoczność, UV | ⬜ TODO — Open-Meteo current nie zwraca tych pól wprost (wymaga osobnego zapytania/derywacji), świadomie odłożone |
 | prognoza (forecast, nie tylko current) | ⬜ TODO — model `Forecast` (§30) nie istnieje, mamy tylko `WeatherSnapshot` (Measurement-owe "teraz") |
 
 ### 2.3. Pylenie (§6)
@@ -148,6 +148,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #37 | IMGW warnings hydro / Alert (ADR-009), `/alerts/latest`, reconciliation, freshness, izolacja awarii schedulera |
 | #38 | `imgw_warningsmeteo` — client + dispatch zweryfikowane, `normalize()` świadomie zablokowane (TASK-9.2) |
 | #39 | Fix rule #10 w `imgw_warningshydro/parser.py` (exact-shape matching dla pustego stanu) |
+| #40 | `docs/ROADMAP.md` (ten plik) + reguła utrzymania w CLAUDE.md |
+| #41 | Open-Meteo: rozszerzenie `CURRENT_PARAMS` z 4 do 12/15 pól MVP (§5) |
 
 ---
 
