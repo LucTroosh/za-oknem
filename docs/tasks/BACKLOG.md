@@ -300,7 +300,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       problem widoczny tam, gdzie użytkownik faktycznie go zobaczy. Zakres
       obejmuje więc też przeniesienie stanu UNAVAILABLE do kontraktu
       `dashboard_latest()` i jego renderowania na mobile, nie tylko cztery
-      detail endpointy.
+      detail endpointy. **Brakujący zakres (Codex):** `water` (TASK-11.4)
+      i `pollen` (TASK-8.7) trafiają do tego samego agregatu (§55) i mają
+      dokładnie ten sam problem "pusta lista vs źródło nigdy nie
+      fetchowało" (Sanepid/CAMS też mogą milczeć bez błędu), ale powstają
+      w Phase 8/11 — po tym tasku. TASK-8.7/TASK-11.4/TASK-11.6/TASK-8.9
+      muszą reużyć ADR-012 z tego tasku (ten sam czterostanowy model
+      FRESH/RECENT/STALE/UNAVAILABLE), nie definiować freshness dla
+      water/pollen od nowa ani po cichu pomijać rozróżnienia
+      "potwierdzone zero".
 - [ ] **TASK-7.6:** Outdoor Interpretation Engine (§52 Master Planu) —
       deterministyczny, testowalny algorytm (temperatura + opady + wiatr +
       jakość powietrza + UV → GOOD/MODERATE/POOR + `reasons[]`); **nie LLM**
@@ -467,13 +475,22 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `/weather`, nie `/water`; przy danych bezpieczeństwa (otwarte/
       zamknięte kąpielisko) brak rozróżnienia FRESH/STALE jest szczególnie
       ryzykowny — nieaktualny status "otwarte" wygląda identycznie jak
-      aktualny.
+      aktualny. **Brakujący geo-matching (Codex):** §27 Master Planu
+      wymaga wprost `USER LOCATION → NEAREST RELEVANT SITE → WATER STATUS`
+      dla kąpielisk, tym samym wzorcem co stacje powietrza — dziś ani ten
+      task, ani żaden inny nie definiuje parametru lokalizacji/dopasowania
+      najbliższego kąpieliska, mimo że TASK-11.2 zapisuje współrzędne
+      właśnie w tym celu. Dodać nearest-site matching (wzorzec
+      nearest-station/haversine z ADR-006) do `/water/latest`.
 - [ ] **TASK-11.5:** Sekcja kąpielisk na mobile (status, badania, sezon) —
       dopiero po TASK-11.4. Wzorzec `source`/`attribution` z TASK-7.1
       (Sanepid/GIS) dotyczy też tej sekcji.
 - [ ] **TASK-11.6:** Dodać `water` do `dashboard_latest()` (§55 — water to
       część głównego agregatu). Zależne od TASK-11.4 (endpoint/dane muszą
       istnieć) — **przeniesione tu z Phase 7** (ten sam powód co TASK-8.9).
+      Geo-matching z poprawki TASK-11.4 dotyczy też pola `water` w
+      agregacie — bez tego dashboard pokazywałby niezwiązane kąpielisko
+      zamiast najbliższego.
 
 ### Phase 12 — Settings / Profiles
 
@@ -502,6 +519,18 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       rozszerzenie UI selektora.
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
+      **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
+      GPS-odczytu z tym, co użytkownik faktycznie widzi na dashboardzie —
+      TASK-6.2(5)/TASK-12.5 prowadzą wyłącznie do rejestracji push
+      (`observed_area_code` w `POST /api/v1/devices`), nie do wyboru
+      lokalizacji w `apps/mobile/app/index.tsx`. Po TASK-6.2(8) zawężającym
+      `dashboard_latest()` do jednej wybranej lokalizacji, ekran Home musi
+      mieć skądś tę lokalizację — bez tego podpięcia użytkownik z włączonym
+      GPS nadal widziałby domyślną/ostatnio ręcznie wybraną gminę z
+      TASK-12.2, nie tę, w której faktycznie jest. Zakres obejmuje więc
+      użycie resolvera z TASK-6.2(5) (współrzędne GPS → `geo_area_id`) jako
+      źródła domyślnej/aktualizowanej lokalizacji w selektorze TASK-12.2,
+      nie tylko jako danych wejściowych do TASK-12.5.
 - [ ] **TASK-12.5:** Wysyłka `observed_area_code` do `POST /api/v1/devices`
       przy każdym otwarciu appki z aktywną lokalizacją (foreground) i przy
       ręcznej zmianie lokalizacji w Settings (ADR-002, sekcja Decision) —
@@ -582,7 +611,18 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       RETENTION → PROCESSORS → USER RIGHTS, dla wszystkich danych, nie tylko
       tych z SDK). W dużej mierze praca dokumentacyjna/prawna, nie kod;
       część do zrobienia razem z Tobą (deklaracje sklepowe wymagają decyzji
-      biznesowych, nie tylko technicznych).
+      biznesowych, nie tylko technicznych). **Brakujący element (Codex):**
+      "Przegląd bezpieczeństwa" jak dotąd opisany to wyłącznie inwentaryzacje
+      i deklaracje prawne — §64 Master Planu (Security Baseline) wymaga też
+      konkretnych kontroli technicznych: payload limits, CORS, security
+      headers, firewall, osobne credentials, Docker hardening,
+      dependency updates. Żaden task w kolejce (tu ani w Phase 15) tego
+      nie implementuje/weryfikuje. Zakres tego tasku obejmuje więc
+      remediację i weryfikację całej listy z §64 jako acceptance
+      condition (część — firewall, Docker, credentials — faktycznie
+      wdrażana dopiero z realną infrastrukturą TASK-15.1/15.2, ale
+      TASK-14.2 jest miejscem, gdzie ta lista zostaje sprawdzona checklistą
+      przed release, nie pominięta w ciszy).
 - [ ] **TASK-14.3:** Przegląd zgodności analytics/monitoringu z gotową
       Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
       odpowiadają temu, co deklaruje Privacy Policy z TASK-14.2) —
@@ -604,10 +644,18 @@ placeholderze.
       przy pełnym Source Approval Gate przed produkcją" (linia 76-77),
       Open-Meteo nigdy nie miał żywej weryfikacji kształtu JSON (linia
       18-33). TASK-6.2 dokłada GUS/TERYT/PRG (granice gmin) bez wpisu w
-      registry i bez gate w ogóle. Zakres: przejść każde źródło do statusu
-      VERIFIED/APPROVED (albo świadomie udokumentować akceptowane ryzyko)
-      zanim TASK-15.2 wdroży produkcję — inaczej kolejka może zakończyć się
-      publikacją niezatwierdzonych źródeł.
+      registry i bez gate w ogóle. **Korekta (Codex) — poprzednia wersja
+      miała lukę:** "świadomie udokumentować akceptowane ryzyko" jako
+      alternatywa dla VERIFIED/APPROVED jest sprzeczna z rule #15
+      (CLAUDE.md: "Przed użyciem produkcyjnym KAŻDE źródło przechodzi
+      Source Approval Gate" — bez wyjątków) i z modelem statusów §37
+      Master Planu (DISCOVERY→VERIFIED→APPROVED→IMPLEMENTED→PRODUCTION,
+      jedyna alternatywa to BLOCKED — nie ma stanu "zaakceptowane
+      ryzyko, wdrażamy mimo to"). Zakres: KAŻDE aktywne w produkcji
+      źródło musi osiągnąć APPROVED/PRODUCTION w `source-registry.md`
+      zanim TASK-15.2 wdroży produkcję; źródło, które tego nie osiągnie,
+      zostaje wyłączone albo zastąpione — nie "wdrożone z udokumentowanym
+      ryzykiem".
 - [ ] **TASK-15.1:** Środowisko staging (osobne od dev/produkcji) na VPS.
 - [ ] **TASK-15.2:** Środowisko produkcyjne + wdrożenie TASK-1.1 (backup
       poza VPS) i regularnego testu odtworzenia w praktyce (nie tylko kod
