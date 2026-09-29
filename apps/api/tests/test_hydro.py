@@ -133,11 +133,13 @@ def test_latest_hydro_ignores_threshold_only_station():
     assert body == {"stations": []}
 
 
-def test_latest_hydro_ignores_stale_threshold_from_earlier_batch():
-    """If IMGW stops publishing a threshold for a station, the water level keeps
-    getting new observed_at timestamps but no new threshold row is emitted
-    (parser.py). The old threshold row must NOT be used forever - it belongs to
-    an earlier batch (Codex review, PR #42)."""
+def test_latest_hydro_uses_threshold_even_when_older_than_the_reading():
+    """A threshold's own observed_at (our fetch clock, per parser.py) can lag
+    behind the water level's (the source's own reading clock) - that's expected,
+    not staleness. ingest.py's upsert/delete keeps exactly one row per threshold,
+    always reflecting IMGW's current value, so the endpoint trusts it as-is
+    without comparing timestamps across param codes (Codex review, PR #42
+    round 3 - the earlier observed_at-equality gate was itself the bug)."""
     earlier = datetime.now(UTC) - timedelta(hours=3)
     now = datetime.now(UTC)
     rows = [
@@ -149,8 +151,8 @@ def test_latest_hydro_ignores_stale_threshold_from_earlier_batch():
     body = client.get("/api/v1/hydro/latest").json()
 
     station = body["stations"][0]
-    assert station["warning_level_cm"] is None
-    assert station["status"] == "UNKNOWN"
+    assert station["warning_level_cm"] == 300.0
+    assert station["status"] == "NORMAL"
 
 
 def test_compute_status_normal_below_warning():

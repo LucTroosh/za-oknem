@@ -128,9 +128,13 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `stan_wody`. Mogą być `null` dla stacji bez zdefiniowanego progu (potwierdzone
   na żywo, np. stacje na jeziorach: "Żukowo", "Borucino") — to nie błąd, tylko
   brak progu dla tej stacji. `normalize()` emituje je jako osobne rekordy
-  Measurement (`water_level_warn_cm`/`water_level_alarm_cm`), status
-  NORMAL/WARNING/ALARM/UNKNOWN liczony deterministycznie przy odczycie w
-  `GET /api/v1/hydro/latest` — prosta komparacja liczb opublikowanych przez
+  Measurement (`water_level_warn_cm`/`water_level_alarm_cm`) o stabilnej
+  tożsamości (stacja+param_code, bez timestampu) — `ingest.py` nadpisuje
+  (upsert) lub usuwa (gdy próg wraca jako `null`) JEDEN wiersz per próg przy
+  każdym przebiegu, niezależnie od cyklu odczytu `stan_wody` (progi nie mają
+  własnego znacznika czasu ze źródła — patrz TASK-9.3, 3 rundy Codex review).
+  Status NORMAL/WARNING/ALARM/UNKNOWN liczony deterministycznie przy odczycie
+  w `GET /api/v1/hydro/latest` — prosta komparacja liczb opublikowanych przez
   źródło, nie interpretacja LLM (rule #10)
 - **last_verified_at:** 2026-09-29
 

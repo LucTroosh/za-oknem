@@ -11,50 +11,70 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
 
 ## Scope
 
-- `imgw_hydro/parser.py`: `normalize()` zwraca teraz listę 1-3 rekordów
-  Measurement (wzorzec jak w `open_meteo/parser.py`) — `water_level_cm` zawsze,
-  plus `water_level_warn_cm`/`water_level_alarm_cm` gdy próg zdefiniowany
-  (`stan_ostrzegawczy`/`stan_alarmowy` nie są `null`).
-- `imgw_hydro/ingest.py`: `ingest_station()` zwraca liczbę zapisanych rekordów
-  (0-3) zamiast `bool`, iteruje po liście z `normalize()`.
+- `imgw_hydro/parser.py`: `normalize()` zwraca teraz
+  `{"level": <rekord append-only>, "thresholds": {param_code: <rekord upsert
+  lub {"value": None} do usunięcia>}}` zamiast pojedynczego dicta. Woda
+  (`stan_wody`) to prawdziwy szereg czasowy (nowy `observed_at` przy każdym
+  realnym odczycie) — próg nie ma własnego znacznika czasu ze źródła i może się
+  zmienić/zniknąć niezależnie od cyklu odczytu wodowskazu, więc progi mają
+  stabilną tożsamość (`stacja:param_code`, bez timestampu) i własny zegar
+  (nasz `fetched_at`, nie `stan_wody_data_pomiaru`).
+- `imgw_hydro/ingest.py`: `_insert_if_new()` (bez zmian semantycznie —
+  append-only dla wody) + nowy `_upsert_or_delete_threshold()` — każdy przebieg
+  ingestu nadpisuje JEDEN wiersz per (stacja, param_code) aktualną wartością
+  albo go usuwa, gdy próg wraca jako `null`.
 - `GET /api/v1/hydro/latest`: dodatkowe pola `warning_level_cm`,
   `alarm_level_cm`, `status`. `compute_status()` — czysta funkcja, porównanie
-  liczbowe, brak LLM/zgadywania (rule #10).
+  liczbowe, brak LLM/zgadywania (rule #10). Endpoint ufa temu, co jest w bazie
+  — reconciliation dzieje się przy ingest, nie przy odczycie.
 - `docs/data/source-registry.md`: udokumentowane pola progów (zweryfikowane
   na żywo, w tym przypadek `null` dla stacji bez progu, np. jeziora).
 
+## Historia przeglądu (Codex, PR #42 — 3 rundy)
+
+1. **P1:** `water_level_warning_cm` (22 znaki) przekraczał `VARCHAR(20)`
+   kolumny `param_code` — PostgreSQL odrzuciłby każdy rekord progu ostrzegawczego
+   (SQLite tego nie egzekwuje, testy by tego nie złapały). → zmieniono na
+   `water_level_warn_cm` (19 znaków) + test wprost sprawdzający limit.
+2. **P2:** pierwsza wersja pomijała próg przy `null` bez żadnego śladu — stary
+   wiersz zostawałby "najnowszym" na zawsze. → dodano wymóg dopasowania do
+   `observed_at` bieżącego odczytu wody.
+3. **P2 (runda 3):** dopasowanie po `observed_at` samo było wadliwe — stacja,
+   która przestaje raportować nowy `stan_wody` (ten sam `observed_at` w kółko),
+   mogłaby mieć zmieniony/wycofany próg, a endpoint i tak pokazywałby stary,
+   bo timestampy się zgadzały. **Root cause:** wiązanie ważności progu z
+   cyklem odczytu wodowskazu było błędnym modelem od początku. → przeprojektowano
+   na upsert/delete względem własnego cyklu ingestu (ten sam duch co
+   `_expire_withdrawn()` w `imgw_warningshydro`/ADR-009), niezależnie od
+   `stan_wody_data_pomiaru`.
+
 ## Acceptance Criteria
 
-- [x] `normalize()` emituje osobny rekord per próg, gdy zdefiniowany (test:
-      `test_normalize_includes_warning_and_alarm_thresholds_when_defined`).
-- [x] `normalize()` pomija próg, gdy `null` — bez błędu (test:
-      `test_normalize_omits_thresholds_when_null`).
+- [x] `normalize()` zwraca próg jako osobny rekord ze stabilnym
+      `source_record_id` (`stacja:param_code`, bez timestampu) (test:
+      `test_normalize_includes_thresholds_when_defined`).
+- [x] Rekord progu używa `fetched_at`, nie `stan_wody_data_pomiaru`, jako
+      `observed_at` (test:
+      `test_normalize_thresholds_use_fetched_at_not_stan_wody_timestamp`).
+- [x] `normalize()` zwraca `{"value": None}` dla progu `null` — sygnał do
+      usunięcia, nie błąd (test: `test_normalize_marks_threshold_for_deletion_when_null`).
 - [x] `normalize()` rzuca `ImgwHydroParseError` na niepoprawną wartość progu
       (test: `test_normalize_raises_on_malformed_threshold`).
-- [x] `source_record_id` unikalny per (stacja, param_code, obserwacja) — trzy
-      rekordy z tego samego fetchu nie kolidują (test w
-      `test_normalize_includes_warning_and_alarm_thresholds_when_defined`).
-- [x] `ingest_station()` zapisuje 0-3 rekordy, zlicza poprawnie (testy:
-      `test_ingest_station_stores_thresholds_too` i istniejące, zaktualizowane
-      z `bool` na `int`).
-- [x] `/hydro/latest` zwraca `status: UNKNOWN` dla stacji bez progów — nie
-      `NORMAL` (test: `test_latest_hydro_shapes_response_from_rows`).
-- [x] `/hydro/latest` liczy `NORMAL`/`WARNING`/`ALARM` poprawnie względem progu
-      (testy: `test_compute_status_*`, `test_latest_hydro_includes_thresholds_and_status`).
-- [x] Stacja z samymi progami (bez aktualnego `stan_wody`) nie pojawia się w
-      odpowiedzi — zachowanie sprzed tej zmiany bez regresji (test:
-      `test_latest_hydro_ignores_threshold_only_station`).
-- [x] Każdy `param_code` mieści się w `VARCHAR(20)` (`Measurement.param_code`)
-      — Codex review PR #42: `water_level_warning_cm` (22 znaki) zostałoby
-      odrzucone przez PostgreSQL, SQLite tego nie egzekwuje, więc testy by
-      tego nie złapały. Zmieniono na `water_level_warn_cm` (19 znaków), dodano
-      test wprost sprawdzający limit (test:
+- [x] Każdy `param_code` mieści się w `VARCHAR(20)` (test:
       `test_param_codes_fit_the_varchar20_column`).
-- [x] Wycofany przez IMGW próg (kiedyś publikowany, potem `null`) nie zostaje
-      na zawsze "najnowszym" rekordem — `/hydro/latest` honoruje próg tylko z
-      tego samego cyklu ingestu co aktualny odczyt (ten sam `observed_at`),
-      bez zmiany schematu (test:
-      `test_latest_hydro_ignores_stale_threshold_from_earlier_batch`).
+- [x] Zmiana progu bez nowego odczytu wody aktualizuje wartość (test:
+      `test_ingest_station_updates_threshold_even_without_a_new_water_reading`).
+- [x] Wycofanie progu (→ `null`) usuwa zapisany wiersz (test:
+      `test_ingest_station_deletes_threshold_when_withdrawn`).
+- [x] `/hydro/latest` zwraca `status: UNKNOWN` dla stacji bez progów (test:
+      `test_latest_hydro_shapes_response_from_rows`).
+- [x] `/hydro/latest` liczy `NORMAL`/`WARNING`/`ALARM` poprawnie (testy:
+      `test_compute_status_*`, `test_latest_hydro_includes_thresholds_and_status`).
+- [x] Próg starszy niż odczyt wody (inny `observed_at`) nadal jest używany —
+      to nie jest staleness, tylko inny zegar (test:
+      `test_latest_hydro_uses_threshold_even_when_older_than_the_reading`).
+- [x] Stacja z samymi progami (bez aktualnego `stan_wody`) nie pojawia się w
+      odpowiedzi (test: `test_latest_hydro_ignores_threshold_only_station`).
 
 ## Tests
 
@@ -67,12 +87,13 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
   osobna decyzja (§47/§50 Master Planu), nie ta zmiana.
 - Zmiana `imgw_warningshydro`/ADR-009 (oficjalne ostrzeżenia) — inny model,
   inny connector, bez zmian.
-- Migracja bazy — reużywa istniejącej generycznej tabeli `measurements`.
+- Migracja bazy — reużywa istniejącej generycznej tabeli `measurements`
+  (usuwanie wierszy progów mieści się w istniejącym modelu, bez nowej kolumny).
 
 ## Dependencies
 
-Brak nowej migracji, brak nowego ADR (reużycie istniejącego wzorca
-multi-record `normalize()` z `open_meteo`, istniejący model `Measurement`).
+Brak nowej migracji, brak nowego ADR (reużycie istniejącego modelu
+`Measurement` i wzorca reconciliation już sprawdzonego w `imgw_warningshydro`).
 
 ## Data Contract
 
@@ -86,5 +107,6 @@ Brak zmian — te same dane z tego samego już-zaufanego publicznego endpointu.
 
 ## Architecture Impact
 
-Brak — reużycie istniejącego wzorca (`normalize()` zwracające listę, jak w
-`open_meteo`) i istniejącego modelu `Measurement`.
+Brak nowego ADR — reużycie istniejącego modelu `Measurement` i wzorca
+reconciliation (upsert/delete względem własnego cyklu ingestu) już
+ustanowionego i zrecenzowanego w ADR-009.

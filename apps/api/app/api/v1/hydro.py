@@ -32,17 +32,6 @@ def freshness(observed_at: datetime) -> str:
     return "STALE"
 
 
-def _current_threshold(row: Measurement | None, level_row: Measurement) -> float | None:
-    """A threshold row only counts if it's from the SAME ingest batch as the
-    current reading (same observed_at). If IMGW stops publishing a threshold
-    for a station, later runs simply emit no new threshold record for it
-    (parser.py) - without this check, the old row would keep being "the latest"
-    forever and we'd derive status from a withdrawn threshold. A genuinely
-    unchanged threshold still matches, since it re-ties to the same observed_at
-    every ingest run."""
-    return row.value if row and row.observed_at == level_row.observed_at else None
-
-
 def compute_status(value: float, warning: float | None, alarm: float | None) -> str:
     """NORMAL/WARNING/ALARM by comparing the observed water level against IMGW's
     own published per-station thresholds (rule #10: a numeric comparison of two
@@ -81,8 +70,11 @@ def latest_hydro(db: Session = Depends(get_db)) -> dict:
             continue  # thresholds with no current reading for this station - not shown
         warning_row = by_param.get(WARNING_LEVEL_PARAM)
         alarm_row = by_param.get(ALARM_LEVEL_PARAM)
-        warning_value = _current_threshold(warning_row, level_row)
-        alarm_value = _current_threshold(alarm_row, level_row)
+        # No extra staleness check needed here: ingest.py upserts/deletes each
+        # threshold's single row every run, so whatever's stored IS the current
+        # IMGW-reported value (or absent if withdrawn) - see parser.py/ingest.py.
+        warning_value = warning_row.value if warning_row else None
+        alarm_value = alarm_row.value if alarm_row else None
         stations.append(
             {
                 "station_id": level_row.station_id,

@@ -60,6 +60,41 @@ def test_ingest_station_isolates_parse_failure(db_session, monkeypatch):
     assert db_session.query(Measurement).count() == 0
 
 
+def test_ingest_station_updates_threshold_even_without_a_new_water_reading(db_session):
+    """A station can keep the same stan_wody_data_pomiaru (stalled reading) while
+    its threshold changes - thresholds are upserted by their own stable identity,
+    not gated on a new water-level observed_at (Codex review, PR #42 round 3:
+    the earlier observed_at-matching approach would have silently kept the old
+    threshold value in this exact case)."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+
+    changed_station = {**station, "stan_ostrzegawczy": "310"}
+    stored = ingest.ingest_station(changed_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert stored == 1  # the threshold changed; the water level didn't
+    row = (
+        db_session.query(Measurement)
+        .filter_by(param_code="water_level_warn_cm")
+        .one()
+    )
+    assert row.value == 310.0
+
+
+def test_ingest_station_deletes_threshold_when_withdrawn(db_session):
+    """IMGW can stop reporting a threshold for a station (goes null) even while
+    the same water-level reading persists - the stored row must be removed, not
+    left behind as a stale "latest" value."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 1
+
+    withdrawn_station = {**station, "stan_ostrzegawczy": None}
+    ingest.ingest_station(withdrawn_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
+
+
 class TestMain:
     def test_ingests_every_fetched_station(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[STATION]))

@@ -27,39 +27,53 @@ STATION = {
 }
 
 
-def test_normalize_maps_fields_correctly():
-    records = normalize(STATION, fetched_at=datetime.now(UTC))
-    record = records[0]
+def test_normalize_maps_level_fields_correctly():
+    result = normalize(STATION, fetched_at=datetime.now(UTC))
+    level = result["level"]
 
-    assert record["source_id"] == "imgw_hydro"
-    assert record["station_id"] == "151140030"
-    assert record["station_name"] == "Przewoźniki (Skroda)"
-    assert record["latitude"] == 51.5253
-    assert record["longitude"] == 14.8217
-    assert record["param_code"] == "water_level_cm"
-    assert record["value"] == 225.0
-    assert record["unit"] == "cm"
-
-
-def test_normalize_includes_warning_and_alarm_thresholds_when_defined():
-    records = normalize(STATION, fetched_at=datetime.now(UTC))
-
-    by_param = {r["param_code"]: r for r in records}
-    assert len(records) == 3
-    assert by_param[WARNING_LEVEL_PARAM]["value"] == 300.0
-    assert by_param[ALARM_LEVEL_PARAM]["value"] == 340.0
-    # source_record_id must be unique per param_code, not just per station+time
-    assert len({r["source_record_id"] for r in records}) == 3
+    assert level["source_id"] == "imgw_hydro"
+    assert level["station_id"] == "151140030"
+    assert level["station_name"] == "Przewoźniki (Skroda)"
+    assert level["latitude"] == 51.5253
+    assert level["longitude"] == 14.8217
+    assert level["param_code"] == WATER_LEVEL_PARAM
+    assert level["value"] == 225.0
+    assert level["unit"] == "cm"
 
 
-def test_normalize_omits_thresholds_when_null():
+def test_normalize_includes_thresholds_when_defined():
+    result = normalize(STATION, fetched_at=datetime.now(UTC))
+    thresholds = result["thresholds"]
+
+    assert thresholds[WARNING_LEVEL_PARAM]["value"] == 300.0
+    assert thresholds[ALARM_LEVEL_PARAM]["value"] == 340.0
+    # stable identity - no timestamp component, unlike the water-level record
+    assert thresholds[WARNING_LEVEL_PARAM]["source_record_id"] == "151140030:water_level_warn_cm"
+
+
+def test_normalize_thresholds_use_fetched_at_not_stan_wody_timestamp():
+    """Thresholds have no timestamp of their own in the source - they're tied to
+    our own fetch clock, decoupled from stan_wody's reading cycle (see module
+    docstring; Codex review PR #42 round 3)."""
+    fetched_at = datetime.now(UTC)
+    result = normalize(STATION, fetched_at=fetched_at)
+
+    assert result["thresholds"][WARNING_LEVEL_PARAM]["observed_at"] == fetched_at
+    assert result["level"]["observed_at"] != fetched_at
+
+
+def test_normalize_marks_threshold_for_deletion_when_null():
     """Confirmed live: some stations (e.g. lake gauges) have no defined
-    warning/alarm threshold - null, not an error."""
+    warning/alarm threshold - null, not an error. value=None signals ingest.py
+    to delete any previously stored row for it."""
     station = {**STATION, "stan_ostrzegawczy": None, "stan_alarmowy": None}
-    records = normalize(station, fetched_at=datetime.now(UTC))
+    result = normalize(station, fetched_at=datetime.now(UTC))
 
-    assert len(records) == 1
-    assert records[0]["param_code"] == WATER_LEVEL_PARAM
+    assert result["thresholds"][WARNING_LEVEL_PARAM] == {
+        "source_record_id": "151140030:water_level_warn_cm",
+        "value": None,
+    }
+    assert result["thresholds"][ALARM_LEVEL_PARAM]["value"] is None
 
 
 def test_normalize_raises_on_malformed_threshold():
@@ -91,8 +105,8 @@ def test_normalize_accepts_negative_water_level():
     """Unlike PM2.5, a negative stan_wody is physically valid (below the local
     gauge-zero reference) - must not be rejected."""
     station = {**STATION, "stan_wody": "-5"}
-    records = normalize(station, fetched_at=datetime.now(UTC))
-    assert records[0]["value"] == -5.0
+    result = normalize(station, fetched_at=datetime.now(UTC))
+    assert result["level"]["value"] == -5.0
 
 
 def test_normalize_raises_on_missing_field():

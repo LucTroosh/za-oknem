@@ -19,43 +19,85 @@ from app.models import Measurement
 logger = logging.getLogger(__name__)
 
 
-def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
-    """Returns the number of new records stored for this station (0-3: water
-    level, plus warning/alarm thresholds when defined). One station's bad record
-    must not abort the run for the rest (rule #1)."""
+def _insert_if_new(record: dict, db) -> int:
+    """Append-only: a genuinely new water-level reading (new observed_at from
+    the source) is a new row; re-seeing the same one is a no-op."""
+    exists = (
+        db.query(Measurement)
+        .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
+        .first()
+    )
+    if exists:
+        return 0
+    db.add(Measurement(**record))
     try:
-        records = normalize(station, fetched_at=fetched_at)
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run - fine, reading exists now
+        return 0
+    return 1
+
+
+def _upsert_or_delete_threshold(record: dict, db) -> int:
+    """Thresholds have no source-given timestamp of their own (see parser.py) -
+    each ingest run reconciles the ONE row per (station, param_code) to whatever
+    IMGW currently reports. record["value"] is None when IMGW currently defines
+    no threshold: any previously stored row is deleted rather than left as a
+    stale "latest" value (rule #10 - a withdrawn/changed threshold must not keep
+    influencing the computed status)."""
+    existing = (
+        db.query(Measurement)
+        .filter_by(source_id="imgw_hydro", source_record_id=record["source_record_id"])
+        .first()
+    )
+    if record["value"] is None:
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return 0  # a removal isn't a "new reading stored"
+
+    if existing:
+        changed = existing.value != record["value"]
+        existing.value = record["value"]
+        existing.observed_at = record["observed_at"]
+        existing.fetched_at = record["fetched_at"]
+        db.commit()
+        return 1 if changed else 0
+
+    db.add(Measurement(**record))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run
+        return 0
+    return 1
+
+
+def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
+    """Returns the number of records actually stored/changed for this station
+    (water level, plus warning/alarm thresholds when defined or changed). One
+    station's bad record must not abort the run for the rest (rule #1)."""
+    try:
+        result = normalize(station, fetched_at=fetched_at)
     except ImgwHydroParseError as exc:
         sid = station.get("id_stacji")
         logger.warning("station %s: FAILED (%s), skipping - see rule #1", sid, exc)
         return 0
-    if records is None:
+    if result is None:
         return 0  # no current reading for this station - not an error
 
-    stored = 0
-    for record in records:
-        exists = (
-            db.query(Measurement)
-            .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
-            .first()
-        )
-        if exists:
-            continue
-        db.add(Measurement(**record))
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()  # race with another ingest run - fine, reading exists now
-            continue
-        stored += 1
+    level = result["level"]
+    stored = _insert_if_new(level, db)
+    for threshold_record in result["thresholds"].values():
+        stored += _upsert_or_delete_threshold(threshold_record, db)
 
     if stored:
         logger.info(
-            "station %s (%s): stored %s reading(s), stan_wody = %s cm",
-            records[0]["station_id"],
-            records[0]["station_name"],
+            "station %s (%s): stored/updated %s record(s), stan_wody = %s cm",
+            level["station_id"],
+            level["station_name"],
             stored,
-            records[0]["value"],
+            level["value"],
         )
     return stored
 

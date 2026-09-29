@@ -9,6 +9,18 @@ station, not derived or guessed (rule #10: this is a numeric comparison against
 IMGW's own published reference values, not an interpretation). Also verified
 live: both can be null for a station (e.g. lake gauges with no defined
 threshold) - not an error, just "no threshold for this station".
+
+Thresholds are modeled differently from the water-level reading: stan_wody is a
+genuine time series (a new observed_at each real reading, append-only, dedup by
+source_record_id). A threshold is closer to slowly-changing reference config -
+IMGW gives no "threshold last changed at" timestamp, and it can change or
+disappear independently of whether the station has produced a new stan_wody
+reading. Tying threshold currency to stan_wody's observed_at (an earlier version
+of this file did) breaks for a stalled station: same observed_at reused forever
+would make a removed/changed threshold look permanently "current". So each
+threshold gets its own stable identity (station+param, no timestamp) and its
+own clock (our fetched_at, not the source's stan_wody timestamp) - see
+ingest.py's upsert/delete handling, which is the actual current-state gate.
 """
 
 from datetime import datetime
@@ -19,6 +31,7 @@ WATER_LEVEL_PARAM = "water_level_cm"
 WARNING_LEVEL_PARAM = "water_level_warn_cm"
 ALARM_LEVEL_PARAM = "water_level_alarm_cm"
 WATER_LEVEL_UNIT = "cm"
+THRESHOLD_PARAMS = (WARNING_LEVEL_PARAM, ALARM_LEVEL_PARAM)
 # Not independently verified against a live cross-check with a known UTC offset
 # event (unlike GIOŚ's live-verified Europe/Warsaw) - assumed on the strength of
 # being the same institute publishing in the same convention. Revisit if a live
@@ -30,14 +43,13 @@ class ImgwHydroParseError(Exception):
     """Raised when a station record doesn't match the expected shape."""
 
 
-def normalize(
-    station: dict[str, Any], *, fetched_at: datetime
-) -> list[dict[str, Any]] | None:
-    """Returns 1-3 Measurement-ready dicts (water level, plus warning/alarm
-    thresholds when the station has them defined), or None if this station has
-    no current reading (stan_wody/stan_wody_data_pomiaru is null - common, not
-    an error; rule #1 means skip it, don't fail the whole ingest run over one
-    dry station)."""
+def normalize(station: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any] | None:
+    """Returns {"level": <insert-only Measurement dict>, "thresholds": {param_code:
+    <upsert-ready Measurement dict with value=None meaning "not currently
+    defined - delete any stored row">}}, or None if this station has no current
+    reading (stan_wody/stan_wody_data_pomiaru is null - common, not an error;
+    rule #1 means skip it, don't fail the whole ingest run over one dry
+    station)."""
     if station.get("stan_wody") is None or station.get("stan_wody_data_pomiaru") is None:
         return None
 
@@ -60,38 +72,51 @@ def normalize(
     # gauge-zero reference ("rzędna zera wodowskazu"), and low-flow rivers do drop
     # below it. Rejecting negatives here would silently drop real, valid readings.
 
-    base = {
+    level_record = {
         "source_id": "imgw_hydro",
+        "source_record_id": f"{station_id}:{WATER_LEVEL_PARAM}:{observed_at.isoformat()}",
         "station_id": station_id,
         "station_name": station_name,
         "latitude": latitude,
         "longitude": longitude,
+        "param_code": WATER_LEVEL_PARAM,
+        "value": value,
         "unit": WATER_LEVEL_UNIT,
         "observed_at": observed_at,
         "fetched_at": fetched_at,
     }
 
-    def _record(param_code: str, param_value: float) -> dict[str, Any]:
-        return {
-            **base,
-            "source_record_id": f"{station_id}:{param_code}:{observed_at.isoformat()}",
-            "param_code": param_code,
-            "value": param_value,
-        }
-
-    records = [_record(WATER_LEVEL_PARAM, value)]
-    for param_code, raw_key in (
-        (WARNING_LEVEL_PARAM, "stan_ostrzegawczy"),
-        (ALARM_LEVEL_PARAM, "stan_alarmowy"),
-    ):
-        raw_threshold = station.get(raw_key)
-        if raw_threshold is None:
-            continue  # no threshold defined for this station - not an error
+    def _threshold(param_code: str, raw_key: str) -> dict[str, Any]:
+        # Stable identity (no timestamp) - ingest.py upserts/deletes this exact
+        # row every run rather than inserting a new one each time.
+        source_record_id = f"{station_id}:{param_code}"
+        raw_value = station.get(raw_key)
+        if raw_value is None:
+            return {"source_record_id": source_record_id, "value": None}
         try:
-            threshold_value = float(raw_threshold)
+            threshold_value = float(raw_value)
         except (TypeError, ValueError) as exc:
             raise ImgwHydroParseError(
                 f"station {station_id} has malformed {raw_key}: {exc}"
             ) from exc
-        records.append(_record(param_code, threshold_value))
-    return records
+        return {
+            "source_id": "imgw_hydro",
+            "source_record_id": source_record_id,
+            "station_id": station_id,
+            "station_name": station_name,
+            "latitude": latitude,
+            "longitude": longitude,
+            "param_code": param_code,
+            "value": threshold_value,
+            "unit": WATER_LEVEL_UNIT,
+            "observed_at": fetched_at,  # our own clock, not stan_wody's - see module docstring
+            "fetched_at": fetched_at,
+        }
+
+    return {
+        "level": level_record,
+        "thresholds": {
+            WARNING_LEVEL_PARAM: _threshold(WARNING_LEVEL_PARAM, "stan_ostrzegawczy"),
+            ALARM_LEVEL_PARAM: _threshold(ALARM_LEVEL_PARAM, "stan_alarmowy"),
+        },
+    }
