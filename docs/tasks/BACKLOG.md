@@ -132,6 +132,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `visibility`, `uv_index`/`uv_index_max`), brak dodatkowego round-tripu.
       Rozszerzenie `PARAM_CODES`/`FORECAST_PARAM_CODES` w connectorze, bez
       zmiany modelu (te same tabele `WeatherSnapshot`/`Forecast`).
+- [ ] **TASK-5.5:** Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
+      się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
+      `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
+      current-weather. Dodać prognozę do agregatu (albo osobny fetch na
+      ekranie pogody) + UI (§5 Master Planu wymienia prognozę jako MVP
+      field), inaczej endpoint istnieje, ale jest niewidoczny dla
+      użytkownika.
 
 ### Phase 6 — Geo Engine
 
@@ -313,7 +320,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `sk.gis.gov.pl` przez przeglądarkę zamiast dokumentacji API.
 - [ ] **TASK-11.2:** Connector `bathing_water` (o ile TASK-11.1 znajdzie
       stabilne źródło) — status kąpieliska, przyczyna zamknięcia, sezon,
-      E. coli/enterokoki/sinice, daty badań. Kontrakt connectora
+      E. coli/enterokoki/sinice, daty badań, **oraz nazwa i lokalizacja
+      kąpieliska (współrzędne + `geo_area_id`/gmina)** — bez tego przy
+      wielu kąpieliskach nie da się dopasować "najbliższe/istotne dla mnie"
+      (TASK-11.4/11.5) ani określić, którego użytkownika dotyczy zamknięcie
+      jako alert (TASK-11.3). Kontrakt connectora
       (fetch/parse/validate/normalize) kończy się na `parser.py`/
       `ingest.py`, ale zakres tego tasku musi objąć też model + migrację
       Alembic + wpięcie w harmonogram — bez tego TASK-11.4 (czyta wyłącznie
@@ -336,6 +347,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 - [ ] **TASK-12.1:** Ekran Settings (mobile) — placeholder/skeleton, potem
       realne preferencje.
+- [ ] **TASK-12.6:** Pozostałe sekcje Settings z §60 Master Planu — location/
+      profile/allergies/outdoor/notifications pokrywają TASK-12.2/12.3/
+      12.4/10.3, ale §60 wymienia też **data & privacy, sources, about**, dla
+      których żaden task nie istnieje. Dodać te trzy sekcje (privacy policy/
+      dane, ekran źródeł — ten sam wzorzec `source`/`attribution` co
+      TASK-7.1 — i o aplikacji) przed release, nie zostawiać jako
+      placeholder.
 - [ ] **TASK-12.2:** Ręczny wybór lokalizacji (mobile) — rozszerzenie
       obecnej statycznej listy 7 miast o wybór przez użytkownika (bez
       background location — rule #11).
@@ -476,6 +494,13 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
 - [ ] **TASK-17.2:** Testy odporności — utrata sieci, źródło zwraca błąd/
       puste dane w trakcie działania appki (rule #1 w praktyce, nie tylko w
       testach jednostkowych connectorów).
+- [ ] **TASK-17.4:** Location Test Matrix + Push Test Matrix (§77-78 Master
+      Planu) — TASK-17.1's happy-path E2E i TASK-17.2's network/source
+      failures nie pokrywają tych macierzy wprost: permission denied/
+      approximate/poor accuracy/changed location (§77), oraz quiet hours/
+      foreground/background/killed app/duplicate/expired event (§78). To
+      platform-specific przypadki, które mogą zawieść mimo ukończenia
+      TASK-17.1/17.2 — osobny, jawny przebieg przed release.
 - [ ] **TASK-17.3:** Google Play closed testing (§88-89 Master Planu) —
       konto Personal (decyzja v1.2) wymaga **min. 12 testerów przez min. 14
       kolejnych dni na torze closed** przed dostępem do produkcji — tor
