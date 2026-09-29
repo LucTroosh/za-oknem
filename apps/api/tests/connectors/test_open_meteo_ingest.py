@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.connectors.open_meteo import client, ingest
+from app.connectors.open_meteo.parser import PARAM_CODES
 from app.models import GeoArea, WeatherSnapshot
 
 PAYLOAD = {
@@ -15,16 +16,33 @@ PAYLOAD = {
         "time": "2026-09-28T18:00",
         "temperature_2m": 12.3,
         "relative_humidity_2m": 80,
+        "apparent_temperature": 10.1,
+        "pressure_msl": 1013.2,
+        "cloud_cover": 75,
+        "precipitation": 0.2,
+        "rain": 0.2,
+        "snowfall": 0.0,
         "wind_speed_10m": 5.2,
+        "wind_direction_10m": 210,
+        "wind_gusts_10m": 9.4,
         "weather_code": 3,
     },
     "current_units": {
         "temperature_2m": "°C",
         "relative_humidity_2m": "%",
+        "apparent_temperature": "°C",
+        "pressure_msl": "hPa",
+        "cloud_cover": "%",
+        "precipitation": "mm",
+        "rain": "mm",
+        "snowfall": "cm",
         "wind_speed_10m": "km/h",
+        "wind_direction_10m": "°",
+        "wind_gusts_10m": "km/h",
         "weather_code": "wmo code",
     },
 }
+PARAM_COUNT = len(PARAM_CODES)
 
 
 def _make_area(db) -> GeoArea:
@@ -41,8 +59,8 @@ def test_ingest_geo_area_stores_all_params(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == 4
-    assert db_session.query(WeatherSnapshot).count() == 4
+    assert stored == PARAM_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
 
 
 def test_ingest_geo_area_skips_duplicate(db_session, monkeypatch):
@@ -53,7 +71,7 @@ def test_ingest_geo_area_skips_duplicate(db_session, monkeypatch):
     stored_again = ingest.ingest_geo_area(area, db_session)
 
     assert stored_again == 0
-    assert db_session.query(WeatherSnapshot).count() == 4
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
 
 
 def test_ingest_geo_area_isolates_api_failure(db_session, monkeypatch):
