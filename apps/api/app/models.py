@@ -110,3 +110,37 @@ class WeatherSnapshot(Base):
     unit: Mapped[str] = mapped_column(String(20))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Forecast(Base):
+    """A predicted future reading for a geo_area (§30 Master Plan, ADR-010).
+
+    NOT a Measurement or a WeatherSnapshot (rule #7): valid_from/valid_until
+    describe the period the forecast is FOR (a future day), never what was
+    observed now. `forecast_reference_time` is when the model run behind this
+    reading was generated — Open-Meteo's API doesn't expose that timestamp, so
+    it's approximated as our own fetch time bucketed to the real update cadence
+    (3h, ADR-004) rather than the raw fetch instant (see ADR-010 for why: this
+    keeps re-running ingest within one cycle idempotent, and is an honestly
+    documented approximation, not a fabricated one - rule #10 is about safety
+    data, weather forecast is not that, but "don't invent precision we don't
+    have" still applies).
+    """
+
+    __tablename__ = "forecasts"
+    __table_args__ = (
+        UniqueConstraint("source_id", "source_record_id", name="uq_forecast_source_record"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    source_record_id: Mapped[str] = mapped_column(String(150))
+    geo_area_id: Mapped[int] = mapped_column(ForeignKey("geo_areas.id"), index=True)
+    param_code: Mapped[str] = mapped_column(String(30), index=True)
+    value: Mapped[float] = mapped_column(Float)
+    unit: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(30))
+    forecast_reference_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

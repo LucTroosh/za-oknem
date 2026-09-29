@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import GeoArea, WeatherSnapshot
+from app.models import Forecast, GeoArea, WeatherSnapshot
 
 router = APIRouter()
 
@@ -66,6 +66,86 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
                 "observed_at": latest_observed_at.isoformat(),
                 "freshness": freshness(latest_observed_at),
                 "params": {p.param_code: {"value": p.value, "unit": p.unit} for p in params},
+                "source": "open_meteo",
+            }
+        )
+
+    return {"areas": areas}
+
+
+@router.get("/weather/forecast")
+def weather_forecast(db: Session = Depends(get_db)) -> dict:
+    """Reads only from our own DB (rule #14). `forecasts` is append-only
+    (ADR-010) - several ingest runs can each hold a prediction for the same
+    future day, so this picks the freshest one per (geo_area, day, param) via
+    ORDER BY forecast_reference_time DESC, same DISTINCT ON idiom as
+    latest_weather(). Only days that haven't passed yet are returned."""
+    now = datetime.now(UTC)
+    stmt = (
+        select(Forecast)
+        .where(Forecast.valid_until > now)
+        .distinct(Forecast.geo_area_id, Forecast.valid_from, Forecast.param_code)
+        .order_by(
+            Forecast.geo_area_id,
+            Forecast.valid_from,
+            Forecast.param_code,
+            Forecast.forecast_reference_time.desc(),
+        )
+    )
+    rows = db.execute(stmt).scalars().all()
+
+    if not rows:
+        return {"areas": []}
+
+    areas_by_id = {a.id: a for a in db.execute(select(GeoArea)).scalars().all()}
+
+    by_area_days: dict[int, dict[datetime, list[Forecast]]] = defaultdict(lambda: defaultdict(list))
+    for row in rows:
+        by_area_days[row.geo_area_id][row.valid_from].append(row)
+
+    areas = []
+    for geo_area_id, days_map in by_area_days.items():
+        area = areas_by_id.get(geo_area_id)
+        if area is None:
+            continue  # orphaned forecast (deleted geo_area) - skip, don't fabricate
+
+        days = []
+        model = None
+        latest_fetched_at = None
+        for valid_from in sorted(days_map):
+            day_rows = days_map[valid_from]
+            model = day_rows[0].model
+            day_fetched_at = max(r.fetched_at for r in day_rows)
+            if latest_fetched_at is None or day_fetched_at > latest_fetched_at:
+                latest_fetched_at = day_fetched_at
+            days.append(
+                {
+                    "valid_from": valid_from.isoformat(),
+                    "valid_until": day_rows[0].valid_until.isoformat(),
+                    "forecast_reference_time": max(
+                        r.forecast_reference_time for r in day_rows
+                    ).isoformat(),
+                    "params": {r.param_code: {"value": r.value, "unit": r.unit} for r in day_rows},
+                }
+            )
+
+        # Freshness reflects how recently we actually fetched (rule #8), using the
+        # real fetched_at — not forecast_reference_time, which is deliberately
+        # rounded down to the 3h bucket (ADR-010) and would report a fetch done
+        # at :59 as up to 3h older than it really is. Not to be confused with
+        # valid_until, which only says the forecast period hasn't ended yet — a
+        # stalled scheduler still serves old-but-not-expired rows.
+        areas.append(
+            {
+                "geo_area_id": area.id,
+                "slug": area.slug,
+                "name": area.name,
+                "latitude": area.latitude,
+                "longitude": area.longitude,
+                "model": model,
+                "fetched_at": latest_fetched_at.isoformat(),
+                "freshness": freshness(latest_fetched_at),
+                "days": days,
                 "source": "open_meteo",
             }
         )

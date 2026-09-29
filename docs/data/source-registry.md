@@ -31,7 +31,17 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `GET /api/v1/weather/latest` gotowe 2026-09-28; pierwsza żywa weryfikacja
   kształtu JSON nastąpi przy pierwszym realnym uruchomieniu ingestu, patrz
   uwaga o robots.txt wyżej — connector waliduje i rzuca błąd zamiast zgadywać)
-- **last_verified_at:** 2026-09-28
+- **forecast (`daily`):** dodane 2026-09-29 (TASK-5.3, ADR-010) — jedno
+  zapytanie HTTP dołącza `daily=...` obok `current=...` (Open-Meteo pozwala
+  łączyć oba w jednym wywołaniu). Kształt (`daily`/`daily_units`, równoległe
+  tablice `time`+per-param) potwierdzony z oficjalnej dokumentacji tekstowej
+  (ten sam robots.txt blocker co `current`, ten sam przyjęty precedens —
+  weather nie jest danymi bezpieczeństwa). Open-Meteo nie publikuje własnego
+  znacznika czasu "run modelu" — `forecast_reference_time` to nasz `fetched_at`
+  zaokrąglony do 3h cyklu (ADR-010), jawnie udokumentowane przybliżenie.
+  `model="auto"` to dokładna, udokumentowana wartość domyślna Open-Meteo, nie
+  wymyślona etykieta.
+- **last_verified_at:** 2026-09-28 (current), 2026-09-29 (dokumentacja daily)
 
 ## cams_ads (Copernicus Atmosphere Data Store — pyłki, CAMS Air)
 

@@ -29,17 +29,26 @@ CURRENT_PARAMS = (
     "wind_gusts_10m,weather_code"
 )
 
+# Daily forecast fields (ADR-010, Master Plan §30). Deliberately narrow MVP set,
+# not Open-Meteo's full daily catalog (YAGNI, same spirit as CURRENT_PARAMS).
+DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
+
 
 class OpenMeteoApiError(Exception):
     """Raised when Open-Meteo returns an unexpected status or unparseable body."""
 
 
-def fetch_current(latitude: float, longitude: float) -> dict:
-    """GET current weather for one point. Single retry on failure (rule #5)."""
+def fetch_weather(latitude: float, longitude: float) -> dict:
+    """GET current weather + daily forecast for one point, in a single request
+    (Open-Meteo supports combining `current` and `daily` in one call - ADR-010 -
+    no need for a second HTTP round trip per geo_area). Single retry on failure
+    (rule #5). Named `fetch_weather`, not `fetch_current`, because it now also
+    carries the forecast block."""
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "current": CURRENT_PARAMS,
+        "daily": DAILY_PARAMS,
         "timezone": "UTC",
     }
     last_error: Exception | None = None
