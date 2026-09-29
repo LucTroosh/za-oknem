@@ -1,7 +1,17 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -96,9 +106,7 @@ class WeatherSnapshot(Base):
 
     __tablename__ = "weather_snapshots"
     __table_args__ = (
-        UniqueConstraint(
-            "source_id", "source_record_id", name="uq_weather_snapshot_source_record"
-        ),
+        UniqueConstraint("source_id", "source_record_id", name="uq_weather_snapshot_source_record"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -144,3 +152,28 @@ class Forecast(Base):
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SourceFetchCounter(Base):
+    """Daily outbound-call counter per source (ADR-001/ADR-003/ADR-004: "licznik
+    dziennych wywołań per źródło w bazie, alert przy 70% dziennego limitu").
+
+    Postgres, not Redis (rule #2: Redis is cache/short-lived state, this counter
+    must survive a scheduler restart to mean anything). One row per
+    (source_id, day) - `count` is the number of outbound HTTP requests recorded
+    for that source that day, incremented at call time by the connector itself.
+
+    ponytail: counts raw HTTP requests, not Open-Meteo's own billing units
+    (ADR-003 notes our ~22-variable request can count as more than 1 "API call"
+    server-side, but the exact conversion isn't documented) - a request-count
+    lower bound, not a precise remaining-budget figure. Upgrade if Open-Meteo
+    ever publishes the real per-variable formula.
+    """
+
+    __tablename__ = "source_fetch_counters"
+    __table_args__ = (UniqueConstraint("source_id", "day", name="uq_source_fetch_counter_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)

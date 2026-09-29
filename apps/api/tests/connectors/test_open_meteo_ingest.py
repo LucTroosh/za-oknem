@@ -9,7 +9,7 @@ import pytest
 
 from app.connectors.open_meteo import client, ingest
 from app.connectors.open_meteo.parser import FORECAST_PARAM_CODES, PARAM_CODES
-from app.models import Forecast, GeoArea, WeatherSnapshot
+from app.models import Forecast, GeoArea, SourceFetchCounter, WeatherSnapshot
 
 CURRENT_BLOCK = {
     "current": {
@@ -217,3 +217,31 @@ class TestMain:
 
         assert ingest_mock.call_count == 1
         assert ingest_mock.call_args[0][0].slug == "warszawa"
+
+
+def test_ingest_geo_area_records_a_daily_fetch_call(db_session, monkeypatch):
+    """ADR-001/ADR-003/ADR-004: every successful HTTP call counts against the
+    source's daily budget, regardless of what parsing does with the payload."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+
+    ingest.ingest_geo_area(area, db_session)
+
+    counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
+    assert counter is not None
+    assert counter.count == 1
+
+
+def test_ingest_geo_area_does_not_record_a_call_on_api_failure(db_session, monkeypatch):
+    """A failed HTTP call (client.OpenMeteoApiError, already exhausted its own
+    retry) never reached Open-Meteo successfully - or did, but we can't tell
+    which attempt succeeded/failed, so it's excluded from this lower-bound
+    counter rather than risk over-counting."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(
+        client, "fetch_weather", MagicMock(side_effect=client.OpenMeteoApiError("boom"))
+    )
+
+    ingest.ingest_geo_area(area, db_session)
+
+    assert db_session.query(SourceFetchCounter).count() == 0

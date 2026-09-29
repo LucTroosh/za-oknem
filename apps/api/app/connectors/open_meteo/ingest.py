@@ -20,8 +20,13 @@ from app.connectors.open_meteo import client
 from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize, normalize_forecast
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
+from app.rate_budget import check_daily_budget, record_fetch_call
 
 logger = logging.getLogger(__name__)
+
+# ADR-003: 10 000 requests/day on Open-Meteo's free non-commercial tier -
+# "alert przy 70% dziennego limitu" (see app/rate_budget.py).
+DAILY_CALL_LIMIT = 10_000
 
 
 def _store_if_new(model_cls: type, record: dict, db) -> int:
@@ -80,6 +85,12 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
         return 0
+
+    # ADR-001/ADR-003/ADR-004: count this request against the daily budget and
+    # alert at 70% - after the call (rule #16 counts real requests, not attempts
+    # we hoped to make), regardless of what parsing below does with the payload.
+    call_count = record_fetch_call(db, "open_meteo")
+    check_daily_budget("open_meteo", call_count, DAILY_CALL_LIMIT)
 
     fetched_at = datetime.now(UTC)
     stored = 0
