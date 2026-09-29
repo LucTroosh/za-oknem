@@ -82,8 +82,9 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   1500 zapytań/min (dane bieżące i indeks jakości powietrza) — wg dokumentacji GIOŚ
 - **attribution:** "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)" — wymagane w
   ekranie Źródła
-- **status:** VERIFIED na żywo 2026-09-28 (użytkownik uruchomił connector przeciwko
-  prawdziwemu API). **Realny kształt odpowiedzi różni się istotnie od pierwotnie
+- **status:** IMPLEMENTED (connector `gios` — client/parser/ingest — oraz
+  `GET /api/v1/air/latest` gotowe; VERIFIED na żywo 2026-09-28, użytkownik uruchomił
+  connector przeciwko prawdziwemu API). **Realny kształt odpowiedzi różni się istotnie od pierwotnie
   zakładanego, udokumentowanego schematu** — API zwraca JSON-LD z polskimi kluczami
   (`Lista stacji pomiarowych`, `Identyfikator stacji`, `Nazwa stacji`, `WGS84 φ N`,
   `WGS84 λ E`, `Wskaźnik - wzór`, `Lista danych pomiarowych`, `Data`, `Wartość` itd.),
