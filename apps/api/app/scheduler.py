@@ -9,12 +9,16 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.ingest import ingest_station
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_station as ingest_hydro_station
+from app.connectors.imgw_warningshydro import client as imgw_warnings_client
+from app.connectors.imgw_warningshydro.ingest import ingest_batch
+from app.connectors.imgw_warningshydro.parser import parse_warnings
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
@@ -22,11 +26,12 @@ from app.models import GeoArea
 logger = logging.getLogger(__name__)
 
 # ADR-004 verified cycle: Open-Meteo/ICON refreshes every 3h. GIOŚ measurement
-# data is hourly. IMGW hydro's cadence isn't documented (ADR-008) - 1h is a
-# starting assumption, same as GIOŚ, pending real verification.
+# data is hourly. IMGW hydro/warnings cadence isn't documented (ADR-008/009) -
+# 1h is a starting assumption, same as GIOŚ, pending real verification.
 OPEN_METEO_INTERVAL_SECONDS = 3 * 60 * 60
 GIOS_INTERVAL_SECONDS = 60 * 60
 IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
+IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
 POLL_INTERVAL_SECONDS = 60
 
 
@@ -71,6 +76,25 @@ def run_imgw_hydro() -> None:
         db.close()
 
 
+def run_imgw_warningshydro() -> None:
+    db = SessionLocal()
+    try:
+        fetched_at = datetime.now(UTC)
+        warnings = parse_warnings(imgw_warnings_client.fetch_warnings())
+        ingest_batch(warnings, db, fetched_at=fetched_at)
+    finally:
+        db.close()
+
+
+def _run_job_safely(name: str, job: Callable[[], None]) -> None:
+    """Rule #1: a connector failure (source down, retry exhausted, bad payload)
+    must not take down the scheduler and stop every other source's refresh."""
+    try:
+        job()
+    except Exception:
+        logger.exception("scheduled job %s failed - other jobs still run (rule #1)", name)
+
+
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -79,19 +103,22 @@ def main(*, iterations: int | None = None) -> None:
     # to work on Linux (monotonic counts from boot, so "now" is usually already
     # hours past either interval) but that's an assumption about the platform, not
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
-    last_open_meteo = last_gios = last_imgw_hydro = float("-inf")
+    last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
-            run_open_meteo()
+            _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
         if now - last_gios >= GIOS_INTERVAL_SECONDS:
-            run_gios()
+            _run_job_safely("gios", run_gios)
             last_gios = now
         if now - last_imgw_hydro >= IMGW_HYDRO_INTERVAL_SECONDS:
-            run_imgw_hydro()
+            _run_job_safely("imgw_hydro", run_imgw_hydro)
             last_imgw_hydro = now
+        if now - last_imgw_warnings >= IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS:
+            _run_job_safely("imgw_warningshydro", run_imgw_warningshydro)
+            last_imgw_warnings = now
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)
