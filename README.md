@@ -27,6 +27,12 @@ Jeśli `dashboard.air` jest `null` dla Twojej lokalizacji — najbliższa stacja
 jest dalej niż 50 km (ADR-006, próg celowo konserwatywny) albo nie zrobiłeś
 ingestu dla stacji w pobliżu.
 
+**Automatyczne odświeżanie zamiast ręcznego ingestu** (ADR-007): ustaw
+`GIOS_STATION_IDS=38,42` (Twoje stacje, przecinkami) w `.env`, potem
+`docker compose up scheduler` — pętla sama woła `open_meteo` co 3h i `gios` co 1h,
+bez ręcznego CLI. Puste `GIOS_STATION_IDS` = scheduler pomija GIOŚ (jawnie loguje,
+nie zgaduje stacji).
+
 ```bash
 cd apps/mobile
 npm install

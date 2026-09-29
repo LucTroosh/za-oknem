@@ -35,5 +35,18 @@ services:
     volumes:
       - ./apps/api:/app
 
+  # ADR-007: same image as api, just runs the loop-based scheduler instead of
+  # uvicorn - no separate worker infrastructure. Optional: comment out (or
+  # `docker compose up` without it) if you'd rather keep running ingest by hand.
+  scheduler:
+    build: ./apps/api
+    env_file: .env
+    command: ["python", "-m", "app.scheduler"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app
+
 volumes:
   postgres_data:
