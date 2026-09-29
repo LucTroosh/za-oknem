@@ -97,7 +97,7 @@ Alerts/Settings/push/profilu).
 | REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/dashboard/latest`, `/health`; wersjonowane pod `/api/v1/` |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
 | Monitoring | ⬜ TODO |
-| Backup | ⬜ TODO |
+| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane lokalnie (dump+sekrety szyfrowane age, manifest z licznikami do smoke-checku, restore test wymaga izolowanego hosta z prywatnym kluczem); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
 
 ---
 

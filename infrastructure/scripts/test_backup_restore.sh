@@ -28,6 +28,11 @@ AGE_RECIPIENT="$(grep -o 'age1[a-z0-9]*' "$AGE_DIR/key.txt" | head -n1)"
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/za_oknem}"
 export BACKUP_REMOTE="$REMOTE_DIR"
 export AGE_RECIPIENT
+export AGE_IDENTITY="$AGE_DIR/key.txt"
+# Self-check nie ma prawdziwego .env w REPO_ROOT — to nie jest produkcyjny przebieg,
+# więc świadomie pomijamy artefakt sekretów (LucTroosh review: brak .env poza tym
+# trybem jest teraz twardym błędem backup.sh).
+export BACKUP_ALLOW_NO_SECRETS=1
 
 # libpq (psql) rozumie tylko postgresql:// / postgres://, nie sufiks sterownika
 # SQLAlchemy (postgresql+psycopg://) — ten sam fix co w backup.sh/restore_test.sh
@@ -44,10 +49,15 @@ echo "[test] uruchamiam backup.sh..."
 bash infrastructure/scripts/backup.sh
 
 echo "[test] weryfikuję artefakty w $REMOTE_DIR..."
-[ -n "$(find "$REMOTE_DIR" -name 'db-*.dump')" ] || { echo "FAIL: brak dumpa bazy" >&2; exit 1; }
+[ -n "$(find "$REMOTE_DIR" -name 'db-*.dump.age')" ] || { echo "FAIL: brak zaszyfrowanego dumpa bazy" >&2; exit 1; }
 [ -n "$(find "$REMOTE_DIR" -name 'config-*.tar.gz')" ] || { echo "FAIL: brak configu" >&2; exit 1; }
+[ -n "$(find "$REMOTE_DIR" -name 'manifest-*.txt')" ] || { echo "FAIL: brak manifestu" >&2; exit 1; }
 
 echo "[test] uruchamiam restore_test.sh..."
+# Stała nazwa tu jest bezpieczna (jeden deweloper, jeden przebieg na raz) — ale
+# restore_test.sh już NIE usuwa istniejącej bazy przed utworzeniem (LucTroosh review),
+# więc pozostałość po przerwanym wcześniejszym self-checku wymaga ręcznego
+# `DROP DATABASE za_oknem_selfcheck_restore_test` przed ponownym uruchomieniem.
 export RESTORE_TEST_DB="za_oknem_selfcheck_restore_test"
 bash infrastructure/scripts/restore_test.sh
 # restore_test.sh sprząta teraz swoją bazę samo (trap na EXIT, Codex review) —

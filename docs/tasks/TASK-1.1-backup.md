@@ -72,11 +72,24 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
 
 ## Security
 
-- Sekrety (`.env`) nigdy nie trafiają na zdalny storage w formie jawnej — zawsze przez
-  `age -r $AGE_RECIPIENT` (asymetryczne szyfrowanie, prywatny klucz nie musi istnieć
-  na VPS, który robi backup — tylko na maszynie, która kiedyś odtwarza).
+- Sekrety (`.env`) **i dump bazy** nigdy nie trafiają na zdalny storage w formie
+  jawnej — zawsze przez `age -r $AGE_RECIPIENT` (asymetryczne szyfrowanie, prywatny
+  klucz nie musi istnieć na VPS, który robi backup — tylko na maszynie, która kiedyś
+  odtwarza). Dump bazy jest tak samo wrażliwy jak `.env` (pełny model danych, docelowo
+  też identyfikatory urządzeń/tokeny push) — korekta po review (LucTroosh), w
+  pierwszej wersji szyfrowane były tylko sekrety.
+- `restore_test.sh` **wymaga prywatnego klucza** (`AGE_IDENTITY`), więc musi działać
+  na osobnym, izolowanym hoście weryfikacyjnym — nigdy na backupującym VPS, który tego
+  klucza nie posiada i nie powinien.
+- Brak `.env` przy backupie jest domyślnie twardym błędem (nie cichym pominięciem) —
+  tylko jawny `BACKUP_ALLOW_NO_SECRETS=1` (dev/self-check) go dopuszcza.
 - `restore_test.sh` działa na jednorazowej, odizolowanej bazie (`_restore_test`
-  sufiks), nigdy nie nadpisuje bazy produkcyjnej.
+  sufiks, domyślnie z losowym komponentem w nazwie), nigdy nie nadpisuje bazy
+  produkcyjnej — i nigdy nie usuwa istniejącej bazy PRZED utworzeniem (tylko po
+  zakończeniu testu, i tylko bazę faktycznie utworzoną przez ten przebieg).
+- Smoke-check porównuje liczby wierszy per tabela i wersję migracji zapisane w
+  manifeście z backupu z tym, co faktycznie odtworzyło się w bazie testowej — nie
+  tylko istnienie tabel.
 
 ## Architecture Impact
 

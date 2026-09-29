@@ -4,14 +4,27 @@
 # że faktycznie da się z niego coś odczytać. Nigdy nie dotyka bazy produkcyjnej —
 # zawsze osobna baza z sufiksem _restore_test.
 #
-# Wymaga: rclone, pg_restore, psql. Zmienne środowiskowe: DATABASE_URL (bazowy connection
-# string — nazwa bazy w nim jest ignorowana, używana tylko do wyciągnięcia hosta/usera),
-# BACKUP_REMOTE, RESTORE_TEST_DB (domyślnie za_oknem_restore_test).
+# WAŻNE (LucTroosh review): dump i sekrety są szyfrowane age (backup.sh). Ten skrypt
+# musi więc mieć prywatny klucz (AGE_IDENTITY) i dlatego uruchamiać go na IZOLOWANYM
+# hoście weryfikacyjnym, NIGDY na VPS robiącym backup (klucz prywatny nie może tam
+# istnieć — patrz Security w TASK-1.1-backup.md).
+#
+# Wymaga: rclone, pg_restore, psql, age. Zmienne środowiskowe: DATABASE_URL (bazowy
+# connection string — nazwa bazy w nim jest ignorowana, używana tylko do wyciągnięcia
+# hosta/usera), BACKUP_REMOTE, AGE_IDENTITY (ścieżka do prywatnego klucza age),
+# RESTORE_TEST_DB (domyślnie losowa nazwa kończąca się na _restore_test).
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL musi być ustawione}"
 : "${BACKUP_REMOTE:?BACKUP_REMOTE musi być ustawione}"
-RESTORE_TEST_DB="${RESTORE_TEST_DB:-za_oknem_restore_test}"
+: "${AGE_IDENTITY:?AGE_IDENTITY musi być ustawiony (ścieżka do prywatnego klucza age) — dump i sekrety są szyfrowane, test odtworzenia musi je faktycznie odszyfrować, nie tylko sprawdzić obecność}"
+[ -f "$AGE_IDENTITY" ] || { echo "[restore_test] BŁĄD: AGE_IDENTITY (${AGE_IDENTITY}) nie jest plikiem." >&2; exit 1; }
+# Losowa domyślna nazwa (LucTroosh review [P1], patrz guard przy DROP DATABASE niżej):
+# stała domyślna nazwa pozwalała temu skryptowi bezwarunkowo usunąć istniejącą bazę o
+# tej nazwie, nawet jeśli powstała z innego powodu (ręczna praca, inny równoległy
+# przebieg). Losowy sufiks czyni kolizję praktycznie niemożliwą, więc normalnie nie ma
+# czego usuwać przed utworzeniem.
+RESTORE_TEST_DB="${RESTORE_TEST_DB:-za_oknem_$(od -An -tx1 -N4 /dev/urandom | tr -d ' \n')_restore_test}"
 
 # libpq (psql/pg_restore) rozumie tylko postgresql:// / postgres://, nie sufiks
 # sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example (Codex review).
@@ -143,20 +156,20 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[restore_test] szukam najnowszego dumpa w $BACKUP_REMOTE..."
-LATEST_DUMP="$(rclone lsf "$BACKUP_REMOTE" --include "db-*.dump" | sort | tail -n1)"
+LATEST_DUMP="$(rclone lsf "$BACKUP_REMOTE" --include "db-*.dump.age" | sort | tail -n1)"
 if [ -z "$LATEST_DUMP" ]; then
   echo "[restore_test] BŁĄD: brak dumpów w $BACKUP_REMOTE — nie ma czego odtwarzać." >&2
   exit 1
 fi
 rclone copy "$BACKUP_REMOTE/$LATEST_DUMP" "$WORKDIR/"
 
-# Ten sam zestaw artefaktów co przy backupie (ten sam STAMP) — sprawdzamy config i
-# sekrety, nie tylko dump. Sam poprawny dump przy zepsutym/brakującym config nadal
-# oznacza nieudany backup jako całość (Codex review).
+# Ten sam zestaw artefaktów co przy backupie (ten sam STAMP) — sprawdzamy config,
+# sekrety i manifest, nie tylko dump. Sam poprawny dump przy zepsutym/brakującym
+# config nadal oznacza nieudany backup jako całość (Codex review).
 STAMP="${LATEST_DUMP#db-}"
-STAMP="${STAMP%.dump}"
+STAMP="${STAMP%.dump.age}"
 CONFIG_ARCHIVE="config-${STAMP}.tar.gz"
-SECRETS_ARCHIVE="secrets-${STAMP}.tar.gz.age"
+MANIFEST="manifest-${STAMP}.txt"
 
 echo "[restore_test] weryfikuję $CONFIG_ARCHIVE..."
 if ! rclone copy "$BACKUP_REMOTE/$CONFIG_ARCHIVE" "$WORKDIR/" 2>/dev/null || [ ! -f "$WORKDIR/$CONFIG_ARCHIVE" ]; then
@@ -165,40 +178,82 @@ if ! rclone copy "$BACKUP_REMOTE/$CONFIG_ARCHIVE" "$WORKDIR/" 2>/dev/null || [ !
 fi
 tar -tzf "$WORKDIR/$CONFIG_ARCHIVE" >/dev/null  # rzuca błąd głośno, jeśli archiwum jest uszkodzone
 
-echo "[restore_test] sprawdzam obecność $SECRETS_ARCHIVE..."
-# ponytail: nie odszyfrowujemy — klucz prywatny age celowo NIE istnieje na VPS
-# (Security w TASK-1.1-backup.md), więc to tylko sprawdza, że plik dotarł i nie
-# jest pusty. Pełna weryfikacja odszyfrowania wymaga uruchomienia tego kroku na
-# maszynie, która ma klucz prywatny.
-if rclone copy "$BACKUP_REMOTE/$SECRETS_ARCHIVE" "$WORKDIR/" 2>/dev/null && [ -s "$WORKDIR/$SECRETS_ARCHIVE" ]; then
-  echo "[restore_test] sekrety: obecne ($(wc -c <"$WORKDIR/$SECRETS_ARCHIVE") B, odszyfrowanie nie jest tu weryfikowane)."
-else
-  echo "[restore_test] sekrety: brak artefaktu dla tego backupu (OK, jeśli .env nie istniało przy tworzeniu backupu)."
+echo "[restore_test] weryfikuję $MANIFEST..."
+# LucTroosh review [P2/P1]: manifest niesie autorytatywną informację o tym, co backup
+# faktycznie zawiera (w tym jawny wariant "sekrety pominięte celowo") oraz metadane
+# (wersja migracji, liczba wierszy per tabela) do realnej weryfikacji po odtworzeniu —
+# nie samego istnienia tabel, które przechodzi nawet dla pustych.
+if ! rclone copy "$BACKUP_REMOTE/$MANIFEST" "$WORKDIR/" 2>/dev/null || [ ! -f "$WORKDIR/$MANIFEST" ]; then
+  echo "[restore_test] BŁĄD: brak $MANIFEST dla tego samego backupu (${STAMP}) — zestaw artefaktów niekompletny." >&2
+  exit 1
 fi
+MANIFEST_SECRETS_LINE="$(grep '^secrets=' "$WORKDIR/$MANIFEST" || true)"
+MANIFEST_SECRETS_VALUE="${MANIFEST_SECRETS_LINE#secrets=}"
 
-# Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
-# nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
-echo "[restore_test] (re)tworzę bazę $RESTORE_TEST_DB..."
-psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};"
-psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
-DB_CREATED=1
-
-echo "[restore_test] pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
-pg_restore --dbname="$TEST_URL" --no-owner --no-privileges "$WORKDIR/$LATEST_DUMP"
-
-echo "[restore_test] smoke-check..."
-# Sprawdzamy konkretne tabele modelu (app/models.py), nie tylko "cokolwiek istnieje"
-# — sam count(*) > 0 przechodzi nawet, gdy odtworzyła się tylko alembic_version, a
-# żadna tabela aplikacji (Codex review).
-EXPECTED_TABLES="measurements geo_areas weather_snapshots alerts forecasts"
-MISSING=""
-for t in $EXPECTED_TABLES; do
-  EXISTS="$(psql --dbname="$TEST_URL" -t -c "SELECT to_regclass('public.${t}') IS NOT NULL;" | tr -d '[:space:]')"
-  [ "$EXISTS" = "t" ] || MISSING="$MISSING $t"
-done
-if [ -n "$MISSING" ]; then
-  echo "[restore_test] BŁĄD: brak oczekiwanych tabel po odtworzeniu:$MISSING" >&2
+echo "[restore_test] sekrety..."
+if [ "$MANIFEST_SECRETS_VALUE" = "NONE:BACKUP_ALLOW_NO_SECRETS" ]; then
+  echo "[restore_test] sekrety: celowo pominięte przy backupie (BACKUP_ALLOW_NO_SECRETS=1, dev/self-check) — OK wg manifestu."
+elif [ -n "$MANIFEST_SECRETS_VALUE" ]; then
+  # Pełne odszyfrowanie i walidacja zawartości (LucTroosh review [P1]) — sam
+  # "plik dotarł i nie jest pusty" (poprzednia wersja) nie dowodzi, że da się go
+  # odszyfrować. Nie logujemy zawartości .env, tylko listę plików w archiwum.
+  if ! rclone copy "$BACKUP_REMOTE/$MANIFEST_SECRETS_VALUE" "$WORKDIR/" 2>/dev/null || [ ! -f "$WORKDIR/$MANIFEST_SECRETS_VALUE" ]; then
+    echo "[restore_test] BŁĄD: manifest wskazuje sekrety ($MANIFEST_SECRETS_VALUE), ale artefaktu brak na remote." >&2
+    exit 1
+  fi
+  SECRETS_LISTING="$(age -d -i "$AGE_IDENTITY" "$WORKDIR/$MANIFEST_SECRETS_VALUE" | tar -tz)"
+  echo "$SECRETS_LISTING" | grep -qx '\.env' || {
+    echo "[restore_test] BŁĄD: odszyfrowane archiwum sekretów nie zawiera .env (zawiera: $SECRETS_LISTING)." >&2
+    exit 1
+  }
+  echo "[restore_test] sekrety: odszyfrowane i zweryfikowane (zawierają .env)."
+else
+  echo "[restore_test] BŁĄD: manifest nie ma poprawnej linii 'secrets=' — backup niekompletny lub uszkodzony manifest." >&2
   exit 1
 fi
 
-echo "[restore_test] OK: $LATEST_DUMP odtworzony do $RESTORE_TEST_DB, wszystkie oczekiwane tabele obecne."
+# Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
+# nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md). Losowa domyślna
+# nazwa (wyżej) czyni kolizję praktycznie niemożliwą, więc NIE usuwamy niczego przed
+# utworzeniem — jeśli CREATE zawiedzie bo nazwa jednak istnieje, to jawny błąd
+# (`set -e`), nie ciche DROP cudzej/nieznanej bazy (LucTroosh review [P1]).
+echo "[restore_test] tworzę bazę $RESTORE_TEST_DB..."
+psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
+DB_CREATED=1
+
+echo "[restore_test] odszyfrowuję dump..."
+DB_DUMP_PLAIN="$WORKDIR/db-${STAMP}.dump"
+age -d -i "$AGE_IDENTITY" -o "$DB_DUMP_PLAIN" "$WORKDIR/$LATEST_DUMP"
+
+echo "[restore_test] pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
+pg_restore --dbname="$TEST_URL" --no-owner --no-privileges "$DB_DUMP_PLAIN"
+
+echo "[restore_test] smoke-check (porównanie z manifestem)..."
+# LucTroosh review [P2]: samo istnienie tabel (poprzednia wersja) przechodzi nawet dla
+# pustych tabel, więc nie wykrywa backupu bez istotnych danych. Porównujemy realne
+# liczby wierszy i wersję migracji zapisane w manifeście W MOMENCIE backupu z tym, co
+# faktycznie odtworzyło się teraz — to wykrywa też np. przycięty/spóźniony dump.
+MISMATCH=""
+MANIFEST_ALEMBIC="$(grep '^alembic_version=' "$WORKDIR/$MANIFEST" | cut -d= -f2-)"
+RESTORED_ALEMBIC="$(psql --dbname="$TEST_URL" -t -c "SELECT version_num FROM alembic_version;" 2>/dev/null | tr -d '[:space:]')"
+if [ "${MANIFEST_ALEMBIC:-NONE}" != "${RESTORED_ALEMBIC:-NONE}" ]; then
+  MISMATCH="$MISMATCH alembic_version(manifest=${MANIFEST_ALEMBIC:-NONE},restored=${RESTORED_ALEMBIC:-NONE})"
+fi
+for t in measurements geo_areas weather_snapshots alerts forecasts; do
+  EXPECTED="$(grep "^table_count.${t}=" "$WORKDIR/$MANIFEST" | cut -d= -f2-)"
+  EXISTS="$(psql --dbname="$TEST_URL" -t -c "SELECT to_regclass('public.${t}') IS NOT NULL;" | tr -d '[:space:]')"
+  if [ "$EXISTS" != "t" ]; then
+    MISMATCH="$MISMATCH ${t}(missing_table)"
+    continue
+  fi
+  ACTUAL="$(psql --dbname="$TEST_URL" -t -c "SELECT count(*) FROM ${t};" | tr -d '[:space:]')"
+  if [ "${EXPECTED:-0}" != "${ACTUAL:-0}" ]; then
+    MISMATCH="$MISMATCH ${t}(manifest=${EXPECTED:-0},restored=${ACTUAL:-0})"
+  fi
+done
+if [ -n "$MISMATCH" ]; then
+  echo "[restore_test] BŁĄD: rozbieżności między manifestem a odtworzoną bazą:$MISMATCH" >&2
+  exit 1
+fi
+
+echo "[restore_test] OK: $LATEST_DUMP odtworzony do $RESTORE_TEST_DB, wszystkie tabele i liczniki zgodne z manifestem."
