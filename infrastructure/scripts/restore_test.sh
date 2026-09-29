@@ -37,16 +37,20 @@ PROD_DB_NAME="${PG_DATABASE_URL_NO_QUERY##*/}"
 TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
 # Guard przed DROP DATABASE na czymś realnym: RESTORE_TEST_DB musi być bezpiecznym
-# identyfikatorem (tylko litery/cyfry/_) kończącym się na _restore_test, i różnym
-# od bazy z DATABASE_URL. Sam glob "*_restore_test" (poprzednia wersja) przepuszczał
-# np. "za_oknem -- _restore_test", co po interpolacji do surowego SQL zamienia
-# resztę polecenia w komentarz i wykonuje DROP DATABASE na PROD_DB_NAME zamiast na
-# bazie testowej (Codex review — SQL injection przez nazwę bazy).
-if ! [[ "$RESTORE_TEST_DB" =~ ^[A-Za-z_][A-Za-z0-9_]*_restore_test$ ]]; then
-  echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi być bezpieczną nazwą (litery/cyfry/_) kończącą się na _restore_test (jest: ${RESTORE_TEST_DB})." >&2
+# identyfikatorem (tylko małe litery/cyfry/_) kończącym się na _restore_test, i
+# różnym od bazy z DATABASE_URL. Sam glob "*_restore_test" (poprzednia wersja)
+# przepuszczał np. "za_oknem -- _restore_test", co po interpolacji do surowego SQL
+# zamienia resztę polecenia w komentarz i wykonuje DROP DATABASE na PROD_DB_NAME
+# zamiast na bazie testowej (Codex review — SQL injection przez nazwę bazy).
+# Tylko małe litery, nie [A-Za-z] — Postgres fałduje niecudzysłowiony identyfikator
+# w DROP DATABASE do lowercase, więc RESTORE_TEST_DB="FOO_restore_test" przy bazie
+# "foo_restore_test" ominąłby poniższe porównanie case-sensitive, a faktycznie
+# wykonane polecenie i tak trafiłoby w tę drugą (Codex review, runda 2).
+if ! [[ "$RESTORE_TEST_DB" =~ ^[a-z_][a-z0-9_]*_restore_test$ ]]; then
+  echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi być z samych małych liter/cyfr/_ (kończąc na _restore_test), jest: ${RESTORE_TEST_DB}." >&2
   exit 1
 fi
-if [ "$RESTORE_TEST_DB" = "$PROD_DB_NAME" ]; then
+if [ "$RESTORE_TEST_DB" = "$(echo "$PROD_DB_NAME" | tr 'A-Z' 'a-z')" ]; then
   echo "[restore_test] BŁĄD: RESTORE_TEST_DB (${RESTORE_TEST_DB}) to ta sama baza co w DATABASE_URL — odmawiam DROP." >&2
   exit 1
 fi
