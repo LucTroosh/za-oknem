@@ -220,23 +220,39 @@ def test_weather_forecast_groups_by_area_and_day():
     assert area["days"][1]["params"] == {"temperature_2m_max": {"value": 19.1, "unit": "°C"}}
 
 
-def test_weather_forecast_reports_freshness_from_reference_time():
-    row = _forecast(forecast_reference_time=datetime.now(UTC))
+def test_weather_forecast_reports_freshness_from_fetched_at():
+    row = _forecast(fetched_at=datetime.now(UTC))
     client = _client([row], [_area()])
 
     area = client.get("/api/v1/weather/forecast").json()["areas"][0]
 
     assert area["freshness"] == "FRESH"
-    assert area["fetched_at"] == row.forecast_reference_time.isoformat()
+    assert area["fetched_at"] == row.fetched_at.isoformat()
 
 
-def test_weather_forecast_marks_stale_when_reference_time_old():
-    row = _forecast(forecast_reference_time=datetime.now(UTC) - timedelta(hours=10))
+def test_weather_forecast_marks_stale_when_fetched_at_old():
+    row = _forecast(fetched_at=datetime.now(UTC) - timedelta(hours=10))
     client = _client([row], [_area()])
 
     area = client.get("/api/v1/weather/forecast").json()["areas"][0]
 
     assert area["freshness"] == "STALE"
+
+
+def test_weather_forecast_freshness_uses_fetched_at_not_bucketed_reference_time():
+    """ADR-010 buckets forecast_reference_time down to the 3h cycle start, so a
+    fetch at 14:59 stores forecast_reference_time=12:00 — up to ~3h "older"
+    than the real fetch. Freshness must be based on the real fetched_at, not
+    that bucketed value, or a just-fetched forecast could read as RECENT/STALE."""
+    row = _forecast(
+        fetched_at=datetime.now(UTC),
+        forecast_reference_time=datetime.now(UTC) - timedelta(hours=2, minutes=59),
+    )
+    client = _client([row], [_area()])
+
+    area = client.get("/api/v1/weather/forecast").json()["areas"][0]
+
+    assert area["freshness"] == "FRESH"
 
 
 def test_weather_forecast_skips_row_for_deleted_geo_area():

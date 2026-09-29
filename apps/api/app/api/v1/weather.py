@@ -111,25 +111,30 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
 
         days = []
         model = None
-        latest_reference_time = None
+        latest_fetched_at = None
         for valid_from in sorted(days_map):
             day_rows = days_map[valid_from]
             model = day_rows[0].model
-            day_reference_time = max(r.forecast_reference_time for r in day_rows)
-            if latest_reference_time is None or day_reference_time > latest_reference_time:
-                latest_reference_time = day_reference_time
+            day_fetched_at = max(r.fetched_at for r in day_rows)
+            if latest_fetched_at is None or day_fetched_at > latest_fetched_at:
+                latest_fetched_at = day_fetched_at
             days.append(
                 {
                     "valid_from": valid_from.isoformat(),
                     "valid_until": day_rows[0].valid_until.isoformat(),
-                    "forecast_reference_time": day_reference_time.isoformat(),
+                    "forecast_reference_time": max(
+                        r.forecast_reference_time for r in day_rows
+                    ).isoformat(),
                     "params": {r.param_code: {"value": r.value, "unit": r.unit} for r in day_rows},
                 }
             )
 
-        # Freshness reflects how recently we actually fetched (rule #8) — not to be
-        # confused with valid_until, which only says the forecast period hasn't
-        # ended yet. A stalled scheduler still serves old-but-not-expired rows.
+        # Freshness reflects how recently we actually fetched (rule #8), using the
+        # real fetched_at — not forecast_reference_time, which is deliberately
+        # rounded down to the 3h bucket (ADR-010) and would report a fetch done
+        # at :59 as up to 3h older than it really is. Not to be confused with
+        # valid_until, which only says the forecast period hasn't ended yet — a
+        # stalled scheduler still serves old-but-not-expired rows.
         areas.append(
             {
                 "geo_area_id": area.id,
@@ -138,8 +143,8 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
                 "latitude": area.latitude,
                 "longitude": area.longitude,
                 "model": model,
-                "fetched_at": latest_reference_time.isoformat(),
-                "freshness": freshness(latest_reference_time),
+                "fetched_at": latest_fetched_at.isoformat(),
+                "freshness": freshness(latest_fetched_at),
                 "days": days,
                 "source": "open_meteo",
             }
