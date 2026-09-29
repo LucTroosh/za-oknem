@@ -95,6 +95,22 @@ def test_ingest_station_deletes_threshold_when_withdrawn(db_session):
     assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
 
 
+def test_ingest_station_reconciles_threshold_even_when_water_reading_stops(db_session):
+    """A station can stop reporting stan_wody entirely (goes null) while its
+    threshold keeps changing or gets withdrawn. Thresholds must still be
+    reconciled in that case - an earlier version of normalize() returned None
+    outright for a null water reading, which skipped threshold handling
+    entirely too (Codex review, PR #42 round 4)."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 1
+
+    stalled_station = {**station, "stan_wody": None, "stan_ostrzegawczy": None}
+    ingest.ingest_station(stalled_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
+
+
 class TestMain:
     def test_ingests_every_fetched_station(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[STATION]))

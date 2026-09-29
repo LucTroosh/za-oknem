@@ -91,14 +91,23 @@ def test_param_codes_fit_the_varchar20_column():
         assert len(param_code) <= 20, param_code
 
 
-def test_normalize_returns_none_when_no_current_reading():
+def test_normalize_returns_no_level_when_no_current_reading():
+    """level is None, but thresholds are still parsed and returned - a stalled
+    station's threshold must still be reconciled (Codex review, PR #42 round 4:
+    an earlier version returned None outright and skipped thresholds too)."""
     station = {**STATION, "stan_wody": None}
-    assert normalize(station, fetched_at=datetime.now(UTC)) is None
+    result = normalize(station, fetched_at=datetime.now(UTC))
+
+    assert result["level"] is None
+    assert result["thresholds"][WARNING_LEVEL_PARAM]["value"] == 300.0
 
 
-def test_normalize_returns_none_when_no_reading_timestamp():
+def test_normalize_returns_no_level_when_no_reading_timestamp():
     station = {**STATION, "stan_wody_data_pomiaru": None}
-    assert normalize(station, fetched_at=datetime.now(UTC)) is None
+    result = normalize(station, fetched_at=datetime.now(UTC))
+
+    assert result["level"] is None
+    assert result["thresholds"][ALARM_LEVEL_PARAM]["value"] == 340.0
 
 
 def test_normalize_accepts_negative_water_level():

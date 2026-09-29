@@ -83,21 +83,24 @@ def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
         sid = station.get("id_stacji")
         logger.warning("station %s: FAILED (%s), skipping - see rule #1", sid, exc)
         return 0
-    if result is None:
-        return 0  # no current reading for this station - not an error
 
+    # Thresholds are reconciled even when the station has no current stan_wody
+    # reading (level is None) - a stalled station can still have its threshold
+    # change or get withdrawn, and that must not be silently skipped (rule #1
+    # is about isolating a BROKEN station, not about dropping unrelated fields
+    # just because one is legitimately absent - Codex review, PR #42 round 4).
     level = result["level"]
-    stored = _insert_if_new(level, db)
+    stored = _insert_if_new(level, db) if level is not None else 0
     for threshold_record in result["thresholds"].values():
         stored += _upsert_or_delete_threshold(threshold_record, db)
 
     if stored:
         logger.info(
-            "station %s (%s): stored/updated %s record(s), stan_wody = %s cm",
-            level["station_id"],
-            level["station_name"],
+            "station %s (%s): stored/updated %s record(s)%s",
+            result["station_id"],
+            result["station_name"],
             stored,
-            level["value"],
+            f", stan_wody = {level['value']} cm" if level is not None else "",
         )
     return stored
 
