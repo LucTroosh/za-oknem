@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -27,7 +29,33 @@ def freshness(fetched_at: datetime) -> str:
     return "STALE"
 
 
-@router.get("/alerts/latest")
+# TASK-9.6: response_model - same reasoning as TASK-4.2/5.5/9.5. `source` and
+# `areas` stay open (`str`/`list[dict[str, Any]]`), not `Literal`/a strict
+# model - unlike air/weather (single source per endpoint), alerts already
+# come from more than one source_id (ADR-009), and `areas` is deliberately
+# unnormalized raw source JSON (ADR-009: a table is premature pre-geo-matching).
+class AlertOut(BaseModel):
+    external_id: str
+    source: str
+    event_type: str
+    severity_raw: str
+    probability_pct: float | None
+    issuing_office: str
+    description: str
+    comment: str | None
+    areas: list[dict[str, Any]]
+    valid_from: str
+    valid_until: str
+    published_at: str
+    fetched_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+
+
+class AlertsLatestResponse(BaseModel):
+    alerts: list[AlertOut]
+
+
+@router.get("/alerts/latest", response_model=AlertsLatestResponse)
 def latest_alerts(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14). Currently-valid alerts only
     (valid_until in the future) - no geo-filtering to the user's location yet

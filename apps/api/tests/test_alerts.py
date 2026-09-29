@@ -4,8 +4,11 @@ endpoints so a future filter change doesn't need a different test style)."""
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from app.api.v1.alerts import AlertsLatestResponse
 from app.db import get_db
 from app.main import app
 from app.models import Alert
@@ -110,3 +113,47 @@ def test_latest_alerts_marks_stale_fetch_as_stale():
     body = client.get("/api/v1/alerts/latest").json()
 
     assert body["alerts"][0]["freshness"] == "STALE"
+
+
+# --- AlertsLatestResponse (TASK-9.6: response_model enforces a shape) -------
+
+_VALID_ALERT_OUT = {
+    "external_id": "31",
+    "source": "imgw_warningshydro",
+    "event_type": "Susza hydrologiczna",
+    "severity_raw": "-1",
+    "probability_pct": 90.0,
+    "issuing_office": "Biuro Prognoz Hydrologicznych we Wrocławiu",
+    "description": "opis",
+    "comment": "komentarz",
+    "areas": [{"wojewodztwo": "wielkopolskie"}],
+    "valid_from": "2026-09-29T12:00:00+00:00",
+    "valid_until": "2026-09-30T12:00:00+00:00",
+    "published_at": "2026-09-29T11:00:00+00:00",
+    "fetched_at": "2026-09-29T12:00:00+00:00",
+    "freshness": "FRESH",
+}
+
+
+def test_alerts_latest_response_accepts_the_real_shape():
+    AlertsLatestResponse.model_validate({"alerts": [_VALID_ALERT_OUT]})
+
+
+def test_alerts_latest_response_rejects_missing_required_field():
+    bad = {**_VALID_ALERT_OUT}
+    del bad["event_type"]
+    with pytest.raises(ValidationError):
+        AlertsLatestResponse.model_validate({"alerts": [bad]})
+
+
+def test_alerts_latest_response_accepts_null_comment_and_probability():
+    """comment/probability_pct are genuinely nullable in the DB model (not every
+    source reports them) - must not be tightened into required fields."""
+    row = {**_VALID_ALERT_OUT, "comment": None, "probability_pct": None}
+    AlertsLatestResponse.model_validate({"alerts": [row]})
+
+
+def test_alerts_latest_response_rejects_unknown_freshness():
+    bad = {**_VALID_ALERT_OUT, "freshness": "ANCIENT"}
+    with pytest.raises(ValidationError):
+        AlertsLatestResponse.model_validate({"alerts": [bad]})
