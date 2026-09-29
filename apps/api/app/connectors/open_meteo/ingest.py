@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.open_meteo import client
+from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS
 from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize, normalize_forecast
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
@@ -27,6 +28,18 @@ logger = logging.getLogger(__name__)
 # ADR-003: 10 000 requests/day on Open-Meteo's free non-commercial tier -
 # "alert przy 70% dziennego limitu" (see app/rate_budget.py).
 DAILY_CALL_LIMIT = 10_000
+
+# ADR-003 (docs/architecture/ADR-003-weather-provider-licensing.md:28-30): our
+# request covers more than 1 "API call" worth of variables per Open-Meteo's own
+# billing rules. Per open-meteo.com/en/pricing (verified 2026-09-29): "Requests for
+# data covering more than 10 weather variables ... are considered multiple API
+# calls" - example given is 15 variables = 1.5 calls, i.e. variables/10. We round UP
+# so the budget alert can only trigger EARLIER than the real quota, never later
+# (Codex review [P1]: undercounting delays the 70% alert past actual exhaustion).
+# NOTE: bump this if HOURLY_PARAMS (TASK-5.4, separate PR) lands - it adds 3 more
+# variables to the same request and isn't counted here yet.
+_TOTAL_VARIABLES = len(CURRENT_PARAMS.split(",")) + len(DAILY_PARAMS.split(","))
+ESTIMATED_BILLABLE_UNITS_PER_CALL = max(1, -(-_TOTAL_VARIABLES // 10))  # ceil division
 
 
 def _store_if_new(model_cls: type, record: dict, db) -> int:
@@ -80,17 +93,23 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     must not abort ingestion for the rest (rule #1). Current and forecast
     parsing are isolated from each other too (ADR-010): a malformed `daily`
     block must not cost us an otherwise-valid `current` reading, or vice versa."""
+
+    # ADR-001/ADR-003/ADR-004: count every REAL outbound request against the daily
+    # budget and alert at 70% - via on_attempt, fired once per actual HTTP attempt
+    # inside fetch_weather()'s own retry loop, not once per ingest_geo_area() call
+    # (Codex review [P2]: a failed-then-retried-successfully fetch is 2 real
+    # requests but was recorded as 1; two failed attempts were recorded as 0).
+    # Each attempt bills ESTIMATED_BILLABLE_UNITS_PER_CALL, not 1 (Codex review [P1]
+    # - see that constant's comment).
+    def _on_attempt() -> None:
+        count = record_fetch_call(db, "open_meteo", units=ESTIMATED_BILLABLE_UNITS_PER_CALL)
+        check_daily_budget("open_meteo", count, DAILY_CALL_LIMIT)
+
     try:
-        payload = client.fetch_weather(area.latitude, area.longitude)
+        payload = client.fetch_weather(area.latitude, area.longitude, on_attempt=_on_attempt)
     except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
         return 0
-
-    # ADR-001/ADR-003/ADR-004: count this request against the daily budget and
-    # alert at 70% - after the call (rule #16 counts real requests, not attempts
-    # we hoped to make), regardless of what parsing below does with the payload.
-    call_count = record_fetch_call(db, "open_meteo")
-    check_daily_budget("open_meteo", call_count, DAILY_CALL_LIMIT)
 
     fetched_at = datetime.now(UTC)
     stored = 0

@@ -220,28 +220,45 @@ class TestMain:
 
 
 def test_ingest_geo_area_records_a_daily_fetch_call(db_session, monkeypatch):
-    """ADR-001/ADR-003/ADR-004: every successful HTTP call counts against the
-    source's daily budget, regardless of what parsing does with the payload."""
+    """ADR-001/ADR-003/ADR-004: a successful HTTP call counts against the source's
+    daily budget, regardless of what parsing does with the payload. Fires
+    on_attempt itself (mocking client.fetch_weather bypasses its real retry loop,
+    which is what actually calls on_attempt) - matches one real attempt
+    succeeding immediately, and bills ESTIMATED_BILLABLE_UNITS_PER_CALL, not 1."""
     area = _make_area(db_session)
-    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+
+    def _fake_fetch_weather(_lat, _lon, *, on_attempt=None):
+        if on_attempt:
+            on_attempt()
+        return PAYLOAD
+
+    monkeypatch.setattr(client, "fetch_weather", _fake_fetch_weather)
 
     ingest.ingest_geo_area(area, db_session)
 
     counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
     assert counter is not None
-    assert counter.count == 1
+    assert counter.count == ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL
 
 
-def test_ingest_geo_area_does_not_record_a_call_on_api_failure(db_session, monkeypatch):
-    """A failed HTTP call (client.OpenMeteoApiError, already exhausted its own
-    retry) never reached Open-Meteo successfully - or did, but we can't tell
-    which attempt succeeded/failed, so it's excluded from this lower-bound
-    counter rather than risk over-counting."""
+def test_ingest_geo_area_records_every_attempt_even_on_final_failure(db_session, monkeypatch):
+    """Codex review [P2]: the previous version recorded 0 calls when
+    client.fetch_weather ultimately raised, even though its internal retry loop
+    made 2 real HTTP attempts against Open-Meteo. on_attempt now fires once per
+    real attempt regardless of outcome - simulated here as 2 failed attempts
+    (fetch_weather's own retry count) before the final raise."""
     area = _make_area(db_session)
-    monkeypatch.setattr(
-        client, "fetch_weather", MagicMock(side_effect=client.OpenMeteoApiError("boom"))
-    )
+
+    def _fake_fetch_weather(_lat, _lon, *, on_attempt=None):
+        if on_attempt:
+            on_attempt()
+            on_attempt()
+        raise client.OpenMeteoApiError("boom")
+
+    monkeypatch.setattr(client, "fetch_weather", _fake_fetch_weather)
 
     ingest.ingest_geo_area(area, db_session)
 
-    assert db_session.query(SourceFetchCounter).count() == 0
+    counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
+    assert counter is not None
+    assert counter.count == 2 * ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL

@@ -12,6 +12,8 @@ Rate limit (600/min, source registry) is far above our need (a handful of
 geo_areas every 3h per ADR-004) — no throttling required, unlike GIOŚ.
 """
 
+from collections.abc import Callable
+
 import httpx
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
@@ -38,12 +40,24 @@ class OpenMeteoApiError(Exception):
     """Raised when Open-Meteo returns an unexpected status or unparseable body."""
 
 
-def fetch_weather(latitude: float, longitude: float) -> dict:
+def fetch_weather(
+    latitude: float,
+    longitude: float,
+    *,
+    on_attempt: Callable[[], None] | None = None,
+) -> dict:
     """GET current weather + daily forecast for one point, in a single request
     (Open-Meteo supports combining `current` and `daily` in one call - ADR-010 -
     no need for a second HTTP round trip per geo_area). Single retry on failure
     (rule #5). Named `fetch_weather`, not `fetch_current`, because it now also
-    carries the forecast block."""
+    carries the forecast block.
+
+    `on_attempt` fires once per REAL outbound request (success or failure), before
+    this function decides whether to retry or raise — so a caller tracking a call
+    budget (app/rate_budget.py) can count every request actually sent to the
+    provider, not just an eventual success (Codex review [P2]: the previous
+    call-counting recorded once per fetch_weather() call regardless of whether that
+    meant 0, 1, or 2 real HTTP attempts underneath)."""
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -59,6 +73,9 @@ def fetch_weather(latitude: float, longitude: float) -> dict:
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
             last_error = exc
+        finally:
+            if on_attempt is not None:
+                on_attempt()
     raise OpenMeteoApiError(
         f"GET {BASE_URL} ({latitude}, {longitude}) failed after retry: {last_error}"
     ) from last_error

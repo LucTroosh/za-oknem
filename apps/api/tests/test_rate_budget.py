@@ -25,6 +25,29 @@ def test_record_fetch_call_increments_same_day(db_session):
     assert db_session.query(SourceFetchCounter).count() == 1  # one row, not three
 
 
+def test_record_fetch_call_units_param_increments_by_that_amount(db_session):
+    # Codex review [P1]: a single Open-Meteo request bills more than 1 unit once it
+    # covers >10 variables (ADR-003) - callers must be able to record that.
+    today = date(2026, 9, 29)
+    count = record_fetch_call(db_session, "open_meteo", units=2, today=today)
+    assert count == 2
+    count = record_fetch_call(db_session, "open_meteo", units=2, today=today)
+    assert count == 4
+
+
+def test_record_fetch_call_returns_what_is_actually_persisted(db_session):
+    # Regression guard for the read-modify-write race (Codex review [P2]): the
+    # returned count must come from the same atomic UPDATE...RETURNING as what's
+    # persisted, not an in-Python object mutated before commit.
+    today = date(2026, 9, 29)
+    record_fetch_call(db_session, "open_meteo", today=today)
+    record_fetch_call(db_session, "open_meteo", today=today)
+    persisted = (
+        db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo", day=today).one()
+    )
+    assert persisted.count == 2
+
+
 def test_record_fetch_call_separate_row_per_day(db_session):
     record_fetch_call(db_session, "open_meteo", today=date(2026, 9, 28))
     count_day2 = record_fetch_call(db_session, "open_meteo", today=date(2026, 9, 29))
