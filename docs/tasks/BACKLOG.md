@@ -145,14 +145,28 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `GET /api/v1/weather/forecast`. Wymaga ADR-010 (nowy typ danych w
       modelu, precedens: ADR-008 dla Measurement, ADR-009 dla Alert).
 - [ ] **TASK-5.4:** Rozszerzyć `current`/`daily` o dew point, visibility, UV
-      index — Open-Meteo je udostępnia w tym samym zapytaniu (`dew_point_2m`,
-      `visibility`, `uv_index`/`uv_index_max`), brak dodatkowego round-tripu.
-      Rozszerzenie `PARAM_CODES`/`FORECAST_PARAM_CODES` w connectorze, bez
-      zmiany modelu (te same tabele `WeatherSnapshot`/`Forecast`). **Zakres
-      obejmuje też ujawnienie** — dziś mobile (`index.tsx`) renderuje tylko
-      `temperature_2m`, TASK-5.5 dotyczy wyłącznie prognozy, a żaden
-      późniejszy task nie wraca po dew point/visibility/UV; dodać je do
-      API/mobile current-weather presentation w tym samym tasku.
+      index. **Korekta (Codex) — poprzedni opis był błędny:** to NIE jest
+      samo rozszerzenie `PARAM_CODES` "w tym samym zapytaniu bez
+      dodatkowego round-tripu" — `client.py` (komentarz przy
+      `CURRENT_PARAMS`) wprost stwierdza, że Open-Meteo udostępnia dew
+      point/visibility/UV index WYŁĄCZNIE pod `hourly`, nie pod `current`.
+      Samo dopisanie ich do `PARAM_CODES` sprawi, że `normalize()`
+      (parser.py:41-46, pętla po `PARAM_CODES` rzucająca
+      `OpenMeteoParseError` na brakujący parametr) odrzuci CAŁY payload
+      pogodowy dla danej gminy, nie tylko te 3 pola — realna regresja
+      current-weather, nie rozszerzenie. Realny zakres: dociągnięcie
+      `hourly` w tym samym requeście (Open-Meteo obsługuje `current`+
+      `hourly` razem, więc round-trip faktycznie nie rośnie), wybór
+      obserwacji godzinowej najbliższej "teraz" (albo inna udokumentowana
+      metoda wyprowadzenia wartości bieżącej z `hourly`), i dopiero potem
+      zapis jako `WeatherSnapshot`. `PARAM_CODES`/`FORECAST_PARAM_CODES`
+      zostają rozszerzone, ale logika parsera musi rozróżniać źródło
+      (`current` vs `hourly`) per param, nie traktować ich jednolicie.
+      **Zakres obejmuje też ujawnienie** — dziś mobile (`index.tsx`)
+      renderuje tylko `temperature_2m`, TASK-5.5 dotyczy wyłącznie
+      prognozy, a żaden późniejszy task nie wraca po dew point/
+      visibility/UV; dodać je do API/mobile current-weather presentation
+      w tym samym tasku.
 - [ ] **TASK-5.5:** Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
       się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
       `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
@@ -318,6 +332,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       izolacji błędów co `run_open_meteo`/`run_gios`) — bez tego
       `/pollen/latest` i dashboard zależą od ręcznych uruchomień ingestu i
       z czasem pokażą dane STALE/UNAVAILABLE mimo działającego connectora.
+      **Wymóg z TASK-3.1 (Codex):** ten connector powstaje w Phase 8, już
+      po Phase 3 — ukończenie TASK-3.1 samo w sobie nie obejmuje connectorów,
+      które jeszcze nie istniały. Ingest musi zapisywać `source_fetch_id`
+      (+ surowy payload/wersję parsera/status walidacji z kontraktu TASK-3.1)
+      tak samo jak GIOŚ/Open-Meteo — nie zakładać, że to "już zrobione".
 - [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
@@ -432,7 +451,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (fetch/parse/validate/normalize) kończy się na `parser.py`/
       `ingest.py`, ale zakres tego tasku musi objąć też model + migrację
       Alembic + wpięcie w harmonogram — bez tego TASK-11.4 (czyta wyłącznie
-      z naszej bazy, rule #14) nie ma z czego czytać.
+      z naszej bazy, rule #14) nie ma z czego czytać. **Wymóg z TASK-3.1
+      (Codex):** ten connector powstaje w Phase 11, długo po Phase 3 —
+      musi zapisywać `source_fetch_id` (+ surowy payload/wersję parsera/
+      status walidacji z kontraktu TASK-3.1) tak samo jak GIOŚ/Open-Meteo,
+      nie zakładać, że TASK-3.1 to już pokrywa.
 - [ ] **TASK-11.3:** "Zamknięcia kąpielisk" jako Alert/Event (zależne od
       TASK-11.2 + modeli z Phase 9).
 - [ ] **TASK-11.4:** `GET /api/v1/water/latest` — status kąpieliska,
@@ -645,6 +668,14 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
       closed testing), nie po zakończeniu Phase 18 dla Androida.
 - [ ] **TASK-16.4:** TestFlight — build iOS do closed testingu, metadane/
       screenshoty do App Store (zależne od TASK-16.3 i ukończonego UI).
+      **Brakujący element (Codex):** §99 Master Planu wymaga App Review
+      Notes dla reviewera (uruchomienie, location flow, brak
+      obowiązkowego konta, alerty, ograniczenia, dane testowe, ewentualne
+      specjalne kroki) — dziś żaden task tego nie przygotowuje, więc
+      TASK-18.2 mógłby dojść do submission bez tych informacji i dostać
+      odrzucenie od Apple Review z błahego, unikalnego powodu. Dodać
+      przygotowanie App Review Notes do zakresu tego tasku (albo
+      osobnego tasku bezpośrednio przed TASK-18.2).
 - [ ] **TASK-16.5:** Publiczna strona (§23/§102 Master Planu) — minimalny
       zakres: `/`, `/privacy`, `/terms`, `/support`, `/contact`, `/about`,
       wdrożona pod publicznym HTTPS z realnym URL-em. Treść Privacy
