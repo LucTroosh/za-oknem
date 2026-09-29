@@ -1,7 +1,7 @@
-"""Tests for imgw_warningshydro.ingest: store/dedupe/failure-isolation, using
-the SQLite db_session fixture."""
+"""Tests for imgw_warningshydro.ingest: store/dedupe/failure-isolation/
+reconciliation, using the SQLite db_session fixture."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 from app.connectors.imgw_warningshydro import client, ingest
@@ -46,6 +46,40 @@ def test_ingest_warning_isolates_parse_failure(db_session, monkeypatch):
 
     assert stored is False
     assert db_session.query(Alert).count() == 0
+
+
+def test_ingest_warning_isolates_non_dict_entry(db_session):
+    # Codex review (PR #37): the old code called warning.get(...) unconditionally
+    # in the error-log path, which crashed on a non-dict feed entry instead of
+    # skipping it (rule #1).
+    stored = ingest.ingest_warning("not-a-dict", db_session, fetched_at=datetime.now(UTC))
+
+    assert stored is False
+    assert db_session.query(Alert).count() == 0
+
+
+class TestIngestBatch:
+    def test_expires_alert_no_longer_reported(self, db_session):
+        # Codex review (PR #37): a withdrawn warning must not keep reporting as
+        # active until its original valid_until (year 9999 for drought) - rule #10.
+        first_fetch = datetime.now(UTC)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=first_fetch)
+
+        second_fetch = first_fetch + timedelta(hours=1)
+        ingest.ingest_batch([], db_session, fetched_at=second_fetch)  # IMGW withdrew it
+
+        alert = db_session.query(Alert).filter_by(external_id="31").one()
+        assert alert.valid_until == second_fetch
+
+    def test_keeps_alert_still_in_the_latest_snapshot(self, db_session):
+        first_fetch = datetime.now(UTC)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=first_fetch)
+
+        second_fetch = first_fetch + timedelta(hours=1)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=second_fetch)
+
+        alert = db_session.query(Alert).filter_by(external_id="31").one()
+        assert alert.valid_until.year == 9999  # untouched - still reported as active
 
 
 class TestMain:

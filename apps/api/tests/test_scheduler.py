@@ -83,12 +83,15 @@ class TestRunImgwWarningsHydro:
             MagicMock(return_value=[{"numer": "1"}, {"numer": "2"}]),
         )
         monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
-        ingest_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "ingest_warning", ingest_mock)
+        batch_mock = MagicMock(return_value=(0, 0))
+        monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
 
-        assert ingest_mock.call_count == 2
+        batch_mock.assert_called_once()
+        args, kwargs = batch_mock.call_args
+        assert args == ([{"numer": "1"}, {"numer": "2"}], db_session)
+        assert "fetched_at" in kwargs
 
     def test_empty_message_shape_ingests_nothing(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
@@ -97,12 +100,15 @@ class TestRunImgwWarningsHydro:
             "fetch_warnings",
             MagicMock(return_value={"message": "Brak"}),
         )
-        ingest_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "ingest_warning", ingest_mock)
+        batch_mock = MagicMock(return_value=(0, 0))
+        monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
 
-        ingest_mock.assert_not_called()
+        batch_mock.assert_called_once()
+        args, kwargs = batch_mock.call_args
+        assert args == ([], db_session)
+        assert "fetched_at" in kwargs
 
 
 class TestMain:
@@ -147,3 +153,15 @@ class TestMain:
 
         assert mocks["run_gios"].call_count == 2
         assert mocks["run_open_meteo"].call_count == 1
+
+    def test_one_job_failing_does_not_abort_the_others(self, monkeypatch):
+        # Codex review (PR #37): an unhandled connector failure used to propagate
+        # out of main() and kill the whole scheduler loop - rule #1 says one
+        # broken source must not take the rest down with it.
+        mocks = self._mock_all_jobs(monkeypatch)
+        mocks["run_gios"].side_effect = RuntimeError("IMGW/GIOS unreachable")
+
+        scheduler.main(iterations=1)
+
+        for mock in mocks.values():
+            mock.assert_called_once()

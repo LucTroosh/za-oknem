@@ -1,5 +1,5 @@
 """Orchestrates one IMGW hydro-warnings ingest run: fetch -> parse -> validate ->
-store. One call returns every active warning - no per-station loop.
+store -> reconcile. One call returns every active warning - no per-station loop.
 
     docker compose exec api python -m app.connectors.imgw_warningshydro.ingest
 """
@@ -21,16 +21,21 @@ from app.models import Alert
 logger = logging.getLogger(__name__)
 
 
-def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
-    """Returns True if a new alert was stored. One bad record must not abort the
-    run for the rest (rule #1)."""
+def _normalize_or_skip(warning: dict, *, fetched_at: datetime) -> dict | None:
+    """None means the record was malformed and was logged/skipped (rule #1) -
+    never raises, so one bad warning can't abort a batch. `warning` is typed as
+    dict (the documented shape) but a live feed can send anything, so this
+    still guards the log line against a non-dict entry at runtime."""
     try:
-        record = normalize(warning, fetched_at=fetched_at)
+        return normalize(warning, fetched_at=fetched_at)
     except ImgwWarningsHydroParseError as exc:
-        numer = warning.get("numer")
+        numer = warning.get("numer") if isinstance(warning, dict) else repr(warning)[:50]
         logger.warning("warning %s: FAILED (%s), skipping - see rule #1", numer, exc)
-        return False
+        return None
 
+
+def _store(record: dict, db) -> bool:
+    """Returns True if a new alert was stored. `record` must already be normalized."""
     exists = (
         db.query(Alert)
         .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
@@ -54,6 +59,51 @@ def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
     return True
 
 
+def _expire_withdrawn(db, *, active_record_ids: set[str], fetched_at: datetime) -> int:
+    """Rule #10: a warning IMGW has withdrawn must stop being reported as active -
+    some warnings (e.g. hydrological drought) carry `valid_until` as far out as
+    year 9999, so without this a withdrawn alert would look valid indefinitely.
+    Closes out every currently-active row this source didn't report in the
+    latest snapshot by setting its valid_until to the fetch time."""
+    query = (
+        db.query(Alert)
+        .filter(Alert.source_id == "imgw_warningshydro")
+        .filter(Alert.valid_until >= fetched_at)
+    )
+    # active_record_ids empty means IMGW is reporting zero active warnings right
+    # now - every currently-active row is then stale, and .in_(()) on an empty
+    # set is a SQLAlchemy anti-pattern (always-false, plus a warning), so skip it.
+    if active_record_ids:
+        query = query.filter(~Alert.source_record_id.in_(active_record_ids))
+    stale = query.all()
+    for alert in stale:
+        alert.valid_until = fetched_at
+    if stale:
+        db.commit()
+    return len(stale)
+
+
+def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
+    """Returns True if a new alert was stored. One bad record must not abort the
+    run for the rest (rule #1). Used standalone by tests/callers that don't need
+    withdrawal reconciliation - see ingest_batch() for the full run."""
+    record = _normalize_or_skip(warning, fetched_at=fetched_at)
+    if record is None:
+        return False
+    return _store(record, db)
+
+
+def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]:
+    """Stores every valid new alert and expires ones IMGW withdrew since the last
+    successful fetch. Returns (stored, expired). This is the entry point both the
+    CLI and the scheduler should call - see ADR-009."""
+    records = [r for w in warnings if (r := _normalize_or_skip(w, fetched_at=fetched_at))]
+    stored = sum(_store(r, db) for r in records)
+    active_ids = {r["source_record_id"] for r in records}
+    expired = _expire_withdrawn(db, active_record_ids=active_ids, fetched_at=fetched_at)
+    return stored, expired
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     warnings = parse_warnings(client.fetch_warnings())
@@ -61,10 +111,15 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        stored = sum(ingest_warning(w, db, fetched_at=fetched_at) for w in warnings)
+        stored, expired = ingest_batch(warnings, db, fetched_at=fetched_at)
     finally:
         db.close()
-    logger.info("imgw_warningshydro: stored %s/%s new alerts", stored, len(warnings))
+    logger.info(
+        "imgw_warningshydro: stored %s/%s new alerts, expired %s withdrawn",
+        stored,
+        len(warnings),
+        expired,
+    )
 
 
 if __name__ == "__main__":

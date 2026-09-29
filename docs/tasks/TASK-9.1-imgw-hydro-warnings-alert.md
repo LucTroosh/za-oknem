@@ -35,6 +35,13 @@ Pierwsza Alert vertical slice: ostrzeżenia hydrologiczne IMGW, `GET
       wiersza (test: `test_ingest_warning_skips_duplicate`).
 - [x] `/alerts/latest` zwraca tylko ostrzeżenia z `valid_until` w przyszłości.
 - [x] `run_imgw_warningshydro()` w schedulerze nie wymaga żadnej konfiguracji.
+- [x] Wycofane przez IMGW ostrzeżenie (nieobecne w kolejnym fetchu) przestaje być
+      zwracane jako aktywne — `ingest_batch()` zamyka je (`valid_until` = czas
+      fetcha) zamiast czekać do oryginalnego `valid_until` (bywa rok 9999) —
+      rule #10 (test: `TestIngestBatch.test_expires_alert_no_longer_reported`).
+- [x] Awaria jednego connectora (np. IMGW niedostępne) nie zatrzymuje pętli
+      schedulera ani pozostałych źródeł (test:
+      `TestMain.test_one_job_failing_does_not_abort_the_others`) — rule #1.
 
 ## Tests
 

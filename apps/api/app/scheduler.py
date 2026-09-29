@@ -9,6 +9,7 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 import logging
 import os
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.connectors.gios import client as gios_client
@@ -16,7 +17,7 @@ from app.connectors.gios.ingest import ingest_station
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_station as ingest_hydro_station
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
-from app.connectors.imgw_warningshydro.ingest import ingest_warning
+from app.connectors.imgw_warningshydro.ingest import ingest_batch
 from app.connectors.imgw_warningshydro.parser import parse_warnings
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
@@ -80,10 +81,18 @@ def run_imgw_warningshydro() -> None:
     try:
         fetched_at = datetime.now(UTC)
         warnings = parse_warnings(imgw_warnings_client.fetch_warnings())
-        for warning in warnings:
-            ingest_warning(warning, db, fetched_at=fetched_at)
+        ingest_batch(warnings, db, fetched_at=fetched_at)
     finally:
         db.close()
+
+
+def _run_job_safely(name: str, job: Callable[[], None]) -> None:
+    """Rule #1: a connector failure (source down, retry exhausted, bad payload)
+    must not take down the scheduler and stop every other source's refresh."""
+    try:
+        job()
+    except Exception:
+        logger.exception("scheduled job %s failed - other jobs still run (rule #1)", name)
 
 
 def main(*, iterations: int | None = None) -> None:
@@ -99,16 +108,16 @@ def main(*, iterations: int | None = None) -> None:
     while iterations is None or count < iterations:
         now = time.monotonic()
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
-            run_open_meteo()
+            _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
         if now - last_gios >= GIOS_INTERVAL_SECONDS:
-            run_gios()
+            _run_job_safely("gios", run_gios)
             last_gios = now
         if now - last_imgw_hydro >= IMGW_HYDRO_INTERVAL_SECONDS:
-            run_imgw_hydro()
+            _run_job_safely("imgw_hydro", run_imgw_hydro)
             last_imgw_hydro = now
         if now - last_imgw_warnings >= IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS:
-            run_imgw_warningshydro()
+            _run_job_safely("imgw_warningshydro", run_imgw_warningshydro)
             last_imgw_warnings = now
         count += 1
         if iterations is None or count < iterations:
