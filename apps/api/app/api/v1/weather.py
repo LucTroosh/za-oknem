@@ -34,15 +34,31 @@ class WeatherParam(BaseModel):
     unit: str
 
 
+# Separate from WeatherParam (Codex review, cross-referenced from PR#50): a stale
+# hourly-derived param (dew_point/visibility/uv_index, TASK-5.4) can silently share
+# a fresh `current` param's object-level freshness, since WeatherArea.freshness below
+# is only max(observed_at) across all params. /weather/latest needs each param's own
+# observed_at+freshness to catch that; /weather/forecast's ForecastDay.params has no
+# per-param observation time (forecast rows have valid_from/valid_until instead), so
+# it keeps the plain WeatherParam shape.
+class WeatherLatestParam(BaseModel):
+    value: float
+    unit: str
+    observed_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+
+
 class WeatherArea(BaseModel):
     geo_area_id: int
     slug: str
     name: str
     latitude: float
     longitude: float
+    # Rough "most recent of any param" summary, not authoritative per param — see
+    # WeatherLatestParam.freshness for the real per-param status.
     observed_at: str
     freshness: Literal["FRESH", "RECENT", "STALE"]
-    params: dict[str, WeatherParam]
+    params: dict[str, WeatherLatestParam]
     source: Literal["open_meteo"]
 
 
@@ -114,7 +130,15 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
                 "longitude": area.longitude,
                 "observed_at": latest_observed_at.isoformat(),
                 "freshness": freshness(latest_observed_at),
-                "params": {p.param_code: {"value": p.value, "unit": p.unit} for p in params},
+                "params": {
+                    p.param_code: {
+                        "value": p.value,
+                        "unit": p.unit,
+                        "observed_at": p.observed_at.isoformat(),
+                        "freshness": freshness(p.observed_at),
+                    }
+                    for p in params
+                },
                 "source": "open_meteo",
             }
         )

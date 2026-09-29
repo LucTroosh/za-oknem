@@ -129,13 +129,44 @@ def test_latest_weather_groups_params_by_geo_area():
                 "observed_at": now.isoformat(),
                 "freshness": "FRESH",
                 "params": {
-                    "temperature_2m": {"value": 12.3, "unit": "°C"},
-                    "wind_speed_10m": {"value": 5.2, "unit": "km/h"},
+                    "temperature_2m": {
+                        "value": 12.3,
+                        "unit": "°C",
+                        "observed_at": now.isoformat(),
+                        "freshness": "FRESH",
+                    },
+                    "wind_speed_10m": {
+                        "value": 5.2,
+                        "unit": "km/h",
+                        "observed_at": now.isoformat(),
+                        "freshness": "FRESH",
+                    },
                 },
                 "source": "open_meteo",
             }
         ]
     }
+
+
+def test_latest_weather_reports_per_param_freshness_independently():
+    # Codex review (cross-referenced from PR#50): a fresh param and a stale one for
+    # the same area must not both inherit the object-level max(observed_at) status.
+    fresh_row = _snapshot(
+        param_code="temperature_2m", observed_at=datetime.now(UTC), source_record_id="fresh"
+    )
+    stale_row = _snapshot(
+        param_code="uv_index",
+        observed_at=datetime.now(UTC) - timedelta(hours=10),
+        source_record_id="stale",
+    )
+    client = _client([fresh_row, stale_row], [_area()])
+
+    body = client.get("/api/v1/weather/latest").json()
+
+    params = body["areas"][0]["params"]
+    assert params["temperature_2m"]["freshness"] == "FRESH"
+    assert params["uv_index"]["freshness"] == "STALE"
+    assert body["areas"][0]["freshness"] == "FRESH"
 
 
 def test_latest_weather_marks_old_reading_stale():
