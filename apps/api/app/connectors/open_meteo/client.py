@@ -3,7 +3,10 @@
 Per docs/data/source-registry.md: shape is per official documentation
 (open-meteo.com/en/docs) but NOT confirmed against a live sample in this
 sandbox (api.open-meteo.com is robots.txt-blocked for this session's fetch
-tools). parser.py validates the shape and fails loudly rather than guessing.
+tools, and direct network from the shell is proxy-blocked to non-allowlisted
+hosts). parser.py validates the shape and fails loudly rather than guessing.
+Weather isn't safety-critical data (rule #10 is about alerts/water/air safety),
+so docs-only verification is an accepted precedent here, unlike IMGW alerts.
 
 Rate limit (600/min, source registry) is far above our need (a handful of
 geo_areas every 3h per ADR-004) — no throttling required, unlike GIOŚ.
@@ -15,7 +18,16 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 # Fields for "current conditions" — matches WeatherSnapshot.param_code values.
-CURRENT_PARAMS = "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+# Master Plan §5 MVP scope. Three MVP fields (dew point, visibility, UV index)
+# are deliberately NOT here: Open-Meteo's docs only list them under `hourly`,
+# not `current` - fetching them needs a different request/response shape
+# (picking the matching hour), which is its own follow-up task, not a one-line
+# addition to this list.
+CURRENT_PARAMS = (
+    "temperature_2m,relative_humidity_2m,apparent_temperature,pressure_msl,"
+    "cloud_cover,precipitation,rain,snowfall,wind_speed_10m,wind_direction_10m,"
+    "wind_gusts_10m,weather_code"
+)
 
 
 class OpenMeteoApiError(Exception):
