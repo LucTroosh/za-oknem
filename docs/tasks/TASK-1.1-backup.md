@@ -90,6 +90,11 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
 - Smoke-check porównuje liczby wierszy per tabela i wersję migracji zapisane w
   manifeście z backupu z tym, co faktycznie odtworzyło się w bazie testowej — nie
   tylko istnienie tabel.
+- Manifest i dump pochodzą z jednej, wspólnej migawki bazy (`pg_export_snapshot`
+  w transakcji `REPEATABLE READ`, `pg_dump --snapshot=...`), nie z dwóch osobnych
+  odczytów w różnym czasie — korekta po review (LucTroosh), pierwsza wersja liczyła
+  wiersze osobnymi zapytaniami PO `pg_dump`, więc współbieżny insert/delete dawał
+  fałszywą rozbieżność mimo poprawnego backupu.
 
 ## Architecture Impact
 
