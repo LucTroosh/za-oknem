@@ -17,7 +17,12 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.open_meteo import client
-from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize, normalize_forecast
+from app.connectors.open_meteo.parser import (
+    OpenMeteoParseError,
+    normalize,
+    normalize_forecast,
+    normalize_hourly_current,
+)
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
 
@@ -71,10 +76,10 @@ def _store_forecast_batch(records: list[dict], db) -> int:
 
 def ingest_geo_area(area: GeoArea, db) -> int:
     """Returns the number of new rows stored (current-weather snapshots +
-    forecast days). One geo_area's fetch failure is logged and skipped — it
-    must not abort ingestion for the rest (rule #1). Current and forecast
-    parsing are isolated from each other too (ADR-010): a malformed `daily`
-    block must not cost us an otherwise-valid `current` reading, or vice versa."""
+    hourly-derived fields + forecast days). One geo_area's fetch failure is
+    logged and skipped — it must not abort ingestion for the rest (rule #1).
+    All three parse steps are isolated from each other too (ADR-010, TASK-5.4):
+    a malformed block in one must not cost an otherwise-valid reading in another."""
     try:
         payload = client.fetch_weather(area.latitude, area.longitude)
     except client.OpenMeteoApiError as exc:
@@ -91,6 +96,18 @@ def ingest_geo_area(area: GeoArea, db) -> int:
         snapshots = []
     stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
 
+    # TASK-5.4: dew point/visibility/UV, own try/except - a hiccup in this newer,
+    # hourly-array-derived block must not cost the already-proven current fields
+    # above (rule #1, same isolation as forecast below).
+    try:
+        hourly_snapshots = normalize_hourly_current(
+            geo_area_id=area.id, payload=payload, fetched_at=fetched_at
+        )
+    except OpenMeteoParseError as exc:
+        logger.warning("geo_area %s: hourly-derived fields FAILED (%s)", area.slug, exc)
+        hourly_snapshots = []
+    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
+
     try:
         forecasts = normalize_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
     except OpenMeteoParseError as exc:
@@ -99,11 +116,12 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     stored += _store_forecast_batch(forecasts, db)
 
     logger.info(
-        "geo_area %s (%s): stored %s new row(s) (%s current + %s forecast)",
+        "geo_area %s (%s): stored %s new row(s) (%s current + %s hourly + %s forecast)",
         area.slug,
         area.name,
         stored,
         len(snapshots),
+        len(hourly_snapshots),
         len(forecasts),
     )
     return stored
