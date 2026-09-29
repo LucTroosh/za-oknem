@@ -19,11 +19,15 @@ type DashboardArea = {
   name: string;
   air: {
     station_name: string;
+    // TASK-7.1: source transparency (Master Plan Principle 2) — server-provided
+    // attribution text, never hardcoded/reworded on the client.
+    attribution: string;
     // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
     // — freshness is per-param since each param can be observed at a different time.
     params: Record<string, { value: number; unit: string; freshness: Freshness }>;
   } | null;
   weather: {
+    attribution: string;
     freshness: Freshness;
     params: Record<string, { value: number; unit: string }>;
   } | null;
@@ -97,16 +101,20 @@ export default function Home() {
                       <Text style={styles.freshness}>({FRESHNESS_LABEL[param.freshness]})</Text>
                     </Text>
                   ))}
+                  <Text style={styles.attribution}>{item.air.attribution}</Text>
                 </View>
               ) : (
                 <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
               )}
               {item.weather?.params.temperature_2m ? (
-                <Text style={styles.metric}>
-                  {item.weather.params.temperature_2m.value}
-                  {item.weather.params.temperature_2m.unit}{" "}
-                  <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
-                </Text>
+                <View>
+                  <Text style={styles.metric}>
+                    {item.weather.params.temperature_2m.value}
+                    {item.weather.params.temperature_2m.unit}{" "}
+                    <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
+                  </Text>
+                  <Text style={styles.attribution}>{item.weather.attribution}</Text>
+                </View>
               ) : (
                 <Text style={styles.metric}>pogoda: brak danych</Text>
               )}
@@ -133,4 +141,5 @@ const styles = StyleSheet.create({
   metricsRow: { flexDirection: "row", justifyContent: "space-between" },
   metric: { fontSize: 16 },
   freshness: { fontSize: 12, color: "#666" },
+  attribution: { fontSize: 10, color: "#999" },
 });

@@ -159,6 +159,29 @@ def test_dashboard_marks_stale_air_reading():
     assert body["areas"][0]["air"]["params"]["PM2.5"]["freshness"] == "STALE"
 
 
+def test_dashboard_air_has_source_transparency_fields():
+    # TASK-7.1 (Master Plan Principle 2): source+observed_at+freshness together,
+    # attribution text verbatim from source-registry.md.
+    client = _client([GeoArea(**KLODZKO)], [_station()], [])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    air = body["areas"][0]["air"]
+    assert air["source"] == "gios"
+    assert air["attribution"] == "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
+    assert air["observed_at"] == air["params"]["PM2.5"]["observed_at"]
+
+
+def test_dashboard_weather_has_source_transparency_fields():
+    client = _client([GeoArea(**KLODZKO)], [], [_weather()])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    weather = body["areas"][0]["weather"]
+    assert weather["source"] == "open_meteo"
+    assert weather["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)"
+
+
 def test_dashboard_groups_multiple_params_for_nearest_station():
     pm25 = _station(param_code="PM2.5", value=11.5, source_record_id="a")
     no2 = _station(param_code="NO2", value=8.0, unit="µg/m³", source_record_id="b")
