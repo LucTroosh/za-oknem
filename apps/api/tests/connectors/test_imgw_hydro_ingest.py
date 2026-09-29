@@ -4,8 +4,6 @@ SQLite db_session fixture."""
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
-import pytest
-
 from app.connectors.imgw_hydro import client, ingest
 from app.connectors.imgw_hydro.parser import ImgwHydroParseError
 from app.models import Measurement
