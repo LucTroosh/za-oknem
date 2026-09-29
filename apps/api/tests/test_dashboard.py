@@ -169,3 +169,36 @@ def test_dashboard_groups_multiple_params_for_nearest_station():
     params = body["areas"][0]["air"]["params"]
     assert set(params) == {"PM2.5", "NO2"}
     assert params["NO2"]["value"] == 8.0
+
+
+def test_dashboard_station_query_filters_by_gios_source():
+    # Codex review: `measurements` is shared with imgw_hydro (water_level_cm) —
+    # without this filter the nearest-station join could match a river gauge
+    # instead of an air station. _FakeSession ignores the stmt entirely, so this
+    # inspects the station query's WHERE clause directly (not the full DISTINCT
+    # ON select, which is Postgres-dialect-only and needs a real dialect to compile).
+    captured = {}
+
+    class _CapturingSession:
+        def __init__(self):
+            self._call = 0
+
+        def execute(self, stmt):
+            self._call += 1
+            if self._call == 2:  # areas, then stations, then weather
+                captured["where"] = str(
+                    stmt.whereclause.compile(compile_kwargs={"literal_binds": True})
+                )
+            return _FakeResult([])
+
+    def _override():
+        yield _CapturingSession()
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        client = TestClient(app)
+        client.get("/api/v1/dashboard/latest")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert "source_id" in captured["where"] and "gios" in captured["where"]

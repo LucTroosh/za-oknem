@@ -11,12 +11,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 # TASK-4.1: full MVP parameter set (Master Plan §4), not just the PM2.5 vertical
-# slice (§108). Units are the standard GIOŚ/EU air-quality reporting units (CO in
-# mg/m³, everything else µg/m³) — same as the original PM2.5 constant, this is
-# metadata we supply, not something read off the API response, so there's nothing
-# here that "guesses" a value; only PM2.5 has been checked against a live response
-# (see source-registry.md) so a genuinely wrong unit for another param would show
-# up as an obviously-off number in monitoring, not a silent corruption.
+# slice (§108). Units are metadata we supply, not read off the API response — per
+# GIOŚ's own API docs (https://powietrze.gios.gov.pl/pjp/content/api), ALL params
+# incl. CO are returned in µg/m³ through the API; GIOŚ's mg/m³ CO convention only
+# applies to their map/mobile-app display, not this API. Codex review caught this
+# (originally mislabeled CO as mg/m³, a 1000x display error) — verified against
+# the live docs, not guessed.
 PM25_FORMULA = "PM2.5"  # kept for backwards-compat call sites/tests
 PARAM_UNITS: dict[str, str] = {
     "PM2.5": "µg/m³",
@@ -24,7 +24,7 @@ PARAM_UNITS: dict[str, str] = {
     "NO2": "µg/m³",
     "SO2": "µg/m³",
     "O3": "µg/m³",
-    "CO": "mg/m³",
+    "CO": "µg/m³",
     "C6H6": "µg/m³",
 }
 PM25_UNIT = PARAM_UNITS[PM25_FORMULA]

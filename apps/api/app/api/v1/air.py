@@ -42,8 +42,12 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     # confirming against the real changelog, not guessing, before switching — same
     # lesson as the GIOŚ connector). Still correct and fully covered by tests, just
     # noisy in pytest output. Upgrade when SQLAlchemy actually removes the old form.
+    # source_id filter: `measurements` is shared with other connectors (e.g.
+    # imgw_hydro's water_level_cm) — without it this query would also return
+    # river-gauge rows here, labeled as GIOŚ air stations (Codex review).
     stmt = (
         select(Measurement)
+        .where(Measurement.source_id == "gios")
         .distinct(Measurement.station_id, Measurement.param_code)
         .order_by(Measurement.station_id, Measurement.param_code, Measurement.observed_at.desc())
     )

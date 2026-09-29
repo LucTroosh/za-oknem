@@ -27,8 +27,12 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest."""
     areas = db.execute(select(GeoArea)).scalars().all()
 
+    # source_id filter: `measurements` is shared with other connectors (e.g.
+    # imgw_hydro's water_level_cm) — without it the nearest-station join could
+    # match a river gauge instead of an air station (Codex review).
     station_stmt = (
         select(Measurement)
+        .where(Measurement.source_id == "gios")
         .distinct(Measurement.station_id, Measurement.param_code)
         .order_by(Measurement.station_id, Measurement.param_code, Measurement.observed_at.desc())
     )

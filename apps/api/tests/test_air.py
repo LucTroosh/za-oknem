@@ -153,7 +153,7 @@ def test_latest_air_quality_groups_multiple_params_per_station():
     rows = [
         _measurement(param_code="PM2.5", value=11.5, source_record_id="a"),
         _measurement(param_code="PM10", value=20.0, unit="µg/m³", source_record_id="b"),
-        _measurement(param_code="CO", value=0.3, unit="mg/m³", source_record_id="c"),
+        _measurement(param_code="CO", value=0.3, unit="µg/m³", source_record_id="c"),
     ]
     client = _client_with_rows(rows)
 
@@ -163,4 +163,33 @@ def test_latest_air_quality_groups_multiple_params_per_station():
     params = body["stations"][0]["params"]
     assert set(params) == {"PM2.5", "PM10", "CO"}
     assert params["CO"]["value"] == 0.3
-    assert params["CO"]["unit"] == "mg/m³"
+    assert params["CO"]["unit"] == "µg/m³"
+
+
+def test_latest_air_quality_query_filters_by_gios_source():
+    # Codex review: `measurements` is shared with imgw_hydro (water_level_cm) —
+    # a regression here would silently show river gauges as air stations.
+    # FakeSession ignores the stmt's WHERE clause (no real Postgres here), so this
+    # inspects the WHERE clause directly rather than round-tripping through rows.
+    # (Only the whereclause is compiled, not the full DISTINCT ON select, which is
+    # Postgres-dialect-only and can't compile with the generic/default dialect.)
+    from app.db import get_db
+    from app.main import app
+
+    captured = {}
+
+    class _CapturingSession:
+        def execute(self, stmt):
+            captured["where"] = str(
+                stmt.whereclause.compile(compile_kwargs={"literal_binds": True})
+            )
+            return _FakeResult([])
+
+    app.dependency_overrides[get_db] = lambda: iter([_CapturingSession()])
+    try:
+        client = TestClient(app)
+        client.get("/api/v1/air/latest")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert "source_id" in captured["where"] and "gios" in captured["where"]

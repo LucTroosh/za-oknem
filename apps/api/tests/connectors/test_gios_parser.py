@@ -134,6 +134,22 @@ def test_normalize_uses_param_specific_unit():
     assert record["unit"] == "µg/m³"
 
 
+def test_normalize_keeps_co_in_micrograms():
+    # Codex review: GIOŚ's API docs (powietrze.gios.gov.pl/pjp/content/api) state
+    # ALL params incl. CO are returned in µg/m³ — the mg/m³ convention is only for
+    # GIOŚ's own map/app display, not this API. Mislabeling this as mg/m³ was a
+    # 1000x display error.
+    record = normalize(
+        station=STATION,
+        sensor={"Identyfikator stanowiska": 1, "Wskaźnik - wzór": "CO"},
+        observed_at=datetime(2026, 9, 28, 18, 0, 0, tzinfo=GIOS_TZ),
+        value=350.0,
+        fetched_at=datetime(2026, 9, 28, 18, 5, 0, tzinfo=GIOS_TZ),
+    )
+    assert record["unit"] == "µg/m³"
+    assert record["value"] == 350.0
+
+
 def test_normalize_rejects_unknown_param_code():
     unknown_sensor = {"Identyfikator stanowiska": 999, "Wskaźnik - wzór": "XYZ"}
     with pytest.raises(GiosParseError):
