@@ -30,6 +30,19 @@ case "$PG_DATABASE_URL" in
     ;;
 esac
 
+# libpq dopuszcza URI bez ścieżki (baza domyślna = nazwa usera), ale
+# ${VAR%/*}/${VAR##*/} niżej zakładają, że ostatni "/" oddziela authority od
+# nazwy bazy — dla "postgresql://user@host" (bez ścieżki) to założenie jest
+# fałszywe: BASE_URL wychodzi "postgresql:/", a PROD_DB_NAME "user@host"
+# zamiast prawdziwej nazwy bazy; admin URL niżej (`${BASE_URL}/postgres`)
+# łączyłby się wtedy z hostem "postgres", nie z prawdziwym hostem —
+# potwierdzone bezpośrednio na tym wyrażeniu bash (Codex review, runda 10).
+# Zamiast zgadywać, wymagamy jawnej nazwy bazy w ścieżce.
+if ! [[ "$PG_DATABASE_URL_NO_QUERY" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/[^/]+$ ]]; then
+  echo "[restore_test] BŁĄD: DATABASE_URL musi zawierać jawną nazwę bazy w ścieżce (np. postgresql://user@host/nazwa_bazy) — bez tego nie da się bezpiecznie ustalić hosta/nazwy bazy źródłowej." >&2
+  exit 1
+fi
+
 # Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
 # nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
 BASE_URL="${PG_DATABASE_URL_NO_QUERY%/*}"
