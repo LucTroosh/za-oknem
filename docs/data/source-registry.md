@@ -145,13 +145,28 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `severity_raw` przechowywane bez reinterpretacji (rule #10)
 - **last_verified_at:** 2026-09-29
 
-## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, PRZYSZŁY task)
+## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, ZABLOKOWANE na weryfikacji)
 
-- **connector:** brak — osobny task, nie doklejać do `imgw_warningshydro`
-  (inny endpoint, inny kształt danych mimo wspólnego wzorca)
+- **connector:** `imgw_warningsmeteo` — CZĘŚCIOWY: `client.py` (fetch + retry)
+  i `parser.py::parse_warnings()` (dispatch listy/pustego stanu) gotowe i
+  zweryfikowane. `normalize()` (mapowanie pól pojedynczego ostrzeżenia) i
+  `ingest.py` CELOWO nie zaimplementowane — patrz niżej.
 - **endpoint:** `https://danepubliczne.imgw.pl/api/data/warningsmeteo` —
   zweryfikowane na żywo 2026-09-29; przy braku ostrzeżeń zwraca
   `{"message": "Brak ostrzeżeń meteorologicznych"}` (potwierdzone na żywo)
+- **blocker:** w chwili implementacji API nie zwracało ŻADNEGO aktywnego
+  ostrzeżenia meteo, więc — w przeciwieństwie do `warningshydro`, gdzie miałem
+  żywy przykład z realnymi wartościami pól — nie ma zweryfikowanego kształtu
+  pojedynczego rekordu ostrzeżenia. Nieoficjalne źródła (scrapery stron
+  trzecich) sugerują INNY schemat niż hydro (`id`, `stopien` 1–3, `tresc`,
+  `teryt[]` — kody powiatów, nie województw jak w hydro) — nie zweryfikowane
+  na żywo, więc świadomie NIE wpisane do `normalize()` (rule #10: nigdy nie
+  zgadywać kształtu danych bezpieczeństwa; rule #15: Source Approval Gate
+  wymaga realnej weryfikacji, nie inferencji). Decyzja użytkownika: poczekać
+  na realny przykład zamiast budować na niepotwierdzonym schemacie.
 - **license/rate_limit/attribution:** jak `imgw_hydro` wyżej (ten sam regulamin)
-- **status:** DISCOVERY
+- **status:** DISCOVERY (częściowo IMPLEMENTED — patrz wyżej) — dokończyć
+  `normalize()`/`ingest.py`/`GET /api/v1/alerts/latest` (rozszerzyć o
+  `source_id="imgw_warningsmeteo"`) dopiero po zaobserwowaniu żywego,
+  aktywnego ostrzeżenia meteo
 - **last_verified_at:** 2026-09-29
