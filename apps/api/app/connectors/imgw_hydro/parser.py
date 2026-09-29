@@ -104,7 +104,15 @@ def normalize(station: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any
         # Stable identity (no timestamp) - ingest.py upserts/deletes this exact
         # row every run rather than inserting a new one each time.
         source_record_id = f"{station_id}:{param_code}"
-        raw_value = station.get(raw_key)
+        # A key that's PRESENT with value null is IMGW telling us "no threshold
+        # for this station" - a real withdrawal, delete any stored row (see
+        # test_normalize_marks_threshold_for_deletion_when_null). A key that's
+        # MISSING entirely is a malformed/partial payload, not a withdrawal -
+        # treating it the same would let one glitchy fetch silently erase every
+        # threshold in the DB (Codex review, PR #42 round 5).
+        if raw_key not in station:
+            raise ImgwHydroParseError(f"station {station_id} is missing {raw_key}")
+        raw_value = station[raw_key]
         if raw_value is None:
             return {"source_record_id": source_record_id, "value": None}
         try:

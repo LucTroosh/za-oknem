@@ -94,6 +94,17 @@ def test_normalize_raises_on_malformed_threshold():
         normalize(station, fetched_at=datetime.now(UTC))
 
 
+def test_normalize_raises_when_threshold_key_is_missing_entirely():
+    """A key present with value null is a real withdrawal (see
+    test_normalize_marks_threshold_for_deletion_when_null); a key that's MISSING
+    from the payload is a malformed/partial fetch, not a withdrawal - treating it
+    the same would let one glitchy response silently erase every stored threshold
+    (Codex review, PR #42 round 5)."""
+    station = {k: v for k, v in STATION.items() if k != "stan_ostrzegawczy"}
+    with pytest.raises(ImgwHydroParseError):
+        normalize(station, fetched_at=datetime.now(UTC))
+
+
 def test_param_codes_fit_the_varchar20_column():
     """Measurement.param_code is VARCHAR(20) (models.py) - SQLite doesn't enforce
     this, so it must be checked explicitly (Codex review, PR #42: PostgreSQL

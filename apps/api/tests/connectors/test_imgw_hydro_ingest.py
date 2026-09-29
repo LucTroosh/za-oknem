@@ -16,6 +16,11 @@ STATION = {
     "lon": "14.8217",
     "stan_wody": "225",
     "stan_wody_data_pomiaru": "2026-09-27 21:20:00",
+    # IMGW always includes these keys, null when a station has no threshold
+    # (e.g. lake gauges) - verified live, see parser.py. A station missing the
+    # keys entirely is a different, malformed case (see test_imgw_hydro_parser.py).
+    "stan_ostrzegawczy": None,
+    "stan_alarmowy": None,
 }
 
 

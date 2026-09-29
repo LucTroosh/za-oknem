@@ -30,7 +30,7 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
 - `docs/data/source-registry.md`: udokumentowane pola progów (zweryfikowane
   na żywo, w tym przypadek `null` dla stacji bez progu, np. jeziora).
 
-## Historia przeglądu (Codex, PR #42 — 3 rundy)
+## Historia przeglądu (Codex, PR #42 — 5 rund)
 
 1. **P1:** `water_level_warning_cm` (22 znaki) przekraczał `VARCHAR(20)`
    kolumny `param_code` — PostgreSQL odrzuciłby każdy rekord progu ostrzegawczego
@@ -47,6 +47,25 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
    na upsert/delete względem własnego cyklu ingestu (ten sam duch co
    `_expire_withdrawn()` w `imgw_warningshydro`/ADR-009), niezależnie od
    `stan_wody_data_pomiaru`.
+4. **P2 (runda 4):** przeprojektowanie z rundy 2 przy okazji zmieniło
+   `source_record_id` odczytu wody z `stacja:observed_at` na
+   `stacja:param_code:observed_at` — niepotrzebnie (progi mają już własny,
+   odrębny schemat id), a przy pierwszym wdrożeniu zdublowałoby to każdy
+   już zapisany odczyt (ten sam odczyt nie byłby rozpoznany jako już
+   zapisany). → przywrócono oryginalny format
+   `source_record_id` dla odczytu wody, dodano test pinujący
+   (`test_normalize_level_source_record_id_format_is_stable`). Przy okazji tej
+   samej rundy: `normalize()` nadal zwracało `None` dla całej stacji, gdy
+   `stan_wody` było puste, więc progi stacji, która przestała raportować wodę,
+   w ogóle nie były rekoncyliowane. → `normalize()` zawsze parsuje tożsamość
+   stacji i oba progi; tylko `level` bywa `None`.
+5. **P2 (runda 5):** `_threshold()` używało `station.get(raw_key)`, więc
+   brakujący klucz w payloadzie (błędny/częściowy fetch) był nie do
+   odróżnienia od klucza obecnego z wartością `null` (świadome wycofanie
+   progu przez IMGW) — jeden zepsuty fetch mógłby po cichu skasować
+   wszystkie zapisane progi. → rozróżniono `raw_key not in station`
+   (rzuca `ImgwHydroParseError`, izoluje tylko tę stację — rule #1) od
+   klucza obecnego z `null` (prawdziwe wycofanie, usuwa wiersz).
 
 ## Acceptance Criteria
 
@@ -75,6 +94,14 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
       `test_latest_hydro_uses_threshold_even_when_older_than_the_reading`).
 - [x] Stacja z samymi progami (bez aktualnego `stan_wody`) nie pojawia się w
       odpowiedzi (test: `test_latest_hydro_ignores_threshold_only_station`).
+- [x] `source_record_id` odczytu wody nie zmienia formatu (test:
+      `test_normalize_level_source_record_id_format_is_stable`).
+- [x] Zmiana/wycofanie progu jest rekoncyliowane nawet gdy stacja przestała
+      raportować `stan_wody` (test:
+      `test_ingest_station_reconciles_threshold_even_when_water_reading_stops`).
+- [x] Brakujący klucz progu w payloadzie rzuca błąd (izolacja tej stacji),
+      w odróżnieniu od klucza obecnego z `null` (test:
+      `test_normalize_raises_when_threshold_key_is_missing_entirely`).
 
 ## Tests
 
