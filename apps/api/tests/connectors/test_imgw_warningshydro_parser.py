@@ -76,6 +76,13 @@ class TestNormalize:
         with pytest.raises(ImgwWarningsHydroParseError):
             normalize(warning, fetched_at=datetime.now(UTC))
 
+    def test_raises_on_null_required_field(self):
+        # Codex review (PR #37): str(None) used to silently become the literal
+        # text "None" instead of failing (rule #1/#10).
+        warning = {**WARNING, "zdarzenie": None}
+        with pytest.raises(ImgwWarningsHydroParseError):
+            normalize(warning, fetched_at=datetime.now(UTC))
+
     def test_raises_when_areas_is_not_a_list(self):
         warning = {**WARNING, "obszary": "not-a-list"}
         with pytest.raises(ImgwWarningsHydroParseError):

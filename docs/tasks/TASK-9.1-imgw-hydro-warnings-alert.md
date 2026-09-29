@@ -51,6 +51,8 @@ Pierwsza Alert vertical slice: ostrzeżenia hydrologiczne IMGW, `GET
 - [x] `/alerts/latest` zwraca `fetched_at`/`freshness` liczone od ostatniego
       potwierdzenia aktywności, nie od `valid_until` źródła (rule #8; test:
       `test_latest_alerts_marks_stale_fetch_as_stale`).
+- [x] `null` w wymaganym polu (np. `zdarzenie`) odrzucane jako błąd parsowania,
+      nie ciche `str(None)` → `"None"` (test: `test_raises_on_null_required_field`).
 
 ## Tests
 

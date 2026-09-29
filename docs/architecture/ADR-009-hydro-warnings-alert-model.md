@@ -78,6 +78,17 @@ konkretnego schematu pól. Kształt `warningshydro` zweryfikowany na żywo w ADR
   (ewentualnie bardzo odległego) końca ważności ostrzeżenia.
 
 **Explicit non-goals:**
+- **Source-level sync status niezależny od wierszy** (zgłoszone w code review PR
+  #37): gdy `/alerts/latest` zwraca pustą listę (przed pierwszym ingestem, po
+  wygaśnięciu wszystkich alertów, albo w trakcie długiej awarii IMGW po tym jak
+  reconciliation już je zamknęło), odpowiedź nie odróżnia "źródło potwierdziło
+  zero aktywnych ostrzeżeń" od "nie wiemy, bo dawno nie było udanego fetcha".
+  Per-wiersz `fetched_at`/`freshness` (ten PR) nie rozwiązuje tego dla listy
+  pustej. Pełne rozwiązanie (osobna tabela/kolumna "ostatni udany sync per
+  źródło", status UNAVAILABLE gdy przestój przekroczy próg) to koncept
+  przekrojowy — dotyczyłby też `/air/latest` i `/hydro/latest`, nie tylko
+  alertów — więc zasługuje na własny ADR i task, nie punktową łatkę tutaj
+  (rule #12, uniknięcie scope creep). Świadomie odłożone.
 - `warningsmeteo` — kolejny connector, nie ten sam PR (jedno źródło na raz,
   ten sam wzorzec co GIOŚ→Open-Meteo→IMGW hydro).
 - Dopasowanie województwo/zlewnia → `geo_area` użytkownika — wymaga własnej

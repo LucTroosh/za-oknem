@@ -36,11 +36,21 @@ def _parse_datetime(value: str) -> datetime:
     return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=IMGW_TZ)
 
 
+def _required_str(warning: dict[str, Any], key: str) -> str:
+    """`str(None)` would silently store the literal text "None" as if it were
+    real data (Codex review, PR #37) - a required field must be an actual value,
+    not just present (rule #1/#10)."""
+    value = warning[key]
+    if value is None:
+        raise ImgwWarningsHydroParseError(f"required field '{key}' is null")
+    return str(value)
+
+
 def normalize(warning: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any]:
     """Raises ImgwWarningsHydroParseError on anything missing/malformed - a bad
     warning record must not silently produce a wrong alert (rule #1/#10)."""
     try:
-        external_id = str(warning["numer"])
+        external_id = _required_str(warning, "numer")
         published_at = _parse_datetime(warning["opublikowano"])
         valid_from = _parse_datetime(warning["data_od"])
         valid_until = _parse_datetime(warning["data_do"])
@@ -53,14 +63,14 @@ def normalize(warning: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any
             "source_id": "imgw_warningshydro",
             "source_record_id": f"{external_id}:{published_at.isoformat()}",
             "external_id": external_id,
-            "event_type": str(warning["zdarzenie"]),
+            "event_type": _required_str(warning, "zdarzenie"),
             # Kept exactly as reported, never reinterpreted (rule #10, ADR-009) -
             # hydro drought uses a different scale ("-1") than typical meteo
             # warnings, and it isn't this codebase's place to normalize that.
-            "severity_raw": str(warning["stopień"]),
+            "severity_raw": _required_str(warning, "stopień"),
             "probability_pct": float(probability_raw) if probability_raw is not None else None,
-            "issuing_office": str(warning["biuro"]),
-            "description": str(warning["przebieg"]),
+            "issuing_office": _required_str(warning, "biuro"),
+            "description": _required_str(warning, "przebieg"),
             "comment": str(warning["komentarz"]) if warning.get("komentarz") else None,
             "areas": areas,
             "valid_from": valid_from,
