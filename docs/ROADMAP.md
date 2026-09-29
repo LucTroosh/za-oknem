@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #41)
+**Ostatnia aktualizacja:** 2026-09-29 (po PR #42)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -62,7 +62,7 @@ Alerts/Settings/push/profilu).
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
 | poziom rzek | ✅ DONE — IMGW hydro (ADR-008), `GET /api/v1/hydro/latest` |
-| stan ostrzegawczy / stan alarmowy | ⬜ TODO — IMGW hydro API zwraca `stan_wody` (poziom), progi ostrzegawcze/alarmowe per stacja jeszcze nie pobierane/eksponowane |
+| stan ostrzegawczy / stan alarmowy | ✅ DONE — progi per stacja (upsert/delete względem cyklu ingestu), `status: NORMAL/WARNING/ALARM/UNKNOWN` w `GET /api/v1/hydro/latest` (TASK-9.3, PR #42) |
 | ostrzeżenia hydrologiczne | ✅ DONE — `imgw_warningshydro` (ADR-009), `GET /api/v1/alerts/latest` |
 
 ### 2.6. Alerty i zdarzenia (§9)
@@ -150,6 +150,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #39 | Fix rule #10 w `imgw_warningshydro/parser.py` (exact-shape matching dla pustego stanu) |
 | #40 | `docs/ROADMAP.md` (ten plik) + reguła utrzymania w CLAUDE.md |
 | #41 | Open-Meteo: rozszerzenie `CURRENT_PARAMS` z 4 do 12/15 pól MVP (§5) |
+| #42 | `imgw_hydro`: progi ostrzegawcze/alarmowe stanu wody + status NORMAL/WARNING/ALARM/UNKNOWN (TASK-9.3, ADR-008) — 6 rund przeglądu Codex, patrz historia w TASK-9.3 |
+| #43 | `docs/ROADMAP.md` — odzwierciedlenie PR #40/#41 |
 
 ---
 
