@@ -63,7 +63,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       **regularny automatyczny test odtworzenia** (nie tylko udokumentowana
       procedura — §68: "sam backup bez testu odtworzenia nie jest
       wystarczający"). Priorytet przed jakimkolwiek wdrożeniem
-      produkcyjnym, nawet jeśli reszta MVP jeszcze nie gotowa.
+      produkcyjnym, nawet jeśli reszta MVP jeszcze nie gotowa. **Realne
+      sekrety (hasło DB, klucze API providerów, credentiale push,
+      konfiguracja monitoringu) muszą mieć osobną, zabezpieczoną ścieżkę
+      odtworzenia** — `.env`-szablony bez wartości (jak wyżej) nie
+      wystarczą przy utracie VPS, bo nie da się z nich odtworzyć realnej
+      konfiguracji. Zaszyfrowany backup sekretów (np. `sops`/`age` + ten
+      sam off-host storage co reszta) albo zewnętrzny secret manager —
+      rule #3 (żadnych sekretów w repo) nie zwalnia z ich backupu, tylko
+      zabrania trzymać ich jawnie w git.
 
 ### Phase 2 — Backend Core (dokończenie)
 
@@ -151,7 +159,21 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       klucz dla Alert Engine (Phase 9) i Push (Phase 10, ADR-002).
       Jeśli mimo to zdecydujesz na węższy zakres, wymaga to NAJPIERW rewizji
       ADR-005 i ADR-002 (rule #12 — nie wolno po cichu reinterpretować
-      przyjętego ADR).
+      przyjętego ADR). **(4) Aktywność gminy jako filtr pollingu pogody** —
+      `run_open_meteo()` dziś odpytuje KAŻDY wiersz `geo_areas` co 3h; przy
+      pełnym imporcie ~2.5k gmin to ~20k zapytań/dzień, ponad limit
+      Open-Meteo 10000/dzień (`source-registry.md`). Import TERYT musi więc
+      wprowadzić rozróżnienie "gmina do geo-matchingu" (zawsze, do alertów/
+      push) vs. "gmina z aktywnym pollingiem pogody" (tylko wybrane/
+      obserwowane lokalizacje użytkowników), inaczej TASK-6.2 samo w sobie
+      wyłącza pogodę przy wdrożeniu. **(5) Resolver TERYT dla klienta** —
+      TASK-12.3 dostarcza surowe współrzędne GPS, a TASK-12.5 wymaga
+      `observed_area_code`; żaden task nie wystawia point-in-polygon z (2)
+      przez API. Dodać endpoint (np. `POST /api/v1/geo/resolve` lub przyjęcie
+      współrzędnych bezpośrednio w `POST /api/v1/devices` z serwerowym
+      resolve) pod ograniczeniami ADR-002 (bez trwałego logowania precyzyjnej
+      lokalizacji) — inaczej TASK-12.5 nie da się zaimplementować bez
+      duplikowania geometrii gmin w aplikacji mobilnej.
 
 ### Phase 7 — Dashboard (dokończenie)
 
@@ -213,7 +235,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dostępie (rule #10/#15 — nie zgadywać kształtu).
 - [ ] **TASK-8.6:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
       gmina, jak weather) + migracja Alembic + ingest — dopiero po
-      TASK-8.5, wymaga działającego klucza CAMS.
+      TASK-8.5, wymaga działającego klucza CAMS. **Zakres obejmuje też
+      wpięcie w `app/scheduler.py`** (job raz dziennie, ten sam wzorzec
+      izolacji błędów co `run_open_meteo`/`run_gios`) — bez tego
+      `/pollen/latest` i dashboard zależą od ręcznych uruchomień ingestu i
+      z czasem pokażą dane STALE/UNAVAILABLE mimo działającego connectora.
 - [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
@@ -322,8 +348,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       lokalizację, TASK-10.1 tylko przygotowuje backend; bez tego klienckiego
       wpięcia zarejestrowane urządzenie ma nieaktualny lub brak
       `observed_area_code`, więc push trafia do złej gminy albo wcale.
-      Zależne od TASK-10.1 (endpoint musi istnieć) i TASK-12.2/12.3 (skąd
-      wziąć lokalizację).
+      Zależne od TASK-10.1 (endpoint musi istnieć), TASK-12.2/12.3 (skąd
+      wziąć lokalizację) i resolvera TERYT z TASK-6.2 punkt (5) (GPS →
+      `observed_area_code` po stronie serwera).
 - [ ] **TASK-12.4:** Profil użytkownika + podstawowe preferencje (allergy,
       family, outdoor — §12 Master Planu). Bez obowiązkowego konta (rule #11)
       — do przemyślenia jak to pogodzić z "profilem" w MVP bez logowania
@@ -392,7 +419,20 @@ placeholderze.
       skryptu — realny, zaplanowany przebieg testu).
 - [ ] **TASK-15.3:** Monitoring produkcyjny (rozszerzenie TASK-13.2) na
       realnym środowisku.
-- [ ] **TASK-15.4:** Release rollback readiness (§104 Master Planu) —
+- [ ] **TASK-15.4:** Redis w produkcji (§45, §103 Release Candidate
+      checklist) — ADR-007 zdejmuje z Redis tylko rolę kolejki/workera dla
+      schedulera ("Redis... zostaje nieużyty przez scheduler"), nie znosi
+      §45 (cache/rate-limiting/short-lived state) ani pozycji "[ ] Redis" w
+      §103. "Świadomie NIE w tej kolejce" (patrz sekcja niżej) odkłada
+      Redis do czasu, aż load to uzasadni — to poprawny YAGNI dla fazy
+      rozwoju, ale bez tego tasku żaden punkt kolejki faktycznie nie
+      implementuje Redis przed Phase 18, więc checklist z §103 zostałby
+      niespełniony przy release mimo ukończenia całej reszty MVP. Zakres:
+      realne zastosowanie Redis (np. cache `/dashboard/latest`, rate
+      limiting per-device) + walidacja produkcyjna, ALBO — jeśli po
+      przeanalizowaniu przy tej skali dalej nie ma uzasadnienia — formalna
+      rewizja §103 przez ADR (rule #12), nie ciche pominięcie.
+- [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**
       (§104: "nie powinno być konieczności przebudowy całej aplikacji w
@@ -476,9 +516,12 @@ Uwaga: to jest lista rzeczy świadomie odłożonych z uzasadnieniem — nie nale
 tego mylić ze statusem "zrobione" dla Phase 0-4 wyżej.
 
 - **Redis (cache)** — obecnie wszystko czyta z PostgreSQL bezpośrednio i to
-  wystarcza przy obecnej skali (ta sama logika co decyzja o braku workerów w
-  ADR-007). Dodać dopiero gdy realny load to uzasadni, nie "na wszelki
-  wypadek" (YAGNI).
+  wystarcza przy obecnej skali w trakcie developmentu (ta sama logika co
+  decyzja o braku workerów w ADR-007). To NIE jest jednak odłożone bez
+  terminu: §103 Release Candidate checklist wymaga Redis przed release, więc
+  TASK-15.4 (Phase 15) implementuje go (albo formalnie rewiduje §103 przez
+  ADR) przed TASK-18.1/18.2 — dopóki to nie nastąpi, brak Redis tutaj nie
+  jest zamkniętym tematem, tylko świadomie odłożonym do tego taska.
 - **PostGIS** — obecny haversine (ADR-006) wystarcza przy 7 zaseedowanych
   lokalizacjach; pełny PostGIS dopiero gdy TERYT/Geo Engine (Phase 6) tego
   faktycznie zażąda.
