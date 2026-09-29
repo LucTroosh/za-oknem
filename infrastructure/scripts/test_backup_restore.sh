@@ -50,8 +50,7 @@ echo "[test] weryfikuję artefakty w $REMOTE_DIR..."
 echo "[test] uruchamiam restore_test.sh..."
 export RESTORE_TEST_DB="za_oknem_selfcheck_restore_test"
 bash infrastructure/scripts/restore_test.sh
-
-echo "[test] sprzątam bazę testową..."
-psql --dbname="${PG_DATABASE_URL%/*}/postgres" -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null
+# restore_test.sh sprząta teraz swoją bazę samo (trap na EXIT, Codex review) —
+# nic więcej tu nie zostaje do posprzątania.
 
 echo "[test] PASS: pełny cykl backup -> restore_test przeszedł."

@@ -36,23 +36,34 @@ BASE_URL="${PG_DATABASE_URL_NO_QUERY%/*}"
 PROD_DB_NAME="${PG_DATABASE_URL_NO_QUERY##*/}"
 TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
-# Guard przed DROP DATABASE na czymś realnym: wymuszamy sufiks _restore_test i
-# odrzucamy, gdyby RESTORE_TEST_DB przez pomyłkę wskazywało bazę z DATABASE_URL
-# (Codex review — inaczej błędna konfiguracja może skasować produkcję).
-case "$RESTORE_TEST_DB" in
-  *_restore_test) ;;
-  *)
-    echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi kończyć się na _restore_test (jest: ${RESTORE_TEST_DB})." >&2
-    exit 1
-    ;;
-esac
+# Guard przed DROP DATABASE na czymś realnym: RESTORE_TEST_DB musi być bezpiecznym
+# identyfikatorem (tylko litery/cyfry/_) kończącym się na _restore_test, i różnym
+# od bazy z DATABASE_URL. Sam glob "*_restore_test" (poprzednia wersja) przepuszczał
+# np. "za_oknem -- _restore_test", co po interpolacji do surowego SQL zamienia
+# resztę polecenia w komentarz i wykonuje DROP DATABASE na PROD_DB_NAME zamiast na
+# bazie testowej (Codex review — SQL injection przez nazwę bazy).
+if ! [[ "$RESTORE_TEST_DB" =~ ^[A-Za-z_][A-Za-z0-9_]*_restore_test$ ]]; then
+  echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi być bezpieczną nazwą (litery/cyfry/_) kończącą się na _restore_test (jest: ${RESTORE_TEST_DB})." >&2
+  exit 1
+fi
 if [ "$RESTORE_TEST_DB" = "$PROD_DB_NAME" ]; then
   echo "[restore_test] BŁĄD: RESTORE_TEST_DB (${RESTORE_TEST_DB}) to ta sama baza co w DATABASE_URL — odmawiam DROP." >&2
   exit 1
 fi
 
 WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+DB_CREATED=""
+cleanup() {
+  rm -rf "$WORKDIR"
+  # "jednorazowa baza" ma taką pozostać — bez tego każdy przebieg (np. z crona,
+  # TASK-15.2) trwale zostawia pełną kopię danych produkcyjnych na instancji
+  # Postgresa (Codex review). Sprzątamy przy każdym wyjściu, sukces czy błąd.
+  if [ -n "$DB_CREATED" ]; then
+    psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 \
+      -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 echo "[restore_test] szukam najnowszego dumpa w $BACKUP_REMOTE..."
 LATEST_DUMP="$(rclone lsf "$BACKUP_REMOTE" --include "db-*.dump" | sort | tail -n1)"
@@ -93,15 +104,24 @@ fi
 echo "[restore_test] (re)tworzę bazę $RESTORE_TEST_DB..."
 psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};"
 psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
+DB_CREATED=1
 
 echo "[restore_test] pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
 pg_restore --dbname="$TEST_URL" --no-owner --no-privileges "$WORKDIR/$LATEST_DUMP"
 
 echo "[restore_test] smoke-check..."
-TABLE_COUNT="$(psql --dbname="$TEST_URL" -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public';" | tr -d '[:space:]')"
-if [ "${TABLE_COUNT:-0}" -lt 1 ]; then
-  echo "[restore_test] BŁĄD: odtworzona baza nie ma żadnych tabel w schemacie public." >&2
+# Sprawdzamy konkretne tabele modelu (app/models.py), nie tylko "cokolwiek istnieje"
+# — sam count(*) > 0 przechodzi nawet, gdy odtworzyła się tylko alembic_version, a
+# żadna tabela aplikacji (Codex review).
+EXPECTED_TABLES="measurements geo_areas weather_snapshots alerts forecasts"
+MISSING=""
+for t in $EXPECTED_TABLES; do
+  EXISTS="$(psql --dbname="$TEST_URL" -t -c "SELECT to_regclass('public.${t}') IS NOT NULL;" | tr -d '[:space:]')"
+  [ "$EXISTS" = "t" ] || MISSING="$MISSING $t"
+done
+if [ -n "$MISSING" ]; then
+  echo "[restore_test] BŁĄD: brak oczekiwanych tabel po odtworzeniu:$MISSING" >&2
   exit 1
 fi
 
-echo "[restore_test] OK: $LATEST_DUMP odtworzony do $RESTORE_TEST_DB, $TABLE_COUNT tabel(a)."
+echo "[restore_test] OK: $LATEST_DUMP odtworzony do $RESTORE_TEST_DB, wszystkie oczekiwane tabele obecne."
