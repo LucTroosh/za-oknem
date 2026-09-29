@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.api.v1.weather import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
 from app.db import get_db
 from app.main import app
-from app.models import GeoArea, WeatherSnapshot
+from app.models import Forecast, GeoArea, WeatherSnapshot
 
 
 class _FakeResult:
@@ -159,3 +159,89 @@ def test_latest_weather_handles_multiple_areas():
     body = client.get("/api/v1/weather/latest").json()
 
     assert {a["slug"] for a in body["areas"]} == {"klodzko", "warszawa"}
+
+
+# --- GET /api/v1/weather/forecast (ADR-010) ----------------------------------
+
+
+def _forecast(**overrides) -> Forecast:
+    now = datetime.now(UTC)
+    valid_from = overrides.get(
+        "valid_from", now.replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+    defaults = {
+        "source_id": "open_meteo",
+        "source_record_id": "rec-1",
+        "geo_area_id": 1,
+        "param_code": "temperature_2m_max",
+        "value": 18.5,
+        "unit": "°C",
+        "model": "auto",
+        "forecast_reference_time": now,
+        "valid_from": valid_from,
+        "valid_until": valid_from + timedelta(days=1),  # overridden below if caller passed one
+        "fetched_at": now,
+    }
+    defaults.update(overrides)
+    return Forecast(**defaults)
+
+
+def test_weather_forecast_returns_empty_list_when_no_rows():
+    client = _client([], [])
+
+    response = client.get("/api/v1/weather/forecast")
+
+    assert response.status_code == 200
+    assert response.json() == {"areas": []}
+
+
+def test_weather_forecast_groups_by_area_and_day():
+    day1 = datetime(2026, 9, 29, tzinfo=UTC)
+    day2 = datetime(2026, 9, 30, tzinfo=UTC)
+    rows = [
+        _forecast(param_code="temperature_2m_max", value=18.5, valid_from=day1),
+        _forecast(param_code="temperature_2m_min", value=9.2, valid_from=day1),
+        _forecast(param_code="temperature_2m_max", value=19.1, valid_from=day2),
+    ]
+    client = _client(rows, [_area()])
+
+    body = client.get("/api/v1/weather/forecast").json()
+
+    assert len(body["areas"]) == 1
+    area = body["areas"][0]
+    assert area["slug"] == "klodzko"
+    assert area["model"] == "auto"
+    assert len(area["days"]) == 2
+    assert area["days"][0]["valid_from"] == day1.isoformat()
+    assert area["days"][0]["params"] == {
+        "temperature_2m_max": {"value": 18.5, "unit": "°C"},
+        "temperature_2m_min": {"value": 9.2, "unit": "°C"},
+    }
+    assert area["days"][1]["params"] == {"temperature_2m_max": {"value": 19.1, "unit": "°C"}}
+
+
+def test_weather_forecast_skips_row_for_deleted_geo_area():
+    row = _forecast(geo_area_id=999)
+    client = _client([row], [_area()])  # area id=1, forecast references id=999
+
+    body = client.get("/api/v1/weather/forecast").json()
+
+    assert body == {"areas": []}
+
+
+def test_weather_forecast_days_are_sorted_ascending():
+    day1 = datetime(2026, 9, 29, tzinfo=UTC)
+    day2 = datetime(2026, 9, 30, tzinfo=UTC)
+    day3 = datetime(2026, 10, 1, tzinfo=UTC)
+    # Deliberately out of order - the endpoint must sort, not trust query order.
+    rows = [
+        _forecast(valid_from=day3),
+        _forecast(valid_from=day1),
+        _forecast(valid_from=day2),
+    ]
+    client = _client(rows, [_area()])
+
+    body = client.get("/api/v1/weather/forecast").json()
+
+    valid_froms = [d["valid_from"] for d in body["areas"][0]["days"]]
+    assert valid_froms == [day1.isoformat(), day2.isoformat(), day3.isoformat()]

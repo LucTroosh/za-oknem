@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #43)
+**Ostatnia aktualizacja:** 2026-09-29 (po PR #46)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -41,7 +41,7 @@ Alerts/Settings/push/profilu).
 |---|---|
 | temperatura, wilgotność, wiatr (prędkość+kierunek+porywy), kod warunków, odczuwalna, ciśnienie, zachmurzenie, opady/deszcz/śnieg | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard (12/15 pól MVP, PR #41) |
 | punkt rosy, widoczność, UV | ⬜ TODO — Open-Meteo current nie zwraca tych pól wprost (wymaga osobnego zapytania/derywacji), świadomie odłożone |
-| prognoza (forecast, nie tylko current) | ⬜ TODO — model `Forecast` (§30) nie istnieje, mamy tylko `WeatherSnapshot` (Measurement-owe "teraz") |
+| prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46) |
 
 ### 2.3. Pylenie (§6)
 
@@ -152,6 +152,9 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #41 | Open-Meteo: rozszerzenie `CURRENT_PARAMS` z 4 do 12/15 pól MVP (§5) |
 | #42 | `imgw_hydro`: progi ostrzegawcze/alarmowe stanu wody + status NORMAL/WARNING/ALARM/UNKNOWN (TASK-9.3, ADR-008) — 6 rund przeglądu Codex, patrz historia w TASK-9.3 |
 | #43 | `docs/ROADMAP.md` — odzwierciedlenie PR #40/#41 |
+| #44 | `docs/ROADMAP.md`/TASK-9.3 — progi hydro DONE, uzupełnienie historii review (2 dodatkowe realne poprawki dokumentacji) |
+| #45 | `docs/tasks/BACKLOG.md` — uporządkowana kolejka pozostałych faz Master Planu |
+| #46 | Forecast (§30, ADR-010): `GET /api/v1/weather/forecast`, domyka Phase 5 |
 
 ---
 

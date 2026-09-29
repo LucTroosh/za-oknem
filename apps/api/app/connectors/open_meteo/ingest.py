@@ -1,5 +1,6 @@
 """Orchestrates one Open-Meteo ingest run: fetch -> parse -> validate -> store,
-for every geo_area (or a --slug subset).
+for every geo_area (or a --slug subset). Stores both current-weather snapshots
+and forecast days from the same fetch (ADR-010).
 
 Manual/on-demand for now, same as GIOŚ (Phase 4/5) — the real scheduler is Phase 5
 follow-up work; per ADR-004 fetch this every 3h once scheduled, not more often:
@@ -16,41 +17,69 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.open_meteo import client
-from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize
+from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize, normalize_forecast
 from app.db import SessionLocal
-from app.models import GeoArea, WeatherSnapshot
+from app.models import Forecast, GeoArea, WeatherSnapshot
 
 logger = logging.getLogger(__name__)
 
 
-def ingest_geo_area(area: GeoArea, db) -> int:
-    """Returns the number of new snapshot rows stored. One geo_area's failure is
-    logged and skipped — it must not abort ingestion for the rest (rule #1)."""
+def _store_if_new(model_cls: type, record: dict, db) -> int:
+    """Shared insert-if-new for both WeatherSnapshot and Forecast rows - both are
+    append-only, deduped by (source_id, source_record_id)."""
+    exists = (
+        db.query(model_cls)
+        .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
+        .first()
+    )
+    if exists:
+        return 0
+    db.add(model_cls(**record))
     try:
-        payload = client.fetch_current(area.latitude, area.longitude)
-        records = normalize(geo_area_id=area.id, payload=payload, fetched_at=datetime.now(UTC))
-    except (client.OpenMeteoApiError, OpenMeteoParseError) as exc:
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run — fine, row exists now
+        return 0
+    return 1
+
+
+def ingest_geo_area(area: GeoArea, db) -> int:
+    """Returns the number of new rows stored (current-weather snapshots +
+    forecast days). One geo_area's fetch failure is logged and skipped — it
+    must not abort ingestion for the rest (rule #1). Current and forecast
+    parsing are isolated from each other too (ADR-010): a malformed `daily`
+    block must not cost us an otherwise-valid `current` reading, or vice versa."""
+    try:
+        payload = client.fetch_weather(area.latitude, area.longitude)
+    except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
         return 0
 
+    fetched_at = datetime.now(UTC)
     stored = 0
-    for record in records:
-        exists = (
-            db.query(WeatherSnapshot)
-            .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
-            .first()
-        )
-        if exists:
-            continue
-        db.add(WeatherSnapshot(**record))
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()  # race with another ingest run — fine, row exists now
-            continue
-        stored += 1
 
-    logger.info("geo_area %s (%s): stored %s/%s params", area.slug, area.name, stored, len(records))
+    try:
+        snapshots = normalize(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
+    except OpenMeteoParseError as exc:
+        logger.warning("geo_area %s: current weather FAILED (%s)", area.slug, exc)
+        snapshots = []
+    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
+
+    try:
+        forecasts = normalize_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
+    except OpenMeteoParseError as exc:
+        logger.warning("geo_area %s: forecast FAILED (%s)", area.slug, exc)
+        forecasts = []
+    stored += sum(_store_if_new(Forecast, r, db) for r in forecasts)
+
+    logger.info(
+        "geo_area %s (%s): stored %s new row(s) (%s current + %s forecast)",
+        area.slug,
+        area.name,
+        stored,
+        len(snapshots),
+        len(forecasts),
+    )
     return stored
 
 
