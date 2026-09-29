@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #46)
+**Ostatnia aktualizacja:** 2026-09-29 (po PR #49)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -30,8 +30,7 @@ Alerts/Settings/push/profilu).
 
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
-| PM2.5 | ✅ DONE — GIOŚ, `GET /api/v1/air/latest`, w dashboardzie |
-| PM10, NO2, SO2, O3, CO, C6H6 | ⬜ TODO — connector GIOŚ celowo ograniczony do PM2.5 (vertical slice) |
+| PM2.5, PM10, NO2, SO2, O3, CO, C6H6 | ✅ DONE — GIOŚ, pełny zestaw parametrów MVP (TASK-4.1, PR #48), `GET /api/v1/air/latest`, w dashboardzie |
 | indeks jakości powietrza + indeksy cząstkowe | ⬜ TODO |
 | Sensor.Community, CAMS Air (MVP+) | ⬜ TODO (poza MVP na razie) |
 
@@ -113,7 +112,7 @@ Alerts/Settings/push/profilu).
 | push notifications | ⬜ TODO |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
-| source transparency | ⬜ TODO — API zwraca `station_name`, ale mobile (`app/index.tsx`) go nie renderuje (tylko nazwę geo_area i freshness); `/dashboard/latest` nie ma identyfikatora źródła ani dla air, ani dla weather — użytkownik dziś nie widzi żadnej atrybucji źródła |
+| source transparency | ✅ DONE — `dashboard_latest()` zwraca `source`+`attribution`+`observed_at` dla air i weather, mobile renderuje atrybucję pod każdą sekcją (TASK-7.1, PR #49) |
 | freshness (UI) | ✅ DONE — etykieta freshness pokazywana per sekcja |
 | loading / error / stale / no-data states | 🟡 PARTIAL — loading/error/ready obsłużone; stale i no-data nie mają jeszcze dedykowanych stanów UI (§59, §80) |
 
@@ -155,6 +154,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #44 | `docs/ROADMAP.md`/TASK-9.3 — progi hydro DONE, uzupełnienie historii review (2 dodatkowe realne poprawki dokumentacji) |
 | #45 | `docs/tasks/BACKLOG.md` — uporządkowana kolejka pozostałych faz Master Planu |
 | #46 | Forecast (§30, ADR-010): `GET /api/v1/weather/forecast`, domyka Phase 5 |
+| #48 | GIOŚ: pełny zestaw parametrów MVP (PM10/NO2/SO2/O3/CO/C6H6, TASK-4.1) + fix jednostki CO + izolacja awarii per-param |
+| #49 | Source transparency w `dashboard_latest()` + mobile (TASK-7.1) |
 
 ---
 
