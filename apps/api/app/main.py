@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import air, dashboard, health, weather
+from app.api.v1 import air, dashboard, health, hydro, weather
 from app.config import settings
 from app.middleware import RequestLoggingMiddleware
 
@@ -26,3 +26,4 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(air.router, prefix="/api/v1")
 app.include_router(weather.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
+app.include_router(hydro.router, prefix="/api/v1")

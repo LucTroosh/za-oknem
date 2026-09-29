@@ -1,7 +1,8 @@
-"""Tests for the loop-based scheduler (ADR-007): interval gating and the
+"""Tests for the loop-based scheduler (ADR-007/ADR-008): interval gating and the
 explicit opt-in for GIOS_STATION_IDS. ingest_* themselves are already covered
 by the connectors' own ingest tests - only the scheduling wiring is new here."""
 
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import app.scheduler as scheduler
@@ -54,38 +55,57 @@ class TestRunGios:
         ingest_mock.assert_called_once_with(station, db_session)
 
 
+class TestRunImgwHydro:
+    def test_ingests_every_fetched_station_no_gating(self, monkeypatch, db_session):
+        # Unlike GIOS, no env var gate - one call already returns every station,
+        # deterministic (ADR-008).
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        stations = [{"id_stacji": "1"}, {"id_stacji": "2"}]
+        monkeypatch.setattr(
+            scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=stations)
+        )
+        ingest_mock = MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_hydro_station", ingest_mock)
+
+        scheduler.run_imgw_hydro()
+
+        assert ingest_mock.call_count == 2
+        # fetched_at is shared across the batch, not re-computed per station.
+        assert ingest_mock.call_args_list[0].kwargs["fetched_at"].tzinfo == UTC
+
+
 class TestMain:
-    def test_first_iteration_runs_both_jobs(self, monkeypatch):
-        open_meteo_mock = MagicMock()
-        gios_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "run_open_meteo", open_meteo_mock)
-        monkeypatch.setattr(scheduler, "run_gios", gios_mock)
+    def _mock_all_jobs(self, monkeypatch):
+        mocks = {
+            "run_open_meteo": MagicMock(),
+            "run_gios": MagicMock(),
+            "run_imgw_hydro": MagicMock(),
+        }
+        for name, mock in mocks.items():
+            monkeypatch.setattr(scheduler, name, mock)
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
+        return mocks
+
+    def test_first_iteration_runs_every_job(self, monkeypatch):
+        mocks = self._mock_all_jobs(monkeypatch)
 
         scheduler.main(iterations=1)
 
-        open_meteo_mock.assert_called_once()
-        gios_mock.assert_called_once()
+        for mock in mocks.values():
+            mock.assert_called_once()
 
     def test_second_iteration_skips_jobs_before_interval_elapses(self, monkeypatch):
-        open_meteo_mock = MagicMock()
-        gios_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "run_open_meteo", open_meteo_mock)
-        monkeypatch.setattr(scheduler, "run_gios", gios_mock)
-        monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
+        mocks = self._mock_all_jobs(monkeypatch)
         # Same monotonic value every call - no interval has elapsed since "last".
         monkeypatch.setattr(scheduler.time, "monotonic", lambda: 1000.0)
 
         scheduler.main(iterations=2)
 
-        open_meteo_mock.assert_called_once()
-        gios_mock.assert_called_once()
+        for mock in mocks.values():
+            mock.assert_called_once()
 
     def test_third_iteration_reruns_gios_after_its_interval(self, monkeypatch):
-        gios_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "run_open_meteo", MagicMock())
-        monkeypatch.setattr(scheduler, "run_gios", gios_mock)
-        monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
+        mocks = self._mock_all_jobs(monkeypatch)
         # 0s, then just past the 1h GIOS interval - open_meteo's 3h interval hasn't
         # elapsed yet, so this isolates the per-job gating (not just "run again").
         ticks = iter([0.0, scheduler.GIOS_INTERVAL_SECONDS + 1])
@@ -93,4 +113,5 @@ class TestMain:
 
         scheduler.main(iterations=2)
 
-        assert gios_mock.call_count == 2
+        assert mocks["run_gios"].call_count == 2
+        assert mocks["run_open_meteo"].call_count == 1

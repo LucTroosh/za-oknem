@@ -9,19 +9,24 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 import logging
 import os
 import time
+from datetime import UTC, datetime
 
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.ingest import ingest_station
+from app.connectors.imgw_hydro import client as imgw_hydro_client
+from app.connectors.imgw_hydro.ingest import ingest_station as ingest_hydro_station
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
 
 logger = logging.getLogger(__name__)
 
-# ADR-004 verified cycles: Open-Meteo/ICON refreshes every 3h, GIOŚ measurement
-# data is hourly.
+# ADR-004 verified cycle: Open-Meteo/ICON refreshes every 3h. GIOŚ measurement
+# data is hourly. IMGW hydro's cadence isn't documented (ADR-008) - 1h is a
+# starting assumption, same as GIOŚ, pending real verification.
 OPEN_METEO_INTERVAL_SECONDS = 3 * 60 * 60
 GIOS_INTERVAL_SECONDS = 60 * 60
+IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
 POLL_INTERVAL_SECONDS = 60
 
 
@@ -54,6 +59,18 @@ def run_gios() -> None:
         db.close()
 
 
+def run_imgw_hydro() -> None:
+    # No station-id gating needed (unlike GIOS): one call returns every station,
+    # already deterministic - nothing to guess (ADR-008).
+    db = SessionLocal()
+    try:
+        fetched_at = datetime.now(UTC)
+        for station in imgw_hydro_client.fetch_stations():
+            ingest_hydro_station(station, db, fetched_at=fetched_at)
+    finally:
+        db.close()
+
+
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -62,7 +79,7 @@ def main(*, iterations: int | None = None) -> None:
     # to work on Linux (monotonic counts from boot, so "now" is usually already
     # hours past either interval) but that's an assumption about the platform, not
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
-    last_open_meteo = last_gios = float("-inf")
+    last_open_meteo = last_gios = last_imgw_hydro = float("-inf")
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
@@ -72,6 +89,9 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_gios >= GIOS_INTERVAL_SECONDS:
             run_gios()
             last_gios = now
+        if now - last_imgw_hydro >= IMGW_HYDRO_INTERVAL_SECONDS:
+            run_imgw_hydro()
+            last_imgw_hydro = now
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)

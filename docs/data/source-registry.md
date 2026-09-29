@@ -95,7 +95,48 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   przechodzenia całej (rate-limited) listy stron przy szukaniu znanego ID stacji.
 - **last_verified_at:** 2026-09-28
 
-## imgw
+## imgw_hydro (stan wody — Measurement)
 
-- **status:** DISCOVERY — do weryfikacji przy rozszerzaniu o hydrologię/ostrzeżenia
-  (Phase 9/11). Nie blokuje pierwszego vertical slice (GIOŚ → PM2.5).
+- **owner:** Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy
+  (Polska, instytucja publiczna)
+- **connector:** `imgw_hydro`
+- **endpoint:** `https://danepubliczne.imgw.pl/api/data/hydro/` — jedno wywołanie
+  zwraca WSZYSTKIE stacje (brak paginacji, w przeciwieństwie do GIOŚ), z
+  `lat`/`lon` wprost w payloadzie. Zweryfikowane na żywo 2026-09-29 (WebFetch).
+- **frequency:** NIEZNANA z dokumentacji (sprawdzone: brak w regulaminie/apiinfo) —
+  ADR-008 przyjmuje roboczo 1h (jak GIOŚ, ta sama domena danych rządowych), jawnie
+  oznaczone jako założenie startowe, nie zweryfikowany cykl (rule #16).
+- **coverage:** Polska (sieć stacji hydrologicznych IMGW)
+- **license:** niekomercyjne/prywatne użycie bezpłatne; komercyjne wymaga płatnej
+  umowy (poza "danymi wysokiej wartości") — regulamin `danepubliczne.imgw.pl/apiinfo`,
+  zweryfikowany na żywo 2026-09-29
+- **commercial_use:** NIE na darmowym tierze — analogicznie do ADR-003 (Open-Meteo),
+  rewizja wymagana przed jakąkolwiek monetyzacją (patrz ADR-008)
+- **redistribution:** dozwolona z wymaganą atrybucją
+- **caching:** zgodnie z regułą #14 — mobile API czyta wyłącznie z naszej bazy
+- **rate_limit:** brak jawnego limitu w regulaminie (sprawdzone, nie zgadywane)
+- **attribution:** "Źródłem pochodzenia danych jest Instytut Meteorologii i
+  Gospodarki Wodnej – Państwowy Instytut Badawczy" (+ dopisek o przetworzeniu,
+  jeśli dane są modyfikowane) — wymagane w ekranie Źródła
+- **status:** IMPLEMENTED (connector `imgw_hydro` — client/parser/ingest — oraz
+  `GET /api/v1/hydro/latest` gotowe 2026-09-29; kształt payloadu zweryfikowany
+  live, pierwsza faktyczna weryfikacja cyklu odświeżania nastąpi przy pierwszym
+  realnym uruchomieniu ingestu)
+- **last_verified_at:** 2026-09-29
+
+## imgw_alerts (ostrzeżenia hydrologiczne/meteo — Alert, PRZYSZŁY task)
+
+- **connector:** brak — endpoint zweryfikowany, model `Alert` po naszej stronie
+  jeszcze nie istnieje (ADR-008 non-goal)
+- **endpoint:** `/api/data/warningshydro`, `/api/data/warningsmeteo` — zweryfikowane
+  na żywo 2026-09-29 (WebFetch). Kształt: lista obiektów ostrzeżeń
+  (`stopień`, `data_od`, `data_do`, `prawdopodobieństwo`, `zdarzenie`,
+  `obszary[].wojewodztwo`) — **uwaga**: `warningsmeteo` przy braku aktywnych
+  ostrzeżeń zwraca obiekt `{"message": "Brak ostrzeżeń meteorologicznych"}`, nie
+  pustą listę (zweryfikowane; nie sprawdzono czy `warningshydro` zachowuje się
+  identycznie — do potwierdzenia przed implementacją, nie zgadywać).
+- **license/rate_limit/attribution:** jak `imgw_hydro` wyżej (ten sam regulamin)
+- **status:** DISCOVERY — endpoint i licencja zweryfikowane, ale to Alert (rule #7),
+  nie Measurement; wymaga osobnego ADR i modelu danych, nie doklejenia do
+  `imgw_hydro` (patrz ADR-008)
+- **last_verified_at:** 2026-09-29
