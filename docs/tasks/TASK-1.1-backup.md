@@ -93,8 +93,28 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
 - Manifest i dump pochodzą z jednej, wspólnej migawki bazy (`pg_export_snapshot`
   w transakcji `REPEATABLE READ`, `pg_dump --snapshot=...`), nie z dwóch osobnych
   odczytów w różnym czasie — korekta po review (LucTroosh), pierwsza wersja liczyła
-  wiersze osobnymi zapytaniami PO `pg_dump`, więc współbieżny insert/delete dawał
-  fałszywą rozbieżność mimo poprawnego backupu.
+  wiersze (i `alembic_version`) osobnymi zapytaniami PO `pg_dump`, więc współbieżny
+  insert/delete/migracja dawały fałszywą rozbieżność mimo poprawnego backupu.
+- `pg_dump` jest pipe'owany prosto do `age` w jednym poleceniu (`\!` wewnątrz
+  transakcji snapshotu) — plaintext bazy NIGDY nie dotyka dysku, tak samo jak
+  `.env` niżej. Wcześniejsza wersja (przy okazji dodawania spójnej migawki) pisała
+  najpierw plaintext do pliku tymczasowego, potem szyfrowała osobno — realne okno,
+  w którym cały zrzut produkcyjnej bazy leżał jawnie na dysku (LucTroosh review
+  [P2], zauważone od razu, korekta w tym samym PR).
+- `DATABASE_URL` nigdy nie jest wstawiany jako tekst do polecenia `\!` (`\!`
+  uruchamia je w NOWEJ powłoce — psql docs) — hasło zawierające `$`/`` ` `` w URI
+  zostałoby ponownie zinterpretowane przez tę drugą powłokę (command injection).
+  Zamiast tego eksportujemy `DATABASE_URL` jako zmienną środowiskową i w treści
+  polecenia `\!` odwołujemy się do niej po nazwie (`$PG_DATABASE_URL`) — druga
+  powłoka podstawia wartość raz, ze swojego środowiska, bez ponownego parsowania
+  jej zawartości jako kodu (LucTroosh review [P1]; zweryfikowane bezpośrednio: hasło
+  `x$(touch ...)y` faktycznie wykonywało `touch` w starym wzorcu, nie wykonuje go
+  w obecnym).
+- `\!` nie przerywa skryptu przy błędzie polecenia powłoki (`ON_ERROR_STOP=1`
+  dotyczy tylko błędów SQL) — `backup.sh` jawnie sprawdza po transakcji, że
+  zaszyfrowany dump istnieje i nie jest pusty, żeby cichy błąd `pg_dump`/`age`
+  wewnątrz `\!` nie skończył się uploadem brakującego/pustego/nieodszyfrowywalnego
+  backupu jako "sukces".
 
 ## Architecture Impact
 

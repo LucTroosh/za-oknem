@@ -29,32 +29,51 @@ trap 'rm -rf "$WORKDIR"' EXIT
 # bez tego pg_dump odrzuca DATABASE_URL w udokumentowanym formacie (Codex review).
 PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
 
-echo "[backup] pg_dump ze spójnym snapshotem (dump + liczniki manifestu z tej samej migawki)..."
+echo "[backup] pg_dump ze spójnym snapshotem (dump + manifest z tej samej migawki)..."
 # LucTroosh review [P2]: dump i liczniki manifestu były dwiema OSOBNYMI migawkami bazy
 # (pg_dump, potem osobne zapytania psql chwilę później) — insert/delete między nimi
 # (normalne przy współbieżnym ingest) dawał manifest niezgodny z tym, co faktycznie jest
 # w dumpie, mimo że backup był poprawny. Otwieramy jedną transakcję REPEATABLE READ,
 # eksportujemy jej snapshot (pg_export_snapshot) i każemy pg_dump użyć DOKŁADNIE tej
-# samej migawki (--snapshot), a liczniki tabel też czytamy w TEJ SAMEJ transakcji —
-# więc dump i manifest zawsze opisują identyczny stan bazy. `\!`/`\o` nie zamykają
-# połączenia/transakcji psql, więc dump i SELECT-y działają pod jedną migawką mimo że
-# pg_dump to osobny proces.
+# samej migawki (--snapshot), a liczniki tabel I alembic_version (LucTroosh review
+# [P2], runda 2 — deployment mógłby zmigrować bazę między dumpem a osobnym
+# zapytaniem) też czytamy w TEJ SAMEJ transakcji — więc dump i manifest zawsze
+# opisują identyczny stan bazy. `\!`/`\o` nie zamykają połączenia/transakcji psql,
+# więc dump i SELECT-y działają pod jedną migawką mimo że pg_dump to osobny proces.
 SNAPSHOT_FILE="$WORKDIR/.snapshot_id"
-DB_DUMP_PLAIN="$WORKDIR/db-${STAMP}.dump"
 DB_DUMP_ENC="$WORKDIR/db-${STAMP}.dump.age"
 COUNTS_DIR="$WORKDIR/.counts"
 mkdir -p "$COUNTS_DIR"
 TABLES=(measurements geo_areas weather_snapshots alerts forecasts)
+
+# LucTroosh review [P1]: `\!` uruchamia polecenie w NOWEJ powłoce (psql docs) — gdyby
+# wartość $PG_DATABASE_URL trafiła do tego polecenia jako dosłowny tekst (interpolacja
+# bash PRZED wysłaniem do psql), znak `$`/`` ` `` w haśle/URI zostałby ponownie
+# zinterpretowany przez tę drugą powłokę (command injection / zepsute hasło). Zamiast
+# wstawiać WARTOŚĆ, eksportujemy zmienną środowiskową i wstawiamy do heredoca dosłowne
+# `\$PG_DATABASE_URL` (escapowane, żeby bash go TERAZ nie rozwinął) — druga powłoka
+# odczyta ją przez SWOJE środowisko (odziedziczone po tym procesie), czyli jedno,
+# bezpieczne podstawienie, nie tekstowe wklejenie.
+export PG_DATABASE_URL
 
 {
   echo "BEGIN ISOLATION LEVEL REPEATABLE READ;"
   echo "\\o $SNAPSHOT_FILE"
   echo "SELECT pg_export_snapshot();"
   echo "\\o"
-  # $(...) wewnątrz \! jest escapowane jako \$(...) w tym heredocu, żeby bash NIE
-  # rozwinął go teraz — ma zostać dosłownym $(...) wykonanym przez powłokę dopiero
-  # gdy psql faktycznie uruchomi to polecenie przez \!, po zapisaniu SNAPSHOT_FILE.
-  echo "\\! pg_dump --dbname=\"$PG_DATABASE_URL\" --format=custom --snapshot=\"\$(tr -d ' \\n' < $SNAPSHOT_FILE)\" -f \"$DB_DUMP_PLAIN\""
+  # LucTroosh review [P2]: pg_dump pisany do pliku na dysku, potem szyfrowany osobno,
+  # zostawiał kompletny plaintext bazy na dysku między tymi krokami (przy zabiciu
+  # procesu/przejęciu hosta w tym oknie - dane produkcyjne w całości jawne) i łamał
+  # własną deklarację README "nigdy tymczasowo nie zapisywane jawnie". Pipe prosto z
+  # pg_dump do age w JEDNYM poleceniu `\!` - plaintext nigdy nie dotyka dysku, tak jak
+  # przy .env niżej. $(...) wewnątrz \! jest escapowane jako \$(...) w tym heredocu,
+  # żeby bash NIE rozwinął go teraz - ma zostać dosłownym $(...) wykonanym przez
+  # powłokę dopiero gdy psql faktycznie uruchomi to polecenie przez \!, po zapisaniu
+  # SNAPSHOT_FILE.
+  echo "\\! pg_dump --dbname=\"\$PG_DATABASE_URL\" --format=custom --snapshot=\"\$(tr -d ' \\n' < $SNAPSHOT_FILE)\" | age -r \"$AGE_RECIPIENT\" -o \"$DB_DUMP_ENC\""
+  echo "\\o $COUNTS_DIR/.alembic_version"
+  echo "SELECT version_num FROM alembic_version;"
+  echo "\\o"
   for t in "${TABLES[@]}"; do
     echo "\\o $COUNTS_DIR/$t"
     echo "SELECT count(*) FROM ${t};"
@@ -63,8 +82,14 @@ TABLES=(measurements geo_areas weather_snapshots alerts forecasts)
   echo "COMMIT;"
 } | psql --dbname="$PG_DATABASE_URL" -v ON_ERROR_STOP=1 -q -t -A
 
-age -r "$AGE_RECIPIENT" -o "$DB_DUMP_ENC" "$DB_DUMP_PLAIN"
-rm -f "$DB_DUMP_PLAIN"
+# `ON_ERROR_STOP=1` stops the script on a failing SQL statement, but NOT on a
+# failing `\!` shell command (psql prints the shell's exit status and moves on) —
+# a broken pipe or a pg_dump/age failure inside `\!` would otherwise pass silently
+# and upload a missing/empty/undecryptable dump as if the backup succeeded.
+[ -s "$DB_DUMP_ENC" ] || {
+  echo "[backup] BŁĄD: $DB_DUMP_ENC nie istnieje lub jest pusty — pg_dump/age (\\! w transakcji snapshotu) zawiodło po cichu." >&2
+  exit 1
+}
 
 echo "[backup] config (bez sekretów)..."
 CONFIG_TAR="$WORKDIR/config-${STAMP}.tar.gz"
@@ -95,10 +120,11 @@ echo "[backup] manifest (metadane do weryfikacji odtworzenia)..."
 # wierszy per tabela z TEJ SAMEJ migawki co dump (patrz komentarz przy pg_dump wyżej),
 # żeby restore_test.sh mógł porównać stan po odtworzeniu z rzeczywistą zawartością
 # dumpa, nie tylko z listą nazw tabel. Same liczby nie są danymi produkcyjnymi (rule:
-# nie logować wartości danych). alembic_version nie musi być ze snapshotu — migracje
-# to sekwencyjne DDL, nie zmieniają się pod dumpem trwającym pojedynczą transakcję.
+# nie logować wartości danych). alembic_version też czytane z tej samej migawki
+# (LucTroosh review, runda 2) - deployment mógłby wykonać migrację między dumpem a
+# osobnym zapytaniem, dając manifest niezgodny z tym, co faktycznie jest w dumpie.
 MANIFEST="$WORKDIR/manifest-${STAMP}.txt"
-ALEMBIC_VERSION="$(psql --dbname="$PG_DATABASE_URL" -t -c "SELECT version_num FROM alembic_version;" 2>/dev/null | tr -d '[:space:]')"
+ALEMBIC_VERSION="$(tr -d '[:space:]' < "$COUNTS_DIR/.alembic_version")"
 {
   echo "config=config-${STAMP}.tar.gz"
   echo "$SECRETS_MANIFEST_LINE"
