@@ -554,7 +554,19 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       aktywny zestaw). Zakres tego tasku obejmuje więc wywołanie
       aktywacji gminy (np. wpis/flaga w `geo_areas` + trigger
       natychmiastowego pierwszego fetchu, nie czekanie na kolejny cykl
-      3h) przy wyborze w tym selektorze.
+      3h) przy wyborze w tym selektorze. **Uzupełnienie (Codex, runda 10)
+      — wygaszanie nieaktywnych gmin:** sama aktywacja bez dezaktywacji
+      to jednokierunkowa flaga — zbiór aktywnie odpytywanych gmin rośnie
+      z każdym nowym wyborem różnych użytkowników i nigdy się nie
+      kurczy, aż zbliży się do pełnego katalogu TERYT (~2.5k), który
+      TASK-6.2 już wskazuje jako przekraczający limit Open-Meteo
+      10000/dzień. Alert 70% z TASK-13.1 tylko powiadamia, nie
+      zatrzymuje requestów. Zakres obejmuje więc też odwrotną ścieżkę:
+      "ostatnio obserwowana" per gmina (naturalny sygnał to
+      `observed_area_code` wysyłane cyklicznie przez TASK-12.5) +
+      okresowy job dezaktywujący gminy bez żadnego obserwującego
+      urządzenia dłużej niż ustalony próg (np. 30 dni) — bez tego
+      wygaszania problem z TASK-6.2(4) wraca w innej postaci.
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
