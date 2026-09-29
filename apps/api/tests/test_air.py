@@ -11,9 +11,11 @@ around it.
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.api.v1.air import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
+from app.api.v1.air import FRESH_MAX_AGE, RECENT_MAX_AGE, AirLatestResponse, freshness
 from app.db import get_db
 from app.main import app
 from app.models import Measurement
@@ -193,3 +195,71 @@ def test_latest_air_quality_query_filters_by_gios_source():
         app.dependency_overrides.pop(get_db, None)
 
     assert "source_id" in captured["where"] and "gios" in captured["where"]
+
+
+# --- AirLatestResponse (TASK-4.2: response_model actually enforces a shape) --
+
+
+def test_air_latest_response_accepts_the_real_shape():
+    AirLatestResponse.model_validate(
+        {
+            "stations": [
+                {
+                    "station_id": "38",
+                    "station_name": "Kłodzko, ul. Szkolna",
+                    "latitude": 50.43,
+                    "longitude": 16.65,
+                    "params": {
+                        "PM2.5": {
+                            "value": 11.5,
+                            "unit": "µg/m³",
+                            "observed_at": "2026-09-29T12:00:00+00:00",
+                            "freshness": "FRESH",
+                        }
+                    },
+                    "source": "gios",
+                }
+            ]
+        }
+    )
+
+
+def test_air_latest_response_rejects_missing_required_field():
+    """Proves response_model actually enforces the shape, not just documents
+    it - a station missing `station_name` must fail validation, not silently
+    serialize with a null/absent key."""
+    with pytest.raises(ValidationError):
+        AirLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "38",
+                        # station_name missing
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "params": {},
+                        "source": "gios",
+                    }
+                ]
+            }
+        )
+
+
+def test_air_latest_response_rejects_unknown_source():
+    """`source` is a closed Literal["gios"] - a typo or a future second source
+    reusing this model without updating it must fail loudly, not pass through."""
+    with pytest.raises(ValidationError):
+        AirLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "38",
+                        "station_name": "Kłodzko",
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "params": {},
+                        "source": "not_gios",
+                    }
+                ]
+            }
+        )

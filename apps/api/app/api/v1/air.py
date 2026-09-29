@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,7 +26,31 @@ def freshness(observed_at: datetime) -> str:
     return "STALE"
 
 
-@router.get("/air/latest")
+# TASK-4.2: response_model - documents the real OpenAPI shape and makes FastAPI
+# validate every response against it (a shape regression now 500s instead of
+# silently shipping a wrong key to mobile). Mirrors the existing dict shape
+# exactly - no API change.
+class AirParam(BaseModel):
+    value: float
+    unit: str
+    observed_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+
+
+class AirStation(BaseModel):
+    station_id: str
+    station_name: str
+    latitude: float
+    longitude: float
+    params: dict[str, AirParam]
+    source: Literal["gios"]
+
+
+class AirLatestResponse(BaseModel):
+    stations: list[AirStation]
+
+
+@router.get("/air/latest", response_model=AirLatestResponse)
 def latest_air_quality(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) — never calls GIOŚ on request.
     Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).
