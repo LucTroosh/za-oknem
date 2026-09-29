@@ -632,27 +632,53 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       RETENTION → PROCESSORS → USER RIGHTS, dla wszystkich danych, nie tylko
       tych z SDK). W dużej mierze praca dokumentacyjna/prawna, nie kod;
       część do zrobienia razem z Tobą (deklaracje sklepowe wymagają decyzji
-      biznesowych, nie tylko technicznych). **Brakujący element (Codex):**
+      biznesowych, nie tylko technicznych). **Uzupełnienie (Codex, runda
+      8) — retencja/usuwanie nie może zostać wyłącznie deklaracją:**
+      aplikacja nie ma logowania/kont w MVP (rule #11), więc to NIE jest
+      o usuwaniu "użytkowników" — `device_id`/push token/`observed_area_code`
+      z TASK-10.1 to dane per-urządzenie, ale wciąż podlegają prawu do
+      usunięcia (RODO, §71 "USER RIGHTS" = prawa osoby, której dane
+      dotyczą, niezależnie od braku konta). Dziś w kolejce nie ma żadnego
+      zadania, które faktycznie kasuje/wygasza te rekordy (np. przy
+      odinstalowaniu appki, długiej nieaktywności urządzenia, albo na
+      żądanie przez support) — TASK-14.2 opisuje wyłącznie politykę i
+      inwentaryzację. Zakres obejmuje więc dodanie i przetestowanie
+      zaimplementowanego mechanizmu czyszczenia (endpoint/job kasujący
+      rekord `Device` po nieaktywności lub na żądanie), nie tylko
+      udokumentowanie deklarowanego okresu retencji. **Brakujący element
+      (Codex):**
       "Przegląd bezpieczeństwa" jak dotąd opisany to wyłącznie inwentaryzacje
       i deklaracje prawne — §64 Master Planu (Security Baseline) wymaga też
-      konkretnych kontroli technicznych: payload limits, CORS, security
-      headers, firewall, osobne credentials, Docker hardening,
-      dependency updates. Żaden task w kolejce (tu ani w Phase 15) tego
-      nie implementuje/weryfikuje. **Korekta (Codex, runda 5) — poprzednia
-      wersja tworzyła cykl zależności:** wymaganie "remediacji i weryfikacji
-      całej listy z §64" jako acceptance condition TASK-14.2 jest
-      niewykonalne, bo firewall/Docker hardening/osobne credentials
+      konkretnych kontroli technicznych: rate limiting, payload limits,
+      CORS, security headers, firewall, osobne credentials, Docker
+      hardening, dependency updates. Żaden task w kolejce (tu ani w Phase
+      15) tego nie implementuje/weryfikuje. **Korekta (Codex, runda 5) —
+      poprzednia wersja tworzyła cykl zależności:** wymaganie "remediacji i
+      weryfikacji całej listy z §64" jako acceptance condition TASK-14.2
+      jest niewykonalne, bo firewall/Docker hardening/osobne credentials
       wdraża dopiero realna infrastruktura w Phase 15 (`### Phase 15` —
       "wykonanie odłożone aż Phase 0-14 zamknięte"), a TASK-14.2 należy do
       Phase 14, więc nie może zależeć od pracy z fazy, która startuje
       dopiero PO jego zamknięciu. Poprawiony zakres: TASK-14.2 weryfikuje i
       wdraża tylko kontrole z §64 niewymagające produkcyjnej infrastruktury
-      (payload limits, CORS, security headers, proces aktualizacji
-      zależności) jako własne acceptance criteria; firewall, Docker
-      hardening i osobne credentials produkcyjne zostają jawnie acceptance
-      criteria TASK-15.1/15.2 (nie TASK-14.2) — TASK-14.2 kończy się
-      checklistą §64 z jawnie oznaczonymi pozycjami "do TASK-15.1/15.2",
-      nie próbą ich wdrożenia przed istnieniem środowiska produkcyjnego.
+      (**rate limiting**, payload limits, CORS, security headers, proces
+      aktualizacji zależności) jako własne acceptance criteria; firewall,
+      Docker hardening i osobne credentials produkcyjne zostają jawnie
+      acceptance criteria TASK-15.1/15.2 (nie TASK-14.2) — TASK-14.2 kończy
+      się checklistą §64 z jawnie oznaczonymi pozycjami "do
+      TASK-15.1/15.2", nie próbą ich wdrożenia przed istnieniem środowiska
+      produkcyjnego. **Uzupełnienie (Codex, runda 8) — rate limiting nie
+      może zniknąć razem z decyzją o Redis:** TASK-15.4 wymienia
+      per-device rate limiting tylko jako jeden z możliwych przykładów
+      zastosowania Redis, z opcją formalnej rewizji §103 zamiast
+      wdrożenia — ale to dotyczy wyłącznie decyzji o Redis jako
+      *mechanizmie* (np. cache współdzielony między instancjami), nie
+      samego wymogu §64. `apps/api/app/middleware.py` dziś tylko loguje
+      requesty (`RequestLoggingMiddleware`), więc TASK-14.2 musi dodać
+      podstawowy limiter (np. in-memory/IP-based, bez Redis) jako własne,
+      niezależne od TASK-15.4 acceptance criterion — inaczej brak Redis w
+      TASK-15.4 zostawia API bez JAKIEGOKOLWIEK rate limitingu przy
+      release.
 - [ ] **TASK-14.3:** Przegląd zgodności analytics/monitoringu z gotową
       Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
       odpowiadają temu, co deklaruje Privacy Policy z TASK-14.2) —
