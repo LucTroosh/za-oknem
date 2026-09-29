@@ -35,13 +35,20 @@ def _normalize_or_skip(warning: dict, *, fetched_at: datetime) -> dict | None:
 
 
 def _store(record: dict, db) -> bool:
-    """Returns True if a new alert was stored. `record` must already be normalized."""
-    exists = (
+    """Upserts by (source_id, source_record_id). Returns True only for a brand
+    new alert (used for the "stored X new" log line/count) - an existing row is
+    refreshed in place instead of left untouched, otherwise a warning that
+    reappears after being closed out by _expire_withdrawn() would stay hidden
+    forever under its stale valid_until (Codex review, PR #37)."""
+    existing = (
         db.query(Alert)
         .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
         .first()
     )
-    if exists:
+    if existing:
+        for field, value in record.items():
+            setattr(existing, field, value)
+        db.commit()
         return False
 
     db.add(Alert(**record))
@@ -94,11 +101,26 @@ def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
 
 
 def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]:
-    """Stores every valid new alert and expires ones IMGW withdrew since the last
-    successful fetch. Returns (stored, expired). This is the entry point both the
-    CLI and the scheduler should call - see ADR-009."""
+    """Stores every valid new/changed alert and, only when the whole snapshot
+    parsed cleanly, expires ones IMGW withdrew since the last successful fetch.
+    Returns (stored, expired). This is the entry point both the CLI and the
+    scheduler should call - see ADR-009."""
     records = [r for w in warnings if (r := _normalize_or_skip(w, fetched_at=fetched_at))]
     stored = sum(_store(r, db) for r in records)
+
+    if len(records) < len(warnings):
+        # A partially-malformed snapshot can't be trusted to say who's gone -
+        # a still-valid alert that merely failed to parse this round would look
+        # withdrawn otherwise (Codex review, PR #37). Skip reconciliation and
+        # try again next run; the untouched alert stays reported until then.
+        logger.warning(
+            "imgw_warningshydro: %s/%s warnings failed to parse - skipping "
+            "withdrawal reconciliation this run (rule #10)",
+            len(warnings) - len(records),
+            len(warnings),
+        )
+        return stored, 0
+
     active_ids = {r["source_record_id"] for r in records}
     expired = _expire_withdrawn(db, active_record_ids=active_ids, fetched_at=fetched_at)
     return stored, expired

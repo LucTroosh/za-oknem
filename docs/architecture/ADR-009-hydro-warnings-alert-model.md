@@ -57,6 +57,25 @@ konkretnego schematu pól. Kształt `warningshydro` zweryfikowany na żywo w ADR
   §33 provenance), nie nadpisanie.
 - `GET /api/v1/alerts/latest` — lista **aktualnie ważnych** ostrzeżeń
   (`data_do` w przyszłości), bez filtrowania po lokalizacji użytkownika.
+- **Reconciliation** (dodane po code review PR #37): `data_do` bywa rokiem 9999
+  (susza) — samo źródło nigdy nie mówi "to ostrzeżenie już nieaktywne", po
+  prostu przestaje je zwracać. `ingest_batch()` po każdym KOMPLETNYM (bez
+  błędów parsowania) fetchu zamyka (`valid_until` = czas fetcha) każdy aktywny
+  wiersz tego źródła nieobecny w najnowszym snapshocie — inaczej fałszywy
+  alert bezpieczeństwa mógłby wisieć w bazie praktycznie wiecznie (rule #10).
+  Jeśli fetch jest CZĘŚCIOWO błędny (część rekordów nie sparsowała się),
+  reconciliation jest pomijane w tej rundzie — niepełnemu snapshotowi nie
+  ufamy na tyle, by na jego podstawie kasować ważne ostrzeżenia.
+- **Upsert, nie tylko insert**: ostrzeżenie o tym samym `source_record_id` co
+  już zapisane jest odświeżane (`valid_until`, `fetched_at` itd.), nie
+  pomijane — inaczej ostrzeżenie zamknięte przez reconciliation, które IMGW
+  potem znów zaczyna zwracać, zostałoby trwale "ukryte" pod starym,
+  nieaktualnym `valid_until`.
+- **Freshness na `fetched_at`, nie na `valid_until`** (rule #8): `/alerts/latest`
+  zwraca `fetched_at` i pole `freshness` (FRESH/RECENT/STALE) liczone od czasu
+  ostatniego potwierdzenia aktywności alertu, nie od jego własnego `valid_until`
+  — inaczej przestój schedulera/IMGW byłby niewidoczny dla klienta aż do
+  (ewentualnie bardzo odległego) końca ważności ostrzeżenia.
 
 **Explicit non-goals:**
 - `warningsmeteo` — kolejny connector, nie ten sam PR (jedno źródło na raz,

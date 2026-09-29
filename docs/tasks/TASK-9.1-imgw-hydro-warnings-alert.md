@@ -42,6 +42,15 @@ Pierwsza Alert vertical slice: ostrzeżenia hydrologiczne IMGW, `GET
 - [x] Awaria jednego connectora (np. IMGW niedostępne) nie zatrzymuje pętli
       schedulera ani pozostałych źródeł (test:
       `TestMain.test_one_job_failing_does_not_abort_the_others`) — rule #1.
+- [x] Częściowo błędny snapshot NIE uruchamia reconciliation (test:
+      `test_skips_reconciliation_when_snapshot_is_partially_malformed`) — nie
+      wolno kasować ważnego alertu na podstawie niepełnych danych (rule #10).
+- [x] Ostrzeżenie, które wróciło po zamknięciu przez reconciliation, jest
+      odświeżane, nie ukryte pod starym `valid_until` (test:
+      `test_refreshes_alert_that_reappears_after_being_expired`).
+- [x] `/alerts/latest` zwraca `fetched_at`/`freshness` liczone od ostatniego
+      potwierdzenia aktywności, nie od `valid_until` źródła (rule #8; test:
+      `test_latest_alerts_marks_stale_fetch_as_stale`).
 
 ## Tests
 

@@ -94,6 +94,19 @@ def test_latest_alerts_shapes_response_from_rows():
                 "valid_from": row.valid_from.isoformat(),
                 "valid_until": row.valid_until.isoformat(),
                 "published_at": row.published_at.isoformat(),
+                "fetched_at": row.fetched_at.isoformat(),
+                "freshness": "FRESH",
             }
         ]
     }
+
+
+def test_latest_alerts_marks_stale_fetch_as_stale():
+    # rule #8: an alert's own valid_until can read year 9999 (drought) - staleness
+    # must come from how long ago we last confirmed it via fetched_at instead.
+    row = _alert(fetched_at=datetime.now(UTC) - timedelta(hours=12))
+    client = _client_with_rows([row])
+
+    body = client.get("/api/v1/alerts/latest").json()
+
+    assert body["alerts"][0]["freshness"] == "STALE"

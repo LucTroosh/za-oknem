@@ -81,6 +81,37 @@ class TestIngestBatch:
         alert = db_session.query(Alert).filter_by(external_id="31").one()
         assert alert.valid_until.year == 9999  # untouched - still reported as active
 
+    def test_refreshes_alert_that_reappears_after_being_expired(self, db_session):
+        # Codex review (PR #37): _store() used to no-op on a dedup hit, so a
+        # warning closed out by a previous withdrawal round stayed hidden under
+        # its stale valid_until even once IMGW reported it active again.
+        first_fetch = datetime.now(UTC)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=first_fetch)
+        second_fetch = first_fetch + timedelta(hours=1)
+        ingest.ingest_batch([], db_session, fetched_at=second_fetch)  # withdrawn
+
+        third_fetch = second_fetch + timedelta(hours=1)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=third_fetch)  # reappears
+
+        alert = db_session.query(Alert).filter_by(external_id="31").one()
+        assert alert.valid_until.year == 9999  # back to the source's real value
+        assert alert.fetched_at == third_fetch
+
+    def test_skips_reconciliation_when_snapshot_is_partially_malformed(self, db_session):
+        # Codex review (PR #37): a batch that failed to parse in part can't be
+        # trusted to say who's gone - reconciling against it would wrongly expire
+        # a still-valid alert that just happened to fail this round (rule #10).
+        first_fetch = datetime.now(UTC)
+        ingest.ingest_batch([WARNING], db_session, fetched_at=first_fetch)
+
+        second_fetch = first_fetch + timedelta(hours=1)
+        broken = {k: v for k, v in WARNING.items() if k != "biuro"}
+        stored, expired = ingest.ingest_batch([broken], db_session, fetched_at=second_fetch)
+
+        assert expired == 0
+        alert = db_session.query(Alert).filter_by(external_id="31").one()
+        assert alert.valid_until.year == 9999  # left alone, not wrongly expired
+
 
 class TestMain:
     def test_ingests_every_fetched_warning(self, monkeypatch, db_session):
