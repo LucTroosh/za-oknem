@@ -29,7 +29,7 @@ def freshness(fetched_at: datetime) -> str:
     return "STALE"
 
 
-# TASK-9.6: response_model - same reasoning as TASK-4.2/5.5/9.5. `source` and
+# TASK-API-4: response_model - same reasoning as TASK-API-1/API-2/API-3. `source` and
 # `areas` stay open (`str`/`list[dict[str, Any]]`), not `Literal`/a strict
 # model - unlike air/weather (single source per endpoint), alerts already
 # come from more than one source_id (ADR-009), and `areas` is deliberately

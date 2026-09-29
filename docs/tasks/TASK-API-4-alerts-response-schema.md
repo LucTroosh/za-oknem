@@ -1,8 +1,8 @@
-# TASK 9.6 — Typed response model dla `/api/v1/alerts/latest`
+# TASK API-4 — Typed response model dla `/api/v1/alerts/latest`
 
 ## Goal
 
-Ten sam wzorzec co TASK-4.2/5.5/9.5, zastosowany do ostatniego z prostych
+Ten sam wzorzec co TASK-API-1/API-2/API-3, zastosowany do ostatniego z prostych
 GET-ów: `GET /api/v1/alerts/latest`. Domyka response_model dla wszystkich
 czterech endpointów danych (§10 checklist REST API).
 

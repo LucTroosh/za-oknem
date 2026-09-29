@@ -115,7 +115,7 @@ def test_latest_alerts_marks_stale_fetch_as_stale():
     assert body["alerts"][0]["freshness"] == "STALE"
 
 
-# --- AlertsLatestResponse (TASK-9.6: response_model enforces a shape) -------
+# --- AlertsLatestResponse (TASK-API-4: response_model enforces a shape) -------
 
 _VALID_ALERT_OUT = {
     "external_id": "31",
