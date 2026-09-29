@@ -265,12 +265,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `dashboard_latest()` pola `source` (id źródła) + `attribution` (pełny
       tekst z `source-registry.md`, dosłownie — np. "Weather data by
       Open-Meteo.com (CC BY 4.0)", "Dane: Główny Inspektorat Ochrony
-      Środowiska (GIOŚ)") **+ `observed_at`** (kontrakt source-transparency
-      to source+timestamp+freshness razem, nie samo źródło — dziś oba bloki
-      zwracają `freshness`, ale nie `observed_at`, więc użytkownik widzi
-      "FRESH", ale nie widzi KIEDY) w obu blokach (`air`, `weather`), potem
-      dopiero ekran mobile renderujący te trzy pola per sekcja (nie tylko
-      nazwę stacji). **Wzorzec obowiązuje dla każdej kolejnej sekcji danych** —
+      Środowiska (GIOŚ)") w obu blokach (`air`, `weather`) — `observed_at`
+      **jest już zwracane przez oba bloki** (`dashboard.py:54,96` na
+      `main`, zweryfikowane), więc to nie jest brakujące pole, tylko
+      wyświetlenie już istniejącej wartości na mobile obok source/
+      attribution. Potem dopiero ekran mobile renderujący te trzy pola
+      per sekcja (nie tylko nazwę stacji). **Wzorzec obowiązuje dla
+      każdej kolejnej sekcji danych** —
       TASK-7.2 (IMGW hydro/alerty), TASK-8.8 (CAMS pyłki), TASK-11.5
       (kąpieliska/Sanepid) muszą dodać `source`+`attribution` do swoich
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
@@ -284,7 +285,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ograniczać liczbę niezależnych requestów). Zakres: dodać `alerts`
       (niefiltrowane — TASK-9.7 dodaje filtrowanie po lokalizacji dopiero po
       Phase 9) do `dashboard_latest()`, potem sekcja alertów na mobile
-      czyta z agregatu. Hydrologia (realny endpoint: `GET /api/v1/hydro/
+      czyta z agregatu. **Kryterium odbioru na oba etapy (LucTroosh
+      review):** dopóki TASK-9.5 nie doda geo-matchingu, sekcja alertów na
+      mobile musi być jawnie oznaczona jako ogólnokrajowa (np. nagłówek
+      "Ostrzeżenia — cała Polska") — nie wolno prezentować niefiltrowanej
+      listy tak, jakby dotyczyła lokalizacji użytkownika, bo alert z
+      innego regionu wyglądałby jak lokalny. Po TASK-9.5 etykieta znika, a
+      lista filtruje się do obszaru użytkownika. Hydrologia (realny endpoint: `GET /api/v1/hydro/
       latest` w `apps/api/app/api/v1/hydro.py` — nie `/api/v1/hydrology`,
       uważać przy implementacji mobile fetcha; §8) nie jest wymieniona w
       §55 jako część agregatu — zostaje osobnym fetchem na mobile, czysto
@@ -456,16 +463,23 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ogóle. Zakres: permission request, pobranie tokena, wysyłka przy
       starcie + cykl odświeżania (token refresh). Zależne od TASK-10.1
       (endpoint musi istnieć).
-- [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
-      Engine z Phase 9 i tokenów z TASK-10.1/TASK-10.5).
-- [ ] **TASK-10.3:** Preferencje powiadomień — użytkownik wybiera, jakie
-      kategorie alertów/dla jakich lokalizacji dostaje push (§Phase 10
-      Master Planu: "notification preferences"). **Nie tylko mobile UI** —
-      Notification Engine (TASK-10.2) decyduje server-side, zanim klient w
-      ogóle się odezwie (app w tle/zabita), więc preferencje muszą mieć
-      model + endpoint per-urządzenie (nie lokalny stan appki) i TASK-10.2
-      musi je faktycznie sprawdzać przed wysyłką — inaczej zmiana ustawień
-      nie ma efektu, a TASK-10.2 nadal wysyła wszystko do wszystkich.
+- [ ] **TASK-10.3a (korekta kolejności — LucTroosh review):** Model
+      preferencji powiadomień + endpoint + wartości domyślne — per
+      urządzenie (nie lokalny stan appki), bo Notification Engine
+      (TASK-10.2 niżej) decyduje server-side zanim klient w ogóle się
+      odezwie (app w tle/zabita). **Musi powstać przed TASK-10.2**, inaczej
+      silnik jest budowany z założeniem sprawdzania preferencji, których
+      jeszcze nie ma. Zależne od TASK-10.1 (device model już istnieje).
+- [ ] **TASK-10.2:** Notification Engine + anti-spam. Zależne od Alert
+      Engine z Phase 9, tokenów z TASK-10.1/TASK-10.5 **i TASK-10.3a
+      wyżej** — silnik musi faktycznie sprawdzać preferencje przed
+      wysyłką każdego push, inaczej zmiana ustawień nie ma efektu i
+      wszystko idzie do wszystkich. Kryterium odbioru: zmiana preferencji
+      urządzenia wpływa na kolejną wysyłkę również przy zamkniętej appce.
+- [ ] **TASK-10.3:** Mobile UI preferencji powiadomień — ekran, w którym
+      użytkownik wybiera kategorie alertów/lokalizacje (§Phase 10 Master
+      Planu). Czyta/zapisuje przez endpoint z TASK-10.3a; nie duplikuje
+      modelu ani logiki sprawdzania po stronie klienta.
 - [ ] **TASK-10.4:** Deep links z powiadomienia do konkretnego
       alertu/ekranu w appce (§Phase 10 Master Planu: "deep links"). Zależne
       od TASK-9.7 (ekran Alerty, żeby było dokąd linkować).
@@ -562,11 +576,23 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       TASK-6.2 już wskazuje jako przekraczający limit Open-Meteo
       10000/dzień. Alert 70% z TASK-13.1 tylko powiadamia, nie
       zatrzymuje requestów. Zakres obejmuje więc też odwrotną ścieżkę:
-      "ostatnio obserwowana" per gmina (naturalny sygnał to
-      `observed_area_code` wysyłane cyklicznie przez TASK-12.5) +
-      okresowy job dezaktywujący gminy bez żadnego obserwującego
-      urządzenia dłużej niż ustalony próg (np. 30 dni) — bez tego
-      wygaszania problem z TASK-6.2(4) wraca w innej postaci.
+      "ostatnio obserwowana" per gmina + okresowy job dezaktywujący
+      gminy bez żadnej aktywności dłużej niż ustalony próg (np. 30 dni)
+      — bez tego wygaszania problem z TASK-6.2(4) wraca w innej postaci.
+      **Korekta (LucTroosh review): sygnał aktywności nie może zależeć
+      wyłącznie od push.** `observed_area_code` z TASK-12.5 zakłada
+      zarejestrowane urządzenie push — użytkownik może odmówić zgody na
+      powiadomienia i mimo to normalnie korzystać z dashboardu dla
+      ręcznie wybranej gminy (rule #11: konto/push nie są obowiązkowe).
+      Sam "ostatnio obserwowana" musi więc aktualizować się też przy
+      zwykłym odczycie `dashboard_latest()` dla danej `geo_area_id`
+      (niezależnie od tego, czy urządzenie ma zarejestrowany push token),
+      nie tylko przy wysyłce `observed_area_code`. Kryterium odbioru:
+      gmina wybrana ręcznie i używana wyłącznie przez czytanie
+      dashboardu (odmowa zgody na push) pozostaje aktywna i otrzymuje
+      pogodę; wygaszeniu podlegają tylko gminy bez ŻADNEJ z tych dwóch
+      form aktywności (push-heartbeat lub odczyt dashboardu) dłużej niż
+      próg.
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
