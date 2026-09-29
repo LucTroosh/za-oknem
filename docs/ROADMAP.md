@@ -53,7 +53,9 @@ Alerts/Settings/push/profilu).
 
 | Metryka | Status |
 |---|---|
-| status kąpieliska, E. coli, enterokoki, sinice, zamknięcia | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| E. coli, enterokoki, sinice | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| data ostatniego / następnego badania próbki | ⬜ TODO — brak connectora, brak Source Approval Gate |
 
 ### 2.5. Hydrologia (§8)
 
@@ -87,8 +89,8 @@ Alerts/Settings/push/profilu).
 | Connector framework (fetch/parse/validate/normalize) | ✅ DONE — wzorzec ustalony i powtórzony w 5 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`, `imgw_warningsmeteo` częściowo) |
 | Scheduler | ✅ DONE — ADR-007, loop-based, per-job interval gating, izolacja awarii (rule #1, `_run_job_safely`) |
 | Workers (oddzielny proces/kolejka) | ⬜ TODO — świadomie NIE zrobione (ADR-007): scheduler w jednym procesie wystarcza przy obecnej skali, przejście na worker/queue dopiero gdy realnie potrzebne |
-| Normalization / validation | ✅ DONE — per connector, z izolacją błędu pojedynczego rekordu (rule #1) |
-| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) działa dla `/air`, `/hydro`, `/alerts`, `/weather`; **brak source-level freshness** dla przypadku "pusta lista = potwierdzone zero czy dawno nie było fetcha" (UNAVAILABLE) — świadomy non-goal z ADR-009, dotyczy wszystkich trzech endpointów, wymaga własnego ADR |
+| Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 4 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
+| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) działa dla `/air`, `/hydro`, `/alerts`, `/weather`; **brak source-level freshness** dla przypadku "pusta lista = potwierdzone zero czy dawno nie było fetcha" (UNAVAILABLE) — świadomy non-goal z ADR-009, dotyczy wszystkich czterech endpointów (włącznie z `/weather` — `{"areas": []}` ma tę samą niejednoznaczność, dziedziczoną też przez `weather: null` w `/dashboard/latest`), wymaga własnego ADR |
 | Geo matching | 🟡 PARTIAL — tylko nearest-station GIOŚ↔geo_area (ADR-006, próg 50km); brak dopasowania alertów do województw/lokalizacji |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
