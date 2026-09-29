@@ -25,10 +25,13 @@ BACKLOG.md wyląduje na `main` (dziś nie-zmergowany PR #45).
   per (source_id, day)) + `check_daily_budget()` (log WARNING przy ≥70%
   limitu — brak zewnętrznego monitoringu jeszcze, TASK-13.2 zablokowany na
   koncie, więc log to uczciwe MVP, nie no-op).
-- `connectors/open_meteo/ingest.py`: wywołanie po każdym udanym
-  `client.fetch_weather()` (nie liczone przy `OpenMeteoApiError` — nie da
-  się stwierdzić, która próba retry faktycznie dotarła do serwera, więc
-  wykluczone z tego dolnego oszacowania zamiast ryzykować przeszacowanie).
+- `connectors/open_meteo/ingest.py`: `client.fetch_weather()` przyjmuje
+  `on_attempt` (callback wołany przez klienta przy KAŻDEJ realnej próbie HTTP,
+  sukces czy porażka — LucTroosh review [P1]: liczenie tylko po sukcesie
+  zaniżało realne zużycie limitu pod retry), który woła
+  `record_fetch_call(units=ESTIMATED_BILLABLE_UNITS_PER_CALL)` — jednostki
+  wyliczone z realnej reguły rozliczeniowej Open-Meteo (pricing page), nie
+  z flat "1 request = 1 jednostka".
 
 ## Non-goals
 
@@ -40,11 +43,13 @@ BACKLOG.md wyląduje na `main` (dziś nie-zmergowany PR #45).
   faktycznie się pojawi udokumentowany dzienny limit dla innego źródła
   (YAGNI) — `rate_budget.py` jest już źródło-agnostyczny, gotowy do
   ponownego użycia.
-- Realna liczba "jednostek rozliczeniowych" Open-Meteo (ADR-003 wspomina,
-  że nasze ~22 zmienne mogą liczyć się jako więcej niż 1 "API call" — nie
-  jest to udokumentowane w sposób pozwalający to policzyć bez zgadywania).
-  Ten licznik liczy surowe requesty HTTP — uczciwe dolne oszacowanie, nie
-  precyzyjna wartość, jawnie opisane w kodzie.
+- Idealnie precyzyjna liczba jednostek rozliczeniowych Open-Meteo — pricing
+  page (https://open-meteo.com/en/pricing, zweryfikowane) opisuje regułę tylko
+  dla ≤2 tygodni/jednej lokalizacji ("więcej niż 10 zmiennych lub >2 tygodnie =
+  wielokrotność wywołań"); dokładny wzór dla dłuższych zakresów nie jest
+  opublikowany. `ESTIMATED_BILLABLE_UNITS_PER_CALL` (ingest.py) liczy z tej
+  reguły przez zaokrąglenie w górę (`ceil(liczba_zmiennych / 10)`) — celowo
+  konserwatywne (nigdy nie zaniża) oszacowanie, nie dokładna wartość.
 
 ## Acceptance Criteria
 
@@ -54,9 +59,17 @@ BACKLOG.md wyląduje na `main` (dziś nie-zmergowany PR #45).
       `..._separate_row_per_source`).
 - [x] `check_daily_budget()` loguje WARNING dokładnie przy ≥70%, cicho
       poniżej (testy: `test_check_daily_budget_*`).
-- [x] `ingest_geo_area()` liczy wywołanie tylko po udanym fetchu, nie przy
-      `OpenMeteoApiError` (testy: `test_ingest_geo_area_records_a_daily_fetch_call`,
-      `..._does_not_record_a_call_on_api_failure`).
+- [x] `ingest_geo_area()` liczy KAŻDĄ realną próbę HTTP (sukces i porażkę,
+      przez `on_attempt` w `client.fetch_weather()`), ważoną
+      `ESTIMATED_BILLABLE_UNITS_PER_CALL` jednostek per próba — nie liczbę
+      requestów 1:1 (LucTroosh review [P1]: sam sukces nie mówił, ile
+      prawdziwych prób HTTP faktycznie poszło pod retry) (testy:
+      `test_ingest_geo_area_records_a_daily_fetch_call`,
+      `..._records_every_attempt_even_on_final_failure`).
+- [x] Inkrement atomowy (`UPDATE ... RETURNING`), odporny na lost update przy
+      współbieżnych wywołaniach tego samego dnia (LucTroosh review [P2])
+      (testy: `test_record_fetch_call_units_param_increments_by_that_amount`,
+      `..._returns_what_is_actually_persisted`).
 - [x] `ruff check`/`ruff format --check` czyste.
 
 ## Dependencies

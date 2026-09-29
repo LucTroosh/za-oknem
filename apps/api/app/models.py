@@ -160,14 +160,18 @@ class SourceFetchCounter(Base):
 
     Postgres, not Redis (rule #2: Redis is cache/short-lived state, this counter
     must survive a scheduler restart to mean anything). One row per
-    (source_id, day) - `count` is the number of outbound HTTP requests recorded
-    for that source that day, incremented at call time by the connector itself.
+    (source_id, day) - `count` is NOT a raw outbound-request tally: `record_fetch_call()`
+    takes a `units` argument, and each connector passes its own conservatively-rounded
+    estimate of Open-Meteo's real billing units per call (see
+    `ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL`, derived from their published pricing
+    rule), incremented once per real HTTP attempt (success or failure) by the
+    connector itself.
 
-    ponytail: counts raw HTTP requests, not Open-Meteo's own billing units
-    (ADR-003 notes our ~22-variable request can count as more than 1 "API call"
-    server-side, but the exact conversion isn't documented) - a request-count
-    lower bound, not a precise remaining-budget figure. Upgrade if Open-Meteo
-    ever publishes the real per-variable formula.
+    LucTroosh review: this docstring used to say "number of outbound HTTP requests" -
+    stale the moment `units=` stopped defaulting to a 1:1 request:unit mapping, since
+    one HTTP attempt is now persisted as `count += N` for N > 1. Still a conservative
+    (rounded up) lower bound on real billing units, not an exact remaining-budget
+    figure - upgrade if Open-Meteo ever publishes the precise per-variable formula.
     """
 
     __tablename__ = "source_fetch_counters"
