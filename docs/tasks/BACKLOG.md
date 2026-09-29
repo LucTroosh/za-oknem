@@ -65,6 +65,18 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       wystarczający"). Priorytet przed jakimkolwiek wdrożeniem
       produkcyjnym, nawet jeśli reszta MVP jeszcze nie gotowa.
 
+### Phase 2 — Backend Core (dokończenie)
+
+- [ ] **TASK-2.1:** Generowany klient TypeScript z OpenAPI (§17 Master Planu)
+      — `packages/api-contract/README.md` jest wciąż placeholderem, a
+      `apps/mobile/app/index.tsx` ręcznie typuje odpowiedź dashboardu
+      (potwierdzone w kodzie). Ta kolejka dokłada sporo nowych endpointów/pól
+      (`/weather/forecast`, `/pollen/latest`, `/water/latest`, rozszerzenia
+      `dashboard_latest()`) — bez generowanego klienta ręczne typy będą się
+      cicho rozjeżdżać z realnym schematem FastAPI. Zrobić to **teraz**, przed
+      dalszym rozszerzaniem integracji mobile (TASK-7.2 i kolejne), żeby nie
+      duplikować pracy ręcznego przepisywania typów.
+
 ### Phase 3 — Data Architecture (dokończenie)
 
 - [ ] **TASK-3.1:** Raw ingestion / provenance (§33-34 Master Planu) — dziś
@@ -156,17 +168,18 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
       już wymaga widocznej atrybucji IMGW i Copernicus, więc to nie jest
       opcjonalne rozszerzenie.
-- [ ] **TASK-7.2:** Dodać sekcje hydro (`/hydro/latest`) i alerty
-      (`/alerts/latest`, niefiltrowane — TASK-9.7 poniżej dodaje osobny,
-      filtrowany ekran dopiero po Phase 9) do dashboardu mobile — backend
-      już gotowy, czysto frontendowa robota. Wzorzec `source`/`attribution`
-      z TASK-7.1 (IMGW) dotyczy też tych sekcji.
-- [ ] **TASK-7.9:** Dodać `pollen` i `water` do `dashboard_latest()` (§55
-      Master Planu: pollen/water to część głównego agregatu, nie tylko
-      osobne endpointy — inaczej mobile musiałby robić dodatkowe requesty,
-      czego §55 chce uniknąć). Zależne od TASK-8.7 (pollen endpoint/dane) i
-      TASK-11.4 (water endpoint/dane); analogicznie do TASK-7.7 dla
-      `outdoor` — sam endpoint/model nie aktualizuje automatycznie agregatu.
+- [ ] **TASK-7.2:** **Korekta: `alerts` musi wejść do `dashboard_latest()`**
+      (§55 Master Planu wymienia `alerts` wprost w agregacie: location,
+      alerts, air, weather, pollen, outdoor, water) — dziś `dashboard_latest()`
+      ma tylko `air`+`weather`, poprzednia wersja tego tasku kazała mobile
+      pobierać `/alerts/latest` osobno, co jest niezgodne z §55 (agregat ma
+      ograniczać liczbę niezależnych requestów). Zakres: dodać `alerts`
+      (niefiltrowane — TASK-9.7 dodaje filtrowanie po lokalizacji dopiero po
+      Phase 9) do `dashboard_latest()`, potem sekcja alertów na mobile
+      czyta z agregatu. Hydrologia (`/api/v1/hydrology`, §8) nie jest
+      wymieniona w §55 jako część agregatu — zostaje osobnym fetchem na
+      mobile, czysto frontendowa robota. Wzorzec `source`/`attribution` z
+      TASK-7.1 (IMGW) dotyczy obu.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -205,6 +218,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
       Wzorzec `source`/`attribution` z TASK-7.1 (Copernicus) dotyczy też tej
       karty.
+- [ ] **TASK-8.9:** Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
+      część głównego agregatu, nie tylko `/pollen/latest`; §55 wymaga też,
+      że `pollen` w tej odpowiedzi zawsze pochodzi z lokalnego snapshotu, nie
+      z zapytania do CAMS na żądanie). Zależne od TASK-8.7 (endpoint/dane
+      muszą istnieć) — **przeniesione tu z Phase 7** (Codex: poprzednia
+      wersja umieszczała to przed własną zależnością).
 
 ### Phase 9 — Alerts (dokończenie)
 
@@ -262,6 +281,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-11.5:** Sekcja kąpielisk na mobile (status, badania, sezon) —
       dopiero po TASK-11.4. Wzorzec `source`/`attribution` z TASK-7.1
       (Sanepid/GIS) dotyczy też tej sekcji.
+- [ ] **TASK-11.6:** Dodać `water` do `dashboard_latest()` (§55 — water to
+      część głównego agregatu). Zależne od TASK-11.4 (endpoint/dane muszą
+      istnieć) — **przeniesione tu z Phase 7** (ten sam powód co TASK-8.9).
 
 ### Phase 12 — Settings / Profiles
 
@@ -272,6 +294,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       background location — rule #11).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
+- [ ] **TASK-12.5:** Wysyłka `observed_area_code` do `POST /api/v1/devices`
+      przy każdym otwarciu appki z aktywną lokalizacją (foreground) i przy
+      ręcznej zmianie lokalizacji w Settings (ADR-002, sekcja Decision) —
+      **brakujące wcześniej**: TASK-12.2/12.3 tylko pobierają/wybierają
+      lokalizację, TASK-10.1 tylko przygotowuje backend; bez tego klienckiego
+      wpięcia zarejestrowane urządzenie ma nieaktualny lub brak
+      `observed_area_code`, więc push trafia do złej gminy albo wcale.
+      Zależne od TASK-10.1 (endpoint musi istnieć) i TASK-12.2/12.3 (skąd
+      wziąć lokalizację).
 - [ ] **TASK-12.4:** Profil użytkownika + podstawowe preferencje (allergy,
       family, outdoor — §12 Master Planu). Bez obowiązkowego konta (rule #11)
       — do przemyślenia jak to pogodzić z "profilem" w MVP bez logowania
@@ -301,17 +332,27 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `notification_open`, `settings_open` — nic ponad to (§70: "nie
       zbieramy więcej danych niż potrzebujemy"). Zależne od decyzji
       narzędzia (self-hosted vs. zewnętrzne — inwentaryzacja co zbieramy
-      trafia jako wejście do TASK-14.1's Privacy Policy).
+      trafia jako wejście do TASK-14.2's Privacy Policy).
 
 ### Phase 14 — Security / Privacy
 
-- [ ] **TASK-14.1:** Przegląd bezpieczeństwa, RODO, Privacy Policy, Data
-      Safety / App Privacy — w dużej mierze praca dokumentacyjna/prawna,
-      nie kod; część do zrobienia razem z Tobą (deklaracje sklepowe wymagają
-      decyzji biznesowych, nie tylko technicznych).
-- [ ] **TASK-14.2:** Przegląd zgodności analytics/monitoringu z gotową
+- [ ] **TASK-14.1:** SDK inventory (§72 Master Planu) — `docs/privacy/
+      sdk-inventory.md`, dla każdego SDK z danymi osobowymi: nazwa, dane,
+      cel, Android, iOS, processor/provider, transfer, retention, **żadnych
+      wartości TBD przed release** (§72 explicité). Musi powstać po
+      zainstalowaniu Sentry (TASK-13.2), analytics (TASK-13.3), SDK
+      lokalizacji (TASK-12.3) i push (TASK-10.1/Expo/FCM/APNs) — inaczej nie
+      ma czego inwentaryzować. **Brakujące wcześniej**: bez tego Privacy
+      Policy/Data Safety w TASK-14.2 nie da się rzetelnie zweryfikować
+      względem faktycznych zależności.
+- [ ] **TASK-14.2:** Przegląd bezpieczeństwa, RODO, Privacy Policy, Data
+      Safety / App Privacy — oparte na TASK-14.1 (SDK inventory); w dużej
+      mierze praca dokumentacyjna/prawna, nie kod; część do zrobienia razem
+      z Tobą (deklaracje sklepowe wymagają decyzji biznesowych, nie tylko
+      technicznych).
+- [ ] **TASK-14.3:** Przegląd zgodności analytics/monitoringu z gotową
       Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
-      odpowiadają temu, co deklaruje Privacy Policy z TASK-14.1) —
+      odpowiadają temu, co deklaruje Privacy Policy z TASK-14.2) —
       **przeniesione tu z Phase 13** (Codex: poprzednia wersja umieszczała
       tę weryfikację przed taskiem, od którego zależy — w sekwencyjnej
       kolejce zablokowałaby się na nieistniejącej jeszcze polityce). Krótki,
@@ -359,7 +400,7 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
 - [ ] **TASK-16.5:** Publiczna strona (§23/§102 Master Planu) — minimalny
       zakres: `/`, `/privacy`, `/terms`, `/support`, `/contact`, `/about`,
       wdrożona pod publicznym HTTPS z realnym URL-em. Treść Privacy
-      Policy/Terms pochodzi z TASK-14.1, ale sam fakt istnienia strony to
+      Policy/Terms pochodzi z TASK-14.2, ale sam fakt istnienia strony to
       osobna praca (deploy, domena/subdomena) — **BLOKADA częściowa: jeśli
       wybierzemy dedykowaną domenę zamiast subdomeny istniejącego VPS,
       rejestracja to decyzja/koszt po Twojej stronie**, inaczej mogę to
