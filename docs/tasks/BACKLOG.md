@@ -137,7 +137,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       index — Open-Meteo je udostępnia w tym samym zapytaniu (`dew_point_2m`,
       `visibility`, `uv_index`/`uv_index_max`), brak dodatkowego round-tripu.
       Rozszerzenie `PARAM_CODES`/`FORECAST_PARAM_CODES` w connectorze, bez
-      zmiany modelu (te same tabele `WeatherSnapshot`/`Forecast`).
+      zmiany modelu (te same tabele `WeatherSnapshot`/`Forecast`). **Zakres
+      obejmuje też ujawnienie** — dziś mobile (`index.tsx`) renderuje tylko
+      `temperature_2m`, TASK-5.5 dotyczy wyłącznie prognozy, a żaden
+      późniejszy task nie wraca po dew point/visibility/UV; dodać je do
+      API/mobile current-weather presentation w tym samym tasku.
 - [ ] **TASK-5.5:** Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
       się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
       `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
@@ -275,7 +279,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dostępie (rule #10/#15 — nie zgadywać kształtu).
 - [ ] **TASK-8.6:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
       gmina, jak weather) + migracja Alembic + ingest — dopiero po
-      TASK-8.5, wymaga działającego klucza CAMS. **Zakres obejmuje też
+      TASK-8.5, wymaga działającego klucza CAMS. **Konkretnie 5 gatunków z
+      §6 MVP: olcha, brzoza, trawy, bylica, ambrozja** — nie generyczny
+      agregat ani podzbiór; wymienić je jawnie w modelu/ingest/endponcie
+      (TASK-8.7)/karcie mobile (TASK-8.8) i acceptance criteria każdego z
+      tych tasków. **Zakres obejmuje też
       wpięcie w `app/scheduler.py`** (job raz dziennie, ten sam wzorzec
       izolacji błędów co `run_open_meteo`/`run_gios`) — bez tego
       `/pollen/latest` i dashboard zależą od ręcznych uruchomień ingestu i
@@ -485,10 +493,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Policy/Data Safety w TASK-14.2 nie da się rzetelnie zweryfikować
       względem faktycznych zależności.
 - [ ] **TASK-14.2:** Przegląd bezpieczeństwa, RODO, Privacy Policy, Data
-      Safety / App Privacy — oparte na TASK-14.1 (SDK inventory); w dużej
-      mierze praca dokumentacyjna/prawna, nie kod; część do zrobienia razem
-      z Tobą (deklaracje sklepowe wymagają decyzji biznesowych, nie tylko
-      technicznych).
+      Safety / App Privacy — oparte na TASK-14.1 (SDK inventory) **oraz na
+      pełnym data inventory z §71** (SDK inventory pokrywa tylko dane
+      przechodzące przez SDK-i mobilne, nie dane przetwarzane wyłącznie
+      backendowo: `device_id`, push token, `observed_area_code`, logi
+      serwera i ich retencja — §71: DATA INVENTORY → PURPOSE → LEGAL BASIS →
+      RETENTION → PROCESSORS → USER RIGHTS, dla wszystkich danych, nie tylko
+      tych z SDK). W dużej mierze praca dokumentacyjna/prawna, nie kod;
+      część do zrobienia razem z Tobą (deklaracje sklepowe wymagają decyzji
+      biznesowych, nie tylko technicznych).
 - [ ] **TASK-14.3:** Przegląd zgodności analytics/monitoringu z gotową
       Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
       odpowiadają temu, co deklaruje Privacy Policy z TASK-14.2) —
@@ -550,7 +563,12 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
 
 - [ ] **TASK-16.1:** Konto Google Play Console (**BLOKADA: decyzja/konto
       od Ciebie** — rejestracja dewelopera to krok biznesowy/prawny, nie
-      techniczny) + konfiguracja EAS build dla Androida.
+      techniczny) + konfiguracja EAS build dla Androida. **Wymaga jawnej
+      weryfikacji target SDK 36+ (§90 Master Planu, wymóg Google Play od
+      28.09.2026)** — `app.json` dziś nie ustawia `targetSdkVersion`
+      (domyślna wartość toolchaina Expo), a żaden inny task tego nie
+      sprawdza; ustawić i zweryfikować przed uploadem, nie po odrzuceniu
+      przez Play.
 - [ ] **TASK-16.2:** Metadane, opis, ikony, screenshoty do listingu Google
       Play (zależne od TASK-16.1 i ukończonego UI).
 - [ ] **TASK-16.3:** Konto Apple Developer + App Store Connect (**BLOKADA:
