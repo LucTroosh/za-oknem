@@ -56,6 +56,17 @@ if ! [[ "$RESTORE_TEST_DB" =~ ^[a-z_][a-z0-9_]*_restore_test$ ]]; then
   echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi być z samych małych liter/cyfr/_ (kończąc na _restore_test), jest: ${RESTORE_TEST_DB}." >&2
   exit 1
 fi
+# Postgres ucina niecudzysłowiony identyfikator do 63 bajtów (NAMEDATALEN-1) —
+# potwierdzone na realnym Postgresie 16: CREATE DATABASE z 84-znakową nazwą
+# tworzy bazę pod obciętą, 63-znakową nazwą, z samym tylko NOTICE, nie błędem.
+# RESTORE_TEST_DB dłuższe niż 63 znaki przechodziłoby więc powyższy regex i
+# porównanie niżej jako "inna nazwa", a faktycznie wykonany DROP DATABASE
+# trafiałby w obciętą nazwę, która może pokrywać się z realną bazą (Codex
+# review, runda 5).
+if [ "${#RESTORE_TEST_DB}" -gt 63 ]; then
+  echo "[restore_test] BŁĄD: RESTORE_TEST_DB dłuższe niż 63 znaki (limit identyfikatora Postgresa), jest: ${#RESTORE_TEST_DB} znaków." >&2
+  exit 1
+fi
 if [ "$RESTORE_TEST_DB" = "$(echo "$PROD_DB_NAME" | tr 'A-Z' 'a-z')" ]; then
   echo "[restore_test] BŁĄD: RESTORE_TEST_DB (${RESTORE_TEST_DB}) to ta sama baza co w DATABASE_URL — odmawiam DROP." >&2
   exit 1
