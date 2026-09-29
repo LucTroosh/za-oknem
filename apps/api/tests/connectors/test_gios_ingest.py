@@ -111,6 +111,23 @@ def test_ingest_station_isolates_parse_failure_per_param(monkeypatch, db_session
     assert db_session.query(Measurement).count() == 0
 
 
+def test_ingest_station_isolates_malformed_sensor_missing_id(monkeypatch, db_session):
+    """Codex review: a sensor dict missing "Identyfikator stanowiska" raised a
+    bare KeyError from _ingest_param, uncaught, aborting every remaining param
+    for the station instead of just skipping this one (rule #1 isolation)."""
+    sensors = [
+        {"Wskaźnik - wzór": "PM2.5"},  # malformed: no "Identyfikator stanowiska"
+        {"Identyfikator stanowiska": 2, "Wskaźnik - wzór": "PM10"},
+    ]
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=sensors))
+    monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+
+    stored = ingest.ingest_station(STATION, db_session)
+
+    assert stored == 1
+    assert db_session.query(Measurement).one().param_code == "PM10"
+
+
 class TestMain:
     """main(): argparse wiring only - ingest_station itself is covered above,
     so here we just verify main() calls it with the right stations and handles

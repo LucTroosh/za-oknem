@@ -55,7 +55,11 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
             value=value,
             fetched_at=datetime.now(UTC),
         )
-    except (client.GiosApiError, GiosParseError) as exc:
+    except (client.GiosApiError, GiosParseError, KeyError) as exc:
+        # KeyError: malformed sensor dict (e.g. missing "Identyfikator stanowiska")
+        # must stay inside this param's isolation too (Codex review) — otherwise it
+        # escapes _ingest_param uncaught and aborts every remaining param for this
+        # station, contradicting the per-param isolation this function promises.
         logger.warning(
             "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
         )
