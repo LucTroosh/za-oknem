@@ -179,7 +179,7 @@ def test_compute_status_unknown_without_thresholds():
     assert compute_status(225.0, warning=None, alarm=None) == "UNKNOWN"
 
 
-# --- HydroLatestResponse (TASK-9.5: response_model enforces a shape) --------
+# --- HydroLatestResponse (TASK-API-3: response_model enforces a shape) --------
 
 
 def test_hydro_latest_response_rejects_missing_required_field():

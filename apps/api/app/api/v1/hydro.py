@@ -49,7 +49,7 @@ def compute_status(value: float, warning: float | None, alarm: float | None) -> 
     return "NORMAL"
 
 
-# TASK-9.5: response_model - same reasoning as TASK-4.2/5.5. Mirrors the
+# TASK-API-3: response_model - same reasoning as TASK-API-1/API-2. Mirrors the
 # existing dict shape exactly - no API change.
 class HydroStation(BaseModel):
     station_id: str

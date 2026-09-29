@@ -1,8 +1,8 @@
-# TASK 9.5 — Typed response model dla `/api/v1/hydro/latest`
+# TASK API-3 — Typed response model dla `/api/v1/hydro/latest`
 
 ## Goal
 
-Ten sam wzorzec co TASK-4.2/5.5, zastosowany do `GET /api/v1/hydro/latest`.
+Ten sam wzorzec co TASK-API-1/API-2, zastosowany do `GET /api/v1/hydro/latest`.
 
 ## Scope
 
