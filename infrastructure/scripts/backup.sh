@@ -9,7 +9,13 @@
 set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+# PID dołączony do znacznika czasu — dwa uruchomienia backup.sh w tej samej
+# sekundzie UTC dostawałyby identyczny STAMP i nadpisywały się nawzajem na
+# remote w trakcie uploadu, co restore_test.sh (wybiera najnowszy dump po
+# nazwie pliku) mógłby złapać jako complet z artefaktów dwóch różnych
+# przebiegów (Codex review, runda 8). PID procesu jest unikalny wśród
+# współbieżnie działających procesów na tym samym hoście.
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 

@@ -49,12 +49,28 @@ PROD_DB_NAME="$(_urldecode "${PG_DATABASE_URL_NO_QUERY##*/}")"
 # poniższy QUERY doklejony do TEST_URL/adminowych URL-i nadpisywałby z
 # powrotem RESTORE_TEST_DB realną bazą z `dbname=`, więc i test odtworzenia, i
 # DROP DATABASE trafiałyby w bazę źródłową niezależnie od segmentu ścieżki
-# (Codex review, runda 7).
-if [[ "$QUERY" == *dbname=* ]]; then
-  DBNAME_PARAM="$(echo "$QUERY" | grep -oE 'dbname=[^&]*' | head -n1 | cut -d= -f2-)"
-  PROD_DB_NAME="$(_urldecode "$DBNAME_PARAM")"
-  QUERY="$(echo "$QUERY" | sed -E 's/[?&]dbname=[^&]*//; s/^&/?/')"
-  [ "$QUERY" = "?" ] && QUERY=""
+# (Codex review, runda 7). Klucz parametru też może być procentowo zakodowany
+# (np. "db%6eame=" to wciąż "dbname=" po dekodowaniu przez libpq — potwierdzone
+# na realnym Postgresie 16) — dopasowanie samego literalnego "dbname=" (jak w
+# pierwszej wersji tej poprawki) dałoby się w ten sposób ominąć, więc każdy
+# klucz w query dekodujemy PRZED porównaniem, nie po (Codex review, runda 8).
+if [ -n "$QUERY" ]; then
+  NEW_PARTS=()
+  IFS='&' read -ra QPARTS <<< "${QUERY#\?}"
+  for part in "${QPARTS[@]}"; do
+    key_enc="${part%%=*}"
+    val_enc="${part#*=}"
+    if [ "$(_urldecode "$key_enc")" = "dbname" ]; then
+      PROD_DB_NAME="$(_urldecode "$val_enc")"
+      continue
+    fi
+    NEW_PARTS+=("$part")
+  done
+  if [ "${#NEW_PARTS[@]}" -gt 0 ]; then
+    QUERY="?$(IFS='&'; echo "${NEW_PARTS[*]}")"
+  else
+    QUERY=""
+  fi
 fi
 TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
