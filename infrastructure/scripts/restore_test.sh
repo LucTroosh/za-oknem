@@ -33,7 +33,13 @@ esac
 # Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
 # nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
 BASE_URL="${PG_DATABASE_URL_NO_QUERY%/*}"
-PROD_DB_NAME="${PG_DATABASE_URL_NO_QUERY##*/}"
+# Dekodujemy procentowo zakodowane znaki (np. "foo%5Frestore%5Ftest" -> realna
+# nazwa bazy, którą libpq faktycznie łączy) — bez tego porównanie niżej widzi
+# literalny, zakodowany fragment URI zamiast prawdziwej nazwy bazy, którą
+# libpq rozkoduje, więc RESTORE_TEST_DB ustawione na tę prawdziwą nazwę myli
+# guard, a DROP DATABASE i tak trafia w źródłową bazę (Codex review, runda 3).
+_urldecode() { printf '%b' "${1//%/\\x}"; }
+PROD_DB_NAME="$(_urldecode "${PG_DATABASE_URL_NO_QUERY##*/}")"
 TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
 # Guard przed DROP DATABASE na czymś realnym: RESTORE_TEST_DB musi być bezpiecznym

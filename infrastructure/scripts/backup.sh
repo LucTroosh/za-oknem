@@ -42,8 +42,15 @@ else
 fi
 
 echo "[backup] upload do $BACKUP_REMOTE..."
-rclone copy "$DB_DUMP" "$BACKUP_REMOTE/"
+# Kolejność ma znaczenie: restore_test.sh wybiera "najnowszy backup" wyłącznie po
+# obecności db-*.dump (rclone lsf --include "db-*.dump"). Gdyby dump pojawił się
+# na remote PIERWSZY, równoległy restore_test.sh (np. z crona, TASK-15.2) mógłby
+# go złapać, zanim config/sekrety zdążą się wgrać, i zgłosić "niekompletny backup"
+# mimo że backup faktycznie kończy się sukcesem chwilę później (Codex review).
+# Wgrywamy dump jako OSTATNI, żeby jego pojawienie się na remote było sygnałem
+# "cały zestaw już tam jest".
 rclone copy "$CONFIG_TAR" "$BACKUP_REMOTE/"
 [ -n "$SECRETS_ENC" ] && rclone copy "$SECRETS_ENC" "$BACKUP_REMOTE/"
+rclone copy "$DB_DUMP" "$BACKUP_REMOTE/"
 
 echo "[backup] OK: db-${STAMP}.dump, config-${STAMP}.tar.gz$( [ -n "$SECRETS_ENC" ] && echo ", secrets-${STAMP}.tar.gz.age" ) -> $BACKUP_REMOTE"
