@@ -43,7 +43,7 @@ echo "[test] weryfikuję artefakty w $REMOTE_DIR..."
 [ -n "$(find "$REMOTE_DIR" -name 'config-*.tar.gz')" ] || { echo "FAIL: brak configu" >&2; exit 1; }
 
 echo "[test] uruchamiam restore_test.sh..."
-export RESTORE_TEST_DB="za_oknem_restore_test_selfcheck"
+export RESTORE_TEST_DB="za_oknem_selfcheck_restore_test"
 bash infrastructure/scripts/restore_test.sh
 
 echo "[test] sprzątam bazę testową..."

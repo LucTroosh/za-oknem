@@ -13,6 +13,31 @@ set -euo pipefail
 : "${BACKUP_REMOTE:?BACKUP_REMOTE musi być ustawione}"
 RESTORE_TEST_DB="${RESTORE_TEST_DB:-za_oknem_restore_test}"
 
+# libpq (psql/pg_restore) rozumie tylko postgresql:// / postgres://, nie sufiks
+# sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example (Codex review).
+PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+
+# Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
+# nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
+BASE_URL="${PG_DATABASE_URL%/*}"
+PROD_DB_NAME="${PG_DATABASE_URL##*/}"
+TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}"
+
+# Guard przed DROP DATABASE na czymś realnym: wymuszamy sufiks _restore_test i
+# odrzucamy, gdyby RESTORE_TEST_DB przez pomyłkę wskazywało bazę z DATABASE_URL
+# (Codex review — inaczej błędna konfiguracja może skasować produkcję).
+case "$RESTORE_TEST_DB" in
+  *_restore_test) ;;
+  *)
+    echo "[restore_test] BŁĄD: RESTORE_TEST_DB musi kończyć się na _restore_test (jest: ${RESTORE_TEST_DB})." >&2
+    exit 1
+    ;;
+esac
+if [ "$RESTORE_TEST_DB" = "$PROD_DB_NAME" ]; then
+  echo "[restore_test] BŁĄD: RESTORE_TEST_DB (${RESTORE_TEST_DB}) to ta sama baza co w DATABASE_URL — odmawiam DROP." >&2
+  exit 1
+fi
+
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
@@ -24,11 +49,34 @@ if [ -z "$LATEST_DUMP" ]; then
 fi
 rclone copy "$BACKUP_REMOTE/$LATEST_DUMP" "$WORKDIR/"
 
+# Ten sam zestaw artefaktów co przy backupie (ten sam STAMP) — sprawdzamy config i
+# sekrety, nie tylko dump. Sam poprawny dump przy zepsutym/brakującym config nadal
+# oznacza nieudany backup jako całość (Codex review).
+STAMP="${LATEST_DUMP#db-}"
+STAMP="${STAMP%.dump}"
+CONFIG_ARCHIVE="config-${STAMP}.tar.gz"
+SECRETS_ARCHIVE="secrets-${STAMP}.tar.gz.age"
+
+echo "[restore_test] weryfikuję $CONFIG_ARCHIVE..."
+if ! rclone copy "$BACKUP_REMOTE/$CONFIG_ARCHIVE" "$WORKDIR/" 2>/dev/null || [ ! -f "$WORKDIR/$CONFIG_ARCHIVE" ]; then
+  echo "[restore_test] BŁĄD: brak $CONFIG_ARCHIVE dla tego samego backupu (${STAMP}) — zestaw artefaktów niekompletny." >&2
+  exit 1
+fi
+tar -tzf "$WORKDIR/$CONFIG_ARCHIVE" >/dev/null  # rzuca błąd głośno, jeśli archiwum jest uszkodzone
+
+echo "[restore_test] sprawdzam obecność $SECRETS_ARCHIVE..."
+# ponytail: nie odszyfrowujemy — klucz prywatny age celowo NIE istnieje na VPS
+# (Security w TASK-1.1-backup.md), więc to tylko sprawdza, że plik dotarł i nie
+# jest pusty. Pełna weryfikacja odszyfrowania wymaga uruchomienia tego kroku na
+# maszynie, która ma klucz prywatny.
+if rclone copy "$BACKUP_REMOTE/$SECRETS_ARCHIVE" "$WORKDIR/" 2>/dev/null && [ -s "$WORKDIR/$SECRETS_ARCHIVE" ]; then
+  echo "[restore_test] sekrety: obecne ($(wc -c <"$WORKDIR/$SECRETS_ARCHIVE") B, odszyfrowanie nie jest tu weryfikowane)."
+else
+  echo "[restore_test] sekrety: brak artefaktu dla tego backupu (OK, jeśli .env nie istniało przy tworzeniu backupu)."
+fi
+
 # Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
 # nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
-BASE_URL="${DATABASE_URL%/*}"
-TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}"
-
 echo "[restore_test] (re)tworzę bazę $RESTORE_TEST_DB..."
 psql --dbname="$BASE_URL/postgres" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};"
 psql --dbname="$BASE_URL/postgres" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"

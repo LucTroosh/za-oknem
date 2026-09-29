@@ -17,9 +17,14 @@ trap 'rm -rf "$WORKDIR"' EXIT
 : "${BACKUP_REMOTE:?BACKUP_REMOTE musi być ustawione (rclone remote:path) — §68: backup MUSI być poza VPS, brak wartości to jawny błąd, nie ciche pominięcie uploadu}"
 : "${AGE_RECIPIENT:?AGE_RECIPIENT musi być ustawiony (klucz publiczny age) — sekrety nie mogą trafić na storage niezaszyfrowane}"
 
+# libpq (pg_dump/psql/pg_restore) rozumie tylko postgresql:// / postgres://, nie
+# sufiks sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example —
+# bez tego pg_dump odrzuca DATABASE_URL w udokumentowanym formacie (Codex review).
+PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+
 echo "[backup] pg_dump..."
 DB_DUMP="$WORKDIR/db-${STAMP}.dump"
-pg_dump --dbname="$DATABASE_URL" --format=custom --file="$DB_DUMP"
+pg_dump --dbname="$PG_DATABASE_URL" --format=custom --file="$DB_DUMP"
 
 echo "[backup] config (bez sekretów)..."
 CONFIG_TAR="$WORKDIR/config-${STAMP}.tar.gz"
