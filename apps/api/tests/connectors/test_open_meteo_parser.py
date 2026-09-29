@@ -7,10 +7,12 @@ import pytest
 
 from app.connectors.open_meteo.parser import (
     FORECAST_PARAM_CODES,
+    HOURLY_PARAM_CODES,
     PARAM_CODES,
     OpenMeteoParseError,
     normalize,
     normalize_forecast,
+    normalize_hourly_current,
 )
 
 VALID_PAYLOAD = {
@@ -56,6 +58,17 @@ VALID_PAYLOAD = {
         "precipitation_sum": "mm",
         "weather_code": "wmo code",
     },
+    "hourly": {
+        "time": ["2026-09-28T17:00", "2026-09-28T18:00", "2026-09-28T19:00"],
+        "dew_point_2m": [8.1, 8.4, 8.6],
+        "visibility": [24140.0, 22000.0, 20500.0],
+        "uv_index": [0.0, 0.2, 0.1],
+    },
+    "hourly_units": {
+        "dew_point_2m": "°C",
+        "visibility": "m",
+        "uv_index": "",
+    },
 }
 
 
@@ -91,6 +104,81 @@ def test_normalize_raises_on_missing_param():
     }
     with pytest.raises(OpenMeteoParseError):
         normalize(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+# --- normalize_hourly_current() (TASK-5.4) -----------------------------------
+
+
+def test_normalize_hourly_current_returns_one_record_per_param():
+    records = normalize_hourly_current(
+        geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    assert len(records) == len(HOURLY_PARAM_CODES)
+    assert {r["param_code"] for r in records} == set(HOURLY_PARAM_CODES)
+
+
+def test_normalize_hourly_current_picks_the_matching_hour():
+    records = normalize_hourly_current(
+        geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    # index 1 in VALID_PAYLOAD's hourly arrays (17:00, [18:00], 19:00), not the
+    # neighboring hours - proves it doesn't just take hourly[0].
+    assert dew_point["value"] == 8.4
+    assert dew_point["observed_at"] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
+
+
+def test_normalize_hourly_current_floors_current_time_to_the_hour():
+    """`current.time` can be a few minutes into the hour (Open-Meteo's current
+    conditions aren't always on the hour); the hourly slot it maps to must still
+    be the hour it falls in, not fail to match."""
+    payload = {**VALID_PAYLOAD, "current": {**VALID_PAYLOAD["current"], "time": "2026-09-28T18:47"}}
+    records = normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    assert dew_point["value"] == 8.4
+    assert dew_point["observed_at"] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
+
+
+def test_normalize_hourly_current_builds_idempotent_source_record_id():
+    records = normalize_hourly_current(
+        geo_area_id=7, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    assert dew_point["source_record_id"] == "7:dew_point_2m:2026-09-28T18:00:00+00:00"
+    assert dew_point["source_id"] == "open_meteo"
+
+
+def test_normalize_hourly_current_raises_on_missing_hourly_block():
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if not k.startswith("hourly")}
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_raises_when_current_hour_not_in_hourly_time():
+    payload = {
+        **VALID_PAYLOAD,
+        "current": {**VALID_PAYLOAD["current"], "time": "2026-09-29T03:00"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_raises_on_missing_param():
+    bad = {
+        "current": VALID_PAYLOAD["current"],
+        "hourly": {"time": ["2026-09-28T18:00"]},
+        "hourly_units": {},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_does_not_need_daily_block():
+    """Isolated from normalize_forecast() (rule #1, TASK-5.4) - a payload with a
+    broken `daily` block but valid `current`/`hourly` must still parse."""
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if not k.startswith("daily")}
+    records = normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+    assert len(records) == len(HOURLY_PARAM_CODES)
 
 
 # --- normalize_forecast() (ADR-010) ------------------------------------------
