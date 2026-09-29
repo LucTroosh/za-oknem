@@ -95,7 +95,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       "co dokładnie zwróciło źródło w momencie zapisu tej wartości?" (§33) —
       istotne przy sporze o poprawność danych czy debugowaniu zmiany kształtu
       API źródła. Zakres: model `source_fetches` (źródło, endpoint, surowy
-      payload, timestamp pobrania) + migracja + integracja z każdym
+      payload, timestamp pobrania), **oraz FK `source_fetch_id` na
+      znormalizowanych rekordach + wersja parsera/normalizacji + status
+      walidacji** — bez tego linku, przy kilku odczytach tego samego
+      `source_record_id` w czasie, nie da się jednoznacznie wskazać, który
+      surowy payload wyprodukował którą wartość (§33 pytanie audytowe
+      zostaje bez odpowiedzi mimo istnienia surowych payloadów) + migracja
+      + integracja z każdym
       connectorem (zapis raw payloadu obok normalize) + polityka retencji
       (§33: 7-30 dni, zależnie od źródła). Wymaga ADR (nowy typ
       danych/tabeli w modelu, rule #12).
@@ -180,7 +186,21 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       współrzędnych bezpośrednio w `POST /api/v1/devices` z serwerowym
       resolve) pod ograniczeniami ADR-002 (bez trwałego logowania precyzyjnej
       lokalizacji) — inaczej TASK-12.5 nie da się zaimplementować bez
-      duplikowania geometrii gmin w aplikacji mobilnej.
+      duplikowania geometrii gmin w aplikacji mobilnej. **(6) PostGIS** —
+      "Świadomie NIE w tej kolejce" (patrz sekcja niżej) odkłada PostGIS
+      dokładnie do momentu, gdy Phase 6 Geo Engine "tego faktycznie
+      zażąda" (ADR-006) — import geometrii gmin + point-in-polygon z (1)/(2)
+      JEST tym momentem. Realny zakres obejmuje więc też provisioning i
+      użycie PostGIS (nie tylko in-process biblioteki geometrii w Pythonie)
+      — inaczej ten task da się ukończyć bez PostGIS mimo że stack i §26-27
+      go zakładają. **(7) Zasięg stacji GIOŚ** — pełny import TERYT
+      rozwiązuje geo-matching administracyjny, ale `run_gios()`
+      (`scheduler.py`) nadal odpytuje wyłącznie ręcznie skonfigurowane
+      `GIOS_STATION_IDS`, a ADR-006 dopasowuje tylko do już zaciągniętych
+      stacji w promieniu 50 km — użytkownik poza tą garstką dostanie
+      poprawną gminę, ale zero danych o powietrzu. Dodać do zakresu
+      odkrycie/dobór stacji GIOŚ per aktywna gmina (katalog stacji + ich
+      polling), nie tylko geo-matching bez danych do dopasowania.
 
 ### Phase 7 — Dashboard (dokończenie)
 
@@ -494,13 +514,16 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
 - [ ] **TASK-17.2:** Testy odporności — utrata sieci, źródło zwraca błąd/
       puste dane w trakcie działania appki (rule #1 w praktyce, nie tylko w
       testach jednostkowych connectorów).
-- [ ] **TASK-17.4:** Location Test Matrix + Push Test Matrix (§77-78 Master
-      Planu) — TASK-17.1's happy-path E2E i TASK-17.2's network/source
-      failures nie pokrywają tych macierzy wprost: permission denied/
-      approximate/poor accuracy/changed location (§77), oraz quiet hours/
-      foreground/background/killed app/duplicate/expired event (§78). To
-      platform-specific przypadki, które mogą zawieść mimo ukończenia
-      TASK-17.1/17.2 — osobny, jawny przebieg przed release.
+- [ ] **TASK-17.4:** Location Test Matrix + Push Test Matrix + Network Test
+      Matrix (§77-79 Master Planu) — TASK-17.1's happy-path E2E i TASK-17.2's
+      network/source failures nie pokrywają tych macierzy wprost: permission
+      denied/approximate/poor accuracy/changed location (§77), quiet hours/
+      foreground/background/killed app/duplicate/expired event (§78), oraz
+      WiFi vs. mobile/slow connection/API timeout/source timeout/partial
+      backend failure (§79 — TASK-17.2 pokrywa tylko offline/błąd źródła/
+      puste dane, nie te sześć przypadków). To platform-specific przypadki,
+      które mogą zawieść mimo ukończenia TASK-17.1/17.2 — osobny, jawny
+      przebieg przed release.
 - [ ] **TASK-17.3:** Google Play closed testing (§88-89 Master Planu) —
       konto Personal (decyzja v1.2) wymaga **min. 12 testerów przez min. 14
       kolejnych dni na torze closed** przed dostępem do produkcji — tor
