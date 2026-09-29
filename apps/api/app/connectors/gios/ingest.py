@@ -16,7 +16,13 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.gios import client
-from app.connectors.gios.parser import PARAM_UNITS, GiosParseError, find_sensor, latest_value, normalize
+from app.connectors.gios.parser import (
+    PARAM_UNITS,
+    GiosParseError,
+    find_sensor,
+    latest_value,
+    normalize,
+)
 from app.db import SessionLocal
 from app.models import Measurement
 

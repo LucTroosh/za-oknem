@@ -69,7 +69,9 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     for area in areas:
         nearest, nearest_km = None, None
         for station in stations_list:
-            km = haversine_km(area.latitude, area.longitude, station["latitude"], station["longitude"])
+            km = haversine_km(
+                area.latitude, area.longitude, station["latitude"], station["longitude"]
+            )
             if nearest_km is None or km < nearest_km:
                 nearest, nearest_km = station, km
 
