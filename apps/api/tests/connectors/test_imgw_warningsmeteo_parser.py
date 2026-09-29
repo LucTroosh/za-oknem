@@ -23,6 +23,14 @@ def test_raises_on_unrecognized_dict_shape():
         parse_warnings({"unexpected": "shape"})
 
 
+def test_raises_on_a_different_message_text():
+    # Codex review (PR #38): only the exact confirmed "no warnings" text counts
+    # as empty - any other message (rate-limit notice, service diagnostic) must
+    # fail loud, not be silently read as zero active warnings (rule #10).
+    with pytest.raises(ImgwWarningsMeteoParseError):
+        parse_warnings({"message": "Rate limit exceeded"})
+
+
 def test_raises_on_unrecognized_type():
     with pytest.raises(ImgwWarningsMeteoParseError):
         parse_warnings("not a list or dict")

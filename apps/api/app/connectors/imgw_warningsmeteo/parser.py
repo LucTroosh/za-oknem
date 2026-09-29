@@ -13,6 +13,13 @@ Revisit once a live warning can be captured (see Source Registry
 
 from typing import Any
 
+# The only dict shape actually confirmed live (2026-09-29) as "zero active
+# warnings". Any other dict - a rate-limit notice, a service diagnostic, a
+# typo'd variant - must fail loudly instead of silently being read as "no
+# warnings" (rule #10; Codex review, PR #38): a misread error response would
+# otherwise look like a valid empty snapshot to callers.
+NO_WARNINGS_MESSAGE = "Brak ostrzeżeń meteorologicznych"
+
 
 class ImgwWarningsMeteoParseError(Exception):
     """Raised when the payload doesn't match the expected top-level shape."""
@@ -20,11 +27,10 @@ class ImgwWarningsMeteoParseError(Exception):
 
 def parse_warnings(payload: Any) -> list[dict[str, Any]]:
     """Accepts either a list of warnings, or the confirmed-live "no active
-    warnings" message-dict shape ({"message": "Brak ostrzeżeń
-    meteorologicznych"}, verified live 2026-09-29). Anything else is an
-    unrecognized shape - fail loud (rule #10), don't guess."""
+    warnings" message-dict shape. Anything else is an unrecognized shape -
+    fail loud (rule #10), don't guess."""
     if isinstance(payload, dict):
-        if "message" in payload:
+        if payload.get("message") == NO_WARNINGS_MESSAGE:
             return []
         raise ImgwWarningsMeteoParseError(f"unrecognized dict shape: {payload!r}")
     if isinstance(payload, list):
