@@ -261,7 +261,17 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       uważać przy implementacji mobile fetcha; §8) nie jest wymieniona w
       §55 jako część agregatu — zostaje osobnym fetchem na mobile, czysto
       frontendowa robota. Wzorzec `source`/`attribution` z TASK-7.1 (IMGW)
-      dotyczy obu.
+      dotyczy obu. **Brakujący element (Codex):** w przeciwieństwie do
+      `alerts` (który ma jawne odroczenie geo-matchingu do TASK-9.5),
+      hydrologia nie ma ŻADNEGO tasku dodającego geo-matching —
+      `/api/v1/hydro/latest` zwraca dziś WSZYSTKIE wodowskazy w kraju
+      (zweryfikowane w `hydro.py:50-95`, brak parametru lokalizacji), więc
+      "osobny fetch" bez dalszego kroku oznacza ogólnokrajową listę zamiast
+      lokalnego kontekstu. Dodać do zakresu TASK-9.5 (skoro i tak dodaje
+      geo-matching w tej samej fazie) albo osobnego tasku Phase 9
+      dopasowanie najbliższego wodowskazu per gmina, tym samym wzorcem
+      nearest-station/haversine co ADR-006 dla GIOŚ — nie zostawiać tego
+      bez właściciela.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -343,7 +353,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       TASK-9.7 filtruje tylko osobny ekran Alerty, więc bez tej poprawki
       tutaj główny dashboard nadal pokazywałby wszystkie alerty krajowe
       mimo ukończenia całej kolejki. Zastosować ten sam geo-matching do
-      pola `alerts` w agregacie.
+      pola `alerts` w agregacie. **I do hydrologii (Codex, patrz TASK-7.2)**
+      — `/api/v1/hydro/latest` ma dokładnie ten sam brak filtrowania co
+      `/alerts/latest` miał przed tym taskiem, a żaden inny task go nie
+      adresuje; dodać nearest-station matching (wzorzec ADR-006) tu, przy
+      okazji tej samej pracy nad geo-matchingiem.
 - [ ] **TASK-9.6:** Alert Engine (§47) — severity, deduplication, geo
       relevance, na bazie modeli `Alert`+`Event`+geo-matching z powyższych
       tasków. Duży task, prawdopodobnie do rozbicia na 2-3 mniejsze PR.
@@ -574,7 +588,17 @@ placeholderze.
 - [ ] **TASK-15.1:** Środowisko staging (osobne od dev/produkcji) na VPS.
 - [ ] **TASK-15.2:** Środowisko produkcyjne + wdrożenie TASK-1.1 (backup
       poza VPS) i regularnego testu odtworzenia w praktyce (nie tylko kod
-      skryptu — realny, zaplanowany przebieg testu).
+      skryptu — realny, zaplanowany przebieg testu). **Brakujący element
+      (Codex):** §86 Master Planu wymaga konkretnego pipeline'u
+      `main → staging → manual approval → production`, a repo ma dziś
+      wyłącznie `.github/workflows/ci.yml` (sam CI: lint/typecheck/testy/
+      build). Same TASK-15.1/15.2, jak napisane, kończą się na
+      wystawieniu hostów staging/produkcji, nigdy nie tworzą workflow CD
+      z bramką manual approval — bez tego nie ma powtarzalnej ścieżki
+      promocji przetestowanego artefaktu na produkcję. Zakres obejmuje
+      więc jawnie dodanie workflow CD (`.github/workflows/cd.yml` lub
+      podobny) + wpięcie credentiali/approval gate dla produkcji, nie
+      tylko provisioning maszyn.
 - [ ] **TASK-15.3:** Monitoring produkcyjny (rozszerzenie TASK-13.2) na
       realnym środowisku.
 - [ ] **TASK-15.4:** Redis w produkcji (§45, §103 Release Candidate
