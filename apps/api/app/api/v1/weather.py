@@ -1,7 +1,9 @@
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,7 +27,54 @@ def freshness(observed_at: datetime) -> str:
     return "STALE"
 
 
-@router.get("/weather/latest")
+# TASK-5.5: response_model - same reasoning as TASK-4.2 (air.py). Mirrors the
+# existing dict shapes exactly - no API change.
+class WeatherParam(BaseModel):
+    value: float
+    unit: str
+
+
+class WeatherArea(BaseModel):
+    geo_area_id: int
+    slug: str
+    name: str
+    latitude: float
+    longitude: float
+    observed_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+    params: dict[str, WeatherParam]
+    source: Literal["open_meteo"]
+
+
+class WeatherLatestResponse(BaseModel):
+    areas: list[WeatherArea]
+
+
+class ForecastDay(BaseModel):
+    valid_from: str
+    valid_until: str
+    forecast_reference_time: str
+    params: dict[str, WeatherParam]
+
+
+class ForecastArea(BaseModel):
+    geo_area_id: int
+    slug: str
+    name: str
+    latitude: float
+    longitude: float
+    model: str
+    fetched_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+    days: list[ForecastDay]
+    source: Literal["open_meteo"]
+
+
+class WeatherForecastResponse(BaseModel):
+    areas: list[ForecastArea]
+
+
+@router.get("/weather/latest", response_model=WeatherLatestResponse)
 def latest_weather(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) — never calls Open-Meteo on request.
     Data arrives via `python -m app.connectors.open_meteo.ingest` (manual for now)."""
@@ -73,7 +122,7 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
     return {"areas": areas}
 
 
-@router.get("/weather/forecast")
+@router.get("/weather/forecast", response_model=WeatherForecastResponse)
 def weather_forecast(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14). `forecasts` is append-only
     (ADR-010) - several ingest runs can each hold a prediction for the same

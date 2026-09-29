@@ -7,9 +7,17 @@ geo_areas), so the fake session returns queued results in call order.
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.api.v1.weather import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
+from app.api.v1.weather import (
+    FRESH_MAX_AGE,
+    RECENT_MAX_AGE,
+    WeatherForecastResponse,
+    WeatherLatestResponse,
+    freshness,
+)
 from app.db import get_db
 from app.main import app
 from app.models import Forecast, GeoArea, WeatherSnapshot
@@ -166,9 +174,7 @@ def test_latest_weather_handles_multiple_areas():
 
 def _forecast(**overrides) -> Forecast:
     now = datetime.now(UTC)
-    valid_from = overrides.get(
-        "valid_from", now.replace(hour=0, minute=0, second=0, microsecond=0)
-    )
+    valid_from = overrides.get("valid_from", now.replace(hour=0, minute=0, second=0, microsecond=0))
     defaults = {
         "source_id": "open_meteo",
         "source_record_id": "rec-1",
@@ -280,3 +286,70 @@ def test_weather_forecast_days_are_sorted_ascending():
 
     valid_froms = [d["valid_from"] for d in body["areas"][0]["days"]]
     assert valid_froms == [day1.isoformat(), day2.isoformat(), day3.isoformat()]
+
+
+# --- response models (TASK-5.5: response_model actually enforces a shape) ---
+
+
+def test_weather_latest_response_rejects_missing_required_field():
+    with pytest.raises(ValidationError):
+        WeatherLatestResponse.model_validate(
+            {
+                "areas": [
+                    {
+                        "geo_area_id": 1,
+                        "slug": "klodzko",
+                        # name missing
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "observed_at": "2026-09-29T12:00:00+00:00",
+                        "freshness": "FRESH",
+                        "params": {},
+                        "source": "open_meteo",
+                    }
+                ]
+            }
+        )
+
+
+def test_weather_latest_response_rejects_unknown_source():
+    with pytest.raises(ValidationError):
+        WeatherLatestResponse.model_validate(
+            {
+                "areas": [
+                    {
+                        "geo_area_id": 1,
+                        "slug": "klodzko",
+                        "name": "Kłodzko",
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "observed_at": "2026-09-29T12:00:00+00:00",
+                        "freshness": "FRESH",
+                        "params": {},
+                        "source": "not_open_meteo",
+                    }
+                ]
+            }
+        )
+
+
+def test_weather_forecast_response_rejects_missing_required_field():
+    with pytest.raises(ValidationError):
+        WeatherForecastResponse.model_validate(
+            {
+                "areas": [
+                    {
+                        "geo_area_id": 1,
+                        "slug": "klodzko",
+                        "name": "Kłodzko",
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "model": "auto",
+                        "fetched_at": "2026-09-29T12:00:00+00:00",
+                        "freshness": "FRESH",
+                        # days missing
+                        "source": "open_meteo",
+                    }
+                ]
+            }
+        )
