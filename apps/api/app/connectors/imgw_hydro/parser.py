@@ -83,7 +83,12 @@ def normalize(station: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any
         # silently drop real, valid readings.
         level_record = {
             "source_id": "imgw_hydro",
-            "source_record_id": f"{station_id}:{WATER_LEVEL_PARAM}:{observed_at.isoformat()}",
+            # Unchanged format from before thresholds existed (rule #40
+            # idempotency) - a param_code segment isn't needed for uniqueness
+            # (threshold ids use a completely different scheme, see _threshold
+            # below) and would silently duplicate every already-stored reading
+            # on first deploy of this change (Codex review, PR #42 round 4).
+            "source_record_id": f"{station_id}:{observed_at.isoformat()}",
             "station_id": station_id,
             "station_name": station_name,
             "latitude": latitude,

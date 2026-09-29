@@ -41,6 +41,18 @@ def test_normalize_maps_level_fields_correctly():
     assert level["unit"] == "cm"
 
 
+def test_normalize_level_source_record_id_format_is_stable():
+    """Must stay exactly {station_id}:{observed_at} - already-stored rows use
+    this format, and changing it duplicates every reading on next deploy
+    instead of recognizing it as already seen (Codex review, PR #42 round 4:
+    an earlier version added a param_code segment here, unnecessarily, since
+    thresholds already have their own distinct id scheme)."""
+    result = normalize(STATION, fetched_at=datetime.now(UTC))
+    level = result["level"]
+
+    assert level["source_record_id"] == f"151140030:{level['observed_at'].isoformat()}"
+
+
 def test_normalize_includes_thresholds_when_defined():
     result = normalize(STATION, fetched_at=datetime.now(UTC))
     thresholds = result["thresholds"]
