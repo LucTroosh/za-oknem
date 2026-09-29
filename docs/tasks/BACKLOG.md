@@ -298,7 +298,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 - [ ] **TASK-9.4:** `Event` model (§31) — odrębny od `Alert`/`Measurement`
       (rule #7). Potrzebny do "istotne lokalne zagrożenia / zweryfikowane
-      zdarzenia" z ROADMAP §2.6. Wymaga ADR-013 (nowy typ danych).
+      zdarzenia" z ROADMAP §2.6. Wymaga ADR-013 (nowy typ danych). **Zakres
+      obejmuje też realną ścieżkę zasilania** — sam model bez źródła danych
+      zostaje pustą tabelą, a TASK-9.6 (Alert Engine) zakłada istniejące
+      rekordy `Event`. Dziś istniejące connectory (np. IMGW warnings) piszą
+      wprost do `Alert`, nie ma workflow tworzącego `Event`. Zdefiniować
+      albo dedykowane źródło/proces (z Source Approval Gate, rule #15, jeśli
+      to zewnętrzne dane) albo świadomie ograniczyć MVP do samego modelu bez
+      populacji i odnotować to jako non-goal w ADR-013.
 - [ ] **TASK-9.5:** Geo-matching alertów → lokalizacja (zależne od
       TASK-6.2) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
       **Zakres obejmuje też `dashboard_latest()`** — TASK-7.2 dodał tam
@@ -332,7 +339,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       store listing, TestFlight) to decyzja biznesowa, którą możesz podjąć
       wcześniej równolegle, żeby nie blokować walidacji APNs aż do Phase 16;
       jeśli nie, walidacja end-to-end dla iOS zostaje odłożona do tego czasu
-      (backend/Android część kończy się normalnie).
+      (backend/Android część kończy się normalnie). **Zakres obejmuje też
+      §65-66 Master Planu** — device registration to endpoint operacyjny
+      (nie publiczny read), więc wymaga validation + rate limiting + abuse
+      protection wprost, nie jako opcjonalny przykład użycia Redis w
+      TASK-15.4 — bez tego dowolny klient może masowo tworzyć/odświeżać
+      rekordy urządzeń i zasilać push niezweryfikowanymi tokenami.
 - [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
       Engine z Phase 9 i tokenów z TASK-10.1).
 - [ ] **TASK-10.3:** Preferencje powiadomień (mobile) — użytkownik wybiera,
