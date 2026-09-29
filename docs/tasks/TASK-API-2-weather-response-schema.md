@@ -1,8 +1,8 @@
-# TASK 5.5 — Typed response model dla `/api/v1/weather/*`
+# TASK API-2 — Typed response model dla `/api/v1/weather/*`
 
 ## Goal
 
-Ten sam wzorzec co TASK-4.2 (`/air/latest`), zastosowany do
+Ten sam wzorzec co TASK-API-1 (`/air/latest`), zastosowany do
 `GET /api/v1/weather/latest` i `GET /api/v1/weather/forecast` — oba dziś
 `-> dict` bez `response_model`.
 

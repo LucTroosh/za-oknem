@@ -288,7 +288,7 @@ def test_weather_forecast_days_are_sorted_ascending():
     assert valid_froms == [day1.isoformat(), day2.isoformat(), day3.isoformat()]
 
 
-# --- response models (TASK-5.5: response_model actually enforces a shape) ---
+# --- response models (TASK-API-2: response_model actually enforces a shape) ---
 
 
 def test_weather_latest_response_rejects_missing_required_field():

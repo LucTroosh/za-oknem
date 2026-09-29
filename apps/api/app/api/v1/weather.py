@@ -27,7 +27,7 @@ def freshness(observed_at: datetime) -> str:
     return "STALE"
 
 
-# TASK-5.5: response_model - same reasoning as TASK-4.2 (air.py). Mirrors the
+# TASK-API-2: response_model - same reasoning as TASK-API-1 (air.py). Mirrors the
 # existing dict shapes exactly - no API change.
 class WeatherParam(BaseModel):
     value: float
