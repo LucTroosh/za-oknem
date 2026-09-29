@@ -40,6 +40,22 @@ BASE_URL="${PG_DATABASE_URL_NO_QUERY%/*}"
 # guard, a DROP DATABASE i tak trafia w źródłową bazę (Codex review, runda 3).
 _urldecode() { printf '%b' "${1//%/\\x}"; }
 PROD_DB_NAME="$(_urldecode "${PG_DATABASE_URL_NO_QUERY##*/}")"
+
+# libpq akceptuje `dbname` jako parametr zapytania w URI postgresql:// i ten
+# parametr NADPISUJE segment ścieżki — potwierdzone na realnym Postgresie 16:
+# `postgresql://user@host/postgres?dbname=za_oknem` faktycznie łączy się z
+# `za_oknem`, nie `postgres`. Bez tej poprawki DATABASE_URL z `?dbname=...`
+# sprawiłby, że PROD_DB_NAME powyżej (wzięte z samej ścieżki) byłoby błędne, a
+# poniższy QUERY doklejony do TEST_URL/adminowych URL-i nadpisywałby z
+# powrotem RESTORE_TEST_DB realną bazą z `dbname=`, więc i test odtworzenia, i
+# DROP DATABASE trafiałyby w bazę źródłową niezależnie od segmentu ścieżki
+# (Codex review, runda 7).
+if [[ "$QUERY" == *dbname=* ]]; then
+  DBNAME_PARAM="$(echo "$QUERY" | grep -oE 'dbname=[^&]*' | head -n1 | cut -d= -f2-)"
+  PROD_DB_NAME="$(_urldecode "$DBNAME_PARAM")"
+  QUERY="$(echo "$QUERY" | sed -E 's/[?&]dbname=[^&]*//; s/^&/?/')"
+  [ "$QUERY" = "?" ] && QUERY=""
+fi
 TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
 # Guard przed DROP DATABASE na czymś realnym: RESTORE_TEST_DB musi być bezpiecznym
