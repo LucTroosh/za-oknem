@@ -156,9 +156,19 @@ def test_latest_weather_groups_params_by_geo_area():
     }
 
 
+def test_latest_weather_marks_old_reading_stale():
+    row = _snapshot(observed_at=datetime.now(UTC) - timedelta(hours=10))
+    client = _client([row], [_area()])
+
+    body = client.get("/api/v1/weather/latest").json()
+
+    assert body["areas"][0]["freshness"] == "STALE"
+
+
 def test_latest_weather_reports_per_param_freshness_independently():
-    # Codex review (cross-referenced from PR#50): a fresh param and a stale one for
-    # the same area must not both inherit the object-level max(observed_at) status.
+    # Codex review: a fresh `current` param and a stale hourly-derived one (TASK-5.4)
+    # must not both be reported as FRESH just because the object-level `freshness`
+    # takes the max observed_at across params - each param needs its own status.
     fresh_row = _snapshot(
         param_code="temperature_2m", observed_at=datetime.now(UTC), source_record_id="fresh"
     )
@@ -174,16 +184,9 @@ def test_latest_weather_reports_per_param_freshness_independently():
     params = body["areas"][0]["params"]
     assert params["temperature_2m"]["freshness"] == "FRESH"
     assert params["uv_index"]["freshness"] == "STALE"
+    # Object-level freshness is a rough "most recent of any param" summary, not
+    # authoritative per param - documented as such, not removed.
     assert body["areas"][0]["freshness"] == "FRESH"
-
-
-def test_latest_weather_marks_old_reading_stale():
-    row = _snapshot(observed_at=datetime.now(UTC) - timedelta(hours=10))
-    client = _client([row], [_area()])
-
-    body = client.get("/api/v1/weather/latest").json()
-
-    assert body["areas"][0]["freshness"] == "STALE"
 
 
 def test_latest_weather_skips_snapshot_for_deleted_geo_area():

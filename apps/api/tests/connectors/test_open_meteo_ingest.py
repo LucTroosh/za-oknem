@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.connectors.open_meteo import client, ingest
-from app.connectors.open_meteo.parser import FORECAST_PARAM_CODES, PARAM_CODES
+from app.connectors.open_meteo.parser import FORECAST_PARAM_CODES, HOURLY_PARAM_CODES, PARAM_CODES
 from app.models import Forecast, GeoArea, WeatherSnapshot
 
 CURRENT_BLOCK = {
@@ -57,8 +57,23 @@ DAILY_BLOCK = {
         "weather_code": "wmo code",
     },
 }
+HOURLY_BLOCK = {
+    "hourly": {
+        "time": ["2026-09-28T17:00", "2026-09-28T18:00", "2026-09-28T19:00"],
+        "dew_point_2m": [8.1, 8.4, 8.6],
+        "visibility": [24140.0, 22000.0, 20500.0],
+        "uv_index": [0.0, 0.2, 0.1],
+    },
+    "hourly_units": {
+        "dew_point_2m": "°C",
+        "visibility": "m",
+        "uv_index": "",
+    },
+}
 PAYLOAD = {**CURRENT_BLOCK, **DAILY_BLOCK}
+PAYLOAD_WITH_HOURLY = {**CURRENT_BLOCK, **HOURLY_BLOCK, **DAILY_BLOCK}
 PARAM_COUNT = len(PARAM_CODES)
+HOURLY_COUNT = len(HOURLY_PARAM_CODES)
 FORECAST_COUNT = len(FORECAST_PARAM_CODES) * 2  # 2 days in DAILY_BLOCK
 
 
@@ -79,6 +94,33 @@ def test_ingest_geo_area_stores_current_and_forecast(db_session, monkeypatch):
     assert stored == PARAM_COUNT + FORECAST_COUNT
     assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
     assert db_session.query(Forecast).count() == FORECAST_COUNT
+
+
+def test_ingest_geo_area_stores_hourly_derived_fields(db_session, monkeypatch):
+    """TASK-5.4: dew point/visibility/UV land as ordinary WeatherSnapshot rows
+    alongside current + forecast, from the same fetch."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD_WITH_HOURLY))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == PARAM_COUNT + HOURLY_COUNT + FORECAST_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT + HOURLY_COUNT
+    codes = {r.param_code for r in db_session.query(WeatherSnapshot).all()}
+    assert set(HOURLY_PARAM_CODES) <= codes
+
+
+def test_ingest_geo_area_isolates_missing_hourly_block(db_session, monkeypatch):
+    """A payload without `hourly` (e.g. an older cached response, or the field
+    genuinely absent) must not cost the already-proven current/forecast data -
+    same isolation TASK-5.3 established between current and forecast."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))  # no hourly key
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == PARAM_COUNT + FORECAST_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
 
 
 def test_ingest_geo_area_skips_duplicate(db_session, monkeypatch):
