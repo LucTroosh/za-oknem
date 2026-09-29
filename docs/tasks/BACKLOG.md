@@ -267,7 +267,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
       potwierdzone zero czy dawno nie było fetcha) — dotyczy `/air`,
       `/hydro`, `/alerts`, `/weather` razem. Wymaga własnego ADR-012
-      (świadomy non-goal z ADR-009, teraz adresowany).
+      (świadomy non-goal z ADR-009, teraz adresowany). **Korekta (Codex):**
+      mobile Home czyta wyłącznie `/api/v1/dashboard/latest`
+      (`apps/mobile/app/index.tsx`), nie te cztery endpointy osobno —
+      ograniczenie zakresu do nich zostawia agregat (`air`/`weather: null`
+      w `dashboard.py`) bez rozróżnienia "potwierdzone zero" od "źródło
+      nigdy nie fetchowało/przestało fetchować", czyli dokładnie ten sam
+      problem widoczny tam, gdzie użytkownik faktycznie go zobaczy. Zakres
+      obejmuje więc też przeniesienie stanu UNAVAILABLE do kontraktu
+      `dashboard_latest()` i jego renderowania na mobile, nie tylko cztery
+      detail endpointy.
 - [ ] **TASK-7.6:** Outdoor Interpretation Engine (§52 Master Planu) —
       deterministyczny, testowalny algorytm (temperatura + opady + wiatr +
       jakość powietrza + UV → GOOD/MODERATE/POOR + `reasons[]`); **nie LLM**
@@ -444,7 +453,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       placeholder.
 - [ ] **TASK-12.2:** Ręczny wybór lokalizacji (mobile) — rozszerzenie
       obecnej statycznej listy 7 miast o wybór przez użytkownika (bez
-      background location — rule #11).
+      background location — rule #11). **Korekta (Codex):** po TASK-6.2
+      punkt (8) `dashboard_latest()` zawęża się do jednej wybranej
+      lokalizacji (`geo_area_id`) z pełnego importu TERYT (~2.5k gmin) —
+      dziś `apps/mobile/app/index.tsx` nie ma żadnego katalogu gmin, cały
+      wybór pochodzi z odpowiedzi dashboardu (który po 6.2 zwraca tylko
+      jedną lokalizację). Bez osobnego źródła danych do wyboru użytkownik
+      z wyłączonym GPS nie ma jak w ogóle wybrać gminy. Zakres obejmuje
+      więc dodanie przeszukiwalnego/paginowanego endpointu gmin (albo
+      spakowanie zaimportowanego katalogu TERYT do klienta) — nie tylko
+      rozszerzenie UI selektora.
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
 - [ ] **TASK-12.5:** Wysyłka `observed_area_code` do `POST /api/v1/devices`
