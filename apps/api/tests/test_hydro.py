@@ -108,7 +108,7 @@ def test_latest_hydro_shapes_response_from_rows():
 def test_latest_hydro_includes_thresholds_and_status():
     observed_at = datetime.now(UTC)
     rows = [
-        _reading(observed_at=observed_at, param_code="water_level_warning_cm", value=300.0),
+        _reading(observed_at=observed_at, param_code="water_level_warn_cm", value=300.0),
         _reading(observed_at=observed_at, param_code="water_level_alarm_cm", value=340.0),
         _reading(observed_at=observed_at, value=225.0),
     ]
@@ -125,12 +125,32 @@ def test_latest_hydro_includes_thresholds_and_status():
 def test_latest_hydro_ignores_threshold_only_station():
     """A station with thresholds stored but no current water-level reading must
     not appear (matches the pre-existing "no reading = not shown" behaviour)."""
-    row = _reading(param_code="water_level_warning_cm", value=300.0)
+    row = _reading(param_code="water_level_warn_cm", value=300.0)
     client = _client_with_rows([row])
 
     body = client.get("/api/v1/hydro/latest").json()
 
     assert body == {"stations": []}
+
+
+def test_latest_hydro_ignores_stale_threshold_from_earlier_batch():
+    """If IMGW stops publishing a threshold for a station, the water level keeps
+    getting new observed_at timestamps but no new threshold row is emitted
+    (parser.py). The old threshold row must NOT be used forever - it belongs to
+    an earlier batch (Codex review, PR #42)."""
+    earlier = datetime.now(UTC) - timedelta(hours=3)
+    now = datetime.now(UTC)
+    rows = [
+        _reading(observed_at=earlier, param_code="water_level_warn_cm", value=300.0),
+        _reading(observed_at=now, value=225.0),
+    ]
+    client = _client_with_rows(rows)
+
+    body = client.get("/api/v1/hydro/latest").json()
+
+    station = body["stations"][0]
+    assert station["warning_level_cm"] is None
+    assert station["status"] == "UNKNOWN"
 
 
 def test_compute_status_normal_below_warning():

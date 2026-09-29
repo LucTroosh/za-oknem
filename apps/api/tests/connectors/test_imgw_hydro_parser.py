@@ -68,6 +68,15 @@ def test_normalize_raises_on_malformed_threshold():
         normalize(station, fetched_at=datetime.now(UTC))
 
 
+def test_param_codes_fit_the_varchar20_column():
+    """Measurement.param_code is VARCHAR(20) (models.py) - SQLite doesn't enforce
+    this, so it must be checked explicitly (Codex review, PR #42: PostgreSQL
+    would reject water_level_warning_cm at 22 chars, silently after the
+    water-level record for that station was already committed)."""
+    for param_code in (WATER_LEVEL_PARAM, WARNING_LEVEL_PARAM, ALARM_LEVEL_PARAM):
+        assert len(param_code) <= 20, param_code
+
+
 def test_normalize_returns_none_when_no_current_reading():
     station = {**STATION, "stan_wody": None}
     assert normalize(station, fetched_at=datetime.now(UTC)) is None

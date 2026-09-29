@@ -16,7 +16,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 WATER_LEVEL_PARAM = "water_level_cm"
-WARNING_LEVEL_PARAM = "water_level_warning_cm"
+WARNING_LEVEL_PARAM = "water_level_warn_cm"
 ALARM_LEVEL_PARAM = "water_level_alarm_cm"
 WATER_LEVEL_UNIT = "cm"
 # Not independently verified against a live cross-check with a known UTC offset
