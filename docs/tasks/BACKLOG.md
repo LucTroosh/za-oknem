@@ -90,7 +90,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       opisze je jako generyczne obiekty bez pól — bez typów żadna korzyść z
       generowanego klienta względem ręcznego rzutowania. Dodać
       `response_model` do tych endpointów w ramach tego tasku, przed
-      generowaniem klienta.
+      generowaniem klienta. **Uzupełnienie (Codex, runda 9):** `latest_hydro()`
+      (`apps/api/app/api/v1/hydro.py`) i `latest_alerts()`
+      (`apps/api/app/api/v1/alerts.py`) mają dokładnie ten sam brak
+      (`-> dict` bez `response_model`, potwierdzone w kodzie) i TASK-7.2
+      konsumuje je na mobile — dodać `response_model` też do tych dwóch
+      endpointów w ramach tego tasku, nie tylko do trzech wymienionych wyżej.
 
 ### Phase 3 — Data Architecture (dokończenie)
 
@@ -537,7 +542,19 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       z wyłączonym GPS nie ma jak w ogóle wybrać gminy. Zakres obejmuje
       więc dodanie przeszukiwalnego/paginowanego endpointu gmin (albo
       spakowanie zaimportowanego katalogu TERYT do klienta) — nie tylko
-      rozszerzenie UI selektora.
+      rozszerzenie UI selektora. **Uzupełnienie (Codex, runda 9) — aktywacja
+      pollingu dla nowo wybranej gminy:** TASK-6.2 punkt (4) wprowadza
+      rozróżnienie "gmina do geo-matchingu" (zawsze) vs. "gmina z aktywnym
+      pollingiem pogody" (tylko wybrane/obserwowane), ale żaden task —
+      ani punkt (4), ani ten task, ani TASK-12.3/12.5 — nie definiuje, co
+      faktycznie przełącza nowo wybraną przez użytkownika gminę z
+      nieaktywnej na aktywną, ani kiedy następuje pierwszy fetch. Bez tego
+      wybranie gminy spoza dotychczas obserwowanego zbioru zostawia ją
+      trwale `UNAVAILABLE` (scheduler nadal odpytuje tylko poprzedni,
+      aktywny zestaw). Zakres tego tasku obejmuje więc wywołanie
+      aktywacji gminy (np. wpis/flaga w `geo_areas` + trigger
+      natychmiastowego pierwszego fetchu, nie czekanie na kolejny cykl
+      3h) przy wyborze w tym selektorze.
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
@@ -713,6 +730,15 @@ placeholderze.
       zostaje wyłączone albo zastąpione — nie "wdrożone z udokumentowanym
       ryzykiem".
 - [ ] **TASK-15.1:** Środowisko staging (osobne od dev/produkcji) na VPS.
+      **Uzupełnienie (Codex, runda 9):** TASK-14.2 jawnie przenosi tu
+      acceptance criteria dla firewalla i Docker hardeningu z §64 Security
+      Baseline (nie da się ich zweryfikować przed istnieniem hosta) — ten
+      task musi więc faktycznie skonfigurować i zweryfikować firewall
+      (reguły ograniczające dostęp do portów bazy/Redis/admin wyłącznie do
+      zaufanych źródeł) oraz Docker security (non-root user w
+      kontenerach, brak zbędnych capabilities, read-only filesystem tam,
+      gdzie to możliwe) jako własne acceptance criteria, nie tylko
+      provisioning maszyny.
 - [ ] **TASK-15.2:** Środowisko produkcyjne + wdrożenie TASK-1.1 (backup
       poza VPS) i regularnego testu odtworzenia w praktyce (nie tylko kod
       skryptu — realny, zaplanowany przebieg testu). **Brakujący element
@@ -725,7 +751,12 @@ placeholderze.
       promocji przetestowanego artefaktu na produkcję. Zakres obejmuje
       więc jawnie dodanie workflow CD (`.github/workflows/cd.yml` lub
       podobny) + wpięcie credentiali/approval gate dla produkcji, nie
-      tylko provisioning maszyn.
+      tylko provisioning maszyn. **Uzupełnienie (Codex, runda 9):**
+      analogicznie do TASK-15.1, ten task dostaje jawne acceptance
+      criterion "osobne credentials produkcyjne" z §64/TASK-14.2 —
+      osobne dane dostępowe (DB, rclone remote, AGE_RECIPIENT/klucz
+      backupu) dla produkcji względem stagingu/dev, nie współdzielone
+      sekrety między środowiskami.
 - [ ] **TASK-15.3:** Monitoring produkcyjny (rozszerzenie TASK-13.2) na
       realnym środowisku.
 - [ ] **TASK-15.4:** Redis w produkcji (§45, §103 Release Candidate
