@@ -3,6 +3,7 @@
 Ten plik jest operacyjnym przewodnikiem dla Claude Code podczas pracy nad repozytorium.
 Pełna specyfikacja: `docs/architecture/Development-Master-Plan-v1.2.md` (source of truth).
 Rejestr źródeł danych: `docs/data/source-registry.md`. Decyzje: `docs/architecture/ADR-*.md`.
+Stan projektu (DONE/PARTIAL/BLOCKED/TODO vs Master Plan): `docs/ROADMAP.md`.
 
 ## Produkt (jedno zdanie)
 
@@ -65,6 +66,11 @@ acceptance criteria spełnione, testy i lint/typecheck przechodzą, dokumentacja
 brak scope creep, commit jest logiczny i mały.
 
 Git: feature branch → PR → main. `main` = production-ready. Nie omijaj hooków/testów.
+
+Po każdym zmergowanym PR aktualizuj `docs/ROADMAP.md` (punktowo — nowy status
+✅/🟡/⛔/⬜ tam gdzie coś się zmieniło, nowy wiersz w historii PR), nie tylko
+kod/testy/ADR. To jedyne miejsce, gdzie użytkownik śledzi postęp projektu
+na bieżąco.
 
 ## Czego NIE robić bez pytania
 
