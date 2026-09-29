@@ -102,10 +102,18 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       mówi ADR-005. Ograniczenie do 7 miast zostawiłoby TASK-12.3 (foreground
       location) bez możliwości rozpoznania użytkownika gdziekolwiek indziej
       w Polsce, co jest sprzeczne z celem MVP. Realny zakres TASK-6.1: (1)
-      pełny import gmin TERYT do `geo_areas` (kolumna TERYT + dane
-      geograficzne, np. z GUS/TERYT XML/CSV), (2) point-in-polygon lub
-      nearest-gmina matching dla dowolnych lat/lon, (3) `geo_area_id` jako
-      wspólny klucz dla Alert Engine (Phase 9) i Push (Phase 10, ADR-002).
+      pełny import gmin TERYT do `geo_areas` (kolumna TERYT + granice
+      administracyjne, np. z GUS/TERYT XML/CSV — potrzebujemy geometrii
+      gminy, nie tylko punktu), (2) **point-in-polygon jako jedyna metoda
+      dopasowania przynależności administracyjnej** (dowolne lat/lon →
+      gmina) — ADR-002 mówi wprost o "przynależności administracyjnej"
+      (point-in-polygon), nie o dystansie; "nearest-gmina" po odległości od
+      centroidu może przypisać użytkownika blisko nieregularnej granicy do
+      sąsiedniej gminy, co bezpośrednio psuje geo-matching alertów (Phase 9)
+      i targeting push (Phase 10) — nearest-distance zostaje tym, czym jest
+      dziś w ADR-006 (dopasowanie do najbliższej *stacji/punktu pomiarowego*,
+      nie do jednostki administracyjnej), (3) `geo_area_id` jako wspólny
+      klucz dla Alert Engine (Phase 9) i Push (Phase 10, ADR-002).
       Jeśli mimo to zdecydujesz na węższy zakres, wymaga to NAJPIERW rewizji
       ADR-005 i ADR-002 (rule #12 — nie wolno po cichu reinterpretować
       przyjętego ADR).
@@ -126,15 +134,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ekran mobile renderujący te dwa pola per sekcja (nie tylko nazwę
       stacji).
 - [ ] **TASK-7.2:** Dodać sekcje hydro (`/hydro/latest`) i alerty
-      (`/alerts/latest`) do dashboardu mobile — backend już gotowy, czysto
-      frontendowa robota.
-- [ ] **TASK-7.5:** Osobny ekran "Alerty" (mobile) — dziś alerty (o ile
-      TASK-7.2 je w ogóle doda) są co najwyżej sekcją dashboardu; potrzebny
-      dedykowany ekran z pełną listą, szczegółem alertu (treść źródłowa,
-      timestamp, źródło — rule #10: LLM nigdy nie jest źródłem prawdy dla
-      alertów, więc pokazujemy oryginalny tekst, nie streszczenie). Zależny
-      od TASK-9.5 (geo-matching), inaczej pokazujemy wszystko bez filtrowania
-      lokalizacją.
+      (`/alerts/latest`, niefiltrowane — TASK-9.7 poniżej dodaje osobny,
+      filtrowany ekran dopiero po Phase 9) do dashboardu mobile — backend
+      już gotowy, czysto frontendowa robota.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -171,6 +173,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-9.6:** Alert Engine (§47) — severity, deduplication, geo
       relevance, na bazie modeli `Alert`+`Event`+geo-matching z powyższych
       tasków. Duży task, prawdopodobnie do rozbicia na 2-3 mniejsze PR.
+- [ ] **TASK-9.7:** Osobny ekran "Alerty" (mobile) — przeniesiony tu z
+      Phase 7 (Codex: nie da się go zrobić wcześniej w kolejności, bo
+      zależy od TASK-9.5 wyżej). Dziś alerty (od TASK-7.2) są co najwyżej
+      niefiltrowaną sekcją dashboardu; potrzebny dedykowany ekran z pełną
+      listą, szczegółem alertu (treść źródłowa, timestamp, źródło — rule
+      #10: LLM nigdy nie jest źródłem prawdy dla alertów, więc pokazujemy
+      oryginalny tekst, nie streszczenie), i filtrowaniem po lokalizacji
+      (TASK-9.5).
 - [ ] Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
@@ -182,6 +192,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       blokady, bo to nie wymaga kluczy zewnętrznych.
 - [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
       Engine z Phase 9 i tokenów z TASK-10.1).
+- [ ] **TASK-10.3:** Preferencje powiadomień (mobile) — użytkownik wybiera,
+      jakie kategorie alertów/dla jakich lokalizacji dostaje push (§Phase 10
+      Master Planu: "notification preferences"). Bez tego TASK-10.2 wysyła
+      wszystko do wszystkich zarejestrowanych urządzeń, co narusza ideę
+      geo-relevance z Phase 9.
+- [ ] **TASK-10.4:** Deep links z powiadomienia do konkretnego
+      alertu/ekranu w appce (§Phase 10 Master Planu: "deep links"). Zależne
+      od TASK-9.7 (ekran Alerty, żeby było dokąd linkować).
 
 ### Phase 11 — Water / Hydrology (dokończenie)
 
@@ -193,6 +211,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       E. coli/enterokoki/sinice, daty badań.
 - [ ] **TASK-11.3:** "Zamknięcia kąpielisk" jako Alert/Event (zależne od
       TASK-11.2 + modeli z Phase 9).
+- [ ] **TASK-11.4:** `GET /api/v1/water/latest` — status kąpieliska,
+      przyczyna zamknięcia, sezon, wyniki badań, daty (Master Plan MVP:
+      `/api/v1/water`) — czyta wyłącznie z naszej bazy (rule #14). Bez tego
+      TASK-11.2/11.3 zbierają dane, których użytkownik nigdy nie zobaczy
+      poza samym faktem zamknięcia jako alertu.
+- [ ] **TASK-11.5:** Sekcja kąpielisk na mobile (status, badania, sezon) —
+      dopiero po TASK-11.4.
 
 ### Phase 12 — Settings / Profiles
 
@@ -240,16 +265,27 @@ placeholderze.
 
 ### Phase 16 — Store Preparation
 
+Master Plan §7/§16/§18 (source of truth): Android pierwszy release, **iOS
+równolegle od momentu closed testingu Androida** — to nie jest "iOS później
+jeśli będzie czas", tylko część zaplanowanej sekwencji. Poprzednia wersja
+tej sekcji pokrywała tylko Androida — poprawka niżej.
+
 - [ ] **TASK-16.1:** Konto Google Play Console (**BLOKADA: decyzja/konto
       od Ciebie** — rejestracja dewelopera to krok biznesowy/prawny, nie
       techniczny) + konfiguracja EAS build dla Androida.
 - [ ] **TASK-16.2:** Metadane, opis, ikony, screenshoty do listingu Google
       Play (zależne od TASK-16.1 i ukończonego UI).
+- [ ] **TASK-16.3:** Konto Apple Developer + App Store Connect (**BLOKADA:
+      decyzja/konto od Ciebie**, tak jak TASK-16.1) + konfiguracja EAS build
+      dla iOS. Start równolegle z TASK-16.1/17.1 na Androidzie (Android
+      closed testing), nie po zakończeniu Phase 18 dla Androida.
+- [ ] **TASK-16.4:** TestFlight — build iOS do closed testingu, metadane/
+      screenshoty do App Store (zależne od TASK-16.3 i ukończonego UI).
 
 ### Phase 17 — Testing
 
 - [ ] **TASK-17.1:** QA/E2E przejście przez kluczowe ścieżki (onboarding,
-      dashboard, alert, push) na realnym build EAS.
+      dashboard, alert, push) na realnym build EAS (Android + iOS/TestFlight).
 - [ ] **TASK-17.2:** Testy odporności — utrata sieci, źródło zwraca błąd/
       puste dane w trakcie działania appki (rule #1 w praktyce, nie tylko w
       testach jednostkowych connectorów).
@@ -258,6 +294,8 @@ placeholderze.
 
 - [ ] **TASK-18.1:** Publikacja w Google Play (zależne od Phase 14
       Security/Privacy + Phase 16 Store Prep + Phase 17 Testing).
+- [ ] **TASK-18.2:** Publikacja w App Store po zakończonym TestFlight
+      (zależne od TASK-16.3/16.4 + Phase 14 + Phase 17).
 
 ### Phase 19 — Operations
 
