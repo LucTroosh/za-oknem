@@ -29,9 +29,14 @@ export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:54
 export BACKUP_REMOTE="$REMOTE_DIR"
 export AGE_RECIPIENT
 
+# libpq (psql) rozumie tylko postgresql:// / postgres://, nie sufiks sterownika
+# SQLAlchemy (postgresql+psycopg://) — ten sam fix co w backup.sh/restore_test.sh
+# (Codex review: ten skrypt miał własne psql wywołania, które o tym zapomniały).
+PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+
 echo "[test] czekam na Postgres..."
 for _ in $(seq 1 20); do
-  psql --dbname="$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1 && break
+  psql --dbname="$PG_DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1 && break
   sleep 1
 done
 
@@ -47,6 +52,6 @@ export RESTORE_TEST_DB="za_oknem_selfcheck_restore_test"
 bash infrastructure/scripts/restore_test.sh
 
 echo "[test] sprzątam bazę testową..."
-psql --dbname="${DATABASE_URL%/*}/postgres" -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null
+psql --dbname="${PG_DATABASE_URL%/*}/postgres" -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};" >/dev/null
 
 echo "[test] PASS: pełny cykl backup -> restore_test przeszedł."

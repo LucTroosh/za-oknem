@@ -17,11 +17,24 @@ RESTORE_TEST_DB="${RESTORE_TEST_DB:-za_oknem_restore_test}"
 # sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example (Codex review).
 PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
 
+# Query string (np. ?sslmode=verify-full) musi przetrwać zamianę nazwy bazy —
+# inaczej test odtworzenia łączy się bez wymaganych parametrów (np. bez
+# weryfikacji certyfikatu), a naiwne "##*/" zostawiłoby ją przyklejoną do nazwy
+# bazy z DATABASE_URL, psując poniższy guard (Codex review).
+QUERY=""
+PG_DATABASE_URL_NO_QUERY="$PG_DATABASE_URL"
+case "$PG_DATABASE_URL" in
+  *\?*)
+    QUERY="?${PG_DATABASE_URL#*\?}"
+    PG_DATABASE_URL_NO_QUERY="${PG_DATABASE_URL%%\?*}"
+    ;;
+esac
+
 # Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
 # nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
-BASE_URL="${PG_DATABASE_URL%/*}"
-PROD_DB_NAME="${PG_DATABASE_URL##*/}"
-TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}"
+BASE_URL="${PG_DATABASE_URL_NO_QUERY%/*}"
+PROD_DB_NAME="${PG_DATABASE_URL_NO_QUERY##*/}"
+TEST_URL="${BASE_URL}/${RESTORE_TEST_DB}${QUERY}"
 
 # Guard przed DROP DATABASE na czymś realnym: wymuszamy sufiks _restore_test i
 # odrzucamy, gdyby RESTORE_TEST_DB przez pomyłkę wskazywało bazę z DATABASE_URL
@@ -78,8 +91,8 @@ fi
 # Baza testowa: te same host/user/hasło co DATABASE_URL, inna nazwa bazy —
 # nigdy nie nadpisujemy bazy produkcyjnej (Security w TASK-1.1.md).
 echo "[restore_test] (re)tworzę bazę $RESTORE_TEST_DB..."
-psql --dbname="$BASE_URL/postgres" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};"
-psql --dbname="$BASE_URL/postgres" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
+psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS ${RESTORE_TEST_DB};"
+psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
 
 echo "[restore_test] pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
 pg_restore --dbname="$TEST_URL" --no-owner --no-privileges "$WORKDIR/$LATEST_DUMP"
