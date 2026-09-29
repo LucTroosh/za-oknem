@@ -30,7 +30,7 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
 - `docs/data/source-registry.md`: udokumentowane pola progów (zweryfikowane
   na żywo, w tym przypadek `null` dla stacji bez progu, np. jeziora).
 
-## Historia przeglądu (Codex, PR #42 — 5 rund)
+## Historia przeglądu (Codex, PR #42 — 6 rund, 5 z uwagami + 1 czysta)
 
 1. **P1:** `water_level_warning_cm` (22 znaki) przekraczał `VARCHAR(20)`
    kolumny `param_code` — PostgreSQL odrzuciłby każdy rekord progu ostrzegawczego
@@ -66,6 +66,7 @@ Measurement wobec dwóch innych, opublikowanych przez to samo źródło.
    wszystkie zapisane progi. → rozróżniono `raw_key not in station`
    (rzuca `ImgwHydroParseError`, izoluje tylko tę stację — rule #1) od
    klucza obecnego z `null` (prawdziwe wycofanie, usuwa wiersz).
+6. **Runda 6 (commit `bebe49e`):** czysta — "Didn't find any major issues."
 
 ## Acceptance Criteria
 
