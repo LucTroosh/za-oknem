@@ -52,15 +52,33 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 1 — Infra (dokończenie)
 
-- [ ] **TASK-1.1:** Backup PostgreSQL (VPS, Docker) — `pg_dump` cykliczny
-      (cron w kontenerze lub na hoście), **przechowywany POZA VPS** (§68
-      Master Planu — lokalna kopia na tym samym serwerze nie liczy się jako
+- [ ] **TASK-1.1:** Backup — §68 Master Planu definiuje zakres jako
+      PostgreSQL + **konfigurację** + kluczowe dane, nie tylko bazę
+      (poprzednia wersja tego tasku pokrywała wyłącznie PostgreSQL). `pg_dump`
+      cykliczny dla bazy + kopia plików konfiguracyjnych (`.env`-szablony bez
+      sekretów, `docker-compose.yml`, konfiguracja Caddy) — **przechowywane
+      POZA VPS** (lokalna kopia na tym samym serwerze nie liczy się jako
       backup, bo utrata VPS niszczy oba egzemplarze naraz; np. wysyłka do
       S3-kompatybilnego storage lub innego hosta), retencja, oraz
       **regularny automatyczny test odtworzenia** (nie tylko udokumentowana
       procedura — §68: "sam backup bez testu odtworzenia nie jest
       wystarczający"). Priorytet przed jakimkolwiek wdrożeniem
       produkcyjnym, nawet jeśli reszta MVP jeszcze nie gotowa.
+
+### Phase 3 — Data Architecture (dokończenie)
+
+- [ ] **TASK-3.1:** Raw ingestion / provenance (§33-34 Master Planu) — dziś
+      connectory zapisują tylko znormalizowane rekordy (`Measurement`/
+      `WeatherSnapshot`/`Forecast`), nie ma modelu `source_fetches` ani
+      przechowania surowego payloadu (potwierdzone: brak `source_fetch`/
+      `raw_payload` w kodzie). Bez tego nie da się odpowiedzieć na pytanie
+      "co dokładnie zwróciło źródło w momencie zapisu tej wartości?" (§33) —
+      istotne przy sporze o poprawność danych czy debugowaniu zmiany kształtu
+      API źródła. Zakres: model `source_fetches` (źródło, endpoint, surowy
+      payload, timestamp pobrania) + migracja + integracja z każdym
+      connectorem (zapis raw payloadu obok normalize) + polityka retencji
+      (§33: 7-30 dni, zależnie od źródła). Wymaga ADR (nowy typ
+      danych/tabeli w modelu, rule #12).
 
 ### Phase 4 — Air (dokończenie)
 
@@ -132,11 +150,23 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Open-Meteo.com (CC BY 4.0)", "Dane: Główny Inspektorat Ochrony
       Środowiska (GIOŚ)") w obu blokach (`air`, `weather`), potem dopiero
       ekran mobile renderujący te dwa pola per sekcja (nie tylko nazwę
-      stacji).
+      stacji). **Wzorzec obowiązuje dla każdej kolejnej sekcji danych** —
+      TASK-7.2 (IMGW hydro/alerty), TASK-8.8 (CAMS pyłki), TASK-11.5
+      (kąpieliska/Sanepid) muszą dodać `source`+`attribution` do swoich
+      bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
+      już wymaga widocznej atrybucji IMGW i Copernicus, więc to nie jest
+      opcjonalne rozszerzenie.
 - [ ] **TASK-7.2:** Dodać sekcje hydro (`/hydro/latest`) i alerty
       (`/alerts/latest`, niefiltrowane — TASK-9.7 poniżej dodaje osobny,
       filtrowany ekran dopiero po Phase 9) do dashboardu mobile — backend
-      już gotowy, czysto frontendowa robota.
+      już gotowy, czysto frontendowa robota. Wzorzec `source`/`attribution`
+      z TASK-7.1 (IMGW) dotyczy też tych sekcji.
+- [ ] **TASK-7.9:** Dodać `pollen` i `water` do `dashboard_latest()` (§55
+      Master Planu: pollen/water to część głównego agregatu, nie tylko
+      osobne endpointy — inaczej mobile musiałby robić dodatkowe requesty,
+      czego §55 chce uniknąć). Zależne od TASK-8.7 (pollen endpoint/dane) i
+      TASK-11.4 (water endpoint/dane); analogicznie do TASK-7.7 dla
+      `outdoor` — sam endpoint/model nie aktualizuje automatycznie agregatu.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -173,6 +203,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
       użytkownikowi mimo działającego backendu. Profil alergika (który
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
+      Wzorzec `source`/`attribution` z TASK-7.1 (Copernicus) dotyczy też tej
+      karty.
 
 ### Phase 9 — Alerts (dokończenie)
 
@@ -228,7 +260,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       TASK-11.2/11.3 zbierają dane, których użytkownik nigdy nie zobaczy
       poza samym faktem zamknięcia jako alertu.
 - [ ] **TASK-11.5:** Sekcja kąpielisk na mobile (status, badania, sezon) —
-      dopiero po TASK-11.4.
+      dopiero po TASK-11.4. Wzorzec `source`/`attribution` z TASK-7.1
+      (Sanepid/GIS) dotyczy też tej sekcji.
 
 ### Phase 12 — Settings / Profiles
 
@@ -267,12 +300,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `app_open`, `location_selected`, `dashboard_view`, `alert_open`,
       `notification_open`, `settings_open` — nic ponad to (§70: "nie
       zbieramy więcej danych niż potrzebujemy"). Zależne od decyzji
-      narzędzia (self-hosted vs. zewnętrzne — wpływa na Privacy Policy w
-      TASK-14.1).
-- [ ] **TASK-13.4:** Przegląd operacyjny analytics/monitoringu pod kątem
-      prywatności (czy zebrane eventy/metryki faktycznie odpowiadają temu,
-      co jest zadeklarowane w Privacy Policy z TASK-14.1) — krótki, ale
-      wymagany przed release (§71 RODO).
+      narzędzia (self-hosted vs. zewnętrzne — inwentaryzacja co zbieramy
+      trafia jako wejście do TASK-14.1's Privacy Policy).
 
 ### Phase 14 — Security / Privacy
 
@@ -280,6 +309,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Safety / App Privacy — w dużej mierze praca dokumentacyjna/prawna,
       nie kod; część do zrobienia razem z Tobą (deklaracje sklepowe wymagają
       decyzji biznesowych, nie tylko technicznych).
+- [ ] **TASK-14.2:** Przegląd zgodności analytics/monitoringu z gotową
+      Privacy Policy (czy eventy z TASK-13.3 i metryki z TASK-13.2 faktycznie
+      odpowiadają temu, co deklaruje Privacy Policy z TASK-14.1) —
+      **przeniesione tu z Phase 13** (Codex: poprzednia wersja umieszczała
+      tę weryfikację przed taskiem, od którego zależy — w sekwencyjnej
+      kolejce zablokowałaby się na nieistniejącej jeszcze polityce). Krótki,
+      ale wymagany przed release (§71 RODO).
 
 ### Phase 15 — Production Infrastructure
 
@@ -294,6 +330,13 @@ placeholderze.
       skryptu — realny, zaplanowany przebieg testu).
 - [ ] **TASK-15.3:** Monitoring produkcyjny (rozszerzenie TASK-13.2) na
       realnym środowisku.
+- [ ] **TASK-15.4:** Release rollback readiness (§104 Master Planu) —
+      możliwość wyłączenia pojedynczego connectora/kategorii alertów,
+      zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**
+      (§104: "nie powinno być konieczności przebudowy całej aplikacji w
+      przypadku awarii jednego źródła"). Bez tego pierwszy publiczny release
+      nie ma bezpiecznej ścieżki wycofania złego deploya — musi być gotowe
+      przed TASK-18.1/18.2, nie po.
 
 ### Phase 16 — Store Preparation
 
@@ -331,11 +374,21 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
 - [ ] **TASK-17.2:** Testy odporności — utrata sieci, źródło zwraca błąd/
       puste dane w trakcie działania appki (rule #1 w praktyce, nie tylko w
       testach jednostkowych connectorów).
+- [ ] **TASK-17.3:** Google Play closed testing (§88-89 Master Planu) —
+      konto Personal (decyzja v1.2) wymaga **min. 12 testerów przez min. 14
+      kolejnych dni** przed dostępem do produkcji. Zakres: upload builda na
+      closed/internal track, rekrutacja ≥12 testerów (może wymagać Twojej
+      pomocy — sieć znajomych/beta testerów), **odczekanie 14 dni** zanim
+      TASK-18.1 w ogóle będzie możliwe. To realny czas kalendarzowy, nie coś
+      do przyspieszenia pracą — warto uruchomić ten track jak najwcześniej
+      równolegle z TASK-17.1/17.2, nie czekać aż wszystko inne będzie gotowe.
 
 ### Phase 18 — Public Release
 
 - [ ] **TASK-18.1:** Publikacja w Google Play (zależne od Phase 14
-      Security/Privacy + Phase 16 Store Prep + Phase 17 Testing).
+      Security/Privacy + Phase 16 Store Prep + Phase 17 Testing, **w tym
+      ukończonego 14-dniowego closed testu z TASK-17.3** — bez tego Google
+      Play nie da dostępu do produkcji niezależnie od stanu reszty MVP).
 - [ ] **TASK-18.2:** Publikacja w App Store po zakończonym TestFlight
       (zależne od TASK-16.3/16.4 + Phase 14 + Phase 17).
 
