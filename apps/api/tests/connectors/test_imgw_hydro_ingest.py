@@ -22,15 +22,23 @@ STATION = {
 def test_ingest_station_stores_new_reading(db_session):
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is True
+    assert stored == 1
     assert db_session.query(Measurement).count() == 1
+
+
+def test_ingest_station_stores_thresholds_too(db_session):
+    station = {**STATION, "stan_ostrzegawczy": "300", "stan_alarmowy": "340"}
+    stored = ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+
+    assert stored == 3
+    assert db_session.query(Measurement).count() == 3
 
 
 def test_ingest_station_skips_duplicate(db_session):
     ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
     stored_again = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored_again is False
+    assert stored_again == 0
     assert db_session.query(Measurement).count() == 1
 
 
@@ -38,7 +46,7 @@ def test_ingest_station_skips_when_no_current_reading(db_session):
     station = {**STATION, "stan_wody": None}
     stored = ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 
@@ -48,7 +56,7 @@ def test_ingest_station_isolates_parse_failure(db_session, monkeypatch):
     )
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 

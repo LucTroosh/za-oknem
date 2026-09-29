@@ -122,6 +122,16 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `GET /api/v1/hydro/latest` gotowe 2026-09-29; kształt payloadu zweryfikowany
   live, pierwsza faktyczna weryfikacja cyklu odświeżania nastąpi przy pierwszym
   realnym uruchomieniu ingestu)
+- **progi ostrzegawcze/alarmowe (`stan_ostrzegawczy`/`stan_alarmowy`):**
+  zweryfikowane na żywo 2026-09-29 w tym samym payloadzie co `stan_wody` —
+  publikowane wprost przez IMGW per stacja, wartości liczbowe jako string, jak
+  `stan_wody`. Mogą być `null` dla stacji bez zdefiniowanego progu (potwierdzone
+  na żywo, np. stacje na jeziorach: "Żukowo", "Borucino") — to nie błąd, tylko
+  brak progu dla tej stacji. `normalize()` emituje je jako osobne rekordy
+  Measurement (`water_level_warning_cm`/`water_level_alarm_cm`), status
+  NORMAL/WARNING/ALARM/UNKNOWN liczony deterministycznie przy odczycie w
+  `GET /api/v1/hydro/latest` — prosta komparacja liczb opublikowanych przez
+  źródło, nie interpretacja LLM (rule #10)
 - **last_verified_at:** 2026-09-29
 
 ## imgw_warningshydro (ostrzeżenia hydrologiczne — Alert)

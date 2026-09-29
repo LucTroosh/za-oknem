@@ -19,39 +19,45 @@ from app.models import Measurement
 logger = logging.getLogger(__name__)
 
 
-def ingest_station(station: dict, db, *, fetched_at: datetime) -> bool:
-    """Returns True if a new reading was stored. One station's bad record must not
-    abort the run for the rest (rule #1)."""
+def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
+    """Returns the number of new records stored for this station (0-3: water
+    level, plus warning/alarm thresholds when defined). One station's bad record
+    must not abort the run for the rest (rule #1)."""
     try:
-        record = normalize(station, fetched_at=fetched_at)
+        records = normalize(station, fetched_at=fetched_at)
     except ImgwHydroParseError as exc:
         sid = station.get("id_stacji")
         logger.warning("station %s: FAILED (%s), skipping - see rule #1", sid, exc)
-        return False
-    if record is None:
-        return False  # no current reading for this station - not an error
+        return 0
+    if records is None:
+        return 0  # no current reading for this station - not an error
 
-    exists = (
-        db.query(Measurement)
-        .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
-        .first()
-    )
-    if exists:
-        return False
+    stored = 0
+    for record in records:
+        exists = (
+            db.query(Measurement)
+            .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
+            .first()
+        )
+        if exists:
+            continue
+        db.add(Measurement(**record))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()  # race with another ingest run - fine, reading exists now
+            continue
+        stored += 1
 
-    db.add(Measurement(**record))
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()  # race with another ingest run - fine, reading exists now
-        return False
-    logger.info(
-        "station %s (%s): stan_wody = %s cm",
-        record["station_id"],
-        record["station_name"],
-        record["value"],
-    )
-    return True
+    if stored:
+        logger.info(
+            "station %s (%s): stored %s reading(s), stan_wody = %s cm",
+            records[0]["station_id"],
+            records[0]["station_name"],
+            stored,
+            records[0]["value"],
+        )
+    return stored
 
 
 def main() -> None:

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
-from app.api.v1.hydro import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
+from app.api.v1.hydro import FRESH_MAX_AGE, RECENT_MAX_AGE, compute_status, freshness
 from app.db import get_db
 from app.main import app
 from app.models import Measurement
@@ -78,6 +78,8 @@ def test_latest_hydro_returns_empty_list_when_no_rows():
 
 
 def test_latest_hydro_shapes_response_from_rows():
+    """No threshold rows for this station - status is UNKNOWN, not NORMAL,
+    because we have no published threshold to compare against (rule #10)."""
     row = _reading(observed_at=datetime.now(UTC))
     client = _client_with_rows([row])
 
@@ -91,6 +93,9 @@ def test_latest_hydro_shapes_response_from_rows():
                 "latitude": 51.5253,
                 "longitude": 14.8217,
                 "water_level_cm": 225.0,
+                "warning_level_cm": None,
+                "alarm_level_cm": None,
+                "status": "UNKNOWN",
                 "unit": "cm",
                 "observed_at": row.observed_at.isoformat(),
                 "freshness": "FRESH",
@@ -98,3 +103,47 @@ def test_latest_hydro_shapes_response_from_rows():
             }
         ]
     }
+
+
+def test_latest_hydro_includes_thresholds_and_status():
+    observed_at = datetime.now(UTC)
+    rows = [
+        _reading(observed_at=observed_at, param_code="water_level_warning_cm", value=300.0),
+        _reading(observed_at=observed_at, param_code="water_level_alarm_cm", value=340.0),
+        _reading(observed_at=observed_at, value=225.0),
+    ]
+    client = _client_with_rows(rows)
+
+    body = client.get("/api/v1/hydro/latest").json()
+
+    station = body["stations"][0]
+    assert station["warning_level_cm"] == 300.0
+    assert station["alarm_level_cm"] == 340.0
+    assert station["status"] == "NORMAL"
+
+
+def test_latest_hydro_ignores_threshold_only_station():
+    """A station with thresholds stored but no current water-level reading must
+    not appear (matches the pre-existing "no reading = not shown" behaviour)."""
+    row = _reading(param_code="water_level_warning_cm", value=300.0)
+    client = _client_with_rows([row])
+
+    body = client.get("/api/v1/hydro/latest").json()
+
+    assert body == {"stations": []}
+
+
+def test_compute_status_normal_below_warning():
+    assert compute_status(100.0, warning=300.0, alarm=340.0) == "NORMAL"
+
+
+def test_compute_status_warning_at_threshold():
+    assert compute_status(300.0, warning=300.0, alarm=340.0) == "WARNING"
+
+
+def test_compute_status_alarm_at_threshold():
+    assert compute_status(340.0, warning=300.0, alarm=340.0) == "ALARM"
+
+
+def test_compute_status_unknown_without_thresholds():
+    assert compute_status(225.0, warning=None, alarm=None) == "UNKNOWN"
