@@ -20,11 +20,7 @@ BASE_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 # Fields for "current conditions" — matches WeatherSnapshot.param_code values.
-# Master Plan §5 MVP scope. Three MVP fields (dew point, visibility, UV index)
-# are deliberately NOT here: Open-Meteo's docs only list them under `hourly`,
-# not `current` - fetching them needs a different request/response shape
-# (picking the matching hour), which is its own follow-up task, not a one-line
-# addition to this list.
+# Master Plan §5 MVP scope.
 CURRENT_PARAMS = (
     "temperature_2m,relative_humidity_2m,apparent_temperature,pressure_msl,"
     "cloud_cover,precipitation,rain,snowfall,wind_speed_10m,wind_direction_10m,"
@@ -34,6 +30,11 @@ CURRENT_PARAMS = (
 # Daily forecast fields (ADR-010, Master Plan §30). Deliberately narrow MVP set,
 # not Open-Meteo's full daily catalog (YAGNI, same spirit as CURRENT_PARAMS).
 DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
+
+# Last three §5 MVP fields (dew point, visibility, UV index): Open-Meteo's docs
+# only list them under `hourly`, not `current` (TASK-5.4) - parser.py picks the
+# entry matching current's hour out of this array instead of a second request.
+HOURLY_PARAMS = "dew_point_2m,visibility,uv_index"
 
 
 class OpenMeteoApiError(Exception):
@@ -62,6 +63,7 @@ def fetch_weather(
         "latitude": latitude,
         "longitude": longitude,
         "current": CURRENT_PARAMS,
+        "hourly": HOURLY_PARAMS,
         "daily": DAILY_PARAMS,
         "timezone": "UTC",
     }

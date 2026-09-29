@@ -121,8 +121,18 @@ def test_latest_weather_groups_params_by_geo_area():
                 "observed_at": now.isoformat(),
                 "freshness": "FRESH",
                 "params": {
-                    "temperature_2m": {"value": 12.3, "unit": "°C"},
-                    "wind_speed_10m": {"value": 5.2, "unit": "km/h"},
+                    "temperature_2m": {
+                        "value": 12.3,
+                        "unit": "°C",
+                        "observed_at": now.isoformat(),
+                        "freshness": "FRESH",
+                    },
+                    "wind_speed_10m": {
+                        "value": 5.2,
+                        "unit": "km/h",
+                        "observed_at": now.isoformat(),
+                        "freshness": "FRESH",
+                    },
                 },
                 "source": "open_meteo",
             }
@@ -137,6 +147,30 @@ def test_latest_weather_marks_old_reading_stale():
     body = client.get("/api/v1/weather/latest").json()
 
     assert body["areas"][0]["freshness"] == "STALE"
+
+
+def test_latest_weather_reports_per_param_freshness_independently(monkeypatch):
+    # Codex review: a fresh `current` param and a stale hourly-derived one (TASK-5.4)
+    # must not both be reported as FRESH just because the object-level `freshness`
+    # takes the max observed_at across params - each param needs its own status.
+    fresh_row = _snapshot(
+        param_code="temperature_2m", observed_at=datetime.now(UTC), source_record_id="fresh"
+    )
+    stale_row = _snapshot(
+        param_code="uv_index",
+        observed_at=datetime.now(UTC) - timedelta(hours=10),
+        source_record_id="stale",
+    )
+    client = _client([fresh_row, stale_row], [_area()])
+
+    body = client.get("/api/v1/weather/latest").json()
+
+    params = body["areas"][0]["params"]
+    assert params["temperature_2m"]["freshness"] == "FRESH"
+    assert params["uv_index"]["freshness"] == "STALE"
+    # Object-level freshness is a rough "most recent of any param" summary, not
+    # authoritative per param - documented as such, not removed.
+    assert body["areas"][0]["freshness"] == "FRESH"
 
 
 def test_latest_weather_skips_snapshot_for_deleted_geo_area():
@@ -166,9 +200,7 @@ def test_latest_weather_handles_multiple_areas():
 
 def _forecast(**overrides) -> Forecast:
     now = datetime.now(UTC)
-    valid_from = overrides.get(
-        "valid_from", now.replace(hour=0, minute=0, second=0, microsecond=0)
-    )
+    valid_from = overrides.get("valid_from", now.replace(hour=0, minute=0, second=0, microsecond=0))
     defaults = {
         "source_id": "open_meteo",
         "source_record_id": "rec-1",
