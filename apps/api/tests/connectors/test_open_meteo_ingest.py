@@ -143,6 +143,30 @@ def test_ingest_geo_area_stores_current_even_when_daily_block_is_broken(db_sessi
     assert db_session.query(Forecast).count() == 0
 
 
+def test_ingest_geo_area_commits_forecast_batch_atomically(db_session, monkeypatch):
+    """Codex finding on PR #46: forecast rows for all days/params of one fetch
+    must land in a single commit, not one commit per row - otherwise an
+    interruption mid-batch could leave /weather/forecast combining one day's
+    fresh reference_time with another's stale one."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+    commit_calls = []
+    real_commit = db_session.commit
+
+    def _counting_commit():
+        commit_calls.append(1)
+        real_commit()
+
+    monkeypatch.setattr(db_session, "commit", _counting_commit)
+
+    ingest.ingest_geo_area(area, db_session)
+
+    # 1 commit for the forecast batch + PARAM_COUNT commits for current-weather
+    # snapshots (those stay one-per-row, per Codex's explicit request).
+    assert len(commit_calls) == PARAM_COUNT + 1
+    assert db_session.query(Forecast).count() == FORECAST_COUNT
+
+
 def test_ingest_geo_area_fetched_at_is_recent(db_session, monkeypatch):
     area = _make_area(db_session)
     monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))

@@ -173,6 +173,49 @@ def test_normalize_forecast_raises_on_non_list_daily_time():
         normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
 
 
+def test_normalize_forecast_raises_on_non_list_daily_param_value():
+    """A malformed response with a string instead of an array for a daily param
+    (e.g. "18.5" for a single day) would otherwise index into the string's
+    characters instead of raising - must be rejected as a shape error."""
+    bad = {
+        "daily": {
+            "time": ["2026-09-28"],
+            "temperature_2m_max": "18.5",
+            "temperature_2m_min": [9.2],
+            "precipitation_sum": [0.0],
+            "weather_code": [1],
+        },
+        "daily_units": {
+            "temperature_2m_max": "°C",
+            "temperature_2m_min": "°C",
+            "precipitation_sum": "mm",
+            "weather_code": "wmo code",
+        },
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_daily_param_length_mismatch():
+    bad = {
+        "daily": {
+            "time": ["2026-09-28", "2026-09-29"],
+            "temperature_2m_max": [18.5],  # only 1 value for 2 days
+            "temperature_2m_min": [9.2, 8.7],
+            "precipitation_sum": [0.0, 1.2],
+            "weather_code": [1, 61],
+        },
+        "daily_units": {
+            "temperature_2m_max": "°C",
+            "temperature_2m_min": "°C",
+            "precipitation_sum": "mm",
+            "weather_code": "wmo code",
+        },
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
 def test_normalize_forecast_does_not_fail_when_current_block_is_absent():
     """normalize_forecast() only needs `daily`/`daily_units` - a payload that has
     a broken `current` block but a valid `daily` block must still parse

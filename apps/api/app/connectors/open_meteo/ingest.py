@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def _store_if_new(model_cls: type, record: dict, db) -> int:
-    """Shared insert-if-new for both WeatherSnapshot and Forecast rows - both are
-    append-only, deduped by (source_id, source_record_id)."""
+    """Insert-if-new for WeatherSnapshot rows - each param commits on its own,
+    deduped by (source_id, source_record_id)."""
     exists = (
         db.query(model_cls)
         .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
@@ -41,6 +41,32 @@ def _store_if_new(model_cls: type, record: dict, db) -> int:
         db.rollback()  # race with another ingest run — fine, row exists now
         return 0
     return 1
+
+
+def _store_forecast_batch(records: list[dict], db) -> int:
+    """Insert all-or-nothing for one geo_area's forecast rows, in a single commit
+    - unlike _store_if_new's per-record commits, a forecast batch spans several
+    days/params that /weather/forecast presents together (grouped by day), so a
+    partial commit (interrupted run, mid-batch DB error) would let that endpoint
+    silently mix one day's new reference_time with another's stale one."""
+    new_records = []
+    for r in records:
+        exists = (
+            db.query(Forecast)
+            .filter_by(source_id=r["source_id"], source_record_id=r["source_record_id"])
+            .first()
+        )
+        if not exists:
+            new_records.append(Forecast(**r))
+    if not new_records:
+        return 0
+    db.add_all(new_records)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run — next scheduled cycle retries
+        return 0
+    return len(new_records)
 
 
 def ingest_geo_area(area: GeoArea, db) -> int:
@@ -70,7 +96,7 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     except OpenMeteoParseError as exc:
         logger.warning("geo_area %s: forecast FAILED (%s)", area.slug, exc)
         forecasts = []
-    stored += sum(_store_if_new(Forecast, r, db) for r in forecasts)
+    stored += _store_forecast_batch(forecasts, db)
 
     logger.info(
         "geo_area %s (%s): stored %s new row(s) (%s current + %s forecast)",
