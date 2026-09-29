@@ -21,10 +21,15 @@ def parse_warnings(payload: Any) -> list[dict[str, Any]]:
     """Accepts either a list of warnings, or the known "no active warnings"
     message-dict shape (confirmed live for the sibling warningsmeteo endpoint,
     not independently confirmed for this one - ADR-009 handles both rather than
-    guessing which applies here). Anything else is an unrecognized shape -
-    fail loud (rule #10), don't guess."""
+    guessing which applies here). The exact wording isn't confirmed for THIS
+    endpoint, so this only enforces the one thing that is verified - a single
+    "message" key with a string value - and rejects anything with extra fields
+    (a diagnostic/rate-limit response, say) rather than silently reading it as
+    a confirmed empty snapshot (rule #10; same gap Codex review caught on the
+    sibling warningsmeteo connector, PR #38). Any other shape - fail loud,
+    don't guess."""
     if isinstance(payload, dict):
-        if "message" in payload:
+        if set(payload.keys()) == {"message"} and isinstance(payload["message"], str):
             return []
         raise ImgwWarningsHydroParseError(f"unrecognized dict shape: {payload!r}")
     if isinstance(payload, list):
