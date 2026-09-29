@@ -7,7 +7,12 @@ jest przemyślana sekwencja zależności (np. Geo Engine przed geo-relevance
 alertów), nie coś wymyślonego na nowo tutaj. W obrębie fazy: najpierw to, co
 odblokowuje kolejne fazy i nie ma zewnętrznych zależności poza naszą kontrolą.
 
-Status faz 0-4 (Foundation → pierwszy vertical slice): ✅ DONE, patrz ROADMAP.md.
+Status faz 0-4: **częściowo.** Vertical slice (GIOŚ PM2.5 → DB → API → mobile)
+i szkielet infra (Docker/Caddy/CI, bez PostGIS/Redis/workerów/monitoringu/backupu
+— patrz sekcja "Świadomie NIE w tej kolejce" niżej, to nie jest to samo co
+"zrobione") są gotowe, patrz ROADMAP.md. Faza 4 (Air) ma jednak dziury —
+patrz nowa sekcja "Phase 4 — Air (dokończenie)" poniżej: tylko PM2.5 jest
+faktycznie zaciągane, reszta parametrów GIOŚ i indeks jakości powietrza — nie.
 
 Ten plik żyje obok `ROADMAP.md` (stan faktyczny) i `source-registry.md` (źródła):
 BACKLOG = co i w jakiej kolejności, ROADMAP = co już jest zrobione.
@@ -45,6 +50,29 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ## Kolejka
 
+### Phase 1 — Infra (dokończenie)
+
+- [ ] **TASK-1.1:** Backup PostgreSQL (VPS, Docker) — `pg_dump` cykliczny
+      (cron w kontenerze lub na hoście) + rotacja + udokumentowana procedura
+      przywracania. Brak dziś (patrz sekcja "Świadomie NIE w tej kolejce" —
+      to jedyny punkt tam, który nie jest świadomym YAGNI, tylko realną
+      luką). Priorytet przed jakimkolwiek wdrożeniem produkcyjnym, nawet
+      jeśli reszta MVP jeszcze nie gotowa.
+
+### Phase 4 — Air (dokończenie)
+
+- [ ] **TASK-4.1:** Pełny zestaw parametrów GIOŚ — dziś connector `gios`
+      zaciąga wyłącznie PM2.5 (świadomy zakres vertical slice, §108 Master
+      Planu). Rozszerzyć `parser.py`/`ingest.py` o PM10, NO2, SO2, O3, CO,
+      C6H6 (te same sensory API GIOŚ, ten sam kontrakt fetch/parse/validate/
+      normalize — rozszerzenie istniejącego connectora, nie nowy).
+- [ ] **TASK-4.2:** Indeks jakości powietrza (AQI/CAQI wg metodologii GIOŚ) —
+      zależny od TASK-4.1 (part potrzebuje >1 parametru). Do ustalenia: czy
+      liczymy indeks sami wg opublikowanej metodologii GIOŚ, czy GIOŚ
+      publikuje gotowy indeks per stacja do odczytania wprost (rule #10:
+      jeśli liczymy sami, to nie jest to LLM ani zgadywanie — jawny,
+      testowalny algorytm).
+
 ### Phase 5 — Weather (dokończenie)
 
 - [ ] **TASK-5.3:** Forecast (§30 Master Planu) — nowy model `Forecast`
@@ -53,28 +81,55 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `open_meteo` connectora o zapytanie `hourly`/`daily` obok `current`,
       `GET /api/v1/weather/forecast`. Wymaga ADR-010 (nowy typ danych w
       modelu, precedens: ADR-008 dla Measurement, ADR-009 dla Alert).
+- [ ] **TASK-5.4:** Rozszerzyć `current`/`daily` o dew point, visibility, UV
+      index — Open-Meteo je udostępnia w tym samym zapytaniu (`dew_point_2m`,
+      `visibility`, `uv_index`/`uv_index_max`), brak dodatkowego round-tripu.
+      Rozszerzenie `PARAM_CODES`/`FORECAST_PARAM_CODES` w connectorze, bez
+      zmiany modelu (te same tabele `WeatherSnapshot`/`Forecast`).
 
 ### Phase 6 — Geo Engine
 
-- [ ] **TASK-6.1:** TERYT-based geo model (§26-27) — decyzja: pełny TERYT
-      teraz czy rozszerzenie obecnej nearest-station/statycznej listy
-      (ADR-006) o proste dopasowanie województwa dla potrzeb Phase 9
-      (geo-relevance alertów)? Rekomendacja: zacząć od najmniejszego
-      rozszerzenia, które odblokowuje Phase 9 (mapowanie
-      lokalizacja→województwo dla 7 zaseedowanych miast, bez pełnego TERYT),
-      pełny Geo Engine dopiero gdy realnie potrzebny (YAGNI, zgodnie z
-      ADR-006's dotychczasową filozofią). Wymaga ADR-011 jeśli rozszerzamy
-      poza obecny zakres ADR-006.
+- [ ] **TASK-6.1:** TERYT-based geo model (§26-27). **Korekta względem
+      wcześniejszej wersji tego tasku:** województwo-level skrót NIE
+      wystarczy — ADR-002 (push, Option C) już wymaga, żeby
+      `observed_area_code` wysyłany do `POST /api/v1/devices` był realnym
+      kodem TERYT gminy/powiatu, a `geo_areas` miało pole TERYT (§26/§28), bo
+      Alert Engine (Phase 9) i Push (Phase 10) dopasowują po `geo_area_id`
+      zamapowanym z TERYT, nie po surowym GPS ani województwie. Skrót
+      województwowy złamałby to dla Phase 10, więc: albo (a) robimy tu od
+      razu prawdziwe mapowanie TERYT gmina/powiat dla 7 zaseedowanych miast
+      (najmniejszy zakres, który faktycznie spełnia ADR-002 — nie pełny
+      Geo Engine ze wszystkimi gminami w Polsce, YAGNI dalej obowiązuje co do
+      *zasięgu* danych, nie co do *poziomu* granularności), albo (b) jeśli
+      mimo to wybierzemy skrót województwowy, to wymaga to NAJPIERW rewizji
+      ADR-002 (rule #12 — nie wolno po cichu reinterpretować przyjętego ADR).
+      Domyślnie idziemy ścieżką (a), chyba że zdecydujesz inaczej.
 
 ### Phase 7 — Dashboard (dokończenie)
 
-- [ ] **TASK-7.1:** Source transparency na mobile — wyrenderować
-      `station_name`/źródło na ekranie (obecnie zbierane, ale nie
-      pokazywane — zgodność z wymogiem atrybucji licencyjnej z
-      source-registry.md, nie tylko UX).
+- [ ] **TASK-7.1:** Source transparency na mobile — **korekta względem
+      wcześniejszej wersji:** samo wyrenderowanie `station_name` nie
+      wystarczy (a) bo weather w ogóle nie jest station-based (`geo_area`,
+      nie stacja — nie ma czego tu renderować jako "nazwę stacji"), (b) bo
+      `GET /api/v1/dashboard/latest` dziś nie zwraca w ogóle identyfikatora
+      źródła dla `weather` (`air` ma `station_name`, ale ani jeden blok nie
+      ma pełnego tekstu atrybucji). Realny zakres: dodać do
+      `dashboard_latest()` pole `source` (id źródła) + `attribution` (pełny
+      tekst z `source-registry.md`, dosłownie — np. "Weather data by
+      Open-Meteo.com (CC BY 4.0)", "Dane: Główny Inspektorat Ochrony
+      Środowiska (GIOŚ)") w obu blokach (`air`, `weather`), potem dopiero
+      ekran mobile renderujący te dwa pola per sekcja (nie tylko nazwę
+      stacji).
 - [ ] **TASK-7.2:** Dodać sekcje hydro (`/hydro/latest`) i alerty
       (`/alerts/latest`) do dashboardu mobile — backend już gotowy, czysto
       frontendowa robota.
+- [ ] **TASK-7.5:** Osobny ekran "Alerty" (mobile) — dziś alerty (o ile
+      TASK-7.2 je w ogóle doda) są co najwyżej sekcją dashboardu; potrzebny
+      dedykowany ekran z pełną listą, szczegółem alertu (treść źródłowa,
+      timestamp, źródło — rule #10: LLM nigdy nie jest źródłem prawdy dla
+      alertów, więc pokazujemy oryginalny tekst, nie streszczenie). Zależny
+      od TASK-9.5 (geo-matching), inaczej pokazujemy wszystko bez filtrowania
+      lokalizacją.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
 - [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
@@ -165,13 +220,30 @@ zdecydujesz inaczej.
 
 ## Świadomie NIE w tej kolejce (bez zmiany decyzji użytkownika)
 
-- Redis (cache) — obecnie wszystko czyta z PostgreSQL bezpośrednio i to
+Uwaga: to jest lista rzeczy świadomie odłożonych z uzasadnieniem — nie należy
+tego mylić ze statusem "zrobione" dla Phase 0-4 wyżej.
+
+- **Redis (cache)** — obecnie wszystko czyta z PostgreSQL bezpośrednio i to
   wystarcza przy obecnej skali (ta sama logika co decyzja o braku workerów w
   ADR-007). Dodać dopiero gdy realny load to uzasadni, nie "na wszelki
-  wypadek" (YAGNI, ponytail).
-- PostGIS — obecny haversine (ADR-006) wystarcza przy 7 zaseedowanych
+  wypadek" (YAGNI).
+- **PostGIS** — obecny haversine (ADR-006) wystarcza przy 7 zaseedowanych
   lokalizacjach; pełny PostGIS dopiero gdy TERYT/Geo Engine (Phase 6) tego
   faktycznie zażąda.
+- **Workers (kolejka zadań)** — dziś ingest to skrypty CLI uruchamiane
+  manualnie/przez prosty scheduler (ADR-007: brak workerów, bo skala tego
+  nie wymaga). Realna kolejka (Celery/RQ/coś podobnego) dopiero gdy liczba
+  connectorów/częstotliwość fetchowania realnie tego zażąda — nie jest to
+  "zrobione" w Phase 0-4, tylko świadomie pominięte na razie, tak jak Redis.
+- **Monitoring/alerting produkcyjny poza `logging`** — patrz TASK-13.2
+  (Phase 13), świadomie odłożone do momentu, gdy aplikacja ma realny ruch
+  produkcyjny do monitorowania; do tego czasu structured `logging` +
+  ręczne sprawdzanie wystarcza.
+- **Backup bazy danych** — nie skonfigurowany. To NIE jest świadomy,
+  uzasadniony YAGNI-non-goal jak powyższe (utrata danych to realne ryzyko od
+  pierwszego dnia produkcji, nie kwestia skali) — brakujący element Phase 1
+  (Foundation/infra), patrz **TASK-1.1** poniżej; do zrobienia przed
+  jakimkolwiek realnym wdrożeniem produkcyjnym, nie odkładane celowo.
 - Wszystko z sekcji "Poza MVP" w ROADMAP.md (mapa, Green Index, background
   location, obowiązkowe konto, PWA, monetyzacja) — bez zmiany decyzji
   użytkownika + ADR.
