@@ -92,7 +92,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 6 — Geo Engine
 
-- [ ] **TASK-6.1:** TERYT-based geo model (§26-27). **Druga korekta tego
+- [ ] **TASK-6.2:** TERYT-based geo model (§26-27). **Druga korekta tego
       tasku** (Codex, runda 2): pierwsza korekta ograniczyła zakres do
       mapowania TERYT tylko dla 7 zaseedowanych miast — to za mało. ADR-005
       (Accepted) explicité przypisuje do Phase 6: pełny import listy gmin z
@@ -101,7 +101,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       to jest właśnie "migracja z seeda do pełnego Geo Engine", o której
       mówi ADR-005. Ograniczenie do 7 miast zostawiłoby TASK-12.3 (foreground
       location) bez możliwości rozpoznania użytkownika gdziekolwiek indziej
-      w Polsce, co jest sprzeczne z celem MVP. Realny zakres TASK-6.1: (1)
+      w Polsce, co jest sprzeczne z celem MVP. Realny zakres TASK-6.2: (1)
       pełny import gmin TERYT do `geo_areas` (kolumna TERYT + granice
       administracyjne, np. z GUS/TERYT XML/CSV — potrzebujemy geometrii
       gminy, nie tylko punktu), (2) **point-in-polygon jako jedyna metoda
@@ -143,22 +143,33 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       potwierdzone zero czy dawno nie było fetcha) — dotyczy `/air`,
       `/hydro`, `/alerts`, `/weather` razem. Wymaga własnego ADR-012
       (świadomy non-goal z ADR-009, teraz adresowany).
+- [ ] **TASK-7.6:** Outdoor Interpretation Engine (§52 Master Planu) —
+      deterministyczny, testowalny algorytm (temperatura + opady + wiatr +
+      jakość powietrza + UV → GOOD/MODERATE/POOR + `reasons[]`); **nie LLM**
+      (rule #10, §52/§53 explicité to zabraniają dla samej klasyfikacji).
+      Zależny od Forecast (TASK-5.3, gotowe) i pełnego zestawu parametrów
+      GIOŚ (TASK-4.1) dla wejść.
+- [ ] **TASK-7.7:** `outdoor` w payloadzie `dashboard_latest()` (§55) — wynik
+      TASK-7.6 per geo_area, zależny od TASK-7.6.
+- [ ] **TASK-7.8:** `OutdoorCard` na mobile dashboard (§56/§58) — bez tego
+      TASK-7.6/7.7 nic nie pokazują użytkownikowi. Dotyczy też preferencji
+      "outdoor" z TASK-12.4 (kiedy pokazywać kartę / dla kogo jest istotna).
 
 ### Phase 8 — Pollen
 
-- [ ] **TASK-8.1:** Source Approval Gate dla `cams` (Copernicus ADS) —
+- [ ] **TASK-8.5:** Source Approval Gate dla `cams` (Copernicus ADS) —
       **BLOKADA: potrzebny klucz API od Ciebie**, patrz sekcja blokad wyżej.
       Do tego czasu: przygotować kontrakt connectora (client/parser/normalize)
       pod znany format CAMS bez możliwości żywej weryfikacji, zaznaczyć
       jawnie w source-registry jako DISCOVERY→VERIFIED dopiero po realnym
       dostępie (rule #10/#15 — nie zgadywać kształtu).
-- [ ] **TASK-8.2:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
+- [ ] **TASK-8.6:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
       gmina, jak weather) + migracja Alembic + ingest — dopiero po
-      TASK-8.1, wymaga działającego klucza CAMS.
-- [ ] **TASK-8.3:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
+      TASK-8.5, wymaga działającego klucza CAMS.
+- [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
-- [ ] **TASK-8.4:** Karta pyłkowa na mobile dashboard (§Phase 8 Master
+- [ ] **TASK-8.8:** Karta pyłkowa na mobile dashboard (§Phase 8 Master
       Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
       użytkownikowi mimo działającego backendu. Profil alergika (który
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
@@ -169,7 +180,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (rule #7). Potrzebny do "istotne lokalne zagrożenia / zweryfikowane
       zdarzenia" z ROADMAP §2.6. Wymaga ADR-013 (nowy typ danych).
 - [ ] **TASK-9.5:** Geo-matching alertów → lokalizacja (zależne od
-      TASK-6.1) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
+      TASK-6.2) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
 - [ ] **TASK-9.6:** Alert Engine (§47) — severity, deduplication, geo
       relevance, na bazie modeli `Alert`+`Event`+geo-matching z powyższych
       tasków. Duży task, prawdopodobnie do rozbicia na 2-3 mniejsze PR.
@@ -232,15 +243,36 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       family, outdoor — §12 Master Planu). Bez obowiązkowego konta (rule #11)
       — do przemyślenia jak to pogodzić z "profilem" w MVP bez logowania
       (prawdopodobnie: lokalny profil per-urządzenie, nie serwerowe konto).
+      "outdoor" tu to tylko przechowana preferencja (czy ta osoba w ogóle
+      chce widzieć `OutdoorCard`) — sam silnik interpretacji to TASK-7.6/
+      7.7/7.8 (Phase 7), nie duplikować logiki tutaj.
 
 ### Phase 13 — Data Quality / Observability
 
 - [ ] **TASK-13.1:** Source health / stale monitoring — rozszerzenie
       istniejącego per-wiersz freshness o widoczny status źródła
       (przydatne razem z TASK-7.4).
-- [ ] **TASK-13.2:** Podstawowe monitoring/alerting (Sentry czy
-      odpowiednik) — do decyzji, czy to wymaga zewnętrznego konta (Sentry)
-      czy wystarczy rozszerzenie istniejącego `logging`.
+- [ ] **TASK-13.2:** Monitoring/error-reporting (§69 Master Planu) —
+      **korekta: sam `logging` NIE wystarczy** (poprzednia wersja tego tasku
+      błędnie na to pozwalała). §69 wymaga realnego capture wyjątków
+      mobile/API (Sentry lub odpowiednik) + metryk (API latency, error rate,
+      connector success, stale data, push delivery) — to są rzeczy, których
+      structured `logging` bez zewnętrznego serwisu nie daje (agregacja,
+      alerty, wyszukiwanie po incydencie). Wymaga zewnętrznego konta
+      (Sentry lub odpowiednik) — **BLOKADA: decyzja/konto od Ciebie**, jeśli
+      wybierzemy płatny plan; jest darmowy tier, więc to nie musi wstrzymać
+      startu tasku. TASK-15.3 (Phase 15) to tylko wdrożenie tego na
+      produkcji, nie substytut.
+- [ ] **TASK-13.3:** Minimalne analytics eventy (§70 Master Planu):
+      `app_open`, `location_selected`, `dashboard_view`, `alert_open`,
+      `notification_open`, `settings_open` — nic ponad to (§70: "nie
+      zbieramy więcej danych niż potrzebujemy"). Zależne od decyzji
+      narzędzia (self-hosted vs. zewnętrzne — wpływa na Privacy Policy w
+      TASK-14.1).
+- [ ] **TASK-13.4:** Przegląd operacyjny analytics/monitoringu pod kątem
+      prywatności (czy zebrane eventy/metryki faktycznie odpowiadają temu,
+      co jest zadeklarowane w Privacy Policy z TASK-14.1) — krótki, ale
+      wymagany przed release (§71 RODO).
 
 ### Phase 14 — Security / Privacy
 
@@ -281,6 +313,16 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
       closed testing), nie po zakończeniu Phase 18 dla Androida.
 - [ ] **TASK-16.4:** TestFlight — build iOS do closed testingu, metadane/
       screenshoty do App Store (zależne od TASK-16.3 i ukończonego UI).
+- [ ] **TASK-16.5:** Publiczna strona (§23/§102 Master Planu) — minimalny
+      zakres: `/`, `/privacy`, `/terms`, `/support`, `/contact`, `/about`,
+      wdrożona pod publicznym HTTPS z realnym URL-em. Treść Privacy
+      Policy/Terms pochodzi z TASK-14.1, ale sam fakt istnienia strony to
+      osobna praca (deploy, domena/subdomena) — **BLOKADA częściowa: jeśli
+      wybierzemy dedykowaną domenę zamiast subdomeny istniejącego VPS,
+      rejestracja to decyzja/koszt po Twojej stronie**, inaczej mogę to
+      zrobić sam. Bez tego Google Play (Privacy Policy URL) i App Store
+      Connect (Privacy + Support URL) nie przyjmą zgłoszenia — blokuje
+      TASK-18.1/18.2 niezależnie od tego, czy reszta MVP jest gotowa.
 
 ### Phase 17 — Testing
 
