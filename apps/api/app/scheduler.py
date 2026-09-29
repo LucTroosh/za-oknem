@@ -57,7 +57,12 @@ def run_gios() -> None:
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    last_open_meteo = last_gios = 0.0
+    # -inf, not 0.0: time.monotonic()'s epoch is undefined (docs: "reference point
+    # is undefined, only the difference between two calls is valid") - 0.0 happened
+    # to work on Linux (monotonic counts from boot, so "now" is usually already
+    # hours past either interval) but that's an assumption about the platform, not
+    # a guarantee. -inf makes "run on startup" deterministic everywhere.
+    last_open_meteo = last_gios = float("-inf")
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
