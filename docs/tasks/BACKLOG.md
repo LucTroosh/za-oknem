@@ -53,11 +53,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 ### Phase 1 — Infra (dokończenie)
 
 - [ ] **TASK-1.1:** Backup PostgreSQL (VPS, Docker) — `pg_dump` cykliczny
-      (cron w kontenerze lub na hoście) + rotacja + udokumentowana procedura
-      przywracania. Brak dziś (patrz sekcja "Świadomie NIE w tej kolejce" —
-      to jedyny punkt tam, który nie jest świadomym YAGNI, tylko realną
-      luką). Priorytet przed jakimkolwiek wdrożeniem produkcyjnym, nawet
-      jeśli reszta MVP jeszcze nie gotowa.
+      (cron w kontenerze lub na hoście), **przechowywany POZA VPS** (§68
+      Master Planu — lokalna kopia na tym samym serwerze nie liczy się jako
+      backup, bo utrata VPS niszczy oba egzemplarze naraz; np. wysyłka do
+      S3-kompatybilnego storage lub innego hosta), retencja, oraz
+      **regularny automatyczny test odtworzenia** (nie tylko udokumentowana
+      procedura — §68: "sam backup bez testu odtworzenia nie jest
+      wystarczający"). Priorytet przed jakimkolwiek wdrożeniem
+      produkcyjnym, nawet jeśli reszta MVP jeszcze nie gotowa.
 
 ### Phase 4 — Air (dokończenie)
 
@@ -89,21 +92,23 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 6 — Geo Engine
 
-- [ ] **TASK-6.1:** TERYT-based geo model (§26-27). **Korekta względem
-      wcześniejszej wersji tego tasku:** województwo-level skrót NIE
-      wystarczy — ADR-002 (push, Option C) już wymaga, żeby
-      `observed_area_code` wysyłany do `POST /api/v1/devices` był realnym
-      kodem TERYT gminy/powiatu, a `geo_areas` miało pole TERYT (§26/§28), bo
-      Alert Engine (Phase 9) i Push (Phase 10) dopasowują po `geo_area_id`
-      zamapowanym z TERYT, nie po surowym GPS ani województwie. Skrót
-      województwowy złamałby to dla Phase 10, więc: albo (a) robimy tu od
-      razu prawdziwe mapowanie TERYT gmina/powiat dla 7 zaseedowanych miast
-      (najmniejszy zakres, który faktycznie spełnia ADR-002 — nie pełny
-      Geo Engine ze wszystkimi gminami w Polsce, YAGNI dalej obowiązuje co do
-      *zasięgu* danych, nie co do *poziomu* granularności), albo (b) jeśli
-      mimo to wybierzemy skrót województwowy, to wymaga to NAJPIERW rewizji
-      ADR-002 (rule #12 — nie wolno po cichu reinterpretować przyjętego ADR).
-      Domyślnie idziemy ścieżką (a), chyba że zdecydujesz inaczej.
+- [ ] **TASK-6.1:** TERYT-based geo model (§26-27). **Druga korekta tego
+      tasku** (Codex, runda 2): pierwsza korekta ograniczyła zakres do
+      mapowania TERYT tylko dla 7 zaseedowanych miast — to za mało. ADR-005
+      (Accepted) explicité przypisuje do Phase 6: pełny import listy gmin z
+      TERYT (nie tylko 7 miast) ORAZ dopasowanie dowolnych współrzędnych
+      użytkownika → najbliższa gmina (nearest-station/point-in-polygon) —
+      to jest właśnie "migracja z seeda do pełnego Geo Engine", o której
+      mówi ADR-005. Ograniczenie do 7 miast zostawiłoby TASK-12.3 (foreground
+      location) bez możliwości rozpoznania użytkownika gdziekolwiek indziej
+      w Polsce, co jest sprzeczne z celem MVP. Realny zakres TASK-6.1: (1)
+      pełny import gmin TERYT do `geo_areas` (kolumna TERYT + dane
+      geograficzne, np. z GUS/TERYT XML/CSV), (2) point-in-polygon lub
+      nearest-gmina matching dla dowolnych lat/lon, (3) `geo_area_id` jako
+      wspólny klucz dla Alert Engine (Phase 9) i Push (Phase 10, ADR-002).
+      Jeśli mimo to zdecydujesz na węższy zakres, wymaga to NAJPIERW rewizji
+      ADR-005 i ADR-002 (rule #12 — nie wolno po cichu reinterpretować
+      przyjętego ADR).
 
 ### Phase 7 — Dashboard (dokończenie)
 
@@ -145,6 +150,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       pod znany format CAMS bez możliwości żywej weryfikacji, zaznaczyć
       jawnie w source-registry jako DISCOVERY→VERIFIED dopiero po realnym
       dostępie (rule #10/#15 — nie zgadywać kształtu).
+- [ ] **TASK-8.2:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
+      gmina, jak weather) + migracja Alembic + ingest — dopiero po
+      TASK-8.1, wymaga działającego klucza CAMS.
+- [ ] **TASK-8.3:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
+      geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
+      naszej bazy (rule #14).
+- [ ] **TASK-8.4:** Karta pyłkowa na mobile dashboard (§Phase 8 Master
+      Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
+      użytkownikowi mimo działającego backendu. Profil alergika (który
+      pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
 
 ### Phase 9 — Alerts (dokończenie)
 
@@ -209,12 +224,51 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       nie kod; część do zrobienia razem z Tobą (deklaracje sklepowe wymagają
       decyzji biznesowych, nie tylko technicznych).
 
-### Phase 15+ — Production Infra / Store / Release / Operations
+### Phase 15 — Production Infrastructure
 
-Odłożone do momentu, gdy Phase 0-14 są zamknięte — nie ma sensu stawiać
-produkcyjnej infrastruktury czy przygotowywać store listingu dla appki,
-która nie ma jeszcze pełnego MVP. Rewizja kolejności możliwa, jeśli
-zdecydujesz inaczej.
+Zaplanowane, wykonanie odłożone aż Phase 0-14 zamknięte (nie ma sensu
+stawiać produkcyjnej infry dla appki bez pełnego MVP) — ale wypisane
+jawnie, żeby kolejka faktycznie prowadziła do wydania, nie kończyła się na
+placeholderze.
+
+- [ ] **TASK-15.1:** Środowisko staging (osobne od dev/produkcji) na VPS.
+- [ ] **TASK-15.2:** Środowisko produkcyjne + wdrożenie TASK-1.1 (backup
+      poza VPS) i regularnego testu odtworzenia w praktyce (nie tylko kod
+      skryptu — realny, zaplanowany przebieg testu).
+- [ ] **TASK-15.3:** Monitoring produkcyjny (rozszerzenie TASK-13.2) na
+      realnym środowisku.
+
+### Phase 16 — Store Preparation
+
+- [ ] **TASK-16.1:** Konto Google Play Console (**BLOKADA: decyzja/konto
+      od Ciebie** — rejestracja dewelopera to krok biznesowy/prawny, nie
+      techniczny) + konfiguracja EAS build dla Androida.
+- [ ] **TASK-16.2:** Metadane, opis, ikony, screenshoty do listingu Google
+      Play (zależne od TASK-16.1 i ukończonego UI).
+
+### Phase 17 — Testing
+
+- [ ] **TASK-17.1:** QA/E2E przejście przez kluczowe ścieżki (onboarding,
+      dashboard, alert, push) na realnym build EAS.
+- [ ] **TASK-17.2:** Testy odporności — utrata sieci, źródło zwraca błąd/
+      puste dane w trakcie działania appki (rule #1 w praktyce, nie tylko w
+      testach jednostkowych connectorów).
+
+### Phase 18 — Public Release
+
+- [ ] **TASK-18.1:** Publikacja w Google Play (zależne od Phase 14
+      Security/Privacy + Phase 16 Store Prep + Phase 17 Testing).
+
+### Phase 19 — Operations
+
+- [ ] **TASK-19.1:** Rutyna utrzymania connectorów (co sprawdzać, jak
+      często, kto reaguje na źródło, które zmieniło kształt odpowiedzi).
+- [ ] **TASK-19.2:** Proces incident response (co robimy, gdy źródło padnie
+      na dłużej niż freshness threshold pozwala, gdy backup/restore zawiedzie
+      na realnym incydencie).
+
+Rewizja kolejności lub zakresu Phase 15-19 możliwa, jeśli zdecydujesz
+inaczej — powyższe to pierwsza konkretna wersja, nie coś zamkniętego.
 
 ---
 
