@@ -44,7 +44,7 @@ class WeatherParam(BaseModel):
 class WeatherLatestParam(BaseModel):
     value: float
     unit: str
-    observed_at: str
+    observed_at: datetime
     freshness: Literal["FRESH", "RECENT", "STALE"]
 
 
@@ -56,7 +56,7 @@ class WeatherArea(BaseModel):
     longitude: float
     # Rough "most recent of any param" summary, not authoritative per param — see
     # WeatherLatestParam.freshness for the real per-param status.
-    observed_at: str
+    observed_at: datetime
     freshness: Literal["FRESH", "RECENT", "STALE"]
     params: dict[str, WeatherLatestParam]
     source: Literal["open_meteo"]
@@ -67,9 +67,9 @@ class WeatherLatestResponse(BaseModel):
 
 
 class ForecastDay(BaseModel):
-    valid_from: str
-    valid_until: str
-    forecast_reference_time: str
+    valid_from: datetime
+    valid_until: datetime
+    forecast_reference_time: datetime
     params: dict[str, WeatherParam]
 
 
@@ -80,7 +80,7 @@ class ForecastArea(BaseModel):
     latitude: float
     longitude: float
     model: str
-    fetched_at: str
+    fetched_at: datetime
     freshness: Literal["FRESH", "RECENT", "STALE"]
     days: list[ForecastDay]
     source: Literal["open_meteo"]
@@ -128,13 +128,13 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
                 "name": area.name,
                 "latitude": area.latitude,
                 "longitude": area.longitude,
-                "observed_at": latest_observed_at.isoformat(),
+                "observed_at": latest_observed_at,
                 "freshness": freshness(latest_observed_at),
                 "params": {
                     p.param_code: {
                         "value": p.value,
                         "unit": p.unit,
-                        "observed_at": p.observed_at.isoformat(),
+                        "observed_at": p.observed_at,
                         "freshness": freshness(p.observed_at),
                     }
                     for p in params
@@ -193,11 +193,9 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
                 latest_fetched_at = day_fetched_at
             days.append(
                 {
-                    "valid_from": valid_from.isoformat(),
-                    "valid_until": day_rows[0].valid_until.isoformat(),
-                    "forecast_reference_time": max(
-                        r.forecast_reference_time for r in day_rows
-                    ).isoformat(),
+                    "valid_from": valid_from,
+                    "valid_until": day_rows[0].valid_until,
+                    "forecast_reference_time": max(r.forecast_reference_time for r in day_rows),
                     "params": {r.param_code: {"value": r.value, "unit": r.unit} for r in day_rows},
                 }
             )
@@ -216,7 +214,7 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
                 "latitude": area.latitude,
                 "longitude": area.longitude,
                 "model": model,
-                "fetched_at": latest_fetched_at.isoformat(),
+                "fetched_at": latest_fetched_at,
                 "freshness": freshness(latest_fetched_at),
                 "days": days,
                 "source": "open_meteo",
