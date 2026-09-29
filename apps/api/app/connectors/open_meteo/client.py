@@ -53,12 +53,17 @@ def fetch_weather(
     (rule #5). Named `fetch_weather`, not `fetch_current`, because it now also
     carries the forecast block.
 
-    `on_attempt` fires once per REAL outbound request (success or failure), before
-    this function decides whether to retry or raise — so a caller tracking a call
-    budget (app/rate_budget.py) can count every request actually sent to the
-    provider, not just an eventual success (Codex review [P2]: the previous
-    call-counting recorded once per fetch_weather() call regardless of whether that
-    meant 0, 1, or 2 real HTTP attempts underneath)."""
+    `on_attempt` fires once per REAL outbound request, as a reservation made
+    BEFORE that request goes out (not after it returns) — Codex review: firing it
+    from `finally` after the request loses the record entirely if this process is
+    killed while `httpx.get()` is in flight or after Open-Meteo has already
+    processed (and billed) the request but before `finally` runs, defeating the
+    counter's whole "survive a scheduler restart" point (rule #2). Reserving
+    upfront can overcount by one call in the rare case this process dies between
+    the reservation and the actual request going out — an acceptable direction to
+    err on for a budget guard (Codex review [P1] on the units-per-call estimate:
+    "never later" applies here too), unlike undercounting a request the provider
+    already billed."""
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -69,15 +74,14 @@ def fetch_weather(
     }
     last_error: Exception | None = None
     for _attempt in range(2):
+        if on_attempt is not None:
+            on_attempt()
         try:
             response = httpx.get(BASE_URL, params=params, timeout=TIMEOUT)
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
             last_error = exc
-        finally:
-            if on_attempt is not None:
-                on_attempt()
     raise OpenMeteoApiError(
         f"GET {BASE_URL} ({latitude}, {longitude}) failed after retry: {last_error}"
     ) from last_error
