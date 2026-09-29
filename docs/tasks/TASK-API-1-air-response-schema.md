@@ -1,4 +1,4 @@
-# TASK 4.2 — Typed response model dla `/api/v1/air/latest`
+# TASK API-1 — Typed response model dla `/api/v1/air/latest`
 
 ## Goal
 

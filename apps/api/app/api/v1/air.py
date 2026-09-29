@@ -26,7 +26,7 @@ def freshness(observed_at: datetime) -> str:
     return "STALE"
 
 
-# TASK-4.2: response_model - documents the real OpenAPI shape and makes FastAPI
+# TASK-API-1: response_model - documents the real OpenAPI shape and makes FastAPI
 # validate every response against it (a shape regression now 500s instead of
 # silently shipping a wrong key to mobile). Mirrors the existing dict shape
 # exactly - no API change.

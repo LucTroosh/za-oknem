@@ -197,7 +197,7 @@ def test_latest_air_quality_query_filters_by_gios_source():
     assert "source_id" in captured["where"] and "gios" in captured["where"]
 
 
-# --- AirLatestResponse (TASK-4.2: response_model actually enforces a shape) --
+# --- AirLatestResponse (TASK-API-1: response_model actually enforces a shape) --
 
 
 def test_air_latest_response_accepts_the_real_shape():
