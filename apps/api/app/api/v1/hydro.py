@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -47,7 +49,28 @@ def compute_status(value: float, warning: float | None, alarm: float | None) -> 
     return "NORMAL"
 
 
-@router.get("/hydro/latest")
+# TASK-9.5: response_model - same reasoning as TASK-4.2/5.5. Mirrors the
+# existing dict shape exactly - no API change.
+class HydroStation(BaseModel):
+    station_id: str
+    station_name: str
+    latitude: float
+    longitude: float
+    water_level_cm: float
+    warning_level_cm: float | None
+    alarm_level_cm: float | None
+    status: Literal["NORMAL", "WARNING", "ALARM", "UNKNOWN"]
+    unit: str
+    observed_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+    source: Literal["imgw_hydro"]
+
+
+class HydroLatestResponse(BaseModel):
+    stations: list[HydroStation]
+
+
+@router.get("/hydro/latest", response_model=HydroLatestResponse)
 def latest_hydro(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) - never calls IMGW on request.
     Data arrives via `python -m app.connectors.imgw_hydro.ingest` or the scheduler."""
