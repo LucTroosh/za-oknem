@@ -98,7 +98,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zaciąga wyłącznie PM2.5 (świadomy zakres vertical slice, §108 Master
       Planu). Rozszerzyć `parser.py`/`ingest.py` o PM10, NO2, SO2, O3, CO,
       C6H6 (te same sensory API GIOŚ, ten sam kontrakt fetch/parse/validate/
-      normalize — rozszerzenie istniejącego connectora, nie nowy).
+      normalize — rozszerzenie istniejącego connectora, nie nowy). **Zakres
+      obejmuje też ujawnienie tych parametrów** — dziś `air.py`/
+      `dashboard.py` filtrują wyłącznie `PM2.5`, a mobile (`index.tsx`)
+      renderuje tylko PM2.5, więc bez zmiany endpointów/agregatu/UI nowe
+      parametry trafią do bazy i nigdzie dalej. Rozszerzyć te trzy miejsca
+      o pełną listę (TASK-4.2 dokłada indeks/agregat na tym samym zestawie).
 - [ ] **TASK-4.2:** Indeks jakości powietrza (AQI/CAQI wg metodologii GIOŚ) —
       zależny od TASK-4.1 (part potrzebuje >1 parametru). Do ustalenia: czy
       liczymy indeks sami wg opublikowanej metodologii GIOŚ, czy GIOŚ
@@ -232,6 +237,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zdarzenia" z ROADMAP §2.6. Wymaga ADR-013 (nowy typ danych).
 - [ ] **TASK-9.5:** Geo-matching alertów → lokalizacja (zależne od
       TASK-6.2) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
+      **Zakres obejmuje też `dashboard_latest()`** — TASK-7.2 dodał tam
+      `alerts` świadomie niefiltrowane (Phase 9 jeszcze nie istniało), a
+      TASK-9.7 filtruje tylko osobny ekran Alerty, więc bez tej poprawki
+      tutaj główny dashboard nadal pokazywałby wszystkie alerty krajowe
+      mimo ukończenia całej kolejki. Zastosować ten sam geo-matching do
+      pola `alerts` w agregacie.
 - [ ] **TASK-9.6:** Alert Engine (§47) — severity, deduplication, geo
       relevance, na bazie modeli `Alert`+`Event`+geo-matching z powyższych
       tasków. Duży task, prawdopodobnie do rozbicia na 2-3 mniejsze PR.
@@ -251,7 +262,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-10.1:** Device registration + push tokens (Expo) —
       **BLOKADA: klucze FCM/APNs od Ciebie**, patrz sekcja blokad wyżej.
       Przygotuję backend (model tokenu, endpoint rejestracji) niezależnie od
-      blokady, bo to nie wymaga kluczy zewnętrznych.
+      blokady, bo to nie wymaga kluczy zewnętrznych. APNs konkretnie wymaga
+      konta Apple Developer, które w tej kolejce jest dopiero w TASK-16.3
+      (6 faz dalej) — samo konto/enrollment (nie cały zakres TASK-16.3:
+      store listing, TestFlight) to decyzja biznesowa, którą możesz podjąć
+      wcześniej równolegle, żeby nie blokować walidacji APNs aż do Phase 16;
+      jeśli nie, walidacja end-to-end dla iOS zostaje odłożona do tego czasu
+      (backend/Android część kończy się normalnie).
 - [ ] **TASK-10.2:** Notification Engine + anti-spam (zależne od Alert
       Engine z Phase 9 i tokenów z TASK-10.1).
 - [ ] **TASK-10.3:** Preferencje powiadomień (mobile) — użytkownik wybiera,
@@ -270,7 +287,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `sk.gis.gov.pl` przez przeglądarkę zamiast dokumentacji API.
 - [ ] **TASK-11.2:** Connector `bathing_water` (o ile TASK-11.1 znajdzie
       stabilne źródło) — status kąpieliska, przyczyna zamknięcia, sezon,
-      E. coli/enterokoki/sinice, daty badań.
+      E. coli/enterokoki/sinice, daty badań. Kontrakt connectora
+      (fetch/parse/validate/normalize) kończy się na `parser.py`/
+      `ingest.py`, ale zakres tego tasku musi objąć też model + migrację
+      Alembic + wpięcie w harmonogram — bez tego TASK-11.4 (czyta wyłącznie
+      z naszej bazy, rule #14) nie ma z czego czytać.
 - [ ] **TASK-11.3:** "Zamknięcia kąpielisk" jako Alert/Event (zależne od
       TASK-11.2 + modeli z Phase 9).
 - [ ] **TASK-11.4:** `GET /api/v1/water/latest` — status kąpieliska,
@@ -417,8 +438,11 @@ tej sekcji pokrywała tylko Androida — poprawka niżej.
       testach jednostkowych connectorów).
 - [ ] **TASK-17.3:** Google Play closed testing (§88-89 Master Planu) —
       konto Personal (decyzja v1.2) wymaga **min. 12 testerów przez min. 14
-      kolejnych dni** przed dostępem do produkcji. Zakres: upload builda na
-      closed/internal track, rekrutacja ≥12 testerów (może wymagać Twojej
+      kolejnych dni na torze closed** przed dostępem do produkcji — tor
+      internal NIE spełnia tego wymogu (§89), więc może zużyć 14 dni i nadal
+      zostawić TASK-18.1 zablokowany. Zakres: upload builda konkretnie na
+      **closed track** (internal zostaje ewentualnym wcześniejszym smoke-
+      testem, nie substytutem), rekrutacja ≥12 testerów (może wymagać Twojej
       pomocy — sieć znajomych/beta testerów), **odczekanie 14 dni** zanim
       TASK-18.1 w ogóle będzie możliwe. To realny czas kalendarzowy, nie coś
       do przyspieszenia pracą — warto uruchomić ten track jak najwcześniej
