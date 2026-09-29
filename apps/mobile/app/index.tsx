@@ -20,14 +20,19 @@ type DashboardArea = {
   air: {
     station_name: string;
     // TASK-7.1: source transparency (Master Plan Principle 2) — server-provided
-    // attribution text, never hardcoded/reworded on the client.
+    // attribution text, never hardcoded/reworded on the client. observed_at is
+    // the ISO timestamp of the freshest param at this station (Codex review —
+    // source+attribution alone doesn't satisfy Principle 2, timestamp must
+    // travel with them).
     attribution: string;
+    observed_at: string;
     // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
     // — freshness is per-param since each param can be observed at a different time.
     params: Record<string, { value: number; unit: string; freshness: Freshness }>;
   } | null;
   weather: {
     attribution: string;
+    observed_at: string;
     freshness: Freshness;
     params: Record<string, { value: number; unit: string }>;
   } | null;
@@ -94,26 +99,31 @@ export default function Home() {
             <Text style={styles.stationName}>{item.name}</Text>
             <View style={styles.metricsRow}>
               {item.air ? (
-                <View>
+                <View style={styles.metricsColumn}>
                   {Object.entries(item.air.params).map(([code, param]) => (
                     <Text key={code} style={styles.metric}>
                       {code}: {param.value} {param.unit}{" "}
                       <Text style={styles.freshness}>({FRESHNESS_LABEL[param.freshness]})</Text>
                     </Text>
                   ))}
-                  <Text style={styles.attribution}>{item.air.attribution}</Text>
+                  <Text style={styles.attribution}>
+                    {item.air.attribution} · {new Date(item.air.observed_at).toLocaleTimeString("pl-PL")}
+                  </Text>
                 </View>
               ) : (
                 <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
               )}
               {item.weather?.params.temperature_2m ? (
-                <View>
+                <View style={styles.metricsColumn}>
                   <Text style={styles.metric}>
                     {item.weather.params.temperature_2m.value}
                     {item.weather.params.temperature_2m.unit}{" "}
                     <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
                   </Text>
-                  <Text style={styles.attribution}>{item.weather.attribution}</Text>
+                  <Text style={styles.attribution}>
+                    {item.weather.attribution} ·{" "}
+                    {new Date(item.weather.observed_at).toLocaleTimeString("pl-PL")}
+                  </Text>
                 </View>
               ) : (
                 <Text style={styles.metric}>pogoda: brak danych</Text>
@@ -138,7 +148,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   stationName: { fontSize: 16, fontWeight: "500" },
-  metricsRow: { flexDirection: "row", justifyContent: "space-between" },
+  // flex:1 on each column (Codex review — RN row children don't shrink by
+  // default, so the attribution strings were overflowing/clipping instead of
+  // wrapping on normal phone widths).
+  metricsRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  metricsColumn: { flex: 1 },
   metric: { fontSize: 16 },
   freshness: { fontSize: 12, color: "#666" },
   attribution: { fontSize: 10, color: "#999" },
