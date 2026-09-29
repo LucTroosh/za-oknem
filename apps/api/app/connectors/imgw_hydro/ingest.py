@@ -19,39 +19,90 @@ from app.models import Measurement
 logger = logging.getLogger(__name__)
 
 
-def ingest_station(station: dict, db, *, fetched_at: datetime) -> bool:
-    """Returns True if a new reading was stored. One station's bad record must not
-    abort the run for the rest (rule #1)."""
-    try:
-        record = normalize(station, fetched_at=fetched_at)
-    except ImgwHydroParseError as exc:
-        sid = station.get("id_stacji")
-        logger.warning("station %s: FAILED (%s), skipping - see rule #1", sid, exc)
-        return False
-    if record is None:
-        return False  # no current reading for this station - not an error
-
+def _insert_if_new(record: dict, db) -> int:
+    """Append-only: a genuinely new water-level reading (new observed_at from
+    the source) is a new row; re-seeing the same one is a no-op."""
     exists = (
         db.query(Measurement)
         .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
         .first()
     )
     if exists:
-        return False
-
+        return 0
     db.add(Measurement(**record))
     try:
         db.commit()
     except IntegrityError:
         db.rollback()  # race with another ingest run - fine, reading exists now
-        return False
-    logger.info(
-        "station %s (%s): stan_wody = %s cm",
-        record["station_id"],
-        record["station_name"],
-        record["value"],
+        return 0
+    return 1
+
+
+def _upsert_or_delete_threshold(record: dict, db) -> int:
+    """Thresholds have no source-given timestamp of their own (see parser.py) -
+    each ingest run reconciles the ONE row per (station, param_code) to whatever
+    IMGW currently reports. record["value"] is None when IMGW currently defines
+    no threshold: any previously stored row is deleted rather than left as a
+    stale "latest" value (rule #10 - a withdrawn/changed threshold must not keep
+    influencing the computed status)."""
+    existing = (
+        db.query(Measurement)
+        .filter_by(source_id="imgw_hydro", source_record_id=record["source_record_id"])
+        .first()
     )
-    return True
+    if record["value"] is None:
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return 0  # a removal isn't a "new reading stored"
+
+    if existing:
+        changed = existing.value != record["value"]
+        existing.value = record["value"]
+        existing.observed_at = record["observed_at"]
+        existing.fetched_at = record["fetched_at"]
+        db.commit()
+        return 1 if changed else 0
+
+    db.add(Measurement(**record))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run
+        return 0
+    return 1
+
+
+def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
+    """Returns the number of records actually stored/changed for this station
+    (water level, plus warning/alarm thresholds when defined or changed). One
+    station's bad record must not abort the run for the rest (rule #1)."""
+    try:
+        result = normalize(station, fetched_at=fetched_at)
+    except ImgwHydroParseError as exc:
+        sid = station.get("id_stacji")
+        logger.warning("station %s: FAILED (%s), skipping - see rule #1", sid, exc)
+        return 0
+
+    # Thresholds are reconciled even when the station has no current stan_wody
+    # reading (level is None) - a stalled station can still have its threshold
+    # change or get withdrawn, and that must not be silently skipped (rule #1
+    # is about isolating a BROKEN station, not about dropping unrelated fields
+    # just because one is legitimately absent - Codex review, PR #42 round 4).
+    level = result["level"]
+    stored = _insert_if_new(level, db) if level is not None else 0
+    for threshold_record in result["thresholds"].values():
+        stored += _upsert_or_delete_threshold(threshold_record, db)
+
+    if stored:
+        logger.info(
+            "station %s (%s): stored/updated %s record(s)%s",
+            result["station_id"],
+            result["station_name"],
+            stored,
+            f", stan_wody = {level['value']} cm" if level is not None else "",
+        )
+    return stored
 
 
 def main() -> None:

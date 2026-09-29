@@ -16,21 +16,34 @@ STATION = {
     "lon": "14.8217",
     "stan_wody": "225",
     "stan_wody_data_pomiaru": "2026-09-27 21:20:00",
+    # IMGW always includes these keys, null when a station has no threshold
+    # (e.g. lake gauges) - verified live, see parser.py. A station missing the
+    # keys entirely is a different, malformed case (see test_imgw_hydro_parser.py).
+    "stan_ostrzegawczy": None,
+    "stan_alarmowy": None,
 }
 
 
 def test_ingest_station_stores_new_reading(db_session):
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is True
+    assert stored == 1
     assert db_session.query(Measurement).count() == 1
+
+
+def test_ingest_station_stores_thresholds_too(db_session):
+    station = {**STATION, "stan_ostrzegawczy": "300", "stan_alarmowy": "340"}
+    stored = ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+
+    assert stored == 3
+    assert db_session.query(Measurement).count() == 3
 
 
 def test_ingest_station_skips_duplicate(db_session):
     ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
     stored_again = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored_again is False
+    assert stored_again == 0
     assert db_session.query(Measurement).count() == 1
 
 
@@ -38,7 +51,7 @@ def test_ingest_station_skips_when_no_current_reading(db_session):
     station = {**STATION, "stan_wody": None}
     stored = ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
 
 
@@ -48,8 +61,59 @@ def test_ingest_station_isolates_parse_failure(db_session, monkeypatch):
     )
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
-    assert stored is False
+    assert stored == 0
     assert db_session.query(Measurement).count() == 0
+
+
+def test_ingest_station_updates_threshold_even_without_a_new_water_reading(db_session):
+    """A station can keep the same stan_wody_data_pomiaru (stalled reading) while
+    its threshold changes - thresholds are upserted by their own stable identity,
+    not gated on a new water-level observed_at (Codex review, PR #42 round 3:
+    the earlier observed_at-matching approach would have silently kept the old
+    threshold value in this exact case)."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+
+    changed_station = {**station, "stan_ostrzegawczy": "310"}
+    stored = ingest.ingest_station(changed_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert stored == 1  # the threshold changed; the water level didn't
+    row = (
+        db_session.query(Measurement)
+        .filter_by(param_code="water_level_warn_cm")
+        .one()
+    )
+    assert row.value == 310.0
+
+
+def test_ingest_station_deletes_threshold_when_withdrawn(db_session):
+    """IMGW can stop reporting a threshold for a station (goes null) even while
+    the same water-level reading persists - the stored row must be removed, not
+    left behind as a stale "latest" value."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 1
+
+    withdrawn_station = {**station, "stan_ostrzegawczy": None}
+    ingest.ingest_station(withdrawn_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
+
+
+def test_ingest_station_reconciles_threshold_even_when_water_reading_stops(db_session):
+    """A station can stop reporting stan_wody entirely (goes null) while its
+    threshold keeps changing or gets withdrawn. Thresholds must still be
+    reconciled in that case - an earlier version of normalize() returned None
+    outright for a null water reading, which skipped threshold handling
+    entirely too (Codex review, PR #42 round 4)."""
+    station = {**STATION, "stan_ostrzegawczy": "300"}
+    ingest.ingest_station(station, db_session, fetched_at=datetime.now(UTC))
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 1
+
+    stalled_station = {**station, "stan_wody": None, "stan_ostrzegawczy": None}
+    ingest.ingest_station(stalled_station, db_session, fetched_at=datetime.now(UTC))
+
+    assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
 
 
 class TestMain:
