@@ -20,15 +20,20 @@ type DashboardArea = {
   air: {
     station_name: string;
     // TASK-7.1: source transparency (Master Plan Principle 2) — server-provided
-    // attribution text, never hardcoded/reworded on the client. observed_at is
-    // the ISO timestamp of the freshest param at this station (Codex review —
-    // source+attribution alone doesn't satisfy Principle 2, timestamp must
-    // travel with them).
+    // attribution text, never hardcoded/reworded on the client. This top-level
+    // observed_at is only the newest of any param at this station (dashboard.py)
+    // — a rough station-level summary, not authoritative for any single
+    // pollutant (Codex review, round 3): render each param's OWN observed_at
+    // (below) next to that param, not this one.
     attribution: string;
     observed_at: string;
     // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
-    // — freshness is per-param since each param can be observed at a different time.
-    params: Record<string, { value: number; unit: string; freshness: Freshness }>;
+    // — freshness AND observed_at are per-param since each param can be observed
+    // at a different time (dashboard.py already returns both per param).
+    params: Record<
+      string,
+      { value: number; unit: string; observed_at: string; freshness: Freshness }
+    >;
   } | null;
   weather: {
     attribution: string;
@@ -110,12 +115,12 @@ export default function Home() {
                   {Object.entries(item.air.params).map(([code, param]) => (
                     <Text key={code} style={styles.metric}>
                       {code}: {param.value} {param.unit}{" "}
-                      <Text style={styles.freshness}>({FRESHNESS_LABEL[param.freshness]})</Text>
+                      <Text style={styles.freshness}>
+                        ({FRESHNESS_LABEL[param.freshness]}, {formatObservedAt(param.observed_at)})
+                      </Text>
                     </Text>
                   ))}
-                  <Text style={styles.attribution}>
-                    {item.air.attribution} · {formatObservedAt(item.air.observed_at)}
-                  </Text>
+                  <Text style={styles.attribution}>{item.air.attribution}</Text>
                 </View>
               ) : (
                 <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
