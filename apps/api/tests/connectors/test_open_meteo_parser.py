@@ -161,6 +161,18 @@ def test_normalize_forecast_raises_on_missing_param_for_a_day():
         normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
 
 
+def test_normalize_forecast_raises_on_non_list_daily_time():
+    """`enumerate()` on a non-iterable `daily.time` (e.g. None from a malformed
+    payload) must not escape as a raw TypeError — that would bypass ingest.py's
+    per-block isolation (rule #1) and abort the whole ingest run."""
+    bad = {
+        "daily": {"time": None, "temperature_2m_max": [18.5]},
+        "daily_units": {"temperature_2m_max": "°C"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
 def test_normalize_forecast_does_not_fail_when_current_block_is_absent():
     """normalize_forecast() only needs `daily`/`daily_units` - a payload that has
     a broken `current` block but a valid `daily` block must still parse

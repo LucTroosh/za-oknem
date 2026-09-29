@@ -86,6 +86,8 @@ def normalize_forecast(
         daily = payload["daily"]
         units = payload["daily_units"]
         days = daily["time"]
+        if not isinstance(days, list):
+            raise TypeError(f"daily.time must be a list, got {type(days).__name__}")
     except (KeyError, TypeError) as exc:
         raise OpenMeteoParseError(f"malformed daily-forecast payload: {exc}") from exc
 

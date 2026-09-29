@@ -220,6 +220,25 @@ def test_weather_forecast_groups_by_area_and_day():
     assert area["days"][1]["params"] == {"temperature_2m_max": {"value": 19.1, "unit": "°C"}}
 
 
+def test_weather_forecast_reports_freshness_from_reference_time():
+    row = _forecast(forecast_reference_time=datetime.now(UTC))
+    client = _client([row], [_area()])
+
+    area = client.get("/api/v1/weather/forecast").json()["areas"][0]
+
+    assert area["freshness"] == "FRESH"
+    assert area["fetched_at"] == row.forecast_reference_time.isoformat()
+
+
+def test_weather_forecast_marks_stale_when_reference_time_old():
+    row = _forecast(forecast_reference_time=datetime.now(UTC) - timedelta(hours=10))
+    client = _client([row], [_area()])
+
+    area = client.get("/api/v1/weather/forecast").json()["areas"][0]
+
+    assert area["freshness"] == "STALE"
+
+
 def test_weather_forecast_skips_row_for_deleted_geo_area():
     row = _forecast(geo_area_id=999)
     client = _client([row], [_area()])  # area id=1, forecast references id=999
