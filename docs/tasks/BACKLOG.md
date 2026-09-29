@@ -83,7 +83,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `dashboard_latest()`) — bez generowanego klienta ręczne typy będą się
       cicho rozjeżdżać z realnym schematem FastAPI. Zrobić to **teraz**, przed
       dalszym rozszerzaniem integracji mobile (TASK-7.2 i kolejne), żeby nie
-      duplikować pracy ręcznego przepisywania typów.
+      duplikować pracy ręcznego przepisywania typów. **Wymaga najpierw
+      Pydantic response models** — dziś endpointy danych (`dashboard_latest`,
+      `latest_weather`, `latest_air_quality`) zwracają `-> dict` bez
+      `response_model`, więc wygenerowany OpenAPI schema (i klient z niego)
+      opisze je jako generyczne obiekty bez pól — bez typów żadna korzyść z
+      generowanego klienta względem ręcznego rzutowania. Dodać
+      `response_model` do tych endpointów w ramach tego tasku, przed
+      generowaniem klienta.
 
 ### Phase 3 — Data Architecture (dokończenie)
 
@@ -123,7 +130,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       liczymy indeks sami wg opublikowanej metodologii GIOŚ, czy GIOŚ
       publikuje gotowy indeks per stacja do odczytania wprost (rule #10:
       jeśli liczymy sami, to nie jest to LLM ani zgadywanie — jawny,
-      testowalny algorytm).
+      testowalny algorytm). **Zakres: indeks ogólny ORAZ indeksy cząstkowe
+      per zanieczyszczenie** (oba wymienione osobno w MVP scope Master
+      Planu) — nie tylko jeden zagregowany wynik. Tak jak TASK-4.1, wymaga
+      też ujawnienia: zapis + `air.py`/`dashboard.py`/mobile, inaczej
+      policzony indeks jest niewidoczny.
 
 ### Phase 5 — Weather (dokończenie)
 
