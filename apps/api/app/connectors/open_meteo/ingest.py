@@ -97,10 +97,13 @@ def _store_forecast_batch(records: list[dict], db) -> int:
     return len(new_records)
 
 
-def ingest_geo_area(area: GeoArea, db) -> int:
+def ingest_geo_area(area: GeoArea, db) -> int | None:
     """Returns the number of new rows stored (current-weather snapshots +
-    hourly-derived fields + forecast days). One geo_area's fetch failure is
-    logged and skipped — it must not abort ingestion for the rest (rule #1).
+    hourly-derived fields + forecast days), or None when the fetch itself failed
+    (distinct from 0 = fetched, nothing new; the scheduler needs the difference to
+    avoid recording a total outage as a successful run, TASK-13.1). One
+    geo_area's fetch failure is logged and skipped — it must not abort ingestion
+    for the rest (rule #1).
     All three parse steps are isolated from each other too (ADR-010, TASK-5.4):
     a malformed block in one must not cost an otherwise-valid reading in another."""
 
@@ -119,7 +122,7 @@ def ingest_geo_area(area: GeoArea, db) -> int:
         payload = client.fetch_weather(area.latitude, area.longitude, on_attempt=_on_attempt)
     except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
-        return 0
+        return None
 
     fetched_at = datetime.now(UTC)
     stored = 0

@@ -49,10 +49,15 @@ def _gios_station_ids() -> list[str]:
 def run_open_meteo() -> None:
     db = SessionLocal()
     try:
-        for area in db.query(GeoArea).all():
-            ingest_geo_area(area, db)
+        areas = db.query(GeoArea).all()
+        failed = sum(ingest_geo_area(area, db) is None for area in areas)
     finally:
         db.close()
+    if areas and failed == len(areas):
+        # Per-area isolation (rule #1) swallows fetch errors; if EVERY area failed the
+        # source is down and this run must not refresh last_success_at (ADR-012,
+        # TASK-13.1) - a partial failure still counts as a run.
+        raise RuntimeError(f"Open-Meteo fetch failed for all {failed} geo area(s)")
 
 
 def run_gios() -> bool:
@@ -151,7 +156,10 @@ def _check_source_health(state: dict[str, str]) -> None:
         logger.exception("source health check failed")
     finally:
         if db is not None:
-            db.close()
+            try:
+                db.close()
+            except Exception:  # broken connection: monitoring must never kill the loop
+                logger.exception("could not close source health session")
 
 
 def main(*, iterations: int | None = None) -> None:

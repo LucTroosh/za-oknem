@@ -28,6 +28,34 @@ class TestRunOpenMeteo:
 
         assert mock.call_count == 2
 
+    def test_all_areas_failing_raises_so_it_is_not_recorded_as_success(
+        self, monkeypatch, db_session
+    ):
+        import pytest
+
+        _make_area(db_session, "klodzko")
+        _make_area(db_session, "warszawa")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(scheduler, "ingest_geo_area", MagicMock(return_value=None))
+
+        with pytest.raises(RuntimeError, match="all 2 geo area"):
+            scheduler.run_open_meteo()
+
+    def test_partial_failure_is_still_a_run(self, monkeypatch, db_session):
+        _make_area(db_session, "klodzko")
+        _make_area(db_session, "warszawa")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(scheduler, "ingest_geo_area", MagicMock(side_effect=[None, 3]))
+
+        scheduler.run_open_meteo()  # no raise
+
+    def test_zero_new_rows_is_success_not_failure(self, monkeypatch, db_session):
+        _make_area(db_session)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(scheduler, "ingest_geo_area", MagicMock(return_value=0))
+
+        scheduler.run_open_meteo()  # fetched, nothing new: no raise
+
 
 class TestRunGios:
     def test_skips_when_no_station_ids_configured(self, monkeypatch):
@@ -286,6 +314,14 @@ class TestCheckSourceHealth:
         scheduler._check_source_health(state)
 
         assert "gios" not in state
+
+    def test_close_failure_does_not_escape(self, monkeypatch):
+        session = MagicMock()
+        session.close.side_effect = RuntimeError("dead conn")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: session)
+        monkeypatch.setattr(scheduler, "collect_source_health", MagicMock(return_value=[]))
+
+        scheduler._check_source_health({})
 
     def test_never_raises(self, monkeypatch):
         monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))

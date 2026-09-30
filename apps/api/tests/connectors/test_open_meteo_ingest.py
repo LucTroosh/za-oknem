@@ -149,7 +149,7 @@ def test_ingest_geo_area_isolates_api_failure(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == 0
+    assert stored is None  # fetch failed: distinct from 0 = fetched, nothing new
     assert db_session.query(WeatherSnapshot).count() == 0
     assert db_session.query(Forecast).count() == 0
 
