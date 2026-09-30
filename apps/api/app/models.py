@@ -1,7 +1,17 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -96,9 +106,7 @@ class WeatherSnapshot(Base):
 
     __tablename__ = "weather_snapshots"
     __table_args__ = (
-        UniqueConstraint(
-            "source_id", "source_record_id", name="uq_weather_snapshot_source_record"
-        ),
+        UniqueConstraint("source_id", "source_record_id", name="uq_weather_snapshot_source_record"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -144,3 +152,32 @@ class Forecast(Base):
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SourceFetchCounter(Base):
+    """Daily outbound-call counter per source (ADR-001/ADR-003/ADR-004: "licznik
+    dziennych wywołań per źródło w bazie, alert przy 70% dziennego limitu").
+
+    Postgres, not Redis (rule #2: Redis is cache/short-lived state, this counter
+    must survive a scheduler restart to mean anything). One row per
+    (source_id, day) - `count` is NOT a raw outbound-request tally: `record_fetch_call()`
+    takes a `units` argument, and each connector passes its own conservatively-rounded
+    estimate of Open-Meteo's real billing units per call (see
+    `ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL`, derived from their published pricing
+    rule), incremented once per real HTTP attempt (success or failure) by the
+    connector itself.
+
+    LucTroosh review: this docstring used to say "number of outbound HTTP requests" -
+    stale the moment `units=` stopped defaulting to a 1:1 request:unit mapping, since
+    one HTTP attempt is now persisted as `count += N` for N > 1. Still a conservative
+    (rounded up) lower bound on real billing units, not an exact remaining-budget
+    figure - upgrade if Open-Meteo ever publishes the precise per-variable formula.
+    """
+
+    __tablename__ = "source_fetch_counters"
+    __table_args__ = (UniqueConstraint("source_id", "day", name="uq_source_fetch_counter_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
