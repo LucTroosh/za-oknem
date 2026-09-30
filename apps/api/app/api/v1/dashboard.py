@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,6 +11,7 @@ from app.api.v1.weather import freshness as weather_freshness
 from app.db import get_db
 from app.geo import haversine_km
 from app.models import GeoArea, Measurement, WeatherSnapshot
+from app.outdoor import OutdoorInputs, Reading, evaluate
 
 router = APIRouter()
 
@@ -26,6 +29,21 @@ IMGW_ATTRIBUTION = (
     "Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej"
     " – Państwowy Instytut Badawczy"
 )
+
+# TASK-7.7 / ADR-016: the engine does no unit conversion, so the caller only feeds it
+# values whose stored unit is EXACTLY the expected one (strings as our connectors
+# store them: Open-Meteo `*_units`, GIOŚ parser). Anything else is dropped (-> missing[]),
+# never converted "by eye". Keys = OutdoorInputs fields.
+_OUTDOOR_WEATHER_UNITS = {
+    "temperature_2m": "°C",
+    "apparent_temperature": "°C",
+    "precipitation": "mm",
+    "wind_speed_10m": "km/h",
+    "wind_gusts_10m": "km/h",
+    "uv_index": "",
+    "visibility": "m",
+}
+_OUTDOOR_AIR = {"PM2.5": ("pm25", "µg/m³"), "PM10": ("pm10", "µg/m³")}  # param_code -> field
 
 
 @router.get("/dashboard/latest")
@@ -114,8 +132,18 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
         params = weather_by_area.get(area.id, [])
         weather = None
+        weather_params: dict[str, dict] = {}
         if params:
             latest_observed_at = max(p.observed_at for p in params)
+            weather_params = {
+                p.param_code: {
+                    "value": p.value,
+                    "unit": p.unit,
+                    "observed_at": p.observed_at.isoformat(),
+                    "freshness": weather_freshness(p.observed_at),
+                }
+                for p in params
+            }
             weather = {
                 "source": "open_meteo",
                 "attribution": OPEN_METEO_ATTRIBUTION,
@@ -125,15 +153,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # hourly-derived params (dew point/visibility/UV) can stay stale for
                 # cycles while `current` keeps refreshing, so the object-level max()
                 # above must not be the only freshness a client sees.
-                "params": {
-                    p.param_code: {
-                        "value": p.value,
-                        "unit": p.unit,
-                        "observed_at": p.observed_at.isoformat(),
-                        "freshness": weather_freshness(p.observed_at),
-                    }
-                    for p in params
-                },
+                "params": weather_params,
             }
 
         areas_out.append(
@@ -146,6 +166,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "air": air,
                 "weather": weather,
                 "forecast": _forecast_block(forecasts.get(area.id)),
+                "outdoor": _outdoor_block(air["params"] if air else {}, weather_params),
             }
         )
 
@@ -164,6 +185,29 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     }
 
     return {"areas": areas_out, "alerts": alerts}
+
+
+def _reading(param: dict | None, unit: str) -> Reading | None:
+    if param is None or param["unit"] != unit:
+        return None
+    return Reading(param["value"], param["freshness"])
+
+
+def _outdoor_block(air_params: dict, weather_params: dict) -> dict:
+    """ADR-016 engine verdict from the rows already loaded above (no extra query,
+    rule #14). DERIVED value (rule #10: deterministic rules, never a safety source);
+    verbatim from the engine, nothing is classified again here."""
+    fields = {
+        f: _reading(weather_params.get(f), unit) for f, unit in _OUTDOOR_WEATHER_UNITS.items()
+    }
+    for code, (field, unit) in _OUTDOOR_AIR.items():
+        fields[field] = _reading(air_params.get(code), unit)
+    result = evaluate(OutdoorInputs(**fields))
+    return {
+        "level": result.rating.value,
+        "reasons": [{**asdict(r), "level": r.level.value} for r in result.reasons],
+        "missing": [{**asdict(m), "params": list(m.params)} for m in result.missing],
+    }
 
 
 def _forecast_block(forecast: dict | None) -> dict | None:
