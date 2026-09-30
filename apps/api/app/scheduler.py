@@ -15,13 +15,13 @@ from datetime import UTC, datetime
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.ingest import ingest_station
 from app.connectors.imgw_hydro import client as imgw_hydro_client
-from app.connectors.imgw_hydro.ingest import ingest_station as ingest_hydro_station
+from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
-from app.connectors.imgw_warningshydro.ingest import ingest_batch
-from app.connectors.imgw_warningshydro.parser import parse_warnings
+from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
+from app.provenance import purge_expired_payloads
 from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,8 @@ OPEN_METEO_INTERVAL_SECONDS = 3 * 60 * 60
 GIOS_INTERVAL_SECONDS = 60 * 60
 IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
 IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
+# ADR-014: payload retention is coarse (days), so once a day is plenty.
+RAW_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60
 POLL_INTERVAL_SECONDS = 60
 
 
@@ -71,9 +73,8 @@ def run_imgw_hydro() -> None:
     # already deterministic - nothing to guess (ADR-008).
     db = SessionLocal()
     try:
-        fetched_at = datetime.now(UTC)
-        for station in imgw_hydro_client.fetch_stations():
-            ingest_hydro_station(station, db, fetched_at=fetched_at)
+        stations = imgw_hydro_client.fetch_stations()
+        ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
 
@@ -81,9 +82,8 @@ def run_imgw_hydro() -> None:
 def run_imgw_warningshydro() -> None:
     db = SessionLocal()
     try:
-        fetched_at = datetime.now(UTC)
-        warnings = parse_warnings(imgw_warnings_client.fetch_warnings())
-        _stored, _expired, rejected = ingest_batch(warnings, db, fetched_at=fetched_at)
+        raw = imgw_warnings_client.fetch_warnings()
+        _stored, _expired, rejected = ingest_raw(raw, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
     if rejected:
@@ -93,18 +93,32 @@ def run_imgw_warningshydro() -> None:
         raise RuntimeError(f"{rejected} IMGW warning(s) failed to parse - snapshot incomplete")
 
 
-def _run_job_safely(name: str, job: Callable[[], bool | None]) -> None:
+def run_raw_retention() -> None:
+    """ADR-014: NULL out raw payloads past each source's retention window."""
+    db = SessionLocal()
+    try:
+        purged = purge_expired_payloads(db)
+    finally:
+        db.close()
+    logger.info("raw payload retention: purged %s payload(s)", purged)
+
+
+def _run_job_safely(
+    name: str, job: Callable[[], bool | None], *, track_status: bool = True
+) -> None:
     """Rule #1: a connector failure (source down, retry exhausted, bad payload)
     must not take down the scheduler and stop every other source's refresh.
     ADR-012: every run is recorded in source_status (`name` is the source_id); a
-    job returning False skipped itself and records nothing."""
+    job returning False skipped itself and records nothing. `track_status=False`
+    is for housekeeping jobs that are not a data source (no source_status row)."""
     try:
         ran = job()
     except Exception as exc:
         logger.exception("scheduled job %s failed - other jobs still run (rule #1)", name)
-        _record_run(name, success=False, error=f"{type(exc).__name__}: {exc}")
+        if track_status:
+            _record_run(name, success=False, error=f"{type(exc).__name__}: {exc}")
         return
-    if ran is not False:
+    if track_status and ran is not False:
         _record_run(name, success=True)
 
 
@@ -131,6 +145,7 @@ def main(*, iterations: int | None = None) -> None:
     # hours past either interval) but that's an assumption about the platform, not
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
     last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
+    last_retention = float("-inf")
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
@@ -146,6 +161,9 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_imgw_warnings >= IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS:
             _run_job_safely("imgw_warningshydro", run_imgw_warningshydro)
             last_imgw_warnings = now
+        if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
+            _run_job_safely("raw_retention", run_raw_retention, track_status=False)
+            last_retention = now
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)

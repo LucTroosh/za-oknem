@@ -16,9 +16,11 @@ from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 
+from app import provenance
 from app.connectors.open_meteo import client
 from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS, HOURLY_PARAMS
 from app.connectors.open_meteo.parser import (
+    PARSER_VERSION,
     OpenMeteoParseError,
     normalize,
     normalize_forecast,
@@ -122,12 +124,26 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     fetched_at = datetime.now(UTC)
     stored = 0
 
+    # ADR-014: raw payload first (status pending) - it survives a parser crash or a
+    # worker kill - then all three blocks are parsed (each isolated, ADR-010/
+    # TASK-5.4) and the status set, BEFORE any row is stored so every row can point
+    # at the fetch.
+    fetch_id = provenance.record_fetch(
+        db,
+        source_id="open_meteo",
+        # Query params (variable lists) are fixed by client.py - tracked by PARSER_VERSION.
+        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
+        payload=payload,
+        fetched_at=fetched_at,
+        parser_version=PARSER_VERSION,
+    )
+    failed_blocks = 0
     try:
         snapshots = normalize(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
     except OpenMeteoParseError as exc:
         logger.warning("geo_area %s: current weather FAILED (%s)", area.slug, exc)
         snapshots = []
-    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
+        failed_blocks += 1
 
     # TASK-5.4: dew point/visibility/UV, own try/except - a hiccup in this newer,
     # hourly-array-derived block must not cost the already-proven current fields
@@ -139,13 +155,21 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     except OpenMeteoParseError as exc:
         logger.warning("geo_area %s: hourly-derived fields FAILED (%s)", area.slug, exc)
         hourly_snapshots = []
-    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
+        failed_blocks += 1
 
     try:
         forecasts = normalize_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
     except OpenMeteoParseError as exc:
         logger.warning("geo_area %s: forecast FAILED (%s)", area.slug, exc)
         forecasts = []
+        failed_blocks += 1
+
+    provenance.set_validation_status(db, fetch_id, provenance.batch_status(3, failed_blocks))
+    for r in (*snapshots, *hourly_snapshots, *forecasts):
+        r["source_fetch_id"] = fetch_id
+
+    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
+    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
     stored += _store_forecast_batch(forecasts, db)
 
     logger.info(

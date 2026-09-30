@@ -23,6 +23,11 @@ DEFAULT_MODEL = "auto"
 FETCH_CYCLE_HOURS = 3
 
 
+# Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
+# (including the set of requested fields), so old payloads stay interpretable.
+PARSER_VERSION = "1"
+
+
 class OpenMeteoParseError(Exception):
     """Raised when an Open-Meteo payload doesn't match the expected shape."""
 

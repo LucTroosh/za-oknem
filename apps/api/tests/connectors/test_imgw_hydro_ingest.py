@@ -6,9 +6,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app import provenance
 from app.connectors.imgw_hydro import client, ingest
-from app.connectors.imgw_hydro.parser import ImgwHydroParseError
-from app.models import Measurement, SourceStatus
+from app.connectors.imgw_hydro.parser import PARSER_VERSION, ImgwHydroParseError
+from app.models import Measurement, SourceFetch, SourceStatus
 
 STATION = {
     "id_stacji": "151140030",
@@ -116,6 +117,70 @@ def test_ingest_station_reconciles_threshold_even_when_water_reading_stops(db_se
     ingest.ingest_station(stalled_station, db_session, fetched_at=datetime.now(UTC))
 
     assert db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").count() == 0
+
+
+class TestProvenance:
+    """ADR-014: one raw fetch per IMGW response; every stored row points at it."""
+
+    def test_snapshot_records_raw_payload_and_links_every_row(self, db_session):
+        station = {**STATION, "stan_ostrzegawczy": "300", "stan_alarmowy": "340"}
+        stations = [station]
+
+        stored, rejected = ingest.ingest_snapshot(
+            stations, db_session, fetched_at=datetime.now(UTC)
+        )
+
+        assert (stored, rejected) == (3, 0)
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.source_id == "imgw_hydro"
+        assert fetch.endpoint == client.URL
+        assert fetch.payload == stations
+        assert fetch.parser_version == PARSER_VERSION
+        assert fetch.validation_status == provenance.VALID
+        assert {m.source_fetch_id for m in db_session.query(Measurement).all()} == {fetch.id}
+
+    def test_partial_snapshot_when_a_station_is_malformed(self, db_session):
+        bad = {**STATION, "id_stacji": "999", "lat": "not-a-number"}
+
+        stored, rejected = ingest.ingest_snapshot(
+            [bad, STATION], db_session, fetched_at=datetime.now(UTC)
+        )
+
+        assert (stored, rejected) == (1, 1)
+        assert db_session.query(SourceFetch).one().validation_status == provenance.PARTIAL
+
+    def test_all_stations_malformed_is_invalid_but_payload_kept(self, db_session):
+        bad = {**STATION, "lat": "not-a-number"}
+
+        ingest.ingest_snapshot([bad], db_session, fetched_at=datetime.now(UTC))
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.validation_status == provenance.INVALID
+        assert fetch.payload == [bad]
+
+    def test_threshold_upsert_moves_link_to_the_latest_fetch(self, db_session):
+        first = {**STATION, "stan_ostrzegawczy": "300"}
+        changed = {**STATION, "stan_ostrzegawczy": "310"}
+        ingest.ingest_snapshot([first], db_session, fetched_at=datetime.now(UTC))
+        ingest.ingest_snapshot([changed], db_session, fetched_at=datetime.now(UTC))
+
+        latest = db_session.query(SourceFetch).order_by(SourceFetch.id.desc()).first()
+        threshold = db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").one()
+        assert threshold.value == 310.0
+        assert threshold.source_fetch_id == latest.id
+
+    def test_provenance_failure_does_not_block_rows(self, db_session, monkeypatch):
+        monkeypatch.setattr(provenance, "record_fetch", MagicMock(return_value=None))
+
+        stored, _ = ingest.ingest_snapshot([STATION], db_session, fetched_at=datetime.now(UTC))
+
+        assert stored == 1
+        assert db_session.query(Measurement).one().source_fetch_id is None
+
+    def test_ingest_station_without_fetch_id_leaves_link_null(self, db_session):
+        ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
+
+        assert db_session.query(Measurement).one().source_fetch_id is None
 
 
 class TestMain:

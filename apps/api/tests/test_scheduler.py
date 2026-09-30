@@ -2,11 +2,11 @@
 explicit opt-in for GIOS_STATION_IDS. ingest_* themselves are already covered
 by the connectors' own ingest tests - only the scheduling wiring is new here."""
 
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import app.scheduler as scheduler
-from app.models import GeoArea
+from app.models import Alert, GeoArea, SourceFetch
 
 
 def _make_area(db, slug="klodzko") -> GeoArea:
@@ -56,41 +56,41 @@ class TestRunGios:
 
 
 class TestRunImgwHydro:
-    def test_ingests_every_fetched_station_no_gating(self, monkeypatch, db_session):
+    def test_ingests_whole_response_as_one_snapshot_no_gating(self, monkeypatch, db_session):
         # Unlike GIOS, no env var gate - one call already returns every station,
-        # deterministic (ADR-008).
+        # deterministic (ADR-008). ADR-014: the whole response is one raw fetch.
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         stations = [{"id_stacji": "1"}, {"id_stacji": "2"}]
         monkeypatch.setattr(
             scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=stations)
         )
-        ingest_mock = MagicMock()
-        monkeypatch.setattr(scheduler, "ingest_hydro_station", ingest_mock)
+        snapshot_mock = MagicMock(return_value=(0, 0))
+        monkeypatch.setattr(scheduler, "ingest_hydro_snapshot", snapshot_mock)
 
         scheduler.run_imgw_hydro()
 
-        assert ingest_mock.call_count == 2
-        # fetched_at is shared across the batch, not re-computed per station.
-        assert ingest_mock.call_args_list[0].kwargs["fetched_at"].tzinfo == UTC
+        snapshot_mock.assert_called_once()
+        args, kwargs = snapshot_mock.call_args
+        assert args == (stations, db_session)
+        # fetched_at is one timestamp for the whole batch.
+        assert kwargs["fetched_at"].tzinfo == UTC
 
 
 class TestRunImgwWarningsHydro:
-    def test_ingests_every_parsed_warning(self, monkeypatch, db_session):
+    def test_ingests_every_warning_and_keeps_the_raw_payload(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        raw = [{"numer": "1"}, {"numer": "2"}]
         monkeypatch.setattr(
-            scheduler.imgw_warnings_client,
-            "fetch_warnings",
-            MagicMock(return_value=[{"numer": "1"}, {"numer": "2"}]),
+            scheduler.imgw_warnings_client, "fetch_warnings", MagicMock(return_value=raw)
         )
-        monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
-        batch_mock = MagicMock(return_value=(0, 0, 0))
-        monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
+        raw_mock = MagicMock(return_value=(0, 0, 0))
+        monkeypatch.setattr(scheduler, "ingest_raw", raw_mock)
 
         scheduler.run_imgw_warningshydro()
 
-        batch_mock.assert_called_once()
-        args, kwargs = batch_mock.call_args
-        assert args == ([{"numer": "1"}, {"numer": "2"}], db_session)
+        raw_mock.assert_called_once()
+        args, kwargs = raw_mock.call_args
+        assert args == (raw, db_session)
         assert "fetched_at" in kwargs
 
     def test_empty_message_shape_ingests_nothing(self, monkeypatch, db_session):
@@ -100,15 +100,13 @@ class TestRunImgwWarningsHydro:
             "fetch_warnings",
             MagicMock(return_value={"message": "Brak"}),
         )
-        batch_mock = MagicMock(return_value=(0, 0, 0))
-        monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
-        scheduler.run_imgw_warningshydro()
+        scheduler.run_imgw_warningshydro()  # real ingest_raw, SQLite session
 
-        batch_mock.assert_called_once()
-        args, kwargs = batch_mock.call_args
-        assert args == ([], db_session)
-        assert "fetched_at" in kwargs
+        assert db_session.query(Alert).count() == 0
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == {"message": "Brak"}
+        assert fetch.validation_status == "valid"
 
 
 class TestRunImgwWarningsHydroIncomplete:
@@ -121,8 +119,7 @@ class TestRunImgwWarningsHydroIncomplete:
         monkeypatch.setattr(
             scheduler.imgw_warnings_client, "fetch_warnings", MagicMock(return_value=[{}])
         )
-        monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
-        monkeypatch.setattr(scheduler, "ingest_batch", MagicMock(return_value=(0, 0, 1)))
+        monkeypatch.setattr(scheduler, "ingest_raw", MagicMock(return_value=(0, 0, 1)))
         record = MagicMock()
         monkeypatch.setattr(scheduler, "_record_run", record)
 
@@ -132,6 +129,38 @@ class TestRunImgwWarningsHydroIncomplete:
         assert "snapshot incomplete" in record.call_args.kwargs["error"]
 
 
+class TestRunRawRetention:
+    def test_purges_expired_payloads(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        old = datetime.now(UTC) - timedelta(days=60)
+        db_session.add(
+            SourceFetch(
+                source_id="gios",
+                endpoint="x",
+                fetched_at=old,
+                parser_version="1",
+                validation_status="valid",
+                payload={"a": 1},
+            )
+        )
+        db_session.commit()
+
+        scheduler.run_raw_retention()
+
+        assert db_session.query(SourceFetch).one().payload is None
+
+    def test_failure_does_not_record_source_status_or_raise(self, monkeypatch):
+        # Housekeeping is not a data source: no source_status row (ADR-012), and
+        # like every job it must not take the scheduler down (rule #1).
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        scheduler._run_job_safely("raw_retention", scheduler.run_raw_retention, track_status=False)
+
+        record.assert_not_called()
+
+
 class TestMain:
     def _mock_all_jobs(self, monkeypatch):
         mocks = {
@@ -139,6 +168,7 @@ class TestMain:
             "run_gios": MagicMock(),
             "run_imgw_hydro": MagicMock(),
             "run_imgw_warningshydro": MagicMock(),
+            "run_raw_retention": MagicMock(),
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)
