@@ -247,3 +247,13 @@ def test_rate_limiter_key_count_stays_bounded(monkeypatch):
     for i in range(50):
         limiter.check(f"ip{i}")
     assert len(limiter._hits) <= 5
+
+
+def test_expired_keys_are_dropped_without_reaching_the_cap(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr("app.rate_limit.time.monotonic", lambda: now[0])
+    limiter = RateLimiter(limit=5, window_seconds=10)
+    limiter.check("one-off-ip")
+    now[0] += 11
+    limiter.check("other")
+    assert "one-off-ip" not in limiter._hits

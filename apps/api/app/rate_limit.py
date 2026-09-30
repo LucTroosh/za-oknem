@@ -23,6 +23,7 @@ class RateLimiter:
         self.window = window_seconds
         self._hits: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
+        self._next_sweep = 0.0
 
     def reset(self) -> None:
         with self._lock:
@@ -32,6 +33,11 @@ class RateLimiter:
         """Record one hit for `key`; HTTP 429 (+ Retry-After) if over the limit."""
         now = time.monotonic()
         with self._lock:
+            # Expired keys (= stored IPs) are dropped at least once per window, so the
+            # in-memory IP data really lives only ~window seconds (ADR-017).
+            if now >= self._next_sweep:
+                self._sweep(now)
+                self._next_sweep = now + self.window
             if key not in self._hits and len(self._hits) >= MAX_KEYS:
                 self._sweep(now)
                 # All still active: evict oldest down to 90% so the O(N) sweep does not
