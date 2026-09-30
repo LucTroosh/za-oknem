@@ -116,7 +116,19 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "attribution": OPEN_METEO_ATTRIBUTION,
                 "observed_at": latest_observed_at.isoformat(),
                 "freshness": weather_freshness(latest_observed_at),
-                "params": {p.param_code: {"value": p.value, "unit": p.unit} for p in params},
+                # Per-param observed_at/freshness (Codex P1 on PR #50, also applies here):
+                # hourly-derived params (dew point/visibility/UV) can stay stale for
+                # cycles while `current` keeps refreshing, so the object-level max()
+                # above must not be the only freshness a client sees.
+                "params": {
+                    p.param_code: {
+                        "value": p.value,
+                        "unit": p.unit,
+                        "observed_at": p.observed_at.isoformat(),
+                        "freshness": weather_freshness(p.observed_at),
+                    }
+                    for p in params
+                },
             }
 
         areas_out.append(
