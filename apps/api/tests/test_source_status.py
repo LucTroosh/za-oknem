@@ -57,3 +57,31 @@ def test_old_success_is_stale(db_session):
     result = source_freshness(db_session, "imgw_warningshydro", alerts_freshness)
 
     assert result["freshness"] == "STALE"
+
+
+def test_out_of_order_older_result_does_not_overwrite_newer(db_session):
+    # Codex review: a writer that computed its timestamp earlier and committed
+    # later must not move status backward (e.g. older success over newer failure).
+    t_new = datetime.now(UTC)
+    t_old = t_new - timedelta(seconds=30)
+    record_source_run(db_session, "imgw_warningshydro", success=False, error="down", now=t_new)
+
+    record_source_run(db_session, "imgw_warningshydro", success=True, now=t_old)
+
+    row = db_session.get(SourceStatus, "imgw_warningshydro")
+    assert row.last_success_at is None
+    assert row.last_error == "down"
+    assert source_freshness(db_session, "imgw_warningshydro", alerts_freshness)["freshness"] == (
+        "UNAVAILABLE"
+    )
+
+
+def test_newer_result_still_applies(db_session):
+    t_old = datetime.now(UTC) - timedelta(seconds=30)
+    record_source_run(db_session, "imgw_warningshydro", success=False, error="down", now=t_old)
+
+    record_source_run(db_session, "imgw_warningshydro", success=True)
+
+    row = db_session.get(SourceStatus, "imgw_warningshydro")
+    assert row.last_success_at is not None
+    assert row.last_error is None

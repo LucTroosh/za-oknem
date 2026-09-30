@@ -14,14 +14,25 @@ MAX_ERROR_LENGTH = 500
 
 
 def record_source_run(
-    db: Session, source_id: str, *, success: bool, error: str | None = None
+    db: Session,
+    source_id: str,
+    *,
+    success: bool,
+    error: str | None = None,
+    now: datetime | None = None,
 ) -> None:
     """Atomic upsert (INSERT ... ON CONFLICT DO UPDATE). The scheduler AND the
     manual CLI ingest both record runs (ADR-012), so two writers can race on the
     first insert or interleave updates - a get-then-add would raise
     IntegrityError or lose one run's outcome (Codex review). Postgres in
-    production, SQLite in tests: both support ON CONFLICT with the same API."""
-    now = datetime.now(UTC)
+    production, SQLite in tests: both support ON CONFLICT with the same API.
+
+    The update applies only if this run's attempt is not older than the stored
+    one: a writer that computed `now` earlier and paused could otherwise move
+    timestamps backward or replace a newer failure with an older success
+    (Codex review). A late older result is dropped - at worst the source turns
+    STALE sooner, never falsely FRESH. `now` is injectable for tests."""
+    now = now or datetime.now(UTC)
     values = {"source_id": source_id, "last_attempt_at": now}
     updates = {"last_attempt_at": now}
     if success:
@@ -31,7 +42,13 @@ def record_source_run(
         values["last_error"] = updates["last_error"] = (error or "")[:MAX_ERROR_LENGTH]
     insert = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
     stmt = insert(SourceStatus).values(**values)
-    db.execute(stmt.on_conflict_do_update(index_elements=["source_id"], set_=updates))
+    db.execute(
+        stmt.on_conflict_do_update(
+            index_elements=["source_id"],
+            set_=updates,
+            where=SourceStatus.last_attempt_at <= stmt.excluded.last_attempt_at,
+        )
+    )
     db.commit()
 
 
