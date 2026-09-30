@@ -32,9 +32,11 @@ class RateLimiter:
         """Record one hit for `key`; HTTP 429 (+ Retry-After) if over the limit."""
         now = time.monotonic()
         with self._lock:
-            if len(self._hits) > MAX_KEYS:
+            if key not in self._hits and len(self._hits) >= MAX_KEYS:
                 self._sweep(now)
-                while len(self._hits) > MAX_KEYS:  # all still active: evict oldest key
+                # All still active: evict oldest down to 90% so the O(N) sweep does not
+                # run on every new key under a flood of distinct IPs.
+                while len(self._hits) > MAX_KEYS * 0.9:
                     del self._hits[next(iter(self._hits))]
             hits = self._hits.setdefault(key, deque())
             while hits and hits[0] <= now - self.window:

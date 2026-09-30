@@ -246,4 +246,4 @@ def test_rate_limiter_key_count_stays_bounded(monkeypatch):
     limiter = RateLimiter(limit=10, window_seconds=60)
     for i in range(50):
         limiter.check(f"ip{i}")
-    assert len(limiter._hits) <= 6
+    assert len(limiter._hits) <= 5

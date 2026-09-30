@@ -63,10 +63,13 @@ tych rekordach.
 7. **Rate limit.** Limiter in-memory (okno kroczące, 30 zapisów/min/IP) na `POST` i
    `DELETE`, 429 + `Retry-After`. IP tylko w pamięci procesu (TTL = okno, sweep przy
    >10k kluczy), nigdy w PostgreSQL ani logach.
-8. **Logi.** Żadnego logowania tokenu push ani sekretu (nie ma ich w ścieżce/query;
+8. **CORS.** `allow_methods` zostaje `GET`: klient to natywna appka (CORS jej nie
+   dotyczy), a przeglądarkowy klient (PWA) jest poza MVP — zapisy z przeglądarki nie są
+   celowo wspierane.
+9. **Logi.** Żadnego logowania tokenu push ani sekretu (nie ma ich w ścieżce/query;
    `RequestLoggingMiddleware` loguje tylko metodę, ścieżkę, status). Odpowiedzi nie
    zawierają tokenu ani hasha.
-9. **Dane.** `devices`: `installation_id`, `secret_hash`, `platform`, `push_token`,
+10. **Dane.** `devices`: `installation_id`, `secret_hash`, `platform`, `push_token`,
    `observed_area_code`, `app_version`, `active`, `created_at/updated_at/last_seen_at`.
    Brak współrzędnych, brak IP, brak PII. To dane pseudonimowe → inwentarz
    TASK-14.2, prawo do usunięcia = `DELETE` + retencja.
