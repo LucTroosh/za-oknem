@@ -120,6 +120,12 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
   `pg_dump` (LucTroosh review [P1], zweryfikowane symulowaną awarią pg_dump).
 - `restore_test.sh` sprawdza obecność `docker-compose.yml` i `.env.example` w
   archiwum config, nie tylko poprawność kontenera tar.gz.
+- Hasło bazy nigdy nie trafia do argv (`ps`/`/proc/*/cmdline` są czytelne dla
+  wszystkich użytkowników hosta): `_pgpass.sh` przenosi je z `DATABASE_URL`
+  (userinfo albo `?password=`) do pliku `PGPASSFILE` z uprawnieniami 600 w
+  prywatnym katalogu tymczasowym, a `psql`/`pg_dump`/`pg_restore` dostają URL bez
+  hasła (LucTroosh review [P2]; zweryfikowane shimami logującymi argv każdego
+  wywołania przy auth scram-sha-256).
 
 ## Architecture Impact
 

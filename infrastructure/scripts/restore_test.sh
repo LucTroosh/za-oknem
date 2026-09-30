@@ -29,6 +29,14 @@ RESTORE_TEST_DB="${RESTORE_TEST_DB:-za_oknem_$(od -An -tx1 -N4 /dev/urandom | tr
 # libpq (psql/pg_restore) rozumie tylko postgresql:// / postgres://, nie sufiks
 # sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example (Codex review).
 PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+# Hasło z URL -> PGPASSFILE (mode 600) w osobnym katalogu, żyjącym do samego końca
+# (DROP w cleanup() też potrzebuje hasła); w argv tylko URL bez hasła (_pgpass.sh).
+PGPASS_DIR="$(mktemp -d)"
+trap 'rm -rf "$PGPASS_DIR"' EXIT
+# shellcheck source=_pgpass.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_pgpass.sh"
+pg_secure_url "$PG_DATABASE_URL" "$PGPASS_DIR"
+PG_DATABASE_URL="$PG_SAFE_URL"
 
 # Query string (np. ?sslmode=verify-full) musi przetrwać zamianę nazwy bazy —
 # inaczej test odtworzenia łączy się bez wymaganych parametrów (np. bez
@@ -151,6 +159,7 @@ cleanup() {
       exit_code=1
     fi
   fi
+  rm -rf "$PGPASS_DIR"
   exit "$exit_code"
 }
 trap cleanup EXIT

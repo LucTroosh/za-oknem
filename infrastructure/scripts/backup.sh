@@ -28,6 +28,11 @@ trap 'rm -rf "$WORKDIR"' EXIT
 # sufiks sterownika SQLAlchemy (postgresql+psycopg://) używany w .env.example —
 # bez tego pg_dump odrzuca DATABASE_URL w udokumentowanym formacie (Codex review).
 PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+# Hasło z URL -> PGPASSFILE (mode 600), w argv tylko URL bez hasła (patrz _pgpass.sh).
+# shellcheck source=_pgpass.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_pgpass.sh"
+pg_secure_url "$PG_DATABASE_URL" "$WORKDIR"
+PG_DATABASE_URL="$PG_SAFE_URL"
 
 echo "[backup] pg_dump ze spójnym snapshotem (dump + manifest z tej samej migawki)..."
 # LucTroosh review [P2]: dump i liczniki manifestu były dwiema OSOBNYMI migawkami bazy

@@ -38,6 +38,10 @@ export BACKUP_ALLOW_NO_SECRETS=1
 # SQLAlchemy (postgresql+psycopg://) — ten sam fix co w backup.sh/restore_test.sh
 # (Codex review: ten skrypt miał własne psql wywołania, które o tym zapomniały).
 PG_DATABASE_URL="$(echo "$DATABASE_URL" | sed -E 's#^postgresql\+[A-Za-z0-9_]+://#postgresql://#')"
+# shellcheck source=_pgpass.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_pgpass.sh"
+pg_secure_url "$PG_DATABASE_URL" "$AGE_DIR"
+PG_DATABASE_URL="$PG_SAFE_URL"
 
 echo "[test] czekam na Postgres..."
 for _ in $(seq 1 20); do

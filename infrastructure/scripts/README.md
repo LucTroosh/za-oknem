@@ -45,6 +45,10 @@ bash infrastructure/scripts/test_backup_restore.sh
 
 ### Model bezpieczeństwa (po LucTroosh review)
 
+- Hasło z `DATABASE_URL` nigdy nie jest argumentem procesu — `_pgpass.sh` zapisuje je
+  do `PGPASSFILE` (chmod 600, katalog tymczasowy usuwany na końcu), polecenia
+  dostają URL bez hasła.
+
 - Dump bazy **i** sekrety trafiają na `BACKUP_REMOTE` wyłącznie zaszyfrowane `age`
   (ten sam klucz publiczny) — nigdy plaintextem, nawet tymczasowo na dysku (pipe
   prosto z `pg_dump`/`tar` do `age`).
