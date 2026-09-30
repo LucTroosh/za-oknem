@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import { apiGet } from "./api";
+import { type ForecastDay, forecastLine } from "./forecast";
 import { FRESHNESS_LABEL, type Freshness } from "./freshness";
 
 // No shared api-contract package yet (packages/api-contract is still a
@@ -46,6 +47,14 @@ type DashboardArea = {
       string,
       { value: number; unit: string; observed_at: string; freshness: Freshness }
     >;
+  } | null;
+  // TASK-5.5: daily forecast from the same dashboard aggregate. Freshness is
+  // about when we fetched it (fetched_at), not about the forecast period.
+  forecast: {
+    attribution: string;
+    fetched_at: string;
+    freshness: Freshness;
+    days: ForecastDay[];
   } | null;
 };
 
@@ -147,6 +156,19 @@ export default function Home() {
                 <Text style={styles.metric}>pogoda: brak danych</Text>
               )}
             </View>
+            {item.forecast && forecastLine(item.forecast.days) && (
+              <View>
+                <Text style={styles.metric}>
+                  Prognoza: {forecastLine(item.forecast.days)}{" "}
+                  <Text style={styles.freshness}>
+                    ({FRESHNESS_LABEL[item.forecast.freshness]})
+                  </Text>
+                </Text>
+                <Text style={styles.attribution}>
+                  {item.forecast.attribution} · pobrano {formatObservedAt(item.forecast.fetched_at)}
+                </Text>
+              </View>
+            )}
           </View>
         )}
       />
