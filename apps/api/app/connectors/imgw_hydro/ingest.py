@@ -15,6 +15,7 @@ from app.connectors.imgw_hydro import client
 from app.connectors.imgw_hydro.parser import ImgwHydroParseError, normalize
 from app.db import SessionLocal
 from app.models import Measurement
+from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
 
@@ -107,12 +108,19 @@ def ingest_station(station: dict, db, *, fetched_at: datetime) -> int:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    stations = client.fetch_stations()
-    fetched_at = datetime.now(UTC)
-
     db = SessionLocal()
     try:
-        stored = sum(ingest_station(s, db, fetched_at=fetched_at) for s in stations)
+        # ADR-012: the CLI records its outcome like the scheduler does - operators
+        # may run only this path, and /hydro must not stay UNAVAILABLE forever.
+        try:
+            stations = client.fetch_stations()
+            fetched_at = datetime.now(UTC)
+            stored = sum(ingest_station(s, db, fetched_at=fetched_at) for s in stations)
+        except Exception as exc:
+            db.rollback()
+            record_source_run(db, "imgw_hydro", success=False, error=f"{type(exc).__name__}: {exc}")
+            raise
+        record_source_run(db, "imgw_hydro", success=True)
     finally:
         db.close()
     logger.info("imgw_hydro: stored %s/%s new readings", stored, len(stations))

@@ -4,9 +4,11 @@ SQLite db_session fixture."""
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.connectors.imgw_hydro import client, ingest
 from app.connectors.imgw_hydro.parser import ImgwHydroParseError
-from app.models import Measurement
+from app.models import Measurement, SourceStatus
 
 STATION = {
     "id_stacji": "151140030",
@@ -135,3 +137,23 @@ class TestMain:
         ingest.main()
 
         assert db_session.query(Measurement).count() == 1
+
+    def test_success_is_recorded_in_source_status(self, monkeypatch, db_session):
+        # ADR-012: CLI-only operators must still get a FRESH /hydro source_status.
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[STATION]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is not None
+
+    def test_fetch_failure_is_recorded_and_reraised(self, monkeypatch, db_session):
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(side_effect=RuntimeError("down")))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        status = db_session.get(SourceStatus, "imgw_hydro")
+        assert status.last_success_at is None
+        assert status.last_error == "RuntimeError: down"

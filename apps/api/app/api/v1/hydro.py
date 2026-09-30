@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.v1.alerts import SourceStatusOut
+from app.api.v1.dashboard import IMGW_ATTRIBUTION
 from app.connectors.imgw_hydro.parser import (
     ALARM_LEVEL_PARAM,
     WARNING_LEVEL_PARAM,
@@ -13,6 +15,7 @@ from app.connectors.imgw_hydro.parser import (
 )
 from app.db import get_db
 from app.models import Measurement
+from app.source_status import source_freshness
 
 router = APIRouter()
 
@@ -68,6 +71,11 @@ class HydroStation(BaseModel):
 
 class HydroLatestResponse(BaseModel):
     stations: list[HydroStation]
+    # TASK-7.2: source transparency (verbatim from source-registry.md) and ADR-012
+    # source-level freshness, so a client can tell "no stations in alarm" from
+    # "IMGW hydro hasn't been fetched successfully for hours".
+    attribution: str
+    source_status: SourceStatusOut
 
 
 @router.get("/hydro/latest", response_model=HydroLatestResponse)
@@ -115,4 +123,8 @@ def latest_hydro(db: Session = Depends(get_db)) -> dict:
             }
         )
 
-    return {"stations": stations}
+    return {
+        "stations": stations,
+        "attribution": IMGW_ATTRIBUTION,
+        "source_status": source_freshness(db, "imgw_hydro", freshness),
+    }
