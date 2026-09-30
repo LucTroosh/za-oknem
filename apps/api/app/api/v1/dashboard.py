@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.air import freshness as air_freshness
+from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.db import get_db
 from app.geo import haversine_km
@@ -75,6 +76,10 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     for row in db.execute(weather_stmt).scalars().all():
         weather_by_area.setdefault(row.geo_area_id, []).append(row)
 
+    # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
+    # consumed - the user never saw it. Same helper, so both show one prediction.
+    forecasts = forecasts_by_area(db)
+
     areas_out = []
     for area in areas:
         nearest, nearest_km = None, None
@@ -134,7 +139,29 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "longitude": area.longitude,
                 "air": air,
                 "weather": weather,
+                "forecast": _forecast_block(forecasts.get(area.id)),
             }
         )
 
     return {"areas": areas_out}
+
+
+def _forecast_block(forecast: dict | None) -> dict | None:
+    """Source transparency (Principle 2) like the other blocks: source +
+    attribution + when we fetched it + freshness, never a bare number."""
+    if forecast is None:
+        return None
+    return {
+        "source": "open_meteo",
+        "attribution": OPEN_METEO_ATTRIBUTION,
+        "fetched_at": forecast["fetched_at"].isoformat(),
+        "freshness": forecast["freshness"],
+        "days": [
+            {
+                "valid_from": day["valid_from"].isoformat(),
+                "valid_until": day["valid_until"].isoformat(),
+                "params": day["params"],
+            }
+            for day in forecast["days"]
+        ],
+    }

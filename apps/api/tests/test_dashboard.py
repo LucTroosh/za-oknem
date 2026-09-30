@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.db import get_db
 from app.main import app
-from app.models import GeoArea, Measurement, WeatherSnapshot
+from app.models import Forecast, GeoArea, Measurement, WeatherSnapshot
 
 KLODZKO = {
     "id": 1,
@@ -48,9 +48,9 @@ class _FakeSession:
         return _FakeResult(self._queue.pop(0))
 
 
-def _client(areas, stations, weather_rows) -> TestClient:
+def _client(areas, stations, weather_rows, forecast_rows=()) -> TestClient:
     def _override():
-        yield _FakeSession(areas, stations, weather_rows)
+        yield _FakeSession(areas, stations, weather_rows, list(forecast_rows))
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -249,3 +249,48 @@ def test_dashboard_weather_reports_per_param_freshness():
     assert datetime.fromisoformat(weather["params"]["uv_index"]["observed_at"]) == now - timedelta(
         hours=10
     )
+
+
+def _forecast(**overrides) -> Forecast:
+    now = datetime.now(UTC)
+    day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    defaults = {
+        "source_id": "open_meteo",
+        "source_record_id": "fc-1",
+        "geo_area_id": 1,
+        "param_code": "temperature_2m_max",
+        "value": 18.5,
+        "unit": "°C",
+        "model": "auto",
+        "forecast_reference_time": now,
+        "valid_from": day,
+        "valid_until": day + timedelta(days=1),
+        "fetched_at": now,
+    }
+    defaults.update(overrides)
+    return Forecast(**defaults)
+
+
+def test_dashboard_includes_forecast_with_source_transparency():
+    # TASK-5.5: forecast reaches the user via the dashboard aggregate.
+    day2 = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    rows = [
+        _forecast(param_code="temperature_2m_max", value=18.5),
+        _forecast(param_code="temperature_2m_min", value=9.2, source_record_id="fc-2"),
+        _forecast(valid_from=day2, valid_until=day2 + timedelta(days=1), source_record_id="fc-3"),
+    ]
+    client = _client([GeoArea(**KLODZKO)], [], [], rows)
+
+    forecast = client.get("/api/v1/dashboard/latest").json()["areas"][0]["forecast"]
+
+    assert forecast["source"] == "open_meteo"
+    assert forecast["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)"
+    assert forecast["freshness"] == "FRESH"
+    assert len(forecast["days"]) == 2
+    assert forecast["days"][0]["params"]["temperature_2m_min"] == {"value": 9.2, "unit": "°C"}
+
+
+def test_dashboard_forecast_null_when_no_forecast_rows():
+    client = _client([GeoArea(**KLODZKO)], [], [])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["forecast"] is None

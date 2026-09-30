@@ -40,7 +40,7 @@ Alerts/Settings/push/profilu).
 |---|---|
 | temperatura, wilgotność, wiatr (prędkość+kierunek+porywy), kod warunków, odczuwalna, ciśnienie, zachmurzenie, opady/deszcz/śnieg | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard (12/15 pól MVP, PR #41) |
 | punkt rosy, widoczność, UV | ✅ DONE — Open-Meteo `hourly` (osobny fetch nie był potrzebny, jeden request z `current`+`hourly`+`daily`), dopasowanie do godziny `current` w parserze (TASK-5.4) |
-| prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46) |
+| prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46); widoczna dla użytkownika w `dashboard_latest()` + mobile, 3 dni max/min z atrybucją i freshness (TASK-5.5) |
 
 ### 2.3. Pylenie (§6)
 
@@ -160,7 +160,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #51, #53, #54 | Typed `response_model` dla `/air/latest`, `/hydro/latest`, `/alerts/latest` (TASK-API-1/3/4) |
 | #52 | Typed `response_model` dla `/weather/latest` i `/weather/forecast` (pola czasowe jako `datetime`) |
 | #55 | Dzienny licznik wywołań per źródło + alert 70% (TASK-13.1a): jednostki rozliczeniowe Open-Meteo, każda próba HTTP liczona przed wysłaniem, atomowy inkrement |
-| #(nowy) | Per-param `observed_at`/`freshness` pogody w `dashboard_latest()` + mobile (Codex P1 z PR #50, rezydualny w agregacie) |
+| #56 | Per-param `observed_at`/`freshness` pogody w `dashboard_latest()` + mobile (Codex P1 z PR #50, rezydualny w agregacie) |
+| #57 | Prognoza w `dashboard_latest()` + mobile (TASK-5.5), wspólny helper `forecasts_by_area()` z `/weather/forecast` |
 | #47 | Backup + test odtworzenia (TASK-1.1, §68): age, spójna migawka, manifest, hasło poza argv |
 
 ---
