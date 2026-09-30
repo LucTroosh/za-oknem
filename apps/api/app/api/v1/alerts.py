@@ -55,40 +55,38 @@ class AlertsLatestResponse(BaseModel):
     alerts: list[AlertOut]
 
 
-@router.get("/alerts/latest", response_model=AlertsLatestResponse)
-def latest_alerts(db: Session = Depends(get_db)) -> dict:
-    """Reads only from our own DB (rule #14). Currently-valid alerts only
-    (valid_until in the future) - no geo-filtering to the user's location yet
-    (ADR-009 non-goal), the client filters by `areas` itself for now. Every row
-    carries `fetched_at`/`freshness` so a client can tell a genuinely-ongoing
-    alert from one we simply haven't been able to refresh (rule #8) - an IMGW
-    outage stops updating fetched_at long before any `valid_until` (up to year
-    9999 for drought) would say so."""
+def current_alerts(db: Session) -> list[dict]:
+    """Currently-valid alerts (valid_until in the future), newest-ending first.
+    Shared by /alerts/latest and /dashboard/latest (TASK-7.2). No geo-filtering
+    to the user's location yet (ADR-009 non-goal, TASK-9.5). Every row carries
+    `fetched_at`/`freshness` so a client can tell a genuinely-ongoing alert from
+    one we simply haven't been able to refresh (rule #8) - an IMGW outage stops
+    updating fetched_at long before any `valid_until` (up to year 9999 for
+    drought) would say so."""
     now = datetime.now(UTC)
     stmt = select(Alert).where(Alert.valid_until >= now).order_by(Alert.valid_until.desc())
-    rows = db.execute(stmt).scalars().all()
+    return [
+        {
+            "external_id": row.external_id,
+            "source": row.source_id,
+            "event_type": row.event_type,
+            "severity_raw": row.severity_raw,
+            "probability_pct": row.probability_pct,
+            "issuing_office": row.issuing_office,
+            "description": row.description,
+            "comment": row.comment,
+            "areas": row.areas,
+            "valid_from": row.valid_from.isoformat(),
+            "valid_until": row.valid_until.isoformat(),
+            "published_at": row.published_at.isoformat(),
+            "fetched_at": row.fetched_at.isoformat(),
+            "freshness": freshness(row.fetched_at),
+        }
+        for row in db.execute(stmt).scalars().all()
+    ]
 
-    if not rows:
-        return {"alerts": []}
 
-    return {
-        "alerts": [
-            {
-                "external_id": row.external_id,
-                "source": row.source_id,
-                "event_type": row.event_type,
-                "severity_raw": row.severity_raw,
-                "probability_pct": row.probability_pct,
-                "issuing_office": row.issuing_office,
-                "description": row.description,
-                "comment": row.comment,
-                "areas": row.areas,
-                "valid_from": row.valid_from.isoformat(),
-                "valid_until": row.valid_until.isoformat(),
-                "published_at": row.published_at.isoformat(),
-                "fetched_at": row.fetched_at.isoformat(),
-                "freshness": freshness(row.fetched_at),
-            }
-            for row in rows
-        ]
-    }
+@router.get("/alerts/latest", response_model=AlertsLatestResponse)
+def latest_alerts(db: Session = Depends(get_db)) -> dict:
+    """Reads only from our own DB (rule #14). See current_alerts()."""
+    return {"alerts": current_alerts(db)}

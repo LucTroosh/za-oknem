@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.air import freshness as air_freshness
+from app.api.v1.alerts import current_alerts
 from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.db import get_db
@@ -20,6 +21,11 @@ MAX_MATCH_DISTANCE_KM = 50.0
 # sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
 GIOS_ATTRIBUTION = "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
+# source-registry.md (imgw_hydro, same terms for imgw_warnings*): verbatim, required.
+IMGW_ATTRIBUTION = (
+    "Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej"
+    " – Państwowy Instytut Badawczy"
+)
 
 
 @router.get("/dashboard/latest")
@@ -143,7 +149,18 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
             }
         )
 
-    return {"areas": areas_out}
+    # TASK-7.2 / §55: alerts belong in the aggregate. Top-level and explicitly
+    # scope="national", NOT copied into each area - until TASK-9.5 adds geo
+    # matching these are unfiltered for the whole country, and putting them
+    # under an area would present another region's alert as local.
+    alerts = {
+        "scope": "national",
+        "source": "imgw",
+        "attribution": IMGW_ATTRIBUTION,
+        "items": current_alerts(db),
+    }
+
+    return {"areas": areas_out, "alerts": alerts}
 
 
 def _forecast_block(forecast: dict | None) -> dict | None:
