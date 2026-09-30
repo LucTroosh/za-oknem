@@ -8,10 +8,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.connectors.open_meteo import client, ingest
-from app.connectors.open_meteo.parser import PARAM_CODES
-from app.models import GeoArea, WeatherSnapshot
+from app.connectors.open_meteo.parser import FORECAST_PARAM_CODES, HOURLY_PARAM_CODES, PARAM_CODES
+from app.models import Forecast, GeoArea, SourceFetchCounter, WeatherSnapshot
 
-PAYLOAD = {
+CURRENT_BLOCK = {
     "current": {
         "time": "2026-09-28T18:00",
         "temperature_2m": 12.3,
@@ -42,7 +42,39 @@ PAYLOAD = {
         "weather_code": "wmo code",
     },
 }
+DAILY_BLOCK = {
+    "daily": {
+        "time": ["2026-09-28", "2026-09-29"],
+        "temperature_2m_max": [18.5, 19.1],
+        "temperature_2m_min": [9.2, 8.7],
+        "precipitation_sum": [0.0, 1.2],
+        "weather_code": [1, 61],
+    },
+    "daily_units": {
+        "temperature_2m_max": "°C",
+        "temperature_2m_min": "°C",
+        "precipitation_sum": "mm",
+        "weather_code": "wmo code",
+    },
+}
+HOURLY_BLOCK = {
+    "hourly": {
+        "time": ["2026-09-28T17:00", "2026-09-28T18:00", "2026-09-28T19:00"],
+        "dew_point_2m": [8.1, 8.4, 8.6],
+        "visibility": [24140.0, 22000.0, 20500.0],
+        "uv_index": [0.0, 0.2, 0.1],
+    },
+    "hourly_units": {
+        "dew_point_2m": "°C",
+        "visibility": "m",
+        "uv_index": "",
+    },
+}
+PAYLOAD = {**CURRENT_BLOCK, **DAILY_BLOCK}
+PAYLOAD_WITH_HOURLY = {**CURRENT_BLOCK, **HOURLY_BLOCK, **DAILY_BLOCK}
 PARAM_COUNT = len(PARAM_CODES)
+HOURLY_COUNT = len(HOURLY_PARAM_CODES)
+FORECAST_COUNT = len(FORECAST_PARAM_CODES) * 2  # 2 days in DAILY_BLOCK
 
 
 def _make_area(db) -> GeoArea:
@@ -53,52 +85,133 @@ def _make_area(db) -> GeoArea:
     return area
 
 
-def test_ingest_geo_area_stores_all_params(db_session, monkeypatch):
+def test_ingest_geo_area_stores_current_and_forecast(db_session, monkeypatch):
     area = _make_area(db_session)
-    monkeypatch.setattr(client, "fetch_current", MagicMock(return_value=PAYLOAD))
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == PARAM_COUNT
+    assert stored == PARAM_COUNT + FORECAST_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
+    assert db_session.query(Forecast).count() == FORECAST_COUNT
+
+
+def test_ingest_geo_area_stores_hourly_derived_fields(db_session, monkeypatch):
+    """TASK-5.4: dew point/visibility/UV land as ordinary WeatherSnapshot rows
+    alongside current + forecast, from the same fetch."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD_WITH_HOURLY))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == PARAM_COUNT + HOURLY_COUNT + FORECAST_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT + HOURLY_COUNT
+    codes = {r.param_code for r in db_session.query(WeatherSnapshot).all()}
+    assert set(HOURLY_PARAM_CODES) <= codes
+
+
+def test_ingest_geo_area_isolates_missing_hourly_block(db_session, monkeypatch):
+    """A payload without `hourly` (e.g. an older cached response, or the field
+    genuinely absent) must not cost the already-proven current/forecast data -
+    same isolation TASK-5.3 established between current and forecast."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))  # no hourly key
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == PARAM_COUNT + FORECAST_COUNT
     assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
 
 
 def test_ingest_geo_area_skips_duplicate(db_session, monkeypatch):
     area = _make_area(db_session)
-    monkeypatch.setattr(client, "fetch_current", MagicMock(return_value=PAYLOAD))
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
 
     ingest.ingest_geo_area(area, db_session)
     stored_again = ingest.ingest_geo_area(area, db_session)
 
     assert stored_again == 0
     assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
+    assert db_session.query(Forecast).count() == FORECAST_COUNT
 
 
 def test_ingest_geo_area_isolates_api_failure(db_session, monkeypatch):
     area = _make_area(db_session)
     monkeypatch.setattr(
-        client, "fetch_current", MagicMock(side_effect=client.OpenMeteoApiError("boom"))
+        client, "fetch_weather", MagicMock(side_effect=client.OpenMeteoApiError("boom"))
     )
 
     stored = ingest.ingest_geo_area(area, db_session)
 
     assert stored == 0
     assert db_session.query(WeatherSnapshot).count() == 0
+    assert db_session.query(Forecast).count() == 0
 
 
 def test_ingest_geo_area_isolates_parse_failure(db_session, monkeypatch):
     area = _make_area(db_session)
-    monkeypatch.setattr(client, "fetch_current", MagicMock(return_value={"bad": "shape"}))
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value={"bad": "shape"}))
 
     stored = ingest.ingest_geo_area(area, db_session)
 
     assert stored == 0
     assert db_session.query(WeatherSnapshot).count() == 0
+    assert db_session.query(Forecast).count() == 0
+
+
+def test_ingest_geo_area_stores_forecast_even_when_current_block_is_broken(db_session, monkeypatch):
+    """ADR-010: current and forecast parsing are isolated - a broken `current`
+    block must not cost us an otherwise-valid `daily` forecast."""
+    area = _make_area(db_session)
+    broken = {"current": {"bad": "shape"}, **DAILY_BLOCK}
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=broken))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == FORECAST_COUNT
+    assert db_session.query(WeatherSnapshot).count() == 0
+    assert db_session.query(Forecast).count() == FORECAST_COUNT
+
+
+def test_ingest_geo_area_stores_current_even_when_daily_block_is_broken(db_session, monkeypatch):
+    area = _make_area(db_session)
+    broken = {**CURRENT_BLOCK, "daily": {"bad": "shape"}}
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=broken))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored == PARAM_COUNT
+    assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT
+    assert db_session.query(Forecast).count() == 0
+
+
+def test_ingest_geo_area_commits_forecast_batch_atomically(db_session, monkeypatch):
+    """Codex finding on PR #46: forecast rows for all days/params of one fetch
+    must land in a single commit, not one commit per row - otherwise an
+    interruption mid-batch could leave /weather/forecast combining one day's
+    fresh reference_time with another's stale one."""
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+    commit_calls = []
+    real_commit = db_session.commit
+
+    def _counting_commit():
+        commit_calls.append(1)
+        real_commit()
+
+    monkeypatch.setattr(db_session, "commit", _counting_commit)
+
+    ingest.ingest_geo_area(area, db_session)
+
+    # 1 commit for the forecast batch + PARAM_COUNT commits for current-weather
+    # snapshots (those stay one-per-row, per Codex's explicit request).
+    assert len(commit_calls) == PARAM_COUNT + 1
+    assert db_session.query(Forecast).count() == FORECAST_COUNT
 
 
 def test_ingest_geo_area_fetched_at_is_recent(db_session, monkeypatch):
     area = _make_area(db_session)
-    monkeypatch.setattr(client, "fetch_current", MagicMock(return_value=PAYLOAD))
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
 
     ingest.ingest_geo_area(area, db_session)
 
@@ -146,3 +259,48 @@ class TestMain:
 
         assert ingest_mock.call_count == 1
         assert ingest_mock.call_args[0][0].slug == "warszawa"
+
+
+def test_ingest_geo_area_records_a_daily_fetch_call(db_session, monkeypatch):
+    """ADR-001/ADR-003/ADR-004: a successful HTTP call counts against the source's
+    daily budget, regardless of what parsing does with the payload. Fires
+    on_attempt itself (mocking client.fetch_weather bypasses its real retry loop,
+    which is what actually calls on_attempt) - matches one real attempt
+    succeeding immediately, and bills ESTIMATED_BILLABLE_UNITS_PER_CALL, not 1."""
+    area = _make_area(db_session)
+
+    def _fake_fetch_weather(_lat, _lon, *, on_attempt=None):
+        if on_attempt:
+            on_attempt()
+        return PAYLOAD
+
+    monkeypatch.setattr(client, "fetch_weather", _fake_fetch_weather)
+
+    ingest.ingest_geo_area(area, db_session)
+
+    counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
+    assert counter is not None
+    assert counter.count == ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL
+
+
+def test_ingest_geo_area_records_every_attempt_even_on_final_failure(db_session, monkeypatch):
+    """Codex review [P2]: the previous version recorded 0 calls when
+    client.fetch_weather ultimately raised, even though its internal retry loop
+    made 2 real HTTP attempts against Open-Meteo. on_attempt now fires once per
+    real attempt regardless of outcome - simulated here as 2 failed attempts
+    (fetch_weather's own retry count) before the final raise."""
+    area = _make_area(db_session)
+
+    def _fake_fetch_weather(_lat, _lon, *, on_attempt=None):
+        if on_attempt:
+            on_attempt()
+            on_attempt()
+        raise client.OpenMeteoApiError("boom")
+
+    monkeypatch.setattr(client, "fetch_weather", _fake_fetch_weather)
+
+    ingest.ingest_geo_area(area, db_session)
+
+    counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
+    assert counter is not None
+    assert counter.count == 2 * ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL

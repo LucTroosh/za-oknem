@@ -1,10 +1,19 @@
-"""Tests for parser.py: shape validation + normalization into WeatherSnapshot dicts."""
+"""Tests for parser.py: shape validation + normalization into WeatherSnapshot /
+Forecast dicts (ADR-010)."""
 
 from datetime import UTC, datetime
 
 import pytest
 
-from app.connectors.open_meteo.parser import PARAM_CODES, OpenMeteoParseError, normalize
+from app.connectors.open_meteo.parser import (
+    FORECAST_PARAM_CODES,
+    HOURLY_PARAM_CODES,
+    PARAM_CODES,
+    OpenMeteoParseError,
+    normalize,
+    normalize_forecast,
+    normalize_hourly_current,
+)
 
 VALID_PAYLOAD = {
     "current": {
@@ -35,6 +44,30 @@ VALID_PAYLOAD = {
         "wind_direction_10m": "°",
         "wind_gusts_10m": "km/h",
         "weather_code": "wmo code",
+    },
+    "daily": {
+        "time": ["2026-09-28", "2026-09-29"],
+        "temperature_2m_max": [18.5, 19.1],
+        "temperature_2m_min": [9.2, 8.7],
+        "precipitation_sum": [0.0, 1.2],
+        "weather_code": [1, 61],
+    },
+    "daily_units": {
+        "temperature_2m_max": "°C",
+        "temperature_2m_min": "°C",
+        "precipitation_sum": "mm",
+        "weather_code": "wmo code",
+    },
+    "hourly": {
+        "time": ["2026-09-28T17:00", "2026-09-28T18:00", "2026-09-28T19:00"],
+        "dew_point_2m": [8.1, 8.4, 8.6],
+        "visibility": [24140.0, 22000.0, 20500.0],
+        "uv_index": [0.0, 0.2, 0.1],
+    },
+    "hourly_units": {
+        "dew_point_2m": "°C",
+        "visibility": "m",
+        "uv_index": "",
     },
 }
 
@@ -71,3 +104,210 @@ def test_normalize_raises_on_missing_param():
     }
     with pytest.raises(OpenMeteoParseError):
         normalize(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+# --- normalize_hourly_current() (TASK-5.4) -----------------------------------
+
+
+def test_normalize_hourly_current_returns_one_record_per_param():
+    records = normalize_hourly_current(
+        geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    assert len(records) == len(HOURLY_PARAM_CODES)
+    assert {r["param_code"] for r in records} == set(HOURLY_PARAM_CODES)
+
+
+def test_normalize_hourly_current_picks_the_matching_hour():
+    records = normalize_hourly_current(
+        geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    # index 1 in VALID_PAYLOAD's hourly arrays (17:00, [18:00], 19:00), not the
+    # neighboring hours - proves it doesn't just take hourly[0].
+    assert dew_point["value"] == 8.4
+    assert dew_point["observed_at"] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
+
+
+def test_normalize_hourly_current_floors_current_time_to_the_hour():
+    """`current.time` can be a few minutes into the hour (Open-Meteo's current
+    conditions aren't always on the hour); the hourly slot it maps to must still
+    be the hour it falls in, not fail to match."""
+    payload = {**VALID_PAYLOAD, "current": {**VALID_PAYLOAD["current"], "time": "2026-09-28T18:47"}}
+    records = normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    assert dew_point["value"] == 8.4
+    assert dew_point["observed_at"] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
+
+
+def test_normalize_hourly_current_builds_idempotent_source_record_id():
+    records = normalize_hourly_current(
+        geo_area_id=7, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC)
+    )
+    dew_point = next(r for r in records if r["param_code"] == "dew_point_2m")
+    assert dew_point["source_record_id"] == "7:dew_point_2m:2026-09-28T18:00:00+00:00"
+    assert dew_point["source_id"] == "open_meteo"
+
+
+def test_normalize_hourly_current_raises_on_missing_hourly_block():
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if not k.startswith("hourly")}
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_raises_when_current_hour_not_in_hourly_time():
+    payload = {
+        **VALID_PAYLOAD,
+        "current": {**VALID_PAYLOAD["current"], "time": "2026-09-29T03:00"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_raises_on_missing_param():
+    bad = {
+        "current": VALID_PAYLOAD["current"],
+        "hourly": {"time": ["2026-09-28T18:00"]},
+        "hourly_units": {},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_hourly_current(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_hourly_current_does_not_need_daily_block():
+    """Isolated from normalize_forecast() (rule #1, TASK-5.4) - a payload with a
+    broken `daily` block but valid `current`/`hourly` must still parse."""
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if not k.startswith("daily")}
+    records = normalize_hourly_current(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+    assert len(records) == len(HOURLY_PARAM_CODES)
+
+
+# --- normalize_forecast() (ADR-010) ------------------------------------------
+
+
+def test_normalize_forecast_returns_one_record_per_param_per_day():
+    records = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC))
+    assert len(records) == len(FORECAST_PARAM_CODES) * 2  # 2 days in VALID_PAYLOAD
+    codes = {r["param_code"] for r in records}
+    assert codes == set(FORECAST_PARAM_CODES)
+
+
+def test_normalize_forecast_sets_valid_from_and_until():
+    records = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC))
+    day1 = next(r for r in records if r["valid_from"] == datetime(2026, 9, 28, tzinfo=UTC))
+    assert day1["valid_until"] == datetime(2026, 9, 29, tzinfo=UTC)
+
+
+def test_normalize_forecast_bucket_reference_time_to_3h_cycle():
+    fetched_at = datetime(2026, 9, 28, 14, 37, 12, tzinfo=UTC)  # mid-cycle, not on a 3h boundary
+    records = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=fetched_at)
+    assert records[0]["forecast_reference_time"] == datetime(2026, 9, 28, 12, 0, 0, tzinfo=UTC)
+
+
+def test_normalize_forecast_two_fetches_in_same_cycle_get_same_source_record_id():
+    """The whole point of bucketing (ADR-010): reruns within one 3h window must
+    be idempotent, not produce a new row every time."""
+    t1 = datetime(2026, 9, 28, 12, 1, tzinfo=UTC)
+    t2 = datetime(2026, 9, 28, 14, 59, tzinfo=UTC)
+    r1 = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=t1)
+    r2 = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=t2)
+    assert {r["source_record_id"] for r in r1} == {r["source_record_id"] for r in r2}
+
+
+def test_normalize_forecast_different_cycles_get_different_source_record_id():
+    t1 = datetime(2026, 9, 28, 11, 59, tzinfo=UTC)
+    t2 = datetime(2026, 9, 28, 12, 1, tzinfo=UTC)  # next 3h bucket
+    r1 = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=t1)
+    r2 = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=t2)
+    assert {r["source_record_id"] for r in r1}.isdisjoint({r["source_record_id"] for r in r2})
+
+
+def test_normalize_forecast_model_is_open_meteo_default():
+    records = normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=datetime.now(UTC))
+    assert records[0]["model"] == "auto"
+
+
+def test_normalize_forecast_raises_on_missing_daily_block():
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload={}, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_malformed_date():
+    bad = {
+        "daily": {"time": ["not-a-date"], "temperature_2m_max": [18.5]},
+        "daily_units": {"temperature_2m_max": "°C"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_missing_param_for_a_day():
+    bad = {
+        "daily": {"time": ["2026-09-28"], "temperature_2m_max": [18.5]},  # missing other params
+        "daily_units": {"temperature_2m_max": "°C"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_non_list_daily_time():
+    """`enumerate()` on a non-iterable `daily.time` (e.g. None from a malformed
+    payload) must not escape as a raw TypeError — that would bypass ingest.py's
+    per-block isolation (rule #1) and abort the whole ingest run."""
+    bad = {
+        "daily": {"time": None, "temperature_2m_max": [18.5]},
+        "daily_units": {"temperature_2m_max": "°C"},
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_non_list_daily_param_value():
+    """A malformed response with a string instead of an array for a daily param
+    (e.g. "18.5" for a single day) would otherwise index into the string's
+    characters instead of raising - must be rejected as a shape error."""
+    bad = {
+        "daily": {
+            "time": ["2026-09-28"],
+            "temperature_2m_max": "18.5",
+            "temperature_2m_min": [9.2],
+            "precipitation_sum": [0.0],
+            "weather_code": [1],
+        },
+        "daily_units": {
+            "temperature_2m_max": "°C",
+            "temperature_2m_min": "°C",
+            "precipitation_sum": "mm",
+            "weather_code": "wmo code",
+        },
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_raises_on_daily_param_length_mismatch():
+    bad = {
+        "daily": {
+            "time": ["2026-09-28", "2026-09-29"],
+            "temperature_2m_max": [18.5],  # only 1 value for 2 days
+            "temperature_2m_min": [9.2, 8.7],
+            "precipitation_sum": [0.0, 1.2],
+            "weather_code": [1, 61],
+        },
+        "daily_units": {
+            "temperature_2m_max": "°C",
+            "temperature_2m_min": "°C",
+            "precipitation_sum": "mm",
+            "weather_code": "wmo code",
+        },
+    }
+    with pytest.raises(OpenMeteoParseError):
+        normalize_forecast(geo_area_id=1, payload=bad, fetched_at=datetime.now(UTC))
+
+
+def test_normalize_forecast_does_not_fail_when_current_block_is_absent():
+    """normalize_forecast() only needs `daily`/`daily_units` - a payload that has
+    a broken `current` block but a valid `daily` block must still parse
+    (ADR-010: current and forecast failures are isolated from each other)."""
+    payload = {k: v for k, v in VALID_PAYLOAD.items() if not k.startswith("current")}
+    records = normalize_forecast(geo_area_id=1, payload=payload, fetched_at=datetime.now(UTC))
+    assert len(records) == len(FORECAST_PARAM_CODES) * 2

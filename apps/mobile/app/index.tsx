@@ -19,17 +19,44 @@ type DashboardArea = {
   name: string;
   air: {
     station_name: string;
-    pm25: number;
-    unit: string;
-    freshness: Freshness;
+    // TASK-7.1: source transparency (Master Plan Principle 2) — server-provided
+    // attribution text, never hardcoded/reworded on the client. This top-level
+    // observed_at is only the newest of any param at this station (dashboard.py)
+    // — a rough station-level summary, not authoritative for any single
+    // pollutant (Codex review, round 3): render each param's OWN observed_at
+    // (below) next to that param, not this one.
+    attribution: string;
+    observed_at: string;
+    // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
+    // — freshness AND observed_at are per-param since each param can be observed
+    // at a different time (dashboard.py already returns both per param).
+    params: Record<
+      string,
+      { value: number; unit: string; observed_at: string; freshness: Freshness }
+    >;
   } | null;
   weather: {
+    attribution: string;
+    observed_at: string;
     freshness: Freshness;
-    params: Record<string, { value: number; unit: string }>;
+    // Per-param observed_at/freshness (dashboard.py) — the object-level pair above
+    // is only the newest of any param, so a stale hourly-derived value must be
+    // labelled with its own status, same as air params.
+    params: Record<
+      string,
+      { value: number; unit: string; observed_at: string; freshness: Freshness }
+    >;
   } | null;
 };
 
 type LoadState = "loading" | "ready" | "error";
+
+// Codex review (round 2): toLocaleTimeString() alone made an observation from
+// yesterday 14:00 look identical to one from today 14:00 — STALE only gives a
+// broad age bucket, not the actual day. Date + time together, always.
+function formatObservedAt(iso: string): string {
+  return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
+}
 
 export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
@@ -90,19 +117,32 @@ export default function Home() {
             <Text style={styles.stationName}>{item.name}</Text>
             <View style={styles.metricsRow}>
               {item.air ? (
-                <Text style={styles.metric}>
-                  PM2.5: {item.air.pm25} {item.air.unit}{" "}
-                  <Text style={styles.freshness}>({FRESHNESS_LABEL[item.air.freshness]})</Text>
-                </Text>
+                <View style={styles.metricsColumn}>
+                  {Object.entries(item.air.params).map(([code, param]) => (
+                    <Text key={code} style={styles.metric}>
+                      {code}: {param.value} {param.unit}{" "}
+                      <Text style={styles.freshness}>
+                        ({FRESHNESS_LABEL[param.freshness]}, {formatObservedAt(param.observed_at)})
+                      </Text>
+                    </Text>
+                  ))}
+                  <Text style={styles.attribution}>{item.air.attribution}</Text>
+                </View>
               ) : (
-                <Text style={styles.metric}>PM2.5: brak stacji w pobliżu</Text>
+                <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
               )}
               {item.weather?.params.temperature_2m ? (
-                <Text style={styles.metric}>
-                  {item.weather.params.temperature_2m.value}
-                  {item.weather.params.temperature_2m.unit}{" "}
-                  <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
-                </Text>
+                <View style={styles.metricsColumn}>
+                  <Text style={styles.metric}>
+                    {item.weather.params.temperature_2m.value}
+                    {item.weather.params.temperature_2m.unit}{" "}
+                    <Text style={styles.freshness}>
+                      ({FRESHNESS_LABEL[item.weather.params.temperature_2m.freshness]},{" "}
+                      {formatObservedAt(item.weather.params.temperature_2m.observed_at)})
+                    </Text>
+                  </Text>
+                  <Text style={styles.attribution}>{item.weather.attribution}</Text>
+                </View>
               ) : (
                 <Text style={styles.metric}>pogoda: brak danych</Text>
               )}
@@ -126,7 +166,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   stationName: { fontSize: 16, fontWeight: "500" },
-  metricsRow: { flexDirection: "row", justifyContent: "space-between" },
+  // flex:1 on each column (Codex review — RN row children don't shrink by
+  // default, so the attribution strings were overflowing/clipping instead of
+  // wrapping on normal phone widths).
+  metricsRow: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  metricsColumn: { flex: 1 },
   metric: { fontSize: 16 },
   freshness: { fontSize: 12, color: "#666" },
+  attribution: { fontSize: 10, color: "#999" },
 });

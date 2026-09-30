@@ -16,28 +16,35 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.gios import client
-from app.connectors.gios.parser import GiosParseError, find_pm25_sensor, latest_value, normalize
+from app.connectors.gios.parser import (
+    PARAM_UNITS,
+    GiosParseError,
+    find_sensor,
+    latest_value,
+    normalize,
+)
 from app.db import SessionLocal
 from app.models import Measurement
 
 logger = logging.getLogger(__name__)
 
+MONITORED_PARAMS = list(PARAM_UNITS)
 
-def ingest_station(station: dict, db) -> bool:
-    """Returns True if a new PM2.5 reading was stored. One station's failure is
-    logged and skipped — it must not abort ingestion for the rest (rule #1)."""
+
+def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
+    """One param for one station. Isolated per-param (not just per-station, rule #1)
+    — a shape problem with e.g. CO must not skip PM2.5/PM10/etc. for the same station."""
     station_id = station.get("Identyfikator stacji")
     try:
-        sensors = client.fetch_sensors(str(station_id))
-        sensor = find_pm25_sensor(sensors)
+        sensor = find_sensor(sensors, formula)
         if sensor is None:
-            logger.info("station %s: no PM2.5 sensor, skipping", station_id)
+            logger.info("station %s: no %s sensor, skipping", station_id, formula)
             return False
 
         data = client.fetch_sensor_data(str(sensor["Identyfikator stanowiska"]))
         result = latest_value(data)
         if result is None:
-            logger.info("station %s: no recent PM2.5 values, skipping", station_id)
+            logger.info("station %s: no recent %s values, skipping", station_id, formula)
             return False
 
         observed_at, value = result
@@ -48,8 +55,14 @@ def ingest_station(station: dict, db) -> bool:
             value=value,
             fetched_at=datetime.now(UTC),
         )
-    except (client.GiosApiError, GiosParseError) as exc:
-        logger.warning("station %s: FAILED (%s), skipping — see rule #1", station_id, exc)
+    except (client.GiosApiError, GiosParseError, KeyError) as exc:
+        # KeyError: malformed sensor dict (e.g. missing "Identyfikator stanowiska")
+        # must stay inside this param's isolation too (Codex review) — otherwise it
+        # escapes _ingest_param uncaught and aborts every remaining param for this
+        # station, contradicting the per-param isolation this function promises.
+        logger.warning(
+            "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
+        )
         return False
 
     exists = (
@@ -58,7 +71,7 @@ def ingest_station(station: dict, db) -> bool:
         .first()
     )
     if exists:
-        logger.info("station %s: reading already stored, skipping", station_id)
+        logger.info("station %s: %s reading already stored, skipping", station_id, formula)
         return False
 
     db.add(Measurement(**record))
@@ -68,14 +81,34 @@ def ingest_station(station: dict, db) -> bool:
         db.rollback()  # race with another ingest run — fine, reading exists now
         return False
     logger.info(
-        "station %s (%s): PM2.5 = %s %s", station_id, record["station_name"], value, record["unit"]
+        "station %s (%s): %s = %s %s",
+        station_id,
+        record["station_name"],
+        formula,
+        value,
+        record["unit"],
     )
     return True
 
 
+def ingest_station(station: dict, db) -> int:
+    """Returns the number of new readings stored across MONITORED_PARAMS. One
+    station's own fetch_sensors() failure is logged and skipped entirely — it must
+    not abort ingestion for the rest of the run (rule #1); a single param's failure
+    within a station is isolated by _ingest_param instead."""
+    station_id = station.get("Identyfikator stacji")
+    try:
+        sensors = client.fetch_sensors(str(station_id))
+    except client.GiosApiError as exc:
+        logger.warning("station %s: FAILED (%s), skipping — see rule #1", station_id, exc)
+        return 0
+
+    return sum(_ingest_param(station, sensors, formula, db) for formula in MONITORED_PARAMS)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="One-off GIOŚ PM2.5 ingest — vertical slice, Master Plan §108."
+        description="One-off GIOŚ ingest (full MVP param set, TASK-4.1) — Master Plan §4."
     )
     parser.add_argument("--station-id", action="append", dest="station_ids", default=[])
     parser.add_argument(
