@@ -85,3 +85,29 @@ def test_newer_result_still_applies(db_session):
     row = db_session.get(SourceStatus, "imgw_warningshydro")
     assert row.last_success_at is not None
     assert row.last_error is None
+
+
+def test_future_success_is_not_fresh(db_session):
+    # Clock skew on another host must not make a source look permanently FRESH.
+    future = datetime.now(UTC) + timedelta(hours=2)
+    record_source_run(db_session, "imgw_warningshydro", success=True, now=future)
+
+    result = source_freshness(db_session, "imgw_warningshydro", alerts_freshness)
+
+    assert result["freshness"] == "STALE"
+
+
+def test_future_dated_row_is_not_overwritten_by_an_older_real_run(db_session):
+    # The out-of-order guard compares writers' timestamps only (Codex review: a
+    # "future" test against one host's clock would defeat it). A skewed-ahead row
+    # therefore stays - and reads STALE, never falsely FRESH.
+    future = datetime.now(UTC) + timedelta(hours=2)
+    record_source_run(db_session, "imgw_warningshydro", success=True, now=future)
+
+    record_source_run(db_session, "imgw_warningshydro", success=True)
+
+    row = db_session.get(SourceStatus, "imgw_warningshydro")
+    assert row.last_success_at.replace(tzinfo=UTC) == future
+    assert (
+        source_freshness(db_session, "imgw_warningshydro", alerts_freshness)["freshness"] == "STALE"
+    )

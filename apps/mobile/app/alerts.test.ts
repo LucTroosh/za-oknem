@@ -32,44 +32,79 @@ const block = (items: number, statuses: Record<string, [string, string | null]>)
     ),
   }) as unknown as AlertsBlock;
 
+// Fixed device clock: statuses age relative to this, never to the wall clock.
+const NOW = Date.parse("2026-09-30T12:00:00Z");
+const HOURS_AGO = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+
 describe("summarizeAlerts (ADR-012)", () => {
   it("confirms no alerts only when every source is fresh", () => {
-    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["FRESH", "t"] }))).toEqual({
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["FRESH", HOURS_AGO(1)] }), NOW)).toEqual({
       kind: "none-confirmed",
       sources: ["IMGW – ostrzeżenia hydrologiczne"],
     });
   });
 
   it("never claims 'no alerts' when a source is stale", () => {
-    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["STALE", "2026-09-29T00:00:00Z"] }))).toEqual({
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["STALE", "2026-09-29T00:00:00Z"] }), NOW)).toEqual({
       kind: "unavailable",
       lastSuccessAt: "2026-09-29T00:00:00Z",
     });
   });
 
   it("never claims 'no alerts' when a source was never fetched", () => {
-    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["UNAVAILABLE", null] }))).toEqual({
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["UNAVAILABLE", null] }), NOW)).toEqual({
       kind: "unavailable",
       lastSuccessAt: null,
     });
   });
 
   it("never claims 'no alerts' when no source status is present", () => {
-    expect(summarizeAlerts(block(0, {})).kind).toBe("unavailable");
+    expect(summarizeAlerts(block(0, {}), NOW).kind).toBe("unavailable");
+  });
+
+  it("degrades instead of throwing when source_status is missing (older API)", () => {
+    const legacy = { ...block(0, {}), source_status: undefined } as unknown as AlertsBlock;
+    expect(summarizeAlerts(legacy, NOW).kind).toBe("unavailable");
   });
 
   it("flags a non-empty list as possibly outdated when a source is stale", () => {
-    expect(summarizeAlerts(block(2, { imgw_warningshydro: ["STALE", "t0"] }))).toEqual({
+    const last = HOURS_AGO(30);
+    expect(summarizeAlerts(block(2, { imgw_warningshydro: ["STALE", last] }), NOW)).toEqual({
       kind: "list-maybe-outdated",
-      lastSuccessAt: "t0",
+      lastSuccessAt: last,
     });
   });
 
   it("uses the oldest last success across unhealthy sources", () => {
     const summary = summarizeAlerts(
       block(0, { a: ["STALE", "2026-09-29T10:00:00Z"], b: ["STALE", "2026-09-28T10:00:00Z"] }),
+      NOW,
     );
     expect(summary).toEqual({ kind: "unavailable", lastSuccessAt: "2026-09-28T10:00:00Z" });
+  });
+
+  it("stops trusting a FRESH status once the screen has been open past the 6h bound", () => {
+    // The response was FRESH when fetched, but the device never refetched.
+    const last = HOURS_AGO(7);
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["FRESH", last] }), NOW)).toEqual({
+      kind: "unavailable",
+      lastSuccessAt: last,
+    });
+    expect(summarizeAlerts(block(1, { imgw_warningshydro: ["FRESH", last] }), NOW).kind).toBe(
+      "list-maybe-outdated",
+    );
+  });
+
+  it("still trusts a status right at the bound", () => {
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["RECENT", HOURS_AGO(6)] }), NOW).kind).toBe(
+      "none-confirmed",
+    );
+  });
+
+  it("does not trust an unparseable last_success_at", () => {
+    expect(summarizeAlerts(block(0, { imgw_warningshydro: ["FRESH", "not-a-date"] }), NOW).kind).toBe(
+      "unavailable",
+    );
   });
 });
 
