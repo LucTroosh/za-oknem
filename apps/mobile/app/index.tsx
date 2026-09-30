@@ -69,7 +69,15 @@ function formatObservedAt(iso: string): string {
 }
 
 function AlertsSection({ alerts }: { alerts: AlertsBlock }) {
-  const summary = summarizeAlerts(alerts);
+  // The summary ages on the device clock (alerts.ts MAX_HEALTHY_AGE_MS), but a
+  // mounted screen only re-renders on state changes - tick so a FRESH status
+  // that crosses the bound stops claiming "brak ostrzeżeń" without user action.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const summary = summarizeAlerts(alerts, now);
   const lastSuccess = (at: string | null) =>
     at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
   return (

@@ -4,7 +4,6 @@ successful one into FRESH/RECENT/STALE/UNAVAILABLE (rule #8)."""
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -12,9 +11,9 @@ from sqlalchemy.orm import Session
 from app.models import SourceStatus
 
 MAX_ERROR_LENGTH = 500
-# A writer on another host (manual CLI) can have a skewed clock. Timestamps
-# further ahead than this are not trusted: they never block newer writes and
-# never read as FRESH.
+# Hosts writing source_status (scheduler, manual CLI) are expected to be
+# NTP-synced. A success dated further ahead than this, as seen by the reading
+# process, is not trusted and reads STALE (fail safe, never falsely FRESH).
 MAX_CLOCK_SKEW = timedelta(minutes=5)
 
 
@@ -36,9 +35,10 @@ def record_source_run(
     one: a writer that computed `now` earlier and paused could otherwise move
     timestamps backward or replace a newer failure with an older success
     (Codex review). A late older result is dropped - at worst the source turns
-    STALE sooner, never falsely FRESH. A stored attempt dated in the future
-    (clock skew) does not count as newer - otherwise it would freeze the row
-    until real time caught up. `now` is injectable for tests."""
+    STALE sooner, never falsely FRESH. The guard compares only the writers'
+    own timestamps: judging "future" against one host's clock would let a slow
+    host's reading of a valid row defeat the guard (Codex review). `now` is
+    injectable for tests."""
     now = now or datetime.now(UTC)
     values = {"source_id": source_id, "last_attempt_at": now}
     updates = {"last_attempt_at": now}
@@ -53,10 +53,7 @@ def record_source_run(
         stmt.on_conflict_do_update(
             index_elements=["source_id"],
             set_=updates,
-            where=or_(
-                SourceStatus.last_attempt_at <= stmt.excluded.last_attempt_at,
-                SourceStatus.last_attempt_at > datetime.now(UTC) + MAX_CLOCK_SKEW,
-            ),
+            where=SourceStatus.last_attempt_at <= stmt.excluded.last_attempt_at,
         )
     )
     db.commit()
