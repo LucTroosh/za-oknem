@@ -39,6 +39,11 @@ THRESHOLD_PARAMS = (WARNING_LEVEL_PARAM, ALARM_LEVEL_PARAM)
 IMGW_TZ = ZoneInfo("Europe/Warsaw")
 
 
+# Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
+# (including the set of requested fields), so old payloads stay interpretable.
+PARSER_VERSION = "1"
+
+
 class ImgwHydroParseError(Exception):
     """Raised when a station record doesn't match the expected shape."""
 

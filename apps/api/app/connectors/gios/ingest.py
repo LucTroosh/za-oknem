@@ -15,9 +15,11 @@ from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 
+from app import provenance
 from app.connectors.gios import client
 from app.connectors.gios.parser import (
     PARAM_UNITS,
+    PARSER_VERSION,
     GiosParseError,
     find_sensor,
     latest_value,
@@ -40,21 +42,8 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
         if sensor is None:
             logger.info("station %s: no %s sensor, skipping", station_id, formula)
             return False
-
-        data = client.fetch_sensor_data(str(sensor["Identyfikator stanowiska"]))
-        result = latest_value(data)
-        if result is None:
-            logger.info("station %s: no recent %s values, skipping", station_id, formula)
-            return False
-
-        observed_at, value = result
-        record = normalize(
-            station=station,
-            sensor=sensor,
-            observed_at=observed_at,
-            value=value,
-            fetched_at=datetime.now(UTC),
-        )
+        sensor_id = str(sensor["Identyfikator stanowiska"])
+        data = client.fetch_sensor_data(sensor_id)
     except (client.GiosApiError, GiosParseError, KeyError) as exc:
         # KeyError: malformed sensor dict (e.g. missing "Identyfikator stanowiska")
         # must stay inside this param's isolation too (Codex review) — otherwise it
@@ -64,6 +53,45 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
             "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
         )
         return False
+
+    # ADR-014: the raw payload is stored even when parsing fails below - a changed
+    # API shape is exactly the case it exists for. One fetch per sensor = one
+    # Measurement, so the link is unambiguous. The station/sensor catalog calls are
+    # not stored: they only supply metadata (name, coordinates), not the value.
+    fetched_at = datetime.now(UTC)
+    try:
+        result = latest_value(data)
+        record: dict | None = None
+        if result is not None:
+            observed_at, value = result
+            record = normalize(
+                station=station,
+                sensor=sensor,
+                observed_at=observed_at,
+                value=value,
+                fetched_at=fetched_at,
+            )
+        status = provenance.VALID
+    except (GiosParseError, KeyError) as exc:
+        logger.warning(
+            "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
+        )
+        record, status = None, provenance.INVALID
+    fetch_id = provenance.record_fetch(
+        db,
+        source_id="gios",
+        endpoint=f"{client.BASE_URL}/data/getData/{sensor_id}",
+        payload=data,
+        fetched_at=fetched_at,
+        parser_version=PARSER_VERSION,
+        validation_status=status,
+    )
+    if status == provenance.INVALID:
+        return False
+    if record is None:
+        logger.info("station %s: no recent %s values, skipping", station_id, formula)
+        return False
+    record["source_fetch_id"] = fetch_id
 
     exists = (
         db.query(Measurement)
@@ -85,7 +113,7 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
         station_id,
         record["station_name"],
         formula,
-        value,
+        record["value"],
         record["unit"],
     )
     return True

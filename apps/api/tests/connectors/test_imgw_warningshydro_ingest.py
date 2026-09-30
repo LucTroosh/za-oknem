@@ -6,9 +6,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app import provenance
 from app.connectors.imgw_warningshydro import client, ingest
-from app.connectors.imgw_warningshydro.parser import ImgwWarningsHydroParseError
-from app.models import Alert, SourceStatus
+from app.connectors.imgw_warningshydro.parser import PARSER_VERSION, ImgwWarningsHydroParseError
+from app.models import Alert, SourceFetch, SourceStatus
 
 WARNING = {
     "opublikowano": "2026-05-17 08:45:07",
@@ -116,6 +117,83 @@ class TestIngestBatch:
         assert rejected == 1  # reported so the scheduler won't mark success (ADR-012)
         alert = db_session.query(Alert).filter_by(external_id="31").one()
         assert alert.valid_until.year == 9999  # left alone, not wrongly expired
+
+
+class TestProvenance:
+    """ADR-014: the raw response is stored first; alerts point at it."""
+
+    def test_alert_links_to_the_raw_fetch(self, db_session):
+        raw = [WARNING]
+
+        stored, _expired, rejected = ingest.ingest_raw(
+            raw, db_session, fetched_at=datetime.now(UTC)
+        )
+
+        assert (stored, rejected) == (1, 0)
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.source_id == "imgw_warningshydro"
+        assert fetch.endpoint == client.URL
+        assert fetch.payload == raw
+        assert fetch.parser_version == PARSER_VERSION
+        assert fetch.validation_status == provenance.VALID
+        assert db_session.query(Alert).one().source_fetch_id == fetch.id
+
+    def test_reappearing_alert_is_relinked_to_the_latest_fetch(self, db_session):
+        ingest.ingest_raw([WARNING], db_session, fetched_at=datetime.now(UTC))
+        ingest.ingest_raw([WARNING], db_session, fetched_at=datetime.now(UTC))
+
+        latest = db_session.query(SourceFetch).order_by(SourceFetch.id.desc()).first()
+        assert db_session.query(SourceFetch).count() == 2
+        assert db_session.query(Alert).one().source_fetch_id == latest.id
+
+    def test_refresh_with_failed_provenance_write_clears_the_link(self, db_session, monkeypatch):
+        # Unknown provenance is honest; a link to an older payload that did not
+        # produce the current values would be wrong.
+        ingest.ingest_raw([WARNING], db_session, fetched_at=datetime.now(UTC))
+        monkeypatch.setattr(provenance, "record_fetch", MagicMock(return_value=None))
+
+        ingest.ingest_raw([WARNING], db_session, fetched_at=datetime.now(UTC))
+
+        assert db_session.query(Alert).one().source_fetch_id is None
+
+    def test_confirmed_empty_snapshot_is_stored_as_valid(self, db_session):
+        ingest.ingest_raw({"message": "Brak"}, db_session, fetched_at=datetime.now(UTC))
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == {"message": "Brak"}
+        assert fetch.validation_status == provenance.VALID
+
+    def test_partial_snapshot(self, db_session):
+        bad = {k: v for k, v in WARNING.items() if k != "biuro"}
+        bad["numer"] = "999"
+
+        _stored, _expired, rejected = ingest.ingest_raw(
+            [bad, WARNING], db_session, fetched_at=datetime.now(UTC)
+        )
+
+        assert rejected == 1
+        assert db_session.query(SourceFetch).one().validation_status == provenance.PARTIAL
+
+    def test_unrecognized_shape_is_kept_as_invalid_and_raises(self, db_session):
+        weird = {"unexpected": "shape"}
+
+        with pytest.raises(ImgwWarningsHydroParseError):
+            ingest.ingest_raw(weird, db_session, fetched_at=datetime.now(UTC))
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == weird
+        assert fetch.validation_status == provenance.INVALID
+
+    def test_provenance_failure_does_not_block_alerts(self, db_session, monkeypatch):
+        # Rule #1: a safety alert must never be dropped because the audit write failed.
+        monkeypatch.setattr(provenance, "record_fetch", MagicMock(return_value=None))
+
+        stored, _expired, _rejected = ingest.ingest_raw(
+            [WARNING], db_session, fetched_at=datetime.now(UTC)
+        )
+
+        assert stored == 1
+        assert db_session.query(Alert).one().source_fetch_id is None
 
 
 class TestMain:
