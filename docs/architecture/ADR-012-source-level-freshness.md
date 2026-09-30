@@ -40,6 +40,10 @@ Opcja 3.
   wiersz per `source_id`, upsert po każdym przebiegu joba w schedulerze
   (`_run_job_safely`). Sukces = job zakończył się bez wyjątku; job, który się
   świadomie pomija (np. GIOŚ bez `GIOS_STATION_IDS`), nie zapisuje niczego.
+- Zapis wykonuje **każdy punkt wejścia ingestu** źródła, które wystawia
+  `source_status` — scheduler i ręczne CLI (`python -m app.connectors.…ingest`),
+  bo operator może używać tylko jednej z tych ścieżek. Niepełny snapshot
+  (odrzucone rekordy) to porażka, nie sukces.
 - Freshness źródła liczona z `last_success_at` tymi samymi progami co
   freshness wierszy danej domeny (ADR-004); **UNAVAILABLE**, gdy nie ma
   żadnego udanego pobrania.
