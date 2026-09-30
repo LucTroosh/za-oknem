@@ -38,7 +38,10 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     TASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/
     SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest."""
-    areas = db.execute(select(GeoArea)).scalars().all()
+    # ADR-019: imported gminas (geo-matching only) must not fan out here until TASK-6.2(8)
+    # narrows the dashboard to a chosen location - only actively polled areas are listed.
+    area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+    areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.
     # imgw_hydro's water_level_cm) — without it the nearest-station join could

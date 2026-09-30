@@ -48,7 +48,9 @@ def _gios_station_ids() -> list[str]:
 def run_open_meteo() -> None:
     db = SessionLocal()
     try:
-        for area in db.query(GeoArea).all():
+        # ADR-019: only areas with active weather polling - imported gminas exist for
+        # geo-matching and would blow the Open-Meteo daily budget.
+        for area in db.query(GeoArea).filter(GeoArea.weather_polling_active.is_(True)):
             ingest_geo_area(area, db)
     finally:
         db.close()

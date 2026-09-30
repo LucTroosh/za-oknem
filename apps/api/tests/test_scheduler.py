@@ -28,6 +28,21 @@ class TestRunOpenMeteo:
 
         assert mock.call_count == 2
 
+    def test_skips_areas_without_active_weather_polling(self, monkeypatch, db_session):
+        # ADR-019: imported gminas exist for geo-matching only; polling them all would
+        # exceed the Open-Meteo daily budget.
+        _make_area(db_session, "klodzko")
+        inactive = _make_area(db_session, "teryt-0208023")
+        inactive.weather_polling_active = False
+        db_session.commit()
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        mock = MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_geo_area", mock)
+
+        scheduler.run_open_meteo()
+
+        assert [c.args[0].slug for c in mock.call_args_list] == ["klodzko"]
+
 
 class TestRunGios:
     def test_skips_when_no_station_ids_configured(self, monkeypatch):
