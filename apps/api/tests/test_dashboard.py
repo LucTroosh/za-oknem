@@ -225,3 +225,27 @@ def test_dashboard_station_query_filters_by_gios_source():
         app.dependency_overrides.pop(get_db, None)
 
     assert "source_id" in captured["where"] and "gios" in captured["where"]
+
+
+def test_dashboard_weather_reports_per_param_freshness():
+    # Codex P1 (PR #50): a stale hourly-derived param must not inherit the fresh
+    # object-level status of `current` params.
+    now = datetime.now(UTC)
+    rows = [
+        _weather(param_code="temperature_2m", observed_at=now, source_record_id="fresh"),
+        _weather(
+            param_code="uv_index",
+            observed_at=now - timedelta(hours=10),
+            source_record_id="stale",
+        ),
+    ]
+    client = _client([GeoArea(**KLODZKO)], [], rows)
+
+    weather = client.get("/api/v1/dashboard/latest").json()["areas"][0]["weather"]
+
+    assert weather["freshness"] == "FRESH"
+    assert weather["params"]["temperature_2m"]["freshness"] == "FRESH"
+    assert weather["params"]["uv_index"]["freshness"] == "STALE"
+    assert datetime.fromisoformat(weather["params"]["uv_index"]["observed_at"]) == now - timedelta(
+        hours=10
+    )
