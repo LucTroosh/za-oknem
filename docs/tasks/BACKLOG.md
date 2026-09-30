@@ -27,6 +27,22 @@ weryfikacja realna każdego findingu względem kodu → root-cause fix → merge
 małym follow-upie. Zero zgadywania kształtu danych bezpieczeństwa (rule #10).
 Żadna zmiana architektury bez ADR (rule #12).
 
+Reguły przekrojowe — obowiązują KAŻDY task z tej kolejki, także jeśli jego
+opis ich nie powtarza (Codex wielokrotnie znajdował miejsca, gdzie dany task
+je pominął; zamiast łatać każdy z osobna, obowiązują globalnie):
+
+- **Provenance:** każdy connector/ingest powstający lub zmieniany po
+  TASK-3.1 zapisuje `source_fetch_id` (+ surowy payload, wersję parsera,
+  status walidacji) tym samym kontraktem co TASK-3.1 — dotyczy m.in. CAMS
+  (Phase 8), źródła `Event` z TASK-9.4 (RCB/RSO lub inne) i kąpielisk
+  (Phase 11). Dane bezpieczeństwa bez tego nie przechodzą review.
+- **Limity źródła:** każde okno limitu zapisane w `source-registry.md`
+  (minuta, godzina, doba, miesiąc) jest egzekwowane przed wysłaniem żądania,
+  nie tylko monitorowane — patrz mechanizm w TASK-12.2(c). Nowe źródło bez
+  zweryfikowanych limitów nie przechodzi Source Approval Gate (rule #15).
+- **Freshness:** listy, w których pusty wynik ma znaczenie, niosą
+  `source_status` wg ADR-012 (rule #8).
+
 ## Blokady wymagające Twojej akcji (nie mojej — flaguję z góry, nie czekam bezczynnie)
 
 - **Phase 8, pyłki (CAMS/Copernicus ADS):** wymaga rejestracji konta na
@@ -76,30 +92,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 2 — Backend Core (dokończenie)
 
-- [ ] **TASK-2.1:** Generowany klient TypeScript z OpenAPI (§17 Master Planu)
-      **Postęp:** `response_model` jest już na `/air`, `/hydro`, `/alerts`
-      (PR #51/#53/#54) i `/weather/*` (PR #52); brakuje `/dashboard/latest`
-      i samego generowania klienta.
-      — `packages/api-contract/README.md` jest wciąż placeholderem, a
-      `apps/mobile/app/index.tsx` ręcznie typuje odpowiedź dashboardu
-      (potwierdzone w kodzie). Ta kolejka dokłada sporo nowych endpointów/pól
-      (`/weather/forecast`, `/pollen/latest`, `/water/latest`, rozszerzenia
-      `dashboard_latest()`) — bez generowanego klienta ręczne typy będą się
-      cicho rozjeżdżać z realnym schematem FastAPI. Zrobić to **teraz**, przed
-      dalszym rozszerzaniem integracji mobile (TASK-7.2 i kolejne), żeby nie
-      duplikować pracy ręcznego przepisywania typów. **Wymaga najpierw
-      Pydantic response models** — dziś endpointy danych (`dashboard_latest`,
-      `latest_weather`, `latest_air_quality`) zwracają `-> dict` bez
-      `response_model`, więc wygenerowany OpenAPI schema (i klient z niego)
-      opisze je jako generyczne obiekty bez pól — bez typów żadna korzyść z
-      generowanego klienta względem ręcznego rzutowania. Dodać
-      `response_model` do tych endpointów w ramach tego tasku, przed
-      generowaniem klienta. **Uzupełnienie (Codex, runda 9):** `latest_hydro()`
-      (`apps/api/app/api/v1/hydro.py`) i `latest_alerts()`
-      (`apps/api/app/api/v1/alerts.py`) mają dokładnie ten sam brak
-      (`-> dict` bez `response_model`, potwierdzone w kodzie) i TASK-7.2
-      konsumuje je na mobile — dodać `response_model` też do tych dwóch
-      endpointów w ramach tego tasku, nie tylko do trzech wymienionych wyżej.
+- [ ] **TASK-2.1:** Generowany klient TypeScript z OpenAPI (§17 Master Planu).
+      `response_model` mają już `/air`, `/hydro`, `/alerts` (PR #51/#53/#54)
+      i `/weather/*` (PR #52) — ta część jest zrobiona. Pozostały zakres:
+      (1) `response_model` dla `/dashboard/latest` (dziś `-> dict`, więc jego
+      schemat OpenAPI jest generycznym obiektem), (2) generowanie klienta TS
+      do `packages/api-contract/` (dziś placeholder) i zastąpienie nim
+      ręcznych typów w `apps/mobile/app/index.tsx`/`alerts.ts`/`forecast.ts`,
+      (3) krok CI wykrywający rozjazd wygenerowanego klienta ze schematem.
+      Zrobić przed kolejnymi rozszerzeniami agregatu (pollen/water), żeby nie
+      przepisywać ręcznych typów kolejny raz.
 
 ### Phase 3 — Data Architecture (dokończenie)
 
@@ -406,7 +408,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       potrzebna Twoja decyzja o źródle** (np. RCB/RSO, informacje służb,
       albo ręczny/administracyjny workflow zgłaszania zdarzeń), tym samym
       wzorcem jak TASK-8.5 (CAMS) blokuje na kluczu API. Do czasu decyzji:
-      przygotować kontrakt modelu/ingestu, ale nie zamykać Phase 9 (TASK-9.6
+      przygotować kontrakt modelu/ingestu (z provenance TASK-3.1:
+      `source_fetch_id`, surowy payload, wersja parsera, status walidacji —
+      `Event` to dane bezpieczeństwa i musi dać się prześledzić do pobranego
+      payloadu), ale nie zamykać Phase 9 (TASK-9.6
       zależny od realnych rekordów `Event`) bez albo działającego źródła,
       albo jawnej rewizji zakresu MVP w ADR-013 zatwierdzonej przez Ciebie
       (rule #12) — nie przez implementatora po cichu.
@@ -605,7 +610,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dotyczy. Wymagane: wpis w inwentarzu danych TASK-14.2 (cel,
       podstawa, retencja); przechowywanie tylko `(installation_id, gmina,
       ostatni heartbeat)`, usuwane po wyjściu poza okno aktywności; IP
-      wyłącznie do rate limitu, z krótkim TTL w Redis, nigdy w
+      wyłącznie do rate limitu, w pamięci procesu API z krótkim TTL
+      (in-memory limiter wprowadzony w tym tasku; TASK-14.2 rozszerza go na
+      resztę API, Redis to decyzja TASK-15.4), nigdy w
       PostgreSQL. **Bez automatycznej rotacji identyfikatora** (Codex):
       rotacja przy zmianie gminy tworzyłaby „nową instalację”, omijając
       limity z (b), a stare rekordy zostawałyby aktywne do końca retencji.
@@ -628,12 +635,21 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `record_fetch_call` przez `on_attempt`, już wołany PRZED requestem —
       ten task dokłada tylko odmowę) i **odmawia próby**, jeśli rezerwacja
       przekroczyłaby twardy próg (np. 90% limitu 10 000/dobę) — atomowo,
-      żeby równoległe workery nie przebiły go razem. **Limit minutowy**
-      (source-registry: 600/min, Codex): ta sama rezerwacja sprawdza też
-      okno 60 s (licznik w Redis z TTL — stan krótkotrwały, rule #2) z
-      progiem np. 300 jednostek/min, a scheduler rozkłada zapytania w czasie
-      zamiast wysyłać ~437 gmin × 2 jednostki naraz; odmowa minutowa =
-      ponowienie w kolejnym oknie, nie utrata cyklu. Dodatkowo, jako planowanie (nie zabezpieczenie):
+      żeby równoległe workery nie przebiły go razem. **Wszystkie okna z
+      source-registry** (Open-Meteo: 600/min, 5 000/h, 10 000/dobę,
+      300 000/miesiąc — Codex): ta sama atomowa rezerwacja sprawdza okno
+      60 s i okno 1 h (np. progi 300/min i 4 000/h) — w PostgreSQL, tym
+      samym atomowym `UPDATE … RETURNING` co licznik dzienny z TASK-13.1a,
+      kluczowane początkiem okna, bo scheduler jest jedynym klientem, a
+      wolumen to pojedyncze żądania na sekundę; bez zależności od Redis,
+      który w tej kolejce wchodzi dopiero w TASK-15.4 (tam można te liczniki
+      przenieść);
+      miesięczny wynika z dziennego (90% × 10 000 × 31 < 300 000 — do
+      sprawdzenia, jeśli zmieni się próg dzienny). Scheduler rozkłada
+      zapytania w czasie (pełny cykl ~437 gmin × 2 jednostki ≈ 874 jednostki
+      mieści się w limicie godzinowym tylko przy równym rozłożeniu w cyklu
+      3 h), zamiast wysyłać je naraz; odmowa w oknie krótkim = ponowienie w
+      kolejnym oknie, nie utrata cyklu. Dodatkowo, jako planowanie (nie zabezpieczenie):
       przy cyklu 3h (8 wywołań/dobę/gminę) i
       `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) scheduler wybiera co
       najwyżej `floor(0.7 × limit / (8 × units))` (~437) gmin z największą
@@ -643,7 +659,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zgody na push) pozostaje aktywna dzięki heartbeatowi; masowe odczyty
       dashboardu dla wszystkich `geo_area_id` NIE zwiększają liczby
       odpytywanych gmin; suma jednostek nigdy nie przekracza twardego progu
-      dziennego ani minutowego z (c) — także przy retry, masowych
+      dziennego, godzinowego ani minutowego z (c) — także przy retry, masowych
       aktywacjach i równoległych workerach (test); reset identyfikatora
       kasuje wszystkie rekordy poprzedniego (test).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
@@ -786,7 +802,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       *mechanizmie* (np. cache współdzielony między instancjami), nie
       samego wymogu §64. `apps/api/app/middleware.py` dziś tylko loguje
       requesty (`RequestLoggingMiddleware`), więc TASK-14.2 musi dodać
-      podstawowy limiter (np. in-memory/IP-based, bez Redis) jako własne,
+      podstawowy limiter (in-memory/IP-based, bez Redis — rozszerzenie
+      limitera heartbeatu z TASK-12.2 na wszystkie endpointy) jako własne,
       niezależne od TASK-15.4 acceptance criterion — inaczej brak Redis w
       TASK-15.4 zostawia API bez JAKIEGOKOLWIEK rate limitingu przy
       release.
