@@ -4,6 +4,8 @@ successful one into FRESH/RECENT/STALE/UNAVAILABLE (rule #8)."""
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.models import SourceStatus
@@ -14,19 +16,22 @@ MAX_ERROR_LENGTH = 500
 def record_source_run(
     db: Session, source_id: str, *, success: bool, error: str | None = None
 ) -> None:
-    """Upsert this source's row. ponytail: get-then-add, safe because ADR-007 runs
-    a single scheduler process; switch to INSERT ... ON CONFLICT if that changes."""
+    """Atomic upsert (INSERT ... ON CONFLICT DO UPDATE). The scheduler AND the
+    manual CLI ingest both record runs (ADR-012), so two writers can race on the
+    first insert or interleave updates - a get-then-add would raise
+    IntegrityError or lose one run's outcome (Codex review). Postgres in
+    production, SQLite in tests: both support ON CONFLICT with the same API."""
     now = datetime.now(UTC)
-    row = db.get(SourceStatus, source_id)
-    if row is None:
-        row = SourceStatus(source_id=source_id, last_attempt_at=now)
-        db.add(row)
-    row.last_attempt_at = now
+    values = {"source_id": source_id, "last_attempt_at": now}
+    updates = {"last_attempt_at": now}
     if success:
-        row.last_success_at = now
-        row.last_error = None
+        values |= {"last_success_at": now, "last_error": None}
+        updates |= {"last_success_at": now, "last_error": None}
     else:
-        row.last_error = (error or "")[:MAX_ERROR_LENGTH]
+        values["last_error"] = updates["last_error"] = (error or "")[:MAX_ERROR_LENGTH]
+    insert = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    stmt = insert(SourceStatus).values(**values)
+    db.execute(stmt.on_conflict_do_update(index_elements=["source_id"], set_=updates))
     db.commit()
 
 
