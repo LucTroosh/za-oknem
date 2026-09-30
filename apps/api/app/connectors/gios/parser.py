@@ -34,6 +34,11 @@ PM25_UNIT = PARAM_UNITS[PM25_FORMULA]
 GIOS_TZ = ZoneInfo("Europe/Warsaw")
 
 
+# Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
+# (including the set of requested fields), so old payloads stay interpretable.
+PARSER_VERSION = "1"
+
+
 class GiosParseError(Exception):
     """Raised when a GIOŚ payload doesn't match the expected shape."""
 
