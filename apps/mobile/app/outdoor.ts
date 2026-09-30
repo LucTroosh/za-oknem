@@ -29,6 +29,9 @@ export type OutdoorBlock = {
   level: OutdoorLevel;
   reasons: OutdoorReason[];
   missing: OutdoorMissing[];
+  // ISO time after which the earliest usable input turns STALE (backend, from the
+  // same freshness bounds as the rest of the dashboard); null when no input fed it.
+  valid_until?: string | null;
 };
 
 export type OutdoorView = {
@@ -40,10 +43,10 @@ export type OutdoorView = {
 };
 
 // The screen does not refetch by itself and the backend judged freshness at response
-// time. Past this age a verdict may rest on inputs that have gone stale since, so the
-// card stops asserting it (same lesson as alerts/hydro, PR #59/#61). 1 h is well under
-// the smallest data freshness window (air FRESH = 2 h).
-export const OUTDOOR_MAX_RESPONSE_AGE_MS = 60 * 60 * 1000;
+// time, so the verdict is good only until `valid_until` (earliest input expiry, PR #68
+// review) - past it the card stops asserting it (same lesson as alerts/hydro, PR #59/#61).
+// Without a usable `valid_until` fall back to this age of the response.
+export const OUTDOOR_FALLBACK_MAX_AGE_MS = 60 * 60 * 1000;
 
 export const OUTDOOR_DISCLAIMER = "Ocena orientacyjna — nie zastępuje ostrzeżeń IMGW.";
 
@@ -127,14 +130,19 @@ function unknownView(headline: string): OutdoorView {
   return { level: "UNKNOWN", icon: LEVEL_ICON.UNKNOWN, headline, reasonLines: [], missingLine: null };
 }
 
+function isExpired(validUntil: unknown, now: number, receivedAt: number): boolean {
+  const t = typeof validUntil === "string" ? Date.parse(validUntil) : Number.NaN;
+  return Number.isNaN(t) ? now - receivedAt > OUTDOOR_FALLBACK_MAX_AGE_MS : now > t;
+}
+
 // null = nothing to show (older backend without the field, or not an object): the card
 // disappears instead of inventing a verdict. `receivedAt` = device time of the response.
 export function outdoorView(block: unknown, now: number, receivedAt: number): OutdoorView | null {
   if (!isObject(block)) return null;
-  if (now - receivedAt > OUTDOOR_MAX_RESPONSE_AGE_MS) {
-    return unknownView("Brak oceny — dane sprzed ponad godziny, odśwież widok");
-  }
   const level = validLevel(block.level);
+  if (level !== "UNKNOWN" && isExpired(block.valid_until, now, receivedAt)) {
+    return unknownView("Brak oceny — dane mogły się zestarzeć, odśwież widok");
+  }
   const gaps = missingList(block.missing);
   if (level === "UNKNOWN") {
     return unknownView(gaps === "" ? "Brak oceny — brak danych" : `Brak oceny — brak danych: ${gaps}`);

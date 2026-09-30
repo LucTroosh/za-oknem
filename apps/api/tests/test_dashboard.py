@@ -394,7 +394,32 @@ def _outdoor(stations, weather) -> dict:
 def test_dashboard_outdoor_good_with_full_fresh_inputs():
     outdoor = _outdoor(_outdoor_air(), _outdoor_weather())
 
-    assert outdoor == {"level": "GOOD", "reasons": [], "missing": []}
+    assert outdoor["level"] == "GOOD"
+    assert outdoor["reasons"] == []
+    assert outdoor["missing"] == []
+
+
+def test_dashboard_outdoor_valid_until_is_earliest_input_expiry():
+    # Codex (PR #68): a verdict judged from a 5h-old (RECENT, air bound 6h) reading is
+    # valid for about one more hour, not for a fixed hour after the response arrives.
+    now = datetime.now(UTC)
+    air = _outdoor_air()
+    for row in air:
+        row.observed_at = now - timedelta(hours=5)
+
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
+    valid_until = datetime.fromisoformat(outdoor["valid_until"])
+    assert now + timedelta(hours=1) <= valid_until <= datetime.now(UTC) + timedelta(hours=1)
+
+
+def test_dashboard_outdoor_valid_until_ignores_stale_inputs_and_is_null_without_any():
+    # A STALE input doesn't feed the verdict, so it can't set its expiry either.
+    outdoor = _outdoor([], _outdoor_weather(age_hours={"wind_speed_10m": 10}))
+    assert datetime.fromisoformat(outdoor["valid_until"]) > datetime.now(UTC)
+
+    assert _outdoor([], [])["valid_until"] is None
 
 
 def test_dashboard_outdoor_reason_payload_comes_verbatim_from_engine():

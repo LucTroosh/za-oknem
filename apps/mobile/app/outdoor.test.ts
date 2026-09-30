@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   OUTDOOR_LEVEL_LABEL,
-  OUTDOOR_MAX_RESPONSE_AGE_MS,
+  OUTDOOR_FALLBACK_MAX_AGE_MS,
   type OutdoorBlock,
   type OutdoorReason,
   missingList,
@@ -149,12 +149,26 @@ describe("outdoorView", () => {
     expect(v?.missingLine).toBeNull();
   });
 
-  it("stops asserting a verdict once the response is older than the bound (device clock)", () => {
-    const fresh = outdoorView(block(), NOW + OUTDOOR_MAX_RESPONSE_AGE_MS, NOW);
-    expect(fresh?.level).toBe("GOOD");
-    const old = outdoorView(block({ level: "POOR", reasons: [reason()] }), NOW + OUTDOOR_MAX_RESPONSE_AGE_MS + 1, NOW);
+  it("stops asserting a verdict once its earliest input expired (valid_until), not a fixed hour after receipt", () => {
+    const validUntil = new Date(NOW + 10 * 60_000).toISOString(); // input turns STALE in 10 min
+    const b = block({ level: "POOR", reasons: [reason()], valid_until: validUntil });
+    expect(outdoorView(b, NOW + 10 * 60_000, NOW)?.level).toBe("POOR");
+    const old = outdoorView(b, NOW + 10 * 60_000 + 1, NOW);
     expect(old?.level).toBe("UNKNOWN");
     expect(old?.reasonLines).toEqual([]);
     expect(old?.headline).toContain("Brak oceny");
+  });
+
+  it("a long valid_until is not cut short by the fallback age", () => {
+    const b = block({ valid_until: new Date(NOW + 5 * 3600_000).toISOString() });
+    expect(outdoorView(b, NOW + 2 * 3600_000, NOW)?.level).toBe("GOOD");
+  });
+
+  it("without a usable valid_until falls back to the response age", () => {
+    for (const valid_until of [undefined, null, "not-a-date"]) {
+      const b = { ...block(), valid_until } as OutdoorBlock;
+      expect(outdoorView(b, NOW + OUTDOOR_FALLBACK_MAX_AGE_MS, NOW)?.level).toBe("GOOD");
+      expect(outdoorView(b, NOW + OUTDOOR_FALLBACK_MAX_AGE_MS + 1, NOW)?.level).toBe("UNKNOWN");
+    }
   });
 });
