@@ -173,6 +173,18 @@ class TestProvenance:
         assert fetch.payload == bad
         assert fetch.validation_status == provenance.INVALID
 
+    def test_payload_survives_an_unexpected_parser_crash_as_pending(self, monkeypatch, db_session):
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+        monkeypatch.setattr(ingest, "latest_value", MagicMock(side_effect=RuntimeError("bug")))
+
+        with pytest.raises(RuntimeError):
+            ingest.ingest_station(STATION, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == SENSOR_DATA
+        assert fetch.validation_status == provenance.PENDING
+
     def test_provenance_failure_does_not_block_the_reading(self, monkeypatch, db_session):
         # Rule #1: best-effort audit - the value is stored, link is NULL.
         monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))

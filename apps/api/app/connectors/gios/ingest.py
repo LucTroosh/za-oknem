@@ -54,11 +54,20 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
         )
         return False
 
-    # ADR-014: the raw payload is stored even when parsing fails below - a changed
-    # API shape is exactly the case it exists for. One fetch per sensor = one
-    # Measurement, so the link is unambiguous. The station/sensor catalog calls are
-    # not stored: they only supply metadata (name, coordinates), not the value.
+    # ADR-014: the raw payload is stored BEFORE parsing (status pending), so it
+    # survives a parser crash or a worker kill too - a changed API shape is exactly
+    # the case it exists for. One fetch per sensor = one Measurement, so the link is
+    # unambiguous. The station/sensor catalog calls are not stored: they only supply
+    # metadata (name, coordinates), not the value.
     fetched_at = datetime.now(UTC)
+    fetch_id = provenance.record_fetch(
+        db,
+        source_id="gios",
+        endpoint=f"{client.BASE_URL}/data/getData/{sensor_id}",
+        payload=data,
+        fetched_at=fetched_at,
+        parser_version=PARSER_VERSION,
+    )
     try:
         result = latest_value(data)
         record: dict | None = None
@@ -77,15 +86,7 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
             "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
         )
         record, status = None, provenance.INVALID
-    fetch_id = provenance.record_fetch(
-        db,
-        source_id="gios",
-        endpoint=f"{client.BASE_URL}/data/getData/{sensor_id}",
-        payload=data,
-        fetched_at=fetched_at,
-        parser_version=PARSER_VERSION,
-        validation_status=status,
-    )
+    provenance.set_validation_status(db, fetch_id, status)
     if status == provenance.INVALID:
         return False
     if record is None:

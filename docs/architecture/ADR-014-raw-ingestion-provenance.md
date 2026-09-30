@@ -54,8 +54,8 @@ Opcja 3.
   istnieje (zmiana kształtu API). `validation_status`: `pending` (zapisany,
   parsowanie niedokończone — widoczne po crashu w trakcie), `valid`, `partial`
   (część rekordów/bloków odrzucona), `invalid` (payload nieużyteczny).
-  Connectory wsadowe (hydro, ostrzeżenia) zapisują `pending` i ustawiają status
-  po przetworzeniu wsadu.
+  Każdy connector zapisuje `pending` zaraz po
+  otrzymaniu odpowiedzi i ustawia status po przetworzeniu (`set_validation_status`).
 - **`parser_version`** = stała `PARSER_VERSION` w `parser.py` connectora; ręczny
   bump przy zmianie wyniku parse/normalize (także zbioru żądanych pól).
 - **Best-effort, bez blokowania ingestu (rule #1).** Nieudany zapis
@@ -92,8 +92,7 @@ Opcja 3.
   (endpoint, czas, wersja parsera, status, payload w oknie retencji).
 - Koszt miejsca: szacunkowo hydro ≤ ~80 MB w oknie 7 dni (TOAST kompresuje
   JSONB), reszta pomijalna; do zweryfikowania na produkcji (TASK-15.2).
-- Dodatkowy commit i INSERT na pobranie (w `open_meteo` +1 commit na
-  `geo_area`).
+- Dodatkowy INSERT + UPDATE statusu (2 commity) na pobranie.
 - Każdy nowy connector (CAMS, `Event`, kąpieliska) woła
   `provenance.record_fetch()` tym samym kontraktem i ustala okno retencji.
 - Rekordy sprzed 0009 mają NULL — pytanie audytowe o nie pozostaje bez

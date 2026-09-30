@@ -210,9 +210,9 @@ def test_ingest_geo_area_commits_forecast_batch_atomically(db_session, monkeypat
     ingest.ingest_geo_area(area, db_session)
 
     # 1 commit for the forecast batch + PARAM_COUNT commits for current-weather
-    # snapshots (those stay one-per-row, per Codex's explicit request) + 1 commit
-    # for the raw-payload provenance row (ADR-014).
-    assert len(commit_calls) == PARAM_COUNT + 2
+    # snapshots (those stay one-per-row, per Codex's explicit request) + 2 commits
+    # for provenance: the pending raw-payload row and its status update (ADR-014).
+    assert len(commit_calls) == PARAM_COUNT + 3
     assert db_session.query(Forecast).count() == FORECAST_COUNT
 
 
@@ -278,6 +278,18 @@ class TestProvenance:
         links = {r.source_fetch_id for r in db_session.query(WeatherSnapshot).all()}
         assert links == {first.id}  # same reading, not re-linked by the duplicate fetch
         assert second.id != first.id
+
+    def test_payload_survives_an_unexpected_parser_crash_as_pending(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+        monkeypatch.setattr(ingest, "normalize", MagicMock(side_effect=RuntimeError("bug")))
+
+        with pytest.raises(RuntimeError):
+            ingest.ingest_geo_area(area, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == PAYLOAD
+        assert fetch.validation_status == provenance.PENDING
 
     def test_provenance_failure_does_not_block_rows(self, db_session, monkeypatch):
         area = _make_area(db_session)

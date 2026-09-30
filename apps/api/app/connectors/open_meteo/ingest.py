@@ -124,9 +124,19 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     fetched_at = datetime.now(UTC)
     stored = 0
 
-    # Parse all three blocks first (each isolated, ADR-010/TASK-5.4) so the raw
-    # payload can be recorded with its validation status BEFORE any row is stored
-    # and every row can point at it (ADR-014).
+    # ADR-014: raw payload first (status pending) - it survives a parser crash or a
+    # worker kill - then all three blocks are parsed (each isolated, ADR-010/
+    # TASK-5.4) and the status set, BEFORE any row is stored so every row can point
+    # at the fetch.
+    fetch_id = provenance.record_fetch(
+        db,
+        source_id="open_meteo",
+        # Query params (variable lists) are fixed by client.py - tracked by PARSER_VERSION.
+        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
+        payload=payload,
+        fetched_at=fetched_at,
+        parser_version=PARSER_VERSION,
+    )
     failed_blocks = 0
     try:
         snapshots = normalize(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
@@ -154,16 +164,7 @@ def ingest_geo_area(area: GeoArea, db) -> int:
         forecasts = []
         failed_blocks += 1
 
-    fetch_id = provenance.record_fetch(
-        db,
-        source_id="open_meteo",
-        # Query params (variable lists) are fixed by client.py - tracked by PARSER_VERSION.
-        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
-        payload=payload,
-        fetched_at=fetched_at,
-        parser_version=PARSER_VERSION,
-        validation_status=provenance.batch_status(3, failed_blocks),
-    )
+    provenance.set_validation_status(db, fetch_id, provenance.batch_status(3, failed_blocks))
     for r in (*snapshots, *hourly_snapshots, *forecasts):
         r["source_fetch_id"] = fetch_id
 
