@@ -29,7 +29,7 @@ Do dodania po odblokowaniu: `apps/api/tests/test_air.py`, `test_dashboard.py`
 
 ## Non-goals
 
-Zgadywanie progów lub kształtu odpowiedzi; LLM (rule #10); zmiana `ROADMAP.md`.
+Zgadywanie progów lub kształtu odpowiedzi; LLM (rule #10). `ROADMAP.md` aktualizuje koordynator po merge: wiersz indeksu powietrza -> BLOCKED (warunek odblokowania: sekcja „Jak odblokować”).
 
 ## Dependencies
 
@@ -38,7 +38,9 @@ TASK-4.1 (DONE). ADR-015 → decyzja. Migracja 0010 tylko dla opcji A.
 ## Data Contract
 
 Indeks ≠ Measurement (rule #7). Opcja A: snapshot z `station_id`, klasą per
-parametr, `source_data_date`, `fetched_at`. Opcja B: pole wyliczane w odpowiedzi API.
+parametr ORAZ osobnym `source_data_date` per parametr (i dla indeksu ogólnego) +
+`fetched_at` — parametry mogą pochodzić z różnych godzin, więc jeden timestamp
+na stację pokazałby starszy składnik jako świeży; freshness liczona per parametr. Opcja B: pole wyliczane w odpowiedzi API.
 
 ## Security
 
