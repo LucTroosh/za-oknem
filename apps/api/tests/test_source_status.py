@@ -85,3 +85,23 @@ def test_newer_result_still_applies(db_session):
     row = db_session.get(SourceStatus, "imgw_warningshydro")
     assert row.last_success_at is not None
     assert row.last_error is None
+
+
+def test_future_success_is_not_fresh(db_session):
+    # Clock skew on another host must not make a source look permanently FRESH.
+    future = datetime.now(UTC) + timedelta(hours=2)
+    record_source_run(db_session, "imgw_warningshydro", success=True, now=future)
+
+    result = source_freshness(db_session, "imgw_warningshydro", alerts_freshness)
+
+    assert result["freshness"] == "STALE"
+
+
+def test_future_dated_row_does_not_block_a_real_run(db_session):
+    future = datetime.now(UTC) + timedelta(hours=2)
+    record_source_run(db_session, "imgw_warningshydro", success=True, now=future)
+
+    record_source_run(db_session, "imgw_warningshydro", success=False, error="down")
+
+    row = db_session.get(SourceStatus, "imgw_warningshydro")
+    assert row.last_error == "down"

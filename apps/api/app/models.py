@@ -186,7 +186,7 @@ class SourceFetchCounter(Base):
 class SourceStatus(Base):
     """Last scheduler run per source (ADR-012): lets an empty list be told apart
     from a source we haven't managed to fetch (rule #8 UNAVAILABLE). One row per
-    source, upserted by the scheduler after each job run. Postgres, not Redis
+    source, upserted after each scheduler job run and each manual CLI ingest. Postgres, not Redis
     (rule #2) - "when did this last succeed" must survive a restart."""
 
     __tablename__ = "source_status"

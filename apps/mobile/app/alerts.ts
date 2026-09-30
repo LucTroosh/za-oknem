@@ -40,11 +40,27 @@ export type AlertsSummary =
   | { kind: "none-confirmed"; sources: string[] }
   | { kind: "unavailable"; lastSuccessAt: string | null };
 
-export function summarizeAlerts(block: AlertsBlock): AlertsSummary {
-  const statuses = Object.entries(block.source_status);
-  const unhealthy = statuses.filter(
-    ([, s]) => s.freshness !== "FRESH" && s.freshness !== "RECENT",
-  );
+// Same bound as the server's alert RECENT_MAX_AGE (api/v1/alerts.py, 6h). The
+// server's freshness is computed once per response, but this screen stays open
+// (or is resumed from background) for hours without refetching - so a status
+// that was FRESH at fetch time must stop counting as healthy once it ages past
+// this bound on the device clock. Only ever downgrades, never upgrades.
+const MAX_HEALTHY_AGE_MS = 6 * 60 * 60 * 1000;
+
+function isHealthy(
+  s: { freshness: SourceFreshness; last_success_at: string | null },
+  now: number,
+): boolean {
+  if (s.freshness !== "FRESH" && s.freshness !== "RECENT") return false;
+  const last = s.last_success_at === null ? NaN : Date.parse(s.last_success_at);
+  return Number.isFinite(last) && now - last <= MAX_HEALTHY_AGE_MS;
+}
+
+export function summarizeAlerts(block: AlertsBlock, now: number = Date.now()): AlertsSummary {
+  // `?? {}`: an older API without source_status must degrade to "unavailable",
+  // not throw and take the whole Home screen down (rule #1, client side).
+  const statuses = Object.entries(block.source_status ?? {});
+  const unhealthy = statuses.filter(([, s]) => !isHealthy(s, now));
   // No sources listed at all can't confirm anything either.
   const healthy = statuses.length > 0 && unhealthy.length === 0;
   // Oldest last success among unhealthy sources; one never-fetched source -> null.
