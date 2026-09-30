@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.db import get_db
 from app.main import app
-from app.models import Forecast, GeoArea, Measurement, WeatherSnapshot
+from app.models import Alert, Forecast, GeoArea, Measurement, WeatherSnapshot
 
 KLODZKO = {
     "id": 1,
@@ -48,9 +48,10 @@ class _FakeSession:
         return _FakeResult(self._queue.pop(0))
 
 
-def _client(areas, stations, weather_rows, forecast_rows=()) -> TestClient:
+def _client(areas, stations, weather_rows, forecast_rows=(), alert_rows=()) -> TestClient:
+    # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts.
     def _override():
-        yield _FakeSession(areas, stations, weather_rows, list(forecast_rows))
+        yield _FakeSession(areas, stations, weather_rows, list(forecast_rows), list(alert_rows))
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -96,7 +97,7 @@ def _weather(**overrides) -> WeatherSnapshot:
 def test_dashboard_empty_when_no_geo_areas():
     client = _client([], [], [])
     body = client.get("/api/v1/dashboard/latest").json()
-    assert body == {"areas": []}
+    assert body["areas"] == []
 
 
 def test_dashboard_matches_station_within_threshold():
@@ -294,3 +295,45 @@ def test_dashboard_forecast_null_when_no_forecast_rows():
     client = _client([GeoArea(**KLODZKO)], [], [])
 
     assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["forecast"] is None
+
+
+def _alert_row(**overrides) -> Alert:
+    now = datetime.now(UTC)
+    defaults = {
+        "source_id": "imgw_warningshydro",
+        "source_record_id": "a-1",
+        "external_id": "1/2026",
+        "event_type": "Susza hydrologiczna",
+        "severity_raw": "-1",
+        "probability_pct": None,
+        "issuing_office": "Biuro Prognoz Hydrologicznych we Wrocławiu",
+        "description": "opis",
+        "comment": None,
+        "areas": [{"wojewodztwo": "wielkopolskie"}],
+        "valid_from": now - timedelta(days=1),
+        "valid_until": now + timedelta(days=1),
+        "published_at": now - timedelta(days=1),
+        "fetched_at": now,
+    }
+    defaults.update(overrides)
+    return Alert(**defaults)
+
+
+def test_dashboard_includes_national_alerts_block():
+    # TASK-7.2: alerts in the aggregate (§55), explicitly national until TASK-9.5.
+    client = _client([GeoArea(**KLODZKO)], [], [], alert_rows=[_alert_row()])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    assert body["alerts"]["scope"] == "national"
+    assert body["alerts"]["source"] == "imgw"
+    assert body["alerts"]["attribution"].startswith("Źródłem pochodzenia danych jest Instytut")
+    assert [a["event_type"] for a in body["alerts"]["items"]] == ["Susza hydrologiczna"]
+    assert body["alerts"]["items"][0]["freshness"] == "FRESH"
+    assert "alerts" not in body["areas"][0]  # never presented as local
+
+
+def test_dashboard_alerts_items_empty_when_no_alerts():
+    client = _client([GeoArea(**KLODZKO)], [], [])
+
+    assert client.get("/api/v1/dashboard/latest").json()["alerts"]["items"] == []

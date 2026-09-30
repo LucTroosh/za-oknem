@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import { type AlertsBlock, alertAreasLabel, alertKey } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
 import { FRESHNESS_LABEL, type Freshness } from "./freshness";
@@ -70,12 +71,14 @@ function formatObservedAt(iso: string): string {
 export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
   const [areas, setAreas] = useState<DashboardArea[]>([]);
+  const [alerts, setAlerts] = useState<AlertsBlock | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(() => {
-    return apiGet<{ areas: DashboardArea[] }>("/api/v1/dashboard/latest")
+    return apiGet<{ areas: DashboardArea[]; alerts: AlertsBlock }>("/api/v1/dashboard/latest")
       .then((body) => {
         setAreas(body.areas);
+        setAlerts(body.alerts);
         setState("ready");
       })
       .catch(() => setState("error"));
@@ -112,6 +115,33 @@ export default function Home() {
         data={areas}
         keyExtractor={(item) => item.slug}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        // TASK-7.2: labelled "cała Polska" until TASK-9.5 adds geo matching - an
+        // unfiltered alert must never look like it concerns the user's location.
+        // Empty list renders nothing (not "brak ostrzeżeń"): without source-level
+        // freshness (TASK-7.4) an empty list can't be told apart from IMGW being
+        // down, and a false all-clear is worse than silence for safety data.
+        ListHeaderComponent={
+          alerts && alerts.items.length > 0 ? (
+            <View style={styles.alerts}>
+              <Text style={styles.alertsTitle}>Ostrzeżenia — cała Polska</Text>
+              {alerts.items.map((alert) => (
+                <View key={alertKey(alert)} style={styles.alertItem}>
+                  <Text style={styles.metric}>
+                    {alert.event_type} (stopień {alert.severity_raw})
+                  </Text>
+                  {alertAreasLabel(alert.areas) !== "" && (
+                    <Text>{alertAreasLabel(alert.areas)}</Text>
+                  )}
+                  <Text style={styles.freshness}>
+                    do {formatObservedAt(alert.valid_until)} · {alert.issuing_office} ·{" "}
+                    {FRESHNESS_LABEL[alert.freshness]}
+                  </Text>
+                </View>
+              ))}
+              <Text style={styles.attribution}>{alerts.attribution}</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           state === "error" ? null : (
             <Text>
@@ -196,4 +226,7 @@ const styles = StyleSheet.create({
   metric: { fontSize: 16 },
   freshness: { fontSize: 12, color: "#666" },
   attribution: { fontSize: 10, color: "#999" },
+  alerts: { paddingVertical: 8, gap: 6 },
+  alertsTitle: { fontSize: 18, fontWeight: "600", color: "#b00020" },
+  alertItem: { gap: 2 },
 });
