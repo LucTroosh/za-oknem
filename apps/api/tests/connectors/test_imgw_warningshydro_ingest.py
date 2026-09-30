@@ -106,9 +106,12 @@ class TestIngestBatch:
 
         second_fetch = first_fetch + timedelta(hours=1)
         broken = {k: v for k, v in WARNING.items() if k != "biuro"}
-        stored, expired = ingest.ingest_batch([broken], db_session, fetched_at=second_fetch)
+        stored, expired, rejected = ingest.ingest_batch(
+            [broken], db_session, fetched_at=second_fetch
+        )
 
         assert expired == 0
+        assert rejected == 1  # reported so the scheduler won't mark success (ADR-012)
         alert = db_session.query(Alert).filter_by(external_id="31").one()
         assert alert.valid_until.year == 9999  # left alone, not wrongly expired
 

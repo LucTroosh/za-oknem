@@ -100,11 +100,13 @@ def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
     return _store(record, db)
 
 
-def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]:
+def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int, int]:
     """Stores every valid new/changed alert and, only when the whole snapshot
     parsed cleanly, expires ones IMGW withdrew since the last successful fetch.
-    Returns (stored, expired). This is the entry point both the CLI and the
-    scheduler should call - see ADR-009."""
+    Returns (stored, expired, rejected) - `rejected` > 0 means the snapshot was
+    incomplete, so callers must not treat this run as a clean success (ADR-012).
+    This is the entry point both the CLI and the scheduler should call - see
+    ADR-009."""
     records = [r for w in warnings if (r := _normalize_or_skip(w, fetched_at=fetched_at))]
     stored = sum(_store(r, db) for r in records)
 
@@ -119,11 +121,11 @@ def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]
             len(warnings) - len(records),
             len(warnings),
         )
-        return stored, 0
+        return stored, 0, len(warnings) - len(records)
 
     active_ids = {r["source_record_id"] for r in records}
     expired = _expire_withdrawn(db, active_record_ids=active_ids, fetched_at=fetched_at)
-    return stored, expired
+    return stored, expired, 0
 
 
 def main() -> None:
@@ -133,7 +135,7 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        stored, expired = ingest_batch(warnings, db, fetched_at=fetched_at)
+        stored, expired, _rejected = ingest_batch(warnings, db, fetched_at=fetched_at)
     finally:
         db.close()
     logger.info(

@@ -142,38 +142,39 @@ _VALID_ALERT_OUT = {
 }
 
 
+_VALID_SOURCE_STATUS = {
+    "imgw_warningshydro": {"freshness": "FRESH", "last_success_at": "2026-09-29T12:00:00+00:00"}
+}
+
+
+def _envelope(alert: dict) -> dict:
+    # Valid source_status everywhere, so rejection tests fail on the alert field
+    # they target, not on a missing envelope key.
+    return {"alerts": [alert], "source_status": _VALID_SOURCE_STATUS}
+
+
 def test_alerts_latest_response_accepts_the_real_shape():
-    AlertsLatestResponse.model_validate(
-        {
-            "alerts": [_VALID_ALERT_OUT],
-            "source_status": {
-                "imgw_warningshydro": {
-                    "freshness": "FRESH",
-                    "last_success_at": "2026-09-29T12:00:00+00:00",
-                }
-            },
-        }
-    )
+    AlertsLatestResponse.model_validate(_envelope(_VALID_ALERT_OUT))
 
 
 def test_alerts_latest_response_rejects_missing_required_field():
     bad = {**_VALID_ALERT_OUT}
     del bad["event_type"]
     with pytest.raises(ValidationError):
-        AlertsLatestResponse.model_validate({"alerts": [bad]})
+        AlertsLatestResponse.model_validate(_envelope(bad))
 
 
 def test_alerts_latest_response_accepts_null_comment_and_probability():
     """comment/probability_pct are genuinely nullable in the DB model (not every
     source reports them) - must not be tightened into required fields."""
     row = {**_VALID_ALERT_OUT, "comment": None, "probability_pct": None}
-    AlertsLatestResponse.model_validate({"alerts": [row]})
+    AlertsLatestResponse.model_validate(_envelope(row))
 
 
 def test_alerts_latest_response_rejects_unknown_freshness():
     bad = {**_VALID_ALERT_OUT, "freshness": "ANCIENT"}
     with pytest.raises(ValidationError):
-        AlertsLatestResponse.model_validate({"alerts": [bad]})
+        AlertsLatestResponse.model_validate(_envelope(bad))
 
 
 # --- source_status (ADR-012) --------------------------------------------------
@@ -204,3 +205,15 @@ def test_empty_alerts_with_old_last_success_is_stale_not_all_clear():
     body = client.get("/api/v1/alerts/latest").json()
 
     assert body["source_status"]["imgw_warningshydro"]["freshness"] == "STALE"
+
+
+def test_alerts_latest_response_rejects_unknown_source_freshness():
+    with pytest.raises(ValidationError):
+        AlertsLatestResponse.model_validate(
+            {
+                "alerts": [],
+                "source_status": {
+                    "imgw_warningshydro": {"freshness": "MAYBE", "last_success_at": None}
+                },
+            }
+        )

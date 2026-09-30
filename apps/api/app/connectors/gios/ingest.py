@@ -111,9 +111,7 @@ def main() -> None:
         description="One-off GIOŚ ingest (full MVP param set, TASK-4.1) — Master Plan §4."
     )
     parser.add_argument("--station-id", action="append", dest="station_ids", default=[])
-    parser.add_argument(
-        "--list", action="store_true", help="preview one page of stations and exit"
-    )
+    parser.add_argument("--list", action="store_true", help="preview one page of stations and exit")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 

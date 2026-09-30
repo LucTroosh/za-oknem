@@ -83,7 +83,7 @@ class TestRunImgwWarningsHydro:
             MagicMock(return_value=[{"numer": "1"}, {"numer": "2"}]),
         )
         monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
-        batch_mock = MagicMock(return_value=(0, 0))
+        batch_mock = MagicMock(return_value=(0, 0, 0))
         monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
@@ -100,7 +100,7 @@ class TestRunImgwWarningsHydro:
             "fetch_warnings",
             MagicMock(return_value={"message": "Brak"}),
         )
-        batch_mock = MagicMock(return_value=(0, 0))
+        batch_mock = MagicMock(return_value=(0, 0, 0))
         monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
@@ -109,6 +109,27 @@ class TestRunImgwWarningsHydro:
         args, kwargs = batch_mock.call_args
         assert args == ([], db_session)
         assert "fetched_at" in kwargs
+
+
+class TestRunImgwWarningsHydroIncomplete:
+    def test_incomplete_snapshot_raises_so_it_is_not_recorded_as_success(
+        self, monkeypatch, db_session
+    ):
+        # ADR-012 / Codex P1: a rejected warning may be the active one - the run
+        # must not refresh last_success_at (false all-clear on the client).
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_warnings_client, "fetch_warnings", MagicMock(return_value=[{}])
+        )
+        monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
+        monkeypatch.setattr(scheduler, "ingest_batch", MagicMock(return_value=(0, 0, 1)))
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("imgw_warningshydro", scheduler.run_imgw_warningshydro)
+
+        assert record.call_args.kwargs["success"] is False
+        assert "snapshot incomplete" in record.call_args.kwargs["error"]
 
 
 class TestMain:

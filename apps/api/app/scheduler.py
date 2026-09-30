@@ -83,9 +83,14 @@ def run_imgw_warningshydro() -> None:
     try:
         fetched_at = datetime.now(UTC)
         warnings = parse_warnings(imgw_warnings_client.fetch_warnings())
-        ingest_batch(warnings, db, fetched_at=fetched_at)
+        _stored, _expired, rejected = ingest_batch(warnings, db, fetched_at=fetched_at)
     finally:
         db.close()
+    if rejected:
+        # ADR-012: valid warnings are stored, but the snapshot is incomplete - a
+        # rejected warning may be exactly the active one, so this run must not
+        # refresh last_success_at (that would let clients show a false all-clear).
+        raise RuntimeError(f"{rejected} IMGW warning(s) failed to parse - snapshot incomplete")
 
 
 def _run_job_safely(name: str, job: Callable[[], bool | None]) -> None:
@@ -106,13 +111,15 @@ def _run_job_safely(name: str, job: Callable[[], bool | None]) -> None:
 def _record_run(source_id: str, *, success: bool, error: str | None = None) -> None:
     # Own session, and never raises: a DB hiccup while recording status must not
     # turn a successful ingest into a crashed scheduler (rule #1).
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         record_source_run(db, source_id, success=success, error=error)
     except Exception:
         logger.exception("could not record source_status for %s", source_id)
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def main(*, iterations: int | None = None) -> None:
