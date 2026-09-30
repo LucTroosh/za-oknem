@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type AlertsBlock, alertAreasLabel, summarizeAlerts } from "./alerts";
+import { type AlertItem, type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 
 describe("alertAreasLabel", () => {
   it("joins unique voivodeship names", () => {
@@ -70,5 +70,15 @@ describe("summarizeAlerts (ADR-012)", () => {
       block(0, { a: ["STALE", "2026-09-29T10:00:00Z"], b: ["STALE", "2026-09-28T10:00:00Z"] }),
     );
     expect(summary).toEqual({ kind: "unavailable", lastSuccessAt: "2026-09-28T10:00:00Z" });
+
+describe("alertKey", () => {
+  it("differs for the same external_id from another source or revision", () => {
+    const base = { external_id: "31", source: "imgw_warningshydro", published_at: "t1" };
+    const keys = new Set(
+      [base, { ...base, source: "imgw_warningsmeteo" }, { ...base, published_at: "t2" }].map(
+        (a) => alertKey(a as AlertItem),
+      ),
+    );
+    expect(keys.size).toBe(3);
   });
 });

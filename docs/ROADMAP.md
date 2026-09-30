@@ -104,7 +104,7 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z PM2.5 + pogodą, pull-to-refresh, freshness z backendu. Brak hydro/alerts na ekranie. |
+| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcja „Ostrzeżenia — cała Polska” (TASK-7.2), pull-to-refresh, freshness z backendu. Brak hydro na ekranie. |
 | Alerts (ekran) | ⬜ TODO |
 | Settings | ⬜ TODO |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
