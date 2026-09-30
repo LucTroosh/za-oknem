@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #49)
+**Ostatnia aktualizacja:** 2026-09-30 (po PR #65)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -31,7 +31,7 @@ Alerts/Settings/push/profilu).
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
 | PM2.5, PM10, NO2, SO2, O3, CO, C6H6 | ✅ DONE — GIOŚ, pełny zestaw parametrów MVP (TASK-4.1, PR #48), `GET /api/v1/air/latest`, w dashboardzie |
-| indeks jakości powietrza + indeksy cząstkowe | ⬜ TODO |
+| indeks jakości powietrza + indeksy cząstkowe | ⛔ BLOCKED — TASK-4.2: nie da się zweryfikować u źródła progów GIOŚ (na oficjalnych stronach tylko obrazek) ani kształtu `aqindex/getIndex` (żywe API niedostępne z tego środowiska). ADR-015 (Proposed, PR #63) rekomenduje odczyt gotowego indeksu GIOŚ; nie zgadujemy progów (rule #10/#15) |
 | Sensor.Community, CAMS Air (MVP+) | ⬜ TODO (poza MVP na razie) |
 
 ### 2.2. Pogoda (§5)
@@ -89,7 +89,9 @@ Alerts/Settings/push/profilu).
 | Scheduler | ✅ DONE — ADR-007, loop-based, per-job interval gating, izolacja awarii (rule #1, `_run_job_safely`) |
 | Workers (oddzielny proces/kolejka) | ⬜ TODO — świadomie NIE zrobione (ADR-007): scheduler w jednym procesie wystarcza przy obecnej skali, przejście na worker/queue dopiero gdy realnie potrzebne |
 | Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 4 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
-| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń: tabela `source_status` zapisywana przez scheduler, `source_status` w `/alerts/latest` i agregacie, mobile nie pokazuje „brak ostrzeżeń”, gdy źródło milczy; dla `air`/`weather`/`hydro` w agregacie jeszcze nie (TASK-7.3) |
+| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń (#59, #61) i hydrologii (#62): tabela `source_status` zapisywana przez scheduler i ręczne CLI, `source_status` w `/alerts/latest`, `/hydro/latest` i agregacie; mobile nie pokazuje „brak ostrzeżeń/alarmów”, gdy źródło milczy lub status zestarzał się na urządzeniu (>6h); dla `air`/`weather` w agregacie jeszcze nie (TASK-7.3) |
+| Provenance / raw ingestion (§33-34) | ✅ DONE — `source_fetches` (surowy payload, endpoint, wersja parsera, status walidacji) + nullable FK `source_fetch_id` na `Measurement`/`Alert`/`WeatherSnapshot`/`Forecast`; wszystkie 4 connectory; retencja payloadu 7/14/30 dni, metadane zostają; zapis best-effort, awaria nie psuje ingestu (ADR-014, TASK-3.1, PR #65). Rekordy sprzed migracji 0009 mają FK NULL |
+| Outdoor Interpretation Engine (§52) | 🟡 PARTIAL — `app/outdoor.py`: deterministyczny GOOD/MODERATE/POOR/UNKNOWN + `reasons[]`/`missing[]` (ADR-016, PR #64); progi PM/UV/wiatr ze źródłami, temperatura/opady/widoczność oznaczone „do kalibracji”. Niepodłączony do dashboardu ani mobile (TASK-7.7/7.8) |
 | Geo matching | 🟡 PARTIAL — tylko nearest-station GIOŚ↔geo_area (ADR-006, próg 50km); brak dopasowania alertów do województw/lokalizacji |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
@@ -104,7 +106,7 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcja „Ostrzeżenia — cała Polska” (TASK-7.2), pull-to-refresh, freshness z backendu. Brak hydro na ekranie. |
+| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu. Brak karty outdoor i pyłków. |
 | Alerts (ekran) | ⬜ TODO |
 | Settings | ⬜ TODO |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
@@ -132,7 +134,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Blokada | Co odblokuje | Task |
 |---|---|---|
 | `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
-| Source-level freshness (pusta lista = ? ) | Decyzja + własny ADR (dotyczy `/air`, `/hydro`, `/alerts` łącznie) | brak (nie zaczęte) |
+| Indeks jakości powietrza (AQI) | Surowy JSON z `https://api.gios.gov.pl/pjp-api/v1/rest/aqindex/getIndex/<id>` (opcja A) albo tabela progów GIOŚ przepisana z oficjalnego obrazka (opcja B) — API GIOŚ jest blokowane przez proxy środowiska agenta | TASK-4.2 (ADR-015, PR #63) |
 | Geo-matching alertów do lokalizacji | Decyzja o metodzie (statyczna mapa 7 lokalizacji→województwo, czy pełny Geo Engine z TERYT, §27, Phase 6) | brak (non-goal ADR-009) |
 
 ---
@@ -165,6 +167,10 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #58 | Ostrzeżenia IMGW w `dashboard_latest()` + mobile, jawnie ogólnokrajowe do czasu geo-matchingu (TASK-7.2) |
 | #47 | Backup + test odtworzenia (TASK-1.1, §68): age, spójna migawka, manifest, hasło poza argv |
 | #59 | Source-level freshness / UNAVAILABLE dla ostrzeżeń (ADR-012, TASK-7.4) |
+| #61 | Follow-up #59: status starzeje się na urządzeniu (6h, timer 60 s), brak `source_status` bez wyjątku, `last_success_at` z przyszłości = STALE |
+| #62 | Hydrologia na mobile: „Stany wody — cała Polska” (WARNING/ALARM), `attribution` + `source_status` w `/hydro/latest`, CLI hydro zapisuje `source_status` (TASK-7.2) |
+| #64 | Outdoor Interpretation Engine (ADR-016, TASK-7.6) — czysty moduł, niepodłączony do API |
+| #65 | Provenance: `source_fetches` + `source_fetch_id`, retencja payloadów (ADR-014, TASK-3.1) |
 
 ---
 
