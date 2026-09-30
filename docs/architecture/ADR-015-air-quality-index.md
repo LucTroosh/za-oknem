@@ -70,7 +70,7 @@ z widocznego obrazka (wtedy B). Do tego czasu nie powstaje kod.
 
 - Brak kodu i migracji w tym PR — tylko ADR i dokument zadania. Brak zgadywania.
 - Niezależnie od opcji obowiązują: freshness indeksu = freshness danych wejściowych
-  (rule #8), GIOŚ zwraca „Brak indeksu” dla stacji bez wyznaczonego indeksu; brak wiersza i brak udanego pobrania to osobny stan UNAVAILABLE (po nieudanym polu zostaje ostatni snapshot ze stanem wg `last_success_at`) (rule #8, ADR-012), nie „Brak indeksu” (nigdy 0 ani „Bardzo dobry”), etykiety
+  (rule #8), GIOŚ zwraca „Brak indeksu” dla stacji bez wyznaczonego indeksu; brak wiersza i brak udanego pobrania to osobny stan UNAVAILABLE (po nieudanym polu zostaje ostatni snapshot ze stanem liczonym z `source_data_date`, nie z czasu pollu) (rule #8, ADR-012), nie „Brak indeksu” (nigdy 0 ani „Bardzo dobry”), etykiety
   dosłownie jak wyżej, dostępność (tekst, nie tylko kolor), logika mobilna w
   `apps/mobile/app/aqi.ts`.
 - Migracja, jeśli A: `0010` (0009 zajęta przez PR provenance).
