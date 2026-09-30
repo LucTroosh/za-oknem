@@ -5,6 +5,13 @@ import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
 import { FRESHNESS_LABEL, type Freshness } from "./freshness";
+import {
+  HYDRO_FRESHNESS_LABEL,
+  HYDRO_STATUS_LABEL,
+  type HydroBlock,
+  hydroLevelLine,
+  summarizeHydro,
+} from "./hydro";
 
 // No shared api-contract package yet (packages/api-contract is still a
 // placeholder) — hand-typed here, one endpoint doesn't justify generating an
@@ -110,6 +117,7 @@ export default function Home() {
   const [areas, setAreas] = useState<DashboardArea[]>([]);
   const [alerts, setAlerts] = useState<AlertsBlock | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
 
   const load = useCallback(() => {
     return apiGet<{ areas: DashboardArea[]; alerts: AlertsBlock }>("/api/v1/dashboard/latest")
@@ -126,6 +134,7 @@ export default function Home() {
   }, [load]);
 
   const onRefresh = useCallback(() => {
+    setHydroRefreshTick((t) => t + 1);
     setRefreshing(true);
     load().finally(() => setRefreshing(false));
   }, [load]);
@@ -157,6 +166,8 @@ export default function Home() {
         // ADR-012: "brak ostrzeżeń" only when every alert source is FRESH/RECENT;
         // otherwise the source is silent and we say so (no false all-clear).
         ListHeaderComponent={alerts ? <AlertsSection alerts={alerts} /> : null}
+        // TASK-7.2 (hydro): own fetch and own states - independent of the dashboard.
+        ListFooterComponent={<HydroSection refreshTick={hydroRefreshTick} />}
         ListEmptyComponent={
           state === "error" ? null : (
             <Text>
@@ -244,4 +255,97 @@ const styles = StyleSheet.create({
   alerts: { paddingVertical: 8, gap: 6 },
   alertsTitle: { fontSize: 18, fontWeight: "600", color: "#b00020" },
   alertItem: { gap: 2 },
+});
+
+// TASK-7.2 (hydro): separate fetch (hydrology isn't part of the dashboard aggregate,
+// §55), so its failure never touches the rest of the screen and vice versa (rule #1).
+// Nationwide until Phase 9 adds geo matching - hence the "cała Polska" label.
+function HydroSection({ refreshTick }: { refreshTick: number }) {
+  const [state, setState] = useState<LoadState>("loading");
+  const [hydro, setHydro] = useState<HydroBlock | null>(null);
+  // Re-evaluated every minute: labels age on the device without a refetch.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet<HydroBlock>("/api/v1/hydro/latest")
+      .then((body) => {
+        if (cancelled) return;
+        setHydro(body);
+        setNow(Date.now());
+        setState("ready");
+      })
+      .catch(() => !cancelled && setState("error"));
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshTick]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const summary = hydro ? summarizeHydro(hydro, now) : null;
+  const lastSuccess = (at: string | null) =>
+    at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
+  return (
+    <View style={hydroStyles.section}>
+      <Text style={hydroStyles.title}>Stany wody — cała Polska</Text>
+      {state === "loading" && !hydro && <Text style={styles.metric}>Ładowanie...</Text>}
+      {state === "error" && (
+        <Text style={styles.errorBanner}>
+          {hydro
+            ? "Błąd odświeżania stanów wody — pokazane dane mogą być nieaktualne."
+            : "Stany wody chwilowo niedostępne — pociągnij w dół, aby spróbować ponownie."}
+        </Text>
+      )}
+      {summary?.kind === "unavailable" && (
+        <Text style={styles.metric}>
+          Dane o stanach wody niedostępne lub nieaktualne ({lastSuccess(summary.lastSuccessAt)}).
+        </Text>
+      )}
+      {summary?.kind === "none-confirmed" && (
+        <Text style={styles.metric}>
+          Brak stacji w stanie ostrzegawczym lub alarmowym
+          {summary.unassessed > 0
+            ? ` (${summary.unassessed} stacji bez progów IMGW nie jest oceniane)`
+            : ""}
+          .
+        </Text>
+      )}
+      {summary?.kind === "list" && summary.outdated && (
+        <Text style={styles.freshness}>
+          Lista może być nieaktualna ({lastSuccess(summary.lastSuccessAt)}).
+        </Text>
+      )}
+      {summary?.kind === "list" &&
+        summary.items.map(({ station, freshness }) => (
+          <View key={station.station_id} style={hydroStyles.item}>
+            <Text style={styles.metric}>
+              {station.station_name} —{" "}
+              <Text style={station.status === "ALARM" ? hydroStyles.alarm : hydroStyles.warning}>
+                {HYDRO_STATUS_LABEL[station.status]}
+              </Text>
+            </Text>
+            <Text>{hydroLevelLine(station)}</Text>
+            <Text style={styles.freshness}>
+              {HYDRO_FRESHNESS_LABEL[freshness]}, {formatObservedAt(station.observed_at)}
+            </Text>
+          </View>
+        ))}
+      {summary?.kind === "list" && summary.more > 0 && (
+        <Text style={styles.freshness}>i {summary.more} więcej</Text>
+      )}
+      {hydro && <Text style={styles.attribution}>{hydro.attribution}</Text>}
+    </View>
+  );
+}
+
+const hydroStyles = StyleSheet.create({
+  section: { paddingVertical: 12, gap: 6 },
+  title: { fontSize: 18, fontWeight: "600" },
+  item: { gap: 2 },
+  alarm: { color: "#b00020", fontWeight: "700" },
+  warning: { color: "#b26a00", fontWeight: "700" },
 });
