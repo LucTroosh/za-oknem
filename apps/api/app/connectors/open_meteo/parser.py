@@ -8,10 +8,11 @@ unexpected shape rather than guessing (same lesson as the GIOŚ connector).
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS
+from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS, HOURLY_PARAMS
 
 PARAM_CODES = CURRENT_PARAMS.split(",")
 FORECAST_PARAM_CODES = DAILY_PARAMS.split(",")
+HOURLY_PARAM_CODES = HOURLY_PARAMS.split(",")
 
 # Open-Meteo's own documented default `models` value when none is requested
 # (ADR-010) - not an invented label.
@@ -69,6 +70,66 @@ def normalize(
     return snapshots
 
 
+def normalize_hourly_current(
+    *,
+    geo_area_id: int,
+    payload: dict[str, Any],
+    fetched_at: datetime,
+) -> list[dict[str, Any]]:
+    """One WeatherSnapshot-ready dict per requested `hourly` param (TASK-5.4:
+    dew point, visibility, UV index — Open-Meteo only documents these under
+    `hourly`, not `current`), picking the entry for the hour `current` falls
+    in. `observed_at` is that hourly slot's own timestamp (not `current`'s,
+    which can be a few minutes into the hour) - it's the truthful time the
+    value represents.
+
+    Kept independent of normalize()'s `current` parsing (own try/except in
+    ingest.py) so a problem here doesn't cost the already-proven current
+    fields, same isolation as normalize_forecast() (rule #1, TASK-5.3)."""
+    try:
+        current_time = datetime.fromisoformat(payload["current"]["time"]).replace(tzinfo=UTC)
+        hourly = payload["hourly"]
+        units = payload["hourly_units"]
+        hours = hourly["time"]
+        if not isinstance(hours, list):
+            raise TypeError(f"hourly.time must be a list, got {type(hours).__name__}")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise OpenMeteoParseError(f"malformed hourly payload: {exc}") from exc
+
+    slot = current_time.replace(minute=0, second=0, microsecond=0)
+    slot_str = slot.strftime("%Y-%m-%dT%H:%M")
+    try:
+        hour_index = hours.index(slot_str)
+    except ValueError as exc:
+        raise OpenMeteoParseError(
+            f"no hourly.time entry for current hour {slot_str!r}: {exc}"
+        ) from exc
+
+    snapshots = []
+    for param_code in HOURLY_PARAM_CODES:
+        try:
+            value = float(hourly[param_code][hour_index])
+            unit = str(units[param_code])
+        except (KeyError, TypeError, ValueError, IndexError) as exc:
+            raise OpenMeteoParseError(
+                f"missing/invalid hourly param {param_code!r}: {exc}"
+            ) from exc
+
+        snapshots.append(
+            {
+                "source_id": "open_meteo",
+                "source_record_id": f"{geo_area_id}:{param_code}:{slot.isoformat()}",
+                "geo_area_id": geo_area_id,
+                "param_code": param_code,
+                "value": value,
+                "unit": unit,
+                "observed_at": slot,
+                "fetched_at": fetched_at,
+            }
+        )
+    return snapshots
+
+
 def normalize_forecast(
     *,
     geo_area_id: int,
@@ -92,8 +153,7 @@ def normalize_forecast(
             series = daily[param_code]
             if not isinstance(series, list) or len(series) != len(days):
                 raise TypeError(
-                    f"daily[{param_code!r}] must be a list of length {len(days)}, "
-                    f"got {series!r}"
+                    f"daily[{param_code!r}] must be a list of length {len(days)}, got {series!r}"
                 )
     except (KeyError, TypeError) as exc:
         raise OpenMeteoParseError(f"malformed daily-forecast payload: {exc}") from exc

@@ -11,9 +11,11 @@ around it.
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.api.v1.air import FRESH_MAX_AGE, RECENT_MAX_AGE, freshness
+from app.api.v1.air import FRESH_MAX_AGE, RECENT_MAX_AGE, AirLatestResponse, freshness
 from app.db import get_db
 from app.main import app
 from app.models import Measurement
@@ -114,10 +116,14 @@ def test_latest_air_quality_shapes_response_from_rows():
                 "station_name": "Kłodzko, ul. Szkolna",
                 "latitude": 50.433493,
                 "longitude": 16.65366,
-                "pm25": 11.5,
-                "unit": "µg/m³",
-                "observed_at": row.observed_at.isoformat(),
-                "freshness": "FRESH",
+                "params": {
+                    "PM2.5": {
+                        "value": 11.5,
+                        "unit": "µg/m³",
+                        "observed_at": row.observed_at.isoformat(),
+                        "freshness": "FRESH",
+                    }
+                },
                 "source": "gios",
             }
         ]
@@ -130,7 +136,7 @@ def test_latest_air_quality_marks_old_reading_stale():
 
     body = client.get("/api/v1/air/latest").json()
 
-    assert body["stations"][0]["freshness"] == "STALE"
+    assert body["stations"][0]["params"]["PM2.5"]["freshness"] == "STALE"
 
 
 def test_latest_air_quality_handles_multiple_stations():
@@ -143,3 +149,117 @@ def test_latest_air_quality_handles_multiple_stations():
     body = client.get("/api/v1/air/latest").json()
 
     assert {s["station_id"] for s in body["stations"]} == {"38", "99"}
+
+
+def test_latest_air_quality_groups_multiple_params_per_station():
+    rows = [
+        _measurement(param_code="PM2.5", value=11.5, source_record_id="a"),
+        _measurement(param_code="PM10", value=20.0, unit="µg/m³", source_record_id="b"),
+        _measurement(param_code="CO", value=0.3, unit="µg/m³", source_record_id="c"),
+    ]
+    client = _client_with_rows(rows)
+
+    body = client.get("/api/v1/air/latest").json()
+
+    assert len(body["stations"]) == 1
+    params = body["stations"][0]["params"]
+    assert set(params) == {"PM2.5", "PM10", "CO"}
+    assert params["CO"]["value"] == 0.3
+    assert params["CO"]["unit"] == "µg/m³"
+
+
+def test_latest_air_quality_query_filters_by_gios_source():
+    # Codex review: `measurements` is shared with imgw_hydro (water_level_cm) —
+    # a regression here would silently show river gauges as air stations.
+    # FakeSession ignores the stmt's WHERE clause (no real Postgres here), so this
+    # inspects the WHERE clause directly rather than round-tripping through rows.
+    # (Only the whereclause is compiled, not the full DISTINCT ON select, which is
+    # Postgres-dialect-only and can't compile with the generic/default dialect.)
+    from app.db import get_db
+    from app.main import app
+
+    captured = {}
+
+    class _CapturingSession:
+        def execute(self, stmt):
+            captured["where"] = str(
+                stmt.whereclause.compile(compile_kwargs={"literal_binds": True})
+            )
+            return _FakeResult([])
+
+    app.dependency_overrides[get_db] = lambda: iter([_CapturingSession()])
+    try:
+        client = TestClient(app)
+        client.get("/api/v1/air/latest")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert "source_id" in captured["where"] and "gios" in captured["where"]
+
+
+# --- AirLatestResponse (TASK-API-1: response_model actually enforces a shape) --
+
+
+def test_air_latest_response_accepts_the_real_shape():
+    AirLatestResponse.model_validate(
+        {
+            "stations": [
+                {
+                    "station_id": "38",
+                    "station_name": "Kłodzko, ul. Szkolna",
+                    "latitude": 50.43,
+                    "longitude": 16.65,
+                    "params": {
+                        "PM2.5": {
+                            "value": 11.5,
+                            "unit": "µg/m³",
+                            "observed_at": "2026-09-29T12:00:00+00:00",
+                            "freshness": "FRESH",
+                        }
+                    },
+                    "source": "gios",
+                }
+            ]
+        }
+    )
+
+
+def test_air_latest_response_rejects_missing_required_field():
+    """Proves response_model actually enforces the shape, not just documents
+    it - a station missing `station_name` must fail validation, not silently
+    serialize with a null/absent key."""
+    with pytest.raises(ValidationError):
+        AirLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "38",
+                        # station_name missing
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "params": {},
+                        "source": "gios",
+                    }
+                ]
+            }
+        )
+
+
+def test_air_latest_response_rejects_unknown_source():
+    """`source` is a closed Literal["gios"] - a typo or a future second source
+    reusing this model without updating it must fail loudly, not pass through."""
+    with pytest.raises(ValidationError):
+        AirLatestResponse.model_validate(
+            {
+                "stations": [
+                    {
+                        "station_id": "38",
+                        "station_name": "Kłodzko",
+                        "latitude": 50.43,
+                        "longitude": 16.65,
+                        "params": {},
+                        "source": "not_gios",
+                    }
+                ]
+            }
+        )

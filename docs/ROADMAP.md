@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-29 (po PR #46)
+**Ostatnia aktualizacja:** 2026-09-29 (po PR #49)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -30,8 +30,7 @@ Alerts/Settings/push/profilu).
 
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
-| PM2.5 | ✅ DONE — GIOŚ, `GET /api/v1/air/latest`, w dashboardzie |
-| PM10, NO2, SO2, O3, CO, C6H6 | ⬜ TODO — connector GIOŚ celowo ograniczony do PM2.5 (vertical slice) |
+| PM2.5, PM10, NO2, SO2, O3, CO, C6H6 | ✅ DONE — GIOŚ, pełny zestaw parametrów MVP (TASK-4.1, PR #48), `GET /api/v1/air/latest`, w dashboardzie |
 | indeks jakości powietrza + indeksy cząstkowe | ⬜ TODO |
 | Sensor.Community, CAMS Air (MVP+) | ⬜ TODO (poza MVP na razie) |
 
@@ -40,7 +39,7 @@ Alerts/Settings/push/profilu).
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
 | temperatura, wilgotność, wiatr (prędkość+kierunek+porywy), kod warunków, odczuwalna, ciśnienie, zachmurzenie, opady/deszcz/śnieg | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard (12/15 pól MVP, PR #41) |
-| punkt rosy, widoczność, UV | ⬜ TODO — Open-Meteo current nie zwraca tych pól wprost (wymaga osobnego zapytania/derywacji), świadomie odłożone |
+| punkt rosy, widoczność, UV | ✅ DONE — Open-Meteo `hourly` (osobny fetch nie był potrzebny, jeden request z `current`+`hourly`+`daily`), dopasowanie do godziny `current` w parserze (TASK-5.4) |
 | prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46) |
 
 ### 2.3. Pylenie (§6)
@@ -96,8 +95,8 @@ Alerts/Settings/push/profilu).
 | Notification Engine | ⬜ TODO |
 | REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/dashboard/latest`, `/health`; wersjonowane pod `/api/v1/` |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
-| Monitoring | ⬜ TODO |
-| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane lokalnie (dump+sekrety szyfrowane age, manifest z licznikami do smoke-checku, restore test wymaga izolowanego hosta z prywatnym kluczem); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
+| Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
+| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+manifest, walidacja manifestu, limit wieku backupu, hasło poza argv); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
 
 ---
 
@@ -113,7 +112,7 @@ Alerts/Settings/push/profilu).
 | push notifications | ⬜ TODO |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
-| source transparency | ⬜ TODO — API zwraca `station_name`, ale mobile (`app/index.tsx`) go nie renderuje (tylko nazwę geo_area i freshness); `/dashboard/latest` nie ma identyfikatora źródła ani dla air, ani dla weather — użytkownik dziś nie widzi żadnej atrybucji źródła |
+| source transparency | ✅ DONE — `dashboard_latest()` zwraca `source`+`attribution`+`observed_at` dla air i weather, mobile renderuje atrybucję pod każdą sekcją (TASK-7.1, PR #49) |
 | freshness (UI) | ✅ DONE — etykieta freshness pokazywana per sekcja |
 | loading / error / stale / no-data states | 🟡 PARTIAL — loading/error/ready obsłużone; stale i no-data nie mają jeszcze dedykowanych stanów UI (§59, §80) |
 
@@ -155,6 +154,14 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #44 | `docs/ROADMAP.md`/TASK-9.3 — progi hydro DONE, uzupełnienie historii review (2 dodatkowe realne poprawki dokumentacji) |
 | #45 | `docs/tasks/BACKLOG.md` — uporządkowana kolejka pozostałych faz Master Planu |
 | #46 | Forecast (§30, ADR-010): `GET /api/v1/weather/forecast`, domyka Phase 5 |
+| #48 | GIOŚ: pełny zestaw parametrów MVP (PM10/NO2/SO2/O3/CO/C6H6, TASK-4.1) + fix jednostki CO + izolacja awarii per-param |
+| #49 | Source transparency w `dashboard_latest()` + mobile (TASK-7.1) |
+| #50 | Open-Meteo: punkt rosy/widoczność/UV index z `hourly` dopasowane do godziny `current` (TASK-5.4), domyka pozostałe MVP pola §5; per-param freshness na `/weather/latest` |
+| #51, #53, #54 | Typed `response_model` dla `/air/latest`, `/hydro/latest`, `/alerts/latest` (TASK-API-1/3/4) |
+| #52 | Typed `response_model` dla `/weather/latest` i `/weather/forecast` (pola czasowe jako `datetime`) |
+| #55 | Dzienny licznik wywołań per źródło + alert 70% (TASK-13.1a): jednostki rozliczeniowe Open-Meteo, każda próba HTTP liczona przed wysłaniem, atomowy inkrement |
+| #(nowy) | Per-param `observed_at`/`freshness` pogody w `dashboard_latest()` + mobile (Codex P1 z PR #50, rezydualny w agregacie) |
+| #47 | Backup + test odtworzenia (TASK-1.1, §68): age, spójna migawka, manifest, hasło poza argv |
 
 ---
 

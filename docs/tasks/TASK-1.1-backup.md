@@ -9,58 +9,63 @@ CLAUDE.md), niezależnie od tego, czy reszta MVP jest gotowa.
 
 ## Scope
 
-- `infrastructure/scripts/backup.sh` — dla jednego przebiegu:
-  1. `pg_dump` bazy w formacie custom (`-Fc`, kompresja wbudowana).
-  2. Tar plików konfiguracyjnych BEZ sekretów (`docker-compose.yml`, `.env.example`,
-     `infrastructure/caddy/Caddyfile` jeśli istnieje).
-  3. Zaszyfrowany (`age`) tar realnych sekretów (`.env`) — osobny artefakt, bo rule #3
-     (żadnych sekretów w repo) nie zwalnia z ich backupu, tylko zabrania trzymać jawnie.
-  4. Upload wszystkich trzech artefaktów przez `rclone` do zdalnego katalogu
-     (`BACKUP_REMOTE`, np. `s3:za-oknem-backups` albo dowolny inny rclone remote) —
-     świadomie przez rclone, nie własny kod S3, żeby nie przywiązywać się do jednego
-     providera (ADR nie wymagane — to wybór narzędzia operacyjnego, nie architektury).
-  5. Nazwy plików ze znacznikiem czasu (retencja = polityka na remote, np. lifecycle
-     rule w buckecie — nie w tym skrypcie).
-- `infrastructure/scripts/restore_test.sh` — pobiera NAJNOWSZY backup z `BACKUP_REMOTE`,
-  odtwarza `pg_dump` do jednorazowej bazy (`za_oknem_restore_test`), odszyfrowuje i
-  rozpakowuje config, i weryfikuje smoke-checkiem (baza ma oczekiwane tabele + `SELECT 1`
-  przechodzi). Exit code ≠ 0 przy jakimkolwiek kroku, żeby dało się to wpiąć w
-  monitoring/cron (realne wdrożenie w harmonogramie — TASK-15.2/15.3, poza zakresem
-  tego tasku).
-- `infrastructure/scripts/README.md` — jak uruchomić, wymagane zmienne środowiskowe,
-  wymagane narzędzia (`postgresql-client`, `rclone`, `age`).
-- `.env.example` — dodane (puste) placeholdery `BACKUP_REMOTE`, `AGE_RECIPIENT`
-  (klucz publiczny do szyfrowania — nie sekret, bez sekretu nie da się jedynie
-  odszyfrować).
+- `infrastructure/scripts/backup.sh` — jeden przebieg:
+  1. Jedna transakcja `REPEATABLE READ` + `pg_export_snapshot()`; w niej
+     `pg_dump -Fc --snapshot=…` pipe'owany prosto do `age` (plaintext nigdy nie na
+     dysku) oraz `alembic_version` i liczby wierszy tabel — dump i manifest opisują
+     identyczny stan bazy.
+  2. Tar configu BEZ sekretów (`docker-compose.yml`, `.env.example`, Caddyfile jeśli jest).
+  3. Zaszyfrowany (`age`) tar `.env` — brak `.env` to twardy błąd (poza jawnym
+     `BACKUP_ALLOW_NO_SECRETS=1` dla dev/self-check).
+  4. `manifest-<STAMP>.txt`: nazwy artefaktów, `alembic_version`, `table_count.*`
+     (wartości walidowane — pusty odczyt przerywa backup, nie zamienia się w 0).
+  5. Upload przez `rclone` w kolejności config → sekrety → manifest → dump (dump
+     ostatni = sygnał kompletnego zestawu). `STAMP` = czas UTC + 4 losowe bajty.
+- `infrastructure/scripts/restore_test.sh` — na izolowanym hoście z kluczem
+  prywatnym: wybiera najnowszy dump, odrzuca backup starszy niż
+  `BACKUP_MAX_AGE_HOURS` (domyślnie 48h), weryfikuje config (wymagane pliki),
+  manifest (kompletny, liczby całkowite) i sekrety (odszyfrowanie + obecność
+  `.env`), odtwarza strumieniowo (`age -d | pg_restore`) do jednorazowej bazy
+  `*_restore_test` (losowa nazwa, nigdy nie usuwa istniejącej bazy przed
+  utworzeniem, sprząta własną po zakończeniu), porównuje `alembic_version` i liczby
+  wierszy z manifestem. Każdy błąd = exit ≠ 0 z czytelnym komunikatem (pod cron/
+  monitoring).
+- `infrastructure/scripts/_pgpass.sh` — hasło z `DATABASE_URL` do `PGPASSFILE`
+  (0600), nigdy w argv procesów.
+- `infrastructure/scripts/README.md`, placeholdery w `.env.example`.
+- Retencja: po stronie storage (np. lifecycle rule bucketu usuwająca obiekty
+  starsze niż N dni) — działa na cały zestaw jednocześnie, bo wszystkie artefakty
+  jednego backupu mają ten sam `STAMP`/czas utworzenia.
 
 ## Non-goals
 
-- Realne, zaplanowane uruchamianie na produkcyjnym VPS (cron/systemd timer) — to
-  TASK-15.2 (Phase 15, dopiero gdy istnieje środowisko produkcyjne).
-- Wybór konkretnego providera off-VPS storage (S3-compatible, Backblaze B2, inny VPS)
-  — decyzja biznesowa użytkownika, skrypt jest storage-agnostic przez rclone.
-- Monitoring/alerting przy nieudanym backupie — TASK-13.2/15.3.
+- Zaplanowane uruchamianie na produkcyjnym VPS (cron/systemd) — TASK-15.2.
+- Wybór providera off-VPS storage — decyzja biznesowa; skrypty są storage-agnostic.
+- Monitoring/alerting nieudanego backupu — TASK-13.2/15.3 (exit code jest gotowy).
 
 ## Acceptance Criteria
 
-- [ ] `backup.sh` uruchomiony lokalnie (dev `docker compose`) produkuje 3 pliki:
-      dump bazy, tar configu, zaszyfrowany tar sekretów.
-- [ ] Bez ustawionego `BACKUP_REMOTE` skrypt kończy się czytelnym błędem (nie cichym
-      pominięciem uploadu) — rule "nie zgadywać, jawny błąd".
-- [ ] `restore_test.sh` przeciwko lokalnemu rclone remote (katalog na dysku — symulacja
-      "off-VPS" do testów, realny provider to decyzja produkcyjna) odtwarza dump do
-      `za_oknem_restore_test` i przechodzi smoke-check.
-- [ ] Żaden sekret nie trafia do repo ani do nieszyfrowanego artefaktu configu.
-- [ ] `infrastructure/scripts/README.md` opisuje pełen przepływ + wymagane narzędzia.
+- [x] `backup.sh` produkuje: zaszyfrowany dump, tar configu, zaszyfrowany tar
+      sekretów, manifest.
+- [x] Brak `BACKUP_REMOTE` / `AGE_RECIPIENT` / `.env` (bez flagi dev) → czytelny błąd.
+- [x] `restore_test.sh` przeciwko lokalnemu katalogowi jako remote odtwarza dump i
+      przechodzi weryfikację względem manifestu.
+- [x] Negatywne przypadki kończą się błędem z komunikatem: awaria `pg_dump`
+      (brak uploadu), uszkodzony dump, config bez wymaganych plików, manifest
+      ucięty/bez linii/bez `alembic_version`, backup starszy niż limit, rozbieżne
+      liczniki.
+- [x] Żaden sekret w repo, w nieszyfrowanym artefakcie ani w argv procesów;
+      hasło z `$`/`` ` ``/`:` nie powoduje wstrzyknięcia polecenia.
+- [x] README opisuje pełen przepływ i wymagane narzędzia.
 
 ## Tests
 
-- `infrastructure/scripts/test_backup_restore.sh` — ponytail-style self-check: pełny
-  cykl backup→restore_test przeciwko dev `docker compose` Postgresowi i lokalnemu
-  katalogowi jako rclone remote, `set -e` + asercja że przywrócona baza ma te same
-  tabele co źródłowa. Uruchamiane ręcznie (`bash infrastructure/scripts/test_backup_restore.sh`),
-  nie wpięte w CI (wymaga działającego `docker compose`, jak inne testy integracyjne
-  w tym repo).
+- `infrastructure/scripts/test_backup_restore.sh` — pełny cykl backup →
+  restore_test przeciw dev Postgresowi i lokalnemu katalogowi jako remote
+  (uruchamiany ręcznie, wymaga `docker compose` — jak inne testy integracyjne).
+- Zweryfikowane na Postgres 16 (scram-sha-256): wszystkie przypadki z Acceptance
+  Criteria, w tym symulowana awaria `pg_dump`, insert w trakcie backupu (manifest
+  = stan migawki), argv logowane shimami, `PGPASSWORD` ustawione na złą wartość.
 
 ## Dependencies
 
@@ -125,7 +130,14 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
   (userinfo albo `?password=`) do pliku `PGPASSFILE` z uprawnieniami 600 w
   prywatnym katalogu tymczasowym, a `psql`/`pg_dump`/`pg_restore` dostają URL bez
   hasła (LucTroosh review [P2]; zweryfikowane shimami logującymi argv każdego
-  wywołania przy auth scram-sha-256).
+  wywołania przy auth scram-sha-256). `PGPASSWORD` jest wtedy czyszczone (libpq
+  preferuje je przed passfile).
+- `restore_test.sh` odszyfrowuje dump strumieniowo do `pg_restore` — plaintext nie
+  trafia na dysk także na hoście weryfikacyjnym.
+- Manifest musi być kompletny: brakujący/pusty licznik lub `alembic_version` to
+  błąd, nie domyślne 0 (tabela legalnie pusta przeszłaby inaczej porównanie).
+- Najnowszy backup starszy niż `BACKUP_MAX_AGE_HOURS` to błąd — test odtworzenia
+  nie może świecić na zielono, gdy backupy przestały się wykonywać.
 
 ## Architecture Impact
 

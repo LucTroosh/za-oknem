@@ -23,6 +23,7 @@ odtworzenia. Szczegóły zakresu: `docs/tasks/TASK-1.1-backup.md`.
 | `AGE_RECIPIENT` | Publiczny klucz `age` — szyfruje **dump bazy i sekrety** przed uploadem (`backup.sh`). `age-keygen` generuje parę; prywatny klucz NIE musi istnieć na VPS, który robi backup. |
 | `AGE_IDENTITY` | (`restore_test.sh`) Ścieżka do prywatnego klucza `age` — wymagany, bo dump i sekrety są szyfrowane. **Uruchamiaj `restore_test.sh` na izolowanym hoście weryfikacyjnym, który ten klucz przechowuje — nigdy na backupującym VPS.** |
 | `BACKUP_ALLOW_NO_SECRETS` | (opcjonalnie, `backup.sh`) `1` pozwala pominąć artefakt sekretów, gdy `.env` naprawdę nie istnieje — tylko dev/self-check. Na produkcji brak `.env` jest twardym błędem. |
+| `BACKUP_MAX_AGE_HOURS` | (opcjonalnie, `restore_test.sh`) maksymalny wiek najnowszego backupu, domyślnie `48` — starszy = błąd (backupy przestały się wykonywać). |
 | `RESTORE_TEST_DB` | (opcjonalnie) nazwa jednorazowej bazy do testu odtworzenia, domyślnie losowa (`za_oknem_<losowy_hex>_restore_test`) — skrypt jej NIE usuwa przed utworzeniem, tylko po zakończeniu testu. |
 
 ### Użycie
@@ -55,9 +56,17 @@ bash infrastructure/scripts/test_backup_restore.sh
 - `manifest-<STAMP>.txt` (jawny tekst, bez danych — tylko liczby wierszy per tabela i
   wersja migracji) pozwala `restore_test.sh` wykryć realną rozbieżność po odtworzeniu,
   nie tylko brak tabel.
+- `restore_test.sh` odszyfrowuje dump strumieniowo do `pg_restore` (bez plaintextu na
+  dysku), odrzuca niekompletny manifest i backup starszy niż `BACKUP_MAX_AGE_HOURS`.
 - `restore_test.sh` wymaga prywatnego klucza (`AGE_IDENTITY`) i musi działać na
   osobnym, izolowanym hoście weryfikacyjnym — backup VPS nigdy nie ma możliwości
   odszyfrowania własnych backupów.
+
+### Retencja
+
+Po stronie storage, nie w skryptach — np. lifecycle rule bucketu usuwająca obiekty
+starsze niż 30 dni. Wszystkie artefakty jednego backupu powstają w tym samym
+przebiegu, więc reguła wiekowa usuwa zestaw w całości.
 
 **BLOKADA (produkcja):** realny off-VPS storage (bucket/provider), para kluczy `age`
 i wydzielony host weryfikacyjny (z prywatnym kluczem) to decyzja/zasoby od Ciebie —

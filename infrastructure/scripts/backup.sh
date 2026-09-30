@@ -74,15 +74,15 @@ export PG_DATABASE_URL SNAPSHOT_FILE AGE_RECIPIENT DB_DUMP_ENC DUMP_OK
 
 {
   echo "BEGIN ISOLATION LEVEL REPEATABLE READ;"
-  echo "\\o $SNAPSHOT_FILE"
+  echo "\\o '$SNAPSHOT_FILE'"
   echo "SELECT pg_export_snapshot();"
   echo "\\o"
-  echo "\\! bash $DUMP_HELPER"
-  echo "\\o $COUNTS_DIR/.alembic_version"
+  echo "\\! bash '$DUMP_HELPER'"
+  echo "\\o '$COUNTS_DIR/.alembic_version'"
   echo "SELECT version_num FROM alembic_version;"
   echo "\\o"
   for t in "${TABLES[@]}"; do
-    echo "\\o $COUNTS_DIR/$t"
+    echo "\\o '$COUNTS_DIR/$t'"
     echo "SELECT count(*) FROM ${t};"
     echo "\\o"
   done
@@ -127,14 +127,18 @@ echo "[backup] manifest (metadane do weryfikacji odtworzenia)..."
 # (LucTroosh review, runda 2) - deployment mógłby wykonać migrację między dumpem a
 # osobnym zapytaniem, dając manifest niezgodny z tym, co faktycznie jest w dumpie.
 MANIFEST="$WORKDIR/manifest-${STAMP}.txt"
+# Wartości muszą być realne — pusty odczyt NIE może zamienić się w "0"/"NONE", bo
+# manifest z fałszywym zerem przeszedłby weryfikację dla pustej tabeli.
 ALEMBIC_VERSION="$(tr -d '[:space:]' < "$COUNTS_DIR/.alembic_version")"
+[ -n "$ALEMBIC_VERSION" ] || { echo "[backup] BŁĄD: pusty alembic_version z migawki." >&2; exit 1; }
 {
   echo "config=config-${STAMP}.tar.gz"
   echo "$SECRETS_MANIFEST_LINE"
-  echo "alembic_version=${ALEMBIC_VERSION:-NONE}"
+  echo "alembic_version=${ALEMBIC_VERSION}"
   for t in "${TABLES[@]}"; do
     COUNT="$(tr -d '[:space:]' < "$COUNTS_DIR/$t")"
-    echo "table_count.${t}=${COUNT:-0}"
+    [[ "$COUNT" =~ ^[0-9]+$ ]] || { echo "[backup] BŁĄD: niepoprawny licznik ${t}='${COUNT}'." >&2; exit 1; }
+    echo "table_count.${t}=${COUNT}"
   done
 } > "$MANIFEST"
 

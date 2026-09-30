@@ -17,11 +17,37 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors.open_meteo import client
-from app.connectors.open_meteo.parser import OpenMeteoParseError, normalize, normalize_forecast
+from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS, HOURLY_PARAMS
+from app.connectors.open_meteo.parser import (
+    OpenMeteoParseError,
+    normalize,
+    normalize_forecast,
+    normalize_hourly_current,
+)
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
+from app.rate_budget import check_daily_budget, record_fetch_call
 
 logger = logging.getLogger(__name__)
+
+# ADR-003: 10 000 requests/day on Open-Meteo's free non-commercial tier -
+# "alert przy 70% dziennego limitu" (see app/rate_budget.py).
+DAILY_CALL_LIMIT = 10_000
+
+# ADR-003 (docs/architecture/ADR-003-weather-provider-licensing.md:28-30): our
+# request covers more than 1 "API call" worth of variables per Open-Meteo's own
+# billing rules. Per open-meteo.com/en/pricing (verified 2026-09-29): "Requests for
+# data covering more than 10 weather variables ... are considered multiple API
+# calls" - example given is 15 variables = 1.5 calls, i.e. variables/10. We round UP
+# so the budget alert can only trigger EARLIER than the real quota, never later
+# (Codex review [P1]: undercounting delays the 70% alert past actual exhaustion).
+# TASK-5.4 (now merged, PR #50) added HOURLY_PARAMS to the same request - counted
+# here too, per this comment's own earlier note, so the estimate doesn't silently
+# undercount again the moment both PRs land.
+_TOTAL_VARIABLES = (
+    len(CURRENT_PARAMS.split(",")) + len(HOURLY_PARAMS.split(",")) + len(DAILY_PARAMS.split(","))
+)
+ESTIMATED_BILLABLE_UNITS_PER_CALL = max(1, -(-_TOTAL_VARIABLES // 10))  # ceil division
 
 
 def _store_if_new(model_cls: type, record: dict, db) -> int:
@@ -71,12 +97,24 @@ def _store_forecast_batch(records: list[dict], db) -> int:
 
 def ingest_geo_area(area: GeoArea, db) -> int:
     """Returns the number of new rows stored (current-weather snapshots +
-    forecast days). One geo_area's fetch failure is logged and skipped — it
-    must not abort ingestion for the rest (rule #1). Current and forecast
-    parsing are isolated from each other too (ADR-010): a malformed `daily`
-    block must not cost us an otherwise-valid `current` reading, or vice versa."""
+    hourly-derived fields + forecast days). One geo_area's fetch failure is
+    logged and skipped — it must not abort ingestion for the rest (rule #1).
+    All three parse steps are isolated from each other too (ADR-010, TASK-5.4):
+    a malformed block in one must not cost an otherwise-valid reading in another."""
+
+    # ADR-001/ADR-003/ADR-004: count every REAL outbound request against the daily
+    # budget and alert at 70% - via on_attempt, fired once per actual HTTP attempt
+    # inside fetch_weather()'s own retry loop, not once per ingest_geo_area() call
+    # (Codex review [P2]: a failed-then-retried-successfully fetch is 2 real
+    # requests but was recorded as 1; two failed attempts were recorded as 0).
+    # Each attempt bills ESTIMATED_BILLABLE_UNITS_PER_CALL, not 1 (Codex review [P1]
+    # - see that constant's comment).
+    def _on_attempt() -> None:
+        count = record_fetch_call(db, "open_meteo", units=ESTIMATED_BILLABLE_UNITS_PER_CALL)
+        check_daily_budget("open_meteo", count, DAILY_CALL_LIMIT)
+
     try:
-        payload = client.fetch_weather(area.latitude, area.longitude)
+        payload = client.fetch_weather(area.latitude, area.longitude, on_attempt=_on_attempt)
     except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
         return 0
@@ -91,6 +129,18 @@ def ingest_geo_area(area: GeoArea, db) -> int:
         snapshots = []
     stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
 
+    # TASK-5.4: dew point/visibility/UV, own try/except - a hiccup in this newer,
+    # hourly-array-derived block must not cost the already-proven current fields
+    # above (rule #1, same isolation as forecast below).
+    try:
+        hourly_snapshots = normalize_hourly_current(
+            geo_area_id=area.id, payload=payload, fetched_at=fetched_at
+        )
+    except OpenMeteoParseError as exc:
+        logger.warning("geo_area %s: hourly-derived fields FAILED (%s)", area.slug, exc)
+        hourly_snapshots = []
+    stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
+
     try:
         forecasts = normalize_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
     except OpenMeteoParseError as exc:
@@ -99,11 +149,12 @@ def ingest_geo_area(area: GeoArea, db) -> int:
     stored += _store_forecast_batch(forecasts, db)
 
     logger.info(
-        "geo_area %s (%s): stored %s new row(s) (%s current + %s forecast)",
+        "geo_area %s (%s): stored %s new row(s) (%s current + %s hourly + %s forecast)",
         area.slug,
         area.name,
         stored,
         len(snapshots),
+        len(hourly_snapshots),
         len(forecasts),
     )
     return stored

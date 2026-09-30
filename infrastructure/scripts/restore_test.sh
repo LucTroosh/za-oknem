@@ -12,13 +12,18 @@
 # Wymaga: rclone, pg_restore, psql, age. Zmienne środowiskowe: DATABASE_URL (bazowy
 # connection string — nazwa bazy w nim jest ignorowana, używana tylko do wyciągnięcia
 # hosta/usera), BACKUP_REMOTE, AGE_IDENTITY (ścieżka do prywatnego klucza age),
-# RESTORE_TEST_DB (domyślnie losowa nazwa kończąca się na _restore_test).
+# RESTORE_TEST_DB (domyślnie losowa nazwa kończąca się na _restore_test),
+# BACKUP_MAX_AGE_HOURS (domyślnie 48 — najnowszy backup starszy niż to = błąd).
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL musi być ustawione}"
 : "${BACKUP_REMOTE:?BACKUP_REMOTE musi być ustawione}"
 : "${AGE_IDENTITY:?AGE_IDENTITY musi być ustawiony (ścieżka do prywatnego klucza age) — dump i sekrety są szyfrowane, test odtworzenia musi je faktycznie odszyfrować, nie tylko sprawdzić obecność}"
 [ -f "$AGE_IDENTITY" ] || { echo "[restore_test] BŁĄD: AGE_IDENTITY (${AGE_IDENTITY}) nie jest plikiem." >&2; exit 1; }
+# Test odtworzenia, który przechodzi na dowolnie starym backupie, świeci na zielono
+# także wtedy, gdy backupy przestały się robić — najnowszy backup musi być świeży.
+BACKUP_MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-48}"
+[[ "$BACKUP_MAX_AGE_HOURS" =~ ^[0-9]+$ ]] || { echo "[restore_test] BŁĄD: BACKUP_MAX_AGE_HOURS musi być liczbą całkowitą." >&2; exit 1; }
 # Losowa domyślna nazwa (LucTroosh review [P1], patrz guard przy DROP DATABASE niżej):
 # stała domyślna nazwa pozwalała temu skryptowi bezwarunkowo usunąć istniejącą bazę o
 # tej nazwie, nawet jeśli powstała z innego powodu (ręczna praca, inny równoległy
@@ -180,6 +185,18 @@ STAMP="${STAMP%.dump.age}"
 CONFIG_ARCHIVE="config-${STAMP}.tar.gz"
 MANIFEST="manifest-${STAMP}.txt"
 
+# STAMP = YYYYmmddTHHMMSSZ-<losowe>; wiek liczony z czasu backupu, nie pobrania.
+if ! [[ "$STAMP" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z- ]]; then
+  echo "[restore_test] BŁĄD: nieoczekiwana nazwa dumpa ${LATEST_DUMP} — nie da się ustalić czasu backupu." >&2
+  exit 1
+fi
+BACKUP_EPOCH="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}Z" +%s)"
+BACKUP_AGE_HOURS=$(( ($(date -u +%s) - BACKUP_EPOCH) / 3600 ))
+if [ "$BACKUP_AGE_HOURS" -gt "$BACKUP_MAX_AGE_HOURS" ]; then
+  echo "[restore_test] BŁĄD: najnowszy backup (${LATEST_DUMP}) ma ${BACKUP_AGE_HOURS}h, limit ${BACKUP_MAX_AGE_HOURS}h — backupy przestały się wykonywać?" >&2
+  exit 1
+fi
+
 echo "[restore_test] weryfikuję $CONFIG_ARCHIVE..."
 if ! rclone copy "$BACKUP_REMOTE/$CONFIG_ARCHIVE" "$WORKDIR/" 2>/dev/null || [ ! -f "$WORKDIR/$CONFIG_ARCHIVE" ]; then
   echo "[restore_test] BŁĄD: brak $CONFIG_ARCHIVE dla tego samego backupu (${STAMP}) — zestaw artefaktów niekompletny." >&2
@@ -238,12 +255,12 @@ echo "[restore_test] tworzę bazę $RESTORE_TEST_DB..."
 psql --dbname="${BASE_URL}/postgres${QUERY}" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${RESTORE_TEST_DB};"
 DB_CREATED=1
 
-echo "[restore_test] odszyfrowuję dump..."
-DB_DUMP_PLAIN="$WORKDIR/db-${STAMP}.dump"
-age -d -i "$AGE_IDENTITY" -o "$DB_DUMP_PLAIN" "$WORKDIR/$LATEST_DUMP"
-
-echo "[restore_test] pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
-pg_restore --dbname="$TEST_URL" --no-owner --no-privileges "$DB_DUMP_PLAIN"
+# Odszyfrowanie strumieniem prosto do pg_restore — plaintext dumpa nie trafia na dysk
+# także na hoście weryfikacyjnym (dump był pisany sekwencyjnie do pipe'a w backup.sh,
+# więc pg_restore czyta go z stdin bez potrzeby seekowania). pipefail łapie błąd age.
+echo "[restore_test] odszyfrowuję + pg_restore $LATEST_DUMP -> $RESTORE_TEST_DB..."
+age -d -i "$AGE_IDENTITY" "$WORKDIR/$LATEST_DUMP" \
+  | pg_restore --dbname="$TEST_URL" --no-owner --no-privileges --exit-on-error
 
 echo "[restore_test] smoke-check (porównanie z manifestem)..."
 # LucTroosh review [P2]: samo istnienie tabel (poprzednia wersja) przechodzi nawet dla
@@ -251,21 +268,34 @@ echo "[restore_test] smoke-check (porównanie z manifestem)..."
 # liczby wierszy i wersję migracji zapisane w manifeście W MOMENCIE backupu z tym, co
 # faktycznie odtworzyło się teraz — to wykrywa też np. przycięty/spóźniony dump.
 MISMATCH=""
-MANIFEST_ALEMBIC="$(grep '^alembic_version=' "$WORKDIR/$MANIFEST" | cut -d= -f2-)"
+# Manifest musi być kompletny i poprawny — pusta/ucięta wartość NIE może być
+# traktowana jak 0 (Codex review [P2]): tabela legalnie pusta przeszłaby wtedy
+# porównanie mimo uszkodzonego manifestu.
+# `|| true`: brak linii ma dojść do walidacji z czytelnym komunikatem, a nie zabić
+# skrypt po cichu przez pipefail.
+MANIFEST_ALEMBIC="$( (grep '^alembic_version=' "$WORKDIR/$MANIFEST" || true) | cut -d= -f2-)"
+if [ -z "$MANIFEST_ALEMBIC" ]; then
+  echo "[restore_test] BŁĄD: manifest bez wartości alembic_version — uszkodzony/ucięty." >&2
+  exit 1
+fi
 RESTORED_ALEMBIC="$(psql --dbname="$TEST_URL" -t -c "SELECT version_num FROM alembic_version;" 2>/dev/null | tr -d '[:space:]')"
-if [ "${MANIFEST_ALEMBIC:-NONE}" != "${RESTORED_ALEMBIC:-NONE}" ]; then
-  MISMATCH="$MISMATCH alembic_version(manifest=${MANIFEST_ALEMBIC:-NONE},restored=${RESTORED_ALEMBIC:-NONE})"
+if [ "$MANIFEST_ALEMBIC" != "$RESTORED_ALEMBIC" ]; then
+  MISMATCH="$MISMATCH alembic_version(manifest=${MANIFEST_ALEMBIC},restored=${RESTORED_ALEMBIC:-<brak>})"
 fi
 for t in measurements geo_areas weather_snapshots alerts forecasts; do
-  EXPECTED="$(grep "^table_count.${t}=" "$WORKDIR/$MANIFEST" | cut -d= -f2-)"
+  EXPECTED="$( (grep "^table_count.${t}=" "$WORKDIR/$MANIFEST" || true) | cut -d= -f2-)"
+  if ! [[ "$EXPECTED" =~ ^[0-9]+$ ]]; then
+    echo "[restore_test] BŁĄD: manifest ma niepoprawny/brakujący licznik table_count.${t}='${EXPECTED}' — uszkodzony/ucięty." >&2
+    exit 1
+  fi
   EXISTS="$(psql --dbname="$TEST_URL" -t -c "SELECT to_regclass('public.${t}') IS NOT NULL;" | tr -d '[:space:]')"
   if [ "$EXISTS" != "t" ]; then
     MISMATCH="$MISMATCH ${t}(missing_table)"
     continue
   fi
   ACTUAL="$(psql --dbname="$TEST_URL" -t -c "SELECT count(*) FROM ${t};" | tr -d '[:space:]')"
-  if [ "${EXPECTED:-0}" != "${ACTUAL:-0}" ]; then
-    MISMATCH="$MISMATCH ${t}(manifest=${EXPECTED:-0},restored=${ACTUAL:-0})"
+  if [ "$EXPECTED" != "$ACTUAL" ]; then
+    MISMATCH="$MISMATCH ${t}(manifest=${EXPECTED},restored=${ACTUAL:-<brak>})"
   fi
 done
 if [ -n "$MISMATCH" ]; then

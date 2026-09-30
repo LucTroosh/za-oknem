@@ -108,6 +108,7 @@ def test_dashboard_matches_station_within_threshold():
     assert area["slug"] == "klodzko"
     assert area["air"]["station_id"] == "38"
     assert area["air"]["distance_km"] == 0.0
+    assert area["air"]["params"]["PM2.5"]["value"] == 11.5
     assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
 
 
@@ -155,4 +156,96 @@ def test_dashboard_marks_stale_air_reading():
 
     body = client.get("/api/v1/dashboard/latest").json()
 
-    assert body["areas"][0]["air"]["freshness"] == "STALE"
+    assert body["areas"][0]["air"]["params"]["PM2.5"]["freshness"] == "STALE"
+
+
+def test_dashboard_air_has_source_transparency_fields():
+    # TASK-7.1 (Master Plan Principle 2): source+observed_at+freshness together,
+    # attribution text verbatim from source-registry.md.
+    client = _client([GeoArea(**KLODZKO)], [_station()], [])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    air = body["areas"][0]["air"]
+    assert air["source"] == "gios"
+    assert air["attribution"] == "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
+    assert air["observed_at"] == air["params"]["PM2.5"]["observed_at"]
+
+
+def test_dashboard_weather_has_source_transparency_fields():
+    client = _client([GeoArea(**KLODZKO)], [], [_weather()])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    weather = body["areas"][0]["weather"]
+    assert weather["source"] == "open_meteo"
+    assert weather["attribution"] == "Weather data by Open-Meteo.com (CC BY 4.0)"
+
+
+def test_dashboard_groups_multiple_params_for_nearest_station():
+    pm25 = _station(param_code="PM2.5", value=11.5, source_record_id="a")
+    no2 = _station(param_code="NO2", value=8.0, unit="µg/m³", source_record_id="b")
+    client = _client([GeoArea(**KLODZKO)], [pm25, no2], [])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    params = body["areas"][0]["air"]["params"]
+    assert set(params) == {"PM2.5", "NO2"}
+    assert params["NO2"]["value"] == 8.0
+
+
+def test_dashboard_station_query_filters_by_gios_source():
+    # Codex review: `measurements` is shared with imgw_hydro (water_level_cm) —
+    # without this filter the nearest-station join could match a river gauge
+    # instead of an air station. _FakeSession ignores the stmt entirely, so this
+    # inspects the station query's WHERE clause directly (not the full DISTINCT
+    # ON select, which is Postgres-dialect-only and needs a real dialect to compile).
+    captured = {}
+
+    class _CapturingSession:
+        def __init__(self):
+            self._call = 0
+
+        def execute(self, stmt):
+            self._call += 1
+            if self._call == 2:  # areas, then stations, then weather
+                captured["where"] = str(
+                    stmt.whereclause.compile(compile_kwargs={"literal_binds": True})
+                )
+            return _FakeResult([])
+
+    def _override():
+        yield _CapturingSession()
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        client = TestClient(app)
+        client.get("/api/v1/dashboard/latest")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert "source_id" in captured["where"] and "gios" in captured["where"]
+
+
+def test_dashboard_weather_reports_per_param_freshness():
+    # Codex P1 (PR #50): a stale hourly-derived param must not inherit the fresh
+    # object-level status of `current` params.
+    now = datetime.now(UTC)
+    rows = [
+        _weather(param_code="temperature_2m", observed_at=now, source_record_id="fresh"),
+        _weather(
+            param_code="uv_index",
+            observed_at=now - timedelta(hours=10),
+            source_record_id="stale",
+        ),
+    ]
+    client = _client([GeoArea(**KLODZKO)], [], rows)
+
+    weather = client.get("/api/v1/dashboard/latest").json()["areas"][0]["weather"]
+
+    assert weather["freshness"] == "FRESH"
+    assert weather["params"]["temperature_2m"]["freshness"] == "FRESH"
+    assert weather["params"]["uv_index"]["freshness"] == "STALE"
+    assert datetime.fromisoformat(weather["params"]["uv_index"]["observed_at"]) == now - timedelta(
+        hours=10
+    )
