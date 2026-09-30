@@ -96,7 +96,7 @@ Alerts/Settings/push/profilu).
 | REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/dashboard/latest`, `/health`; wersjonowane pod `/api/v1/` |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
 | Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
-| Backup | ⬜ TODO |
+| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+manifest, walidacja manifestu, limit wieku backupu, hasło poza argv); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
 
 ---
 
@@ -152,7 +152,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #42 | `imgw_hydro`: progi ostrzegawcze/alarmowe stanu wody + status NORMAL/WARNING/ALARM/UNKNOWN (TASK-9.3, ADR-008) — 6 rund przeglądu Codex, patrz historia w TASK-9.3 |
 | #43 | `docs/ROADMAP.md` — odzwierciedlenie PR #40/#41 |
 | #44 | `docs/ROADMAP.md`/TASK-9.3 — progi hydro DONE, uzupełnienie historii review (2 dodatkowe realne poprawki dokumentacji) |
-| #45 | `docs/tasks/BACKLOG.md` — uporządkowana kolejka pozostałych faz Master Planu |
+| #45 | `docs/tasks/BACKLOG.md` — uporządkowana kolejka pozostałych faz + reguły przekrojowe (provenance, limity źródeł, source_status) |
 | #46 | Forecast (§30, ADR-010): `GET /api/v1/weather/forecast`, domyka Phase 5 |
 | #48 | GIOŚ: pełny zestaw parametrów MVP (PM10/NO2/SO2/O3/CO/C6H6, TASK-4.1) + fix jednostki CO + izolacja awarii per-param |
 | #49 | Source transparency w `dashboard_latest()` + mobile (TASK-7.1) |
@@ -163,6 +163,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #56 | Per-param `observed_at`/`freshness` pogody w `dashboard_latest()` + mobile (Codex P1 z PR #50, rezydualny w agregacie) |
 | #57 | Prognoza w `dashboard_latest()` + mobile (TASK-5.5), wspólny helper `forecasts_by_area()` z `/weather/forecast` |
 | #58 | Ostrzeżenia IMGW w `dashboard_latest()` + mobile, jawnie ogólnokrajowe do czasu geo-matchingu (TASK-7.2) |
+| #47 | Backup + test odtworzenia (TASK-1.1, §68): age, spójna migawka, manifest, hasło poza argv |
 | #59 | Source-level freshness / UNAVAILABLE dla ostrzeżeń (ADR-012, TASK-7.4) |
 
 ---
