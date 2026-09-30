@@ -16,7 +16,7 @@ Indeks ogólny oraz indeksy cząstkowe per zanieczyszczenie w `/api/v1/air/lates
 - [ ] Indeks cząstkowy per parametr w `AirParam`; ogólny per stacja; oba w dashboard.
 - [ ] Etykiety dosłownie: Bardzo dobry / Dobry / Umiarkowany / Dostateczny / Zły /
       Bardzo zły / Brak indeksu; badge z tekstem, nie tylko kolorem.
-- [ ] Freshness/`observed_at` z danych wejściowych; brak danych → „Brak indeksu”.
+- [ ] Freshness/`observed_at` z danych wejściowych; „Brak indeksu” tylko gdy GIOŚ tak zwraca; brak wiersza/nieudany fetch → UNAVAILABLE (ADR-012).
 - [ ] (B) progi dosłownie z oficjalnej tabeli + URL + data; testy na granicach
       (lewostronnie otwarte, prawostronnie domknięte). (A) parser v1 `getIndex`
       oparty na zaobserwowanym żywym JSON + testy.
@@ -37,7 +37,8 @@ TASK-4.1 (DONE). ADR-015 → decyzja. Migracja 0010 tylko dla opcji A.
 
 ## Data Contract
 
-Indeks ≠ Measurement (rule #7). Opcja A: snapshot z `station_id`, klasą per
+Indeks ≠ Measurement (rule #7). Opcja A: snapshot z provenance (rule #6: `source_id`, endpoint, `source_record_id`
+stabilny/unikalny np. `station_id:param:source_data_date`, `fetched_at`), `station_id`, klasą per
 parametr ORAZ osobnym `source_data_date` per parametr (i dla indeksu ogólnego) +
 `fetched_at` — parametry mogą pochodzić z różnych godzin, więc jeden timestamp
 na stację pokazałby starszy składnik jako świeży; freshness liczona per parametr. Opcja B: pole wyliczane w odpowiedzi API.
