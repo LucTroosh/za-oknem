@@ -24,10 +24,8 @@ dostępne wyłącznie przez `/alerts/latest`, którego mobile nie czytało.
 - Geo-matching ostrzeżeń do lokalizacji (TASK-9.5) — do tego czasu etykieta
   „cała Polska” jest obowiązkowa.
 - Hydrologia na mobile (druga część TASK-7.2 w BACKLOG) — osobny PR.
-- Komunikat „brak ostrzeżeń”: pusta lista nic nie renderuje. Bez source-level
-  freshness (TASK-7.4) pusta lista jest nieodróżnialna od awarii IMGW, a
-  fałszywe „wszystko w porządku” dla danych bezpieczeństwa jest gorsze niż
-  brak sekcji.
+- Komunikat „brak ostrzeżeń” — rozwiązany w TASK-7.4 (ADR-012): pokazywany
+  tylko, gdy wszystkie źródła ostrzeżeń mają świeże udane pobranie.
 
 ## Acceptance Criteria
 

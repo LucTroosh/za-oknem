@@ -83,7 +83,7 @@ class TestRunImgwWarningsHydro:
             MagicMock(return_value=[{"numer": "1"}, {"numer": "2"}]),
         )
         monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
-        batch_mock = MagicMock(return_value=(0, 0))
+        batch_mock = MagicMock(return_value=(0, 0, 0))
         monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
@@ -100,7 +100,7 @@ class TestRunImgwWarningsHydro:
             "fetch_warnings",
             MagicMock(return_value={"message": "Brak"}),
         )
-        batch_mock = MagicMock(return_value=(0, 0))
+        batch_mock = MagicMock(return_value=(0, 0, 0))
         monkeypatch.setattr(scheduler, "ingest_batch", batch_mock)
 
         scheduler.run_imgw_warningshydro()
@@ -109,6 +109,27 @@ class TestRunImgwWarningsHydro:
         args, kwargs = batch_mock.call_args
         assert args == ([], db_session)
         assert "fetched_at" in kwargs
+
+
+class TestRunImgwWarningsHydroIncomplete:
+    def test_incomplete_snapshot_raises_so_it_is_not_recorded_as_success(
+        self, monkeypatch, db_session
+    ):
+        # ADR-012 / Codex P1: a rejected warning may be the active one - the run
+        # must not refresh last_success_at (false all-clear on the client).
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_warnings_client, "fetch_warnings", MagicMock(return_value=[{}])
+        )
+        monkeypatch.setattr(scheduler, "parse_warnings", lambda payload: payload)
+        monkeypatch.setattr(scheduler, "ingest_batch", MagicMock(return_value=(0, 0, 1)))
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("imgw_warningshydro", scheduler.run_imgw_warningshydro)
+
+        assert record.call_args.kwargs["success"] is False
+        assert "snapshot incomplete" in record.call_args.kwargs["error"]
 
 
 class TestMain:
@@ -122,6 +143,7 @@ class TestMain:
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
+        monkeypatch.setattr(scheduler, "_record_run", MagicMock())
         return mocks
 
     def test_first_iteration_runs_every_job(self, monkeypatch):
@@ -165,3 +187,47 @@ class TestMain:
 
         for mock in mocks.values():
             mock.assert_called_once()
+
+
+class TestSourceStatusRecording:
+    """ADR-012: each job run is recorded so an empty list can be told apart from
+    a source we couldn't fetch."""
+
+    def test_successful_job_records_success(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("imgw_warningshydro", lambda: None)
+
+        record.assert_called_once_with("imgw_warningshydro", success=True)
+
+    def test_failing_job_records_failure_with_error(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        def _boom():
+            raise RuntimeError("IMGW down")
+
+        scheduler._run_job_safely("imgw_warningshydro", _boom)
+
+        record.assert_called_once_with(
+            "imgw_warningshydro", success=False, error="RuntimeError: IMGW down"
+        )
+
+    def test_skipped_job_records_nothing(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+
+        scheduler._run_job_safely("gios", scheduler.run_gios)
+
+        record.assert_not_called()
+
+    def test_recording_failure_does_not_raise(self, monkeypatch):
+        # rule #1: a DB hiccup while recording must not crash the scheduler.
+        def _broken_session():
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(scheduler, "SessionLocal", _broken_session)
+
+        scheduler._record_run("imgw_warningshydro", success=True)  # no exception

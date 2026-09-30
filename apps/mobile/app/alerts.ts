@@ -16,12 +16,52 @@ export type AlertItem = {
   freshness: Freshness;
 };
 
+export type SourceFreshness = Freshness | "UNAVAILABLE";
+
 export type AlertsBlock = {
   scope: "national";
   source: string;
   attribution: string;
   items: AlertItem[];
+  // ADR-012: per alert source - when did we last fetch it successfully.
+  source_status: Record<string, { freshness: SourceFreshness; last_success_at: string | null }>;
 };
+
+const SOURCE_LABEL: Record<string, string> = {
+  imgw_warningshydro: "IMGW – ostrzeżenia hydrologiczne",
+};
+
+// What the alerts section may claim (ADR-012). An empty list is a confirmed
+// "no alerts" ONLY when every source is FRESH/RECENT; otherwise the source is
+// silent, and saying "brak ostrzeżeń" would be a false all-clear.
+export type AlertsSummary =
+  | { kind: "list" }
+  | { kind: "list-maybe-outdated"; lastSuccessAt: string | null }
+  | { kind: "none-confirmed"; sources: string[] }
+  | { kind: "unavailable"; lastSuccessAt: string | null };
+
+export function summarizeAlerts(block: AlertsBlock): AlertsSummary {
+  const statuses = Object.entries(block.source_status);
+  const unhealthy = statuses.filter(
+    ([, s]) => s.freshness !== "FRESH" && s.freshness !== "RECENT",
+  );
+  // No sources listed at all can't confirm anything either.
+  const healthy = statuses.length > 0 && unhealthy.length === 0;
+  // Oldest last success among unhealthy sources; one never-fetched source -> null.
+  // ISO strings from the server share one format/offset, so string order = time order.
+  const times = unhealthy.map(([, s]) => s.last_success_at);
+  const oldest = times.includes(null) ? null : ((times as string[]).sort()[0] ?? null);
+  if (block.items.length > 0) {
+    return healthy ? { kind: "list" } : { kind: "list-maybe-outdated", lastSuccessAt: oldest };
+  }
+  if (healthy) {
+    return {
+      kind: "none-confirmed",
+      sources: statuses.map(([id]) => SOURCE_LABEL[id] ?? id),
+    };
+  }
+  return { kind: "unavailable", lastSuccessAt: oldest };
+}
 
 // external_id is only unique per source and revision (DB identity is
 // source_id + source_record_id), so a React key needs all three (Codex review).

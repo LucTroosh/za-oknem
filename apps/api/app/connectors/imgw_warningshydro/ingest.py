@@ -5,6 +5,7 @@ store -> reconcile. One call returns every active warning - no per-station loop.
 """
 
 import logging
+import sys
 from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +18,7 @@ from app.connectors.imgw_warningshydro.parser import (
 )
 from app.db import SessionLocal
 from app.models import Alert
+from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
 
@@ -100,11 +102,13 @@ def ingest_warning(warning: dict, db, *, fetched_at: datetime) -> bool:
     return _store(record, db)
 
 
-def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]:
+def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int, int]:
     """Stores every valid new/changed alert and, only when the whole snapshot
     parsed cleanly, expires ones IMGW withdrew since the last successful fetch.
-    Returns (stored, expired). This is the entry point both the CLI and the
-    scheduler should call - see ADR-009."""
+    Returns (stored, expired, rejected) - `rejected` > 0 means the snapshot was
+    incomplete, so callers must not treat this run as a clean success (ADR-012).
+    This is the entry point both the CLI and the scheduler should call - see
+    ADR-009."""
     records = [r for w in warnings if (r := _normalize_or_skip(w, fetched_at=fetched_at))]
     stored = sum(_store(r, db) for r in records)
 
@@ -119,29 +123,52 @@ def ingest_batch(warnings: list, db, *, fetched_at: datetime) -> tuple[int, int]
             len(warnings) - len(records),
             len(warnings),
         )
-        return stored, 0
+        return stored, 0, len(warnings) - len(records)
 
     active_ids = {r["source_record_id"] for r in records}
     expired = _expire_withdrawn(db, active_record_ids=active_ids, fetched_at=fetched_at)
-    return stored, expired
+    return stored, expired, 0
 
 
 def main() -> None:
+    """Manual/CLI ingest. Records its outcome in source_status exactly like the
+    scheduler does (ADR-012) - operators may run only this path (no scheduler),
+    and /alerts must then still be able to report a confirmed empty snapshot
+    instead of staying UNAVAILABLE forever (Codex review)."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    warnings = parse_warnings(client.fetch_warnings())
-    fetched_at = datetime.now(UTC)
-
     db = SessionLocal()
     try:
-        stored, expired = ingest_batch(warnings, db, fetched_at=fetched_at)
+        try:
+            warnings = parse_warnings(client.fetch_warnings())
+            fetched_at = datetime.now(UTC)
+            stored, expired, rejected = ingest_batch(warnings, db, fetched_at=fetched_at)
+        except Exception as exc:
+            db.rollback()
+            record_source_run(
+                db, "imgw_warningshydro", success=False, error=f"{type(exc).__name__}: {exc}"
+            )
+            raise
+        if rejected:
+            # Incomplete snapshot: same rule as the scheduler - not a success.
+            record_source_run(
+                db,
+                "imgw_warningshydro",
+                success=False,
+                error=f"{rejected} warning(s) failed to parse - snapshot incomplete",
+            )
+        else:
+            record_source_run(db, "imgw_warningshydro", success=True)
     finally:
         db.close()
     logger.info(
-        "imgw_warningshydro: stored %s/%s new alerts, expired %s withdrawn",
+        "imgw_warningshydro: stored %s/%s new alerts, expired %s withdrawn, rejected %s",
         stored,
         len(warnings),
         expired,
+        rejected,
     )
+    if rejected:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

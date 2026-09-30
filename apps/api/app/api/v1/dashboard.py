@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.air import freshness as air_freshness
-from app.api.v1.alerts import current_alerts
+from app.api.v1.alerts import alerts_source_status, current_alerts
 from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.db import get_db
@@ -158,6 +158,9 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         "source": "imgw",
         "attribution": IMGW_ATTRIBUTION,
         "items": current_alerts(db),
+        # ADR-012: an empty `items` only means "no alerts" when every source here
+        # is FRESH/RECENT - otherwise the source is silent, not confirming zero.
+        "source_status": alerts_source_status(db),
     }
 
     return {"areas": areas_out, "alerts": alerts}

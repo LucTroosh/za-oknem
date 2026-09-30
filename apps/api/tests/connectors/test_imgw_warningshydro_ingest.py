@@ -4,9 +4,11 @@ reconciliation, using the SQLite db_session fixture."""
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.connectors.imgw_warningshydro import client, ingest
 from app.connectors.imgw_warningshydro.parser import ImgwWarningsHydroParseError
-from app.models import Alert
+from app.models import Alert, SourceStatus
 
 WARNING = {
     "opublikowano": "2026-05-17 08:45:07",
@@ -106,9 +108,12 @@ class TestIngestBatch:
 
         second_fetch = first_fetch + timedelta(hours=1)
         broken = {k: v for k, v in WARNING.items() if k != "biuro"}
-        stored, expired = ingest.ingest_batch([broken], db_session, fetched_at=second_fetch)
+        stored, expired, rejected = ingest.ingest_batch(
+            [broken], db_session, fetched_at=second_fetch
+        )
 
         assert expired == 0
+        assert rejected == 1  # reported so the scheduler won't mark success (ADR-012)
         alert = db_session.query(Alert).filter_by(external_id="31").one()
         assert alert.valid_until.year == 9999  # left alone, not wrongly expired
 
@@ -131,6 +136,10 @@ class TestMain:
         ingest.main()
 
         assert db_session.query(Alert).count() == 0
+        # ADR-012: a clean empty snapshot is a confirmed zero, even without the
+        # scheduler - otherwise /alerts would stay UNAVAILABLE forever.
+        status = db_session.get(SourceStatus, "imgw_warningshydro")
+        assert status.last_success_at is not None
 
     def test_one_bad_warning_does_not_abort_the_rest(self, monkeypatch, db_session):
         bad = {k: v for k, v in WARNING.items() if k != "biuro"}
@@ -138,6 +147,22 @@ class TestMain:
         monkeypatch.setattr(client, "fetch_warnings", MagicMock(return_value=[bad, WARNING]))
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
 
-        ingest.main()
+        with pytest.raises(SystemExit) as exc_info:
+            ingest.main()
 
+        assert exc_info.value.code == 1  # incomplete snapshot is reported, not silent
         assert db_session.query(Alert).count() == 1
+        status = db_session.get(SourceStatus, "imgw_warningshydro")
+        assert status.last_success_at is None
+        assert "snapshot incomplete" in status.last_error
+
+    def test_fetch_failure_is_recorded_and_reraised(self, monkeypatch, db_session):
+        monkeypatch.setattr(client, "fetch_warnings", MagicMock(side_effect=RuntimeError("down")))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        status = db_session.get(SourceStatus, "imgw_warningshydro")
+        assert status.last_success_at is None
+        assert status.last_error == "RuntimeError: down"
