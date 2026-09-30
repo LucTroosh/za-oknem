@@ -16,7 +16,7 @@ Indeks ogólny oraz indeksy cząstkowe per zanieczyszczenie w `/api/v1/air/lates
 - [ ] Indeks cząstkowy per parametr w `AirParam`; ogólny per stacja; oba w dashboard.
 - [ ] Etykiety dosłownie: Bardzo dobry / Dobry / Umiarkowany / Dostateczny / Zły /
       Bardzo zły / Brak indeksu; badge z tekstem, nie tylko kolorem.
-- [ ] Freshness/`observed_at` z danych wejściowych; „Brak indeksu” tylko gdy GIOŚ tak zwraca; brak wiersza/nieudany fetch → UNAVAILABLE (ADR-012).
+- [ ] Freshness/`observed_at` z danych wejściowych; „Brak indeksu” tylko gdy GIOŚ tak zwraca; brak wiersza i brak jakiegokolwiek udanego pobrania → UNAVAILABLE; po nieudanym pobraniu zostaje ostatni snapshot z freshness FRESH/RECENT/STALE wg `last_success_at` (ADR-012).
 - [ ] (B) progi dosłownie z oficjalnej tabeli + URL + data; testy na granicach
       (lewostronnie otwarte, prawostronnie domknięte). (A) parser v1 `getIndex`
       oparty na zaobserwowanym żywym JSON + testy.
