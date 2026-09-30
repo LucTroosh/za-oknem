@@ -22,6 +22,7 @@ from app.connectors.imgw_warningshydro.parser import parse_warnings
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
+from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
 
@@ -51,17 +52,18 @@ def run_open_meteo() -> None:
         db.close()
 
 
-def run_gios() -> None:
+def run_gios() -> bool:
     station_ids = _gios_station_ids()
     if not station_ids:
         logger.info("GIOS_STATION_IDS not set - skipping scheduled GIOS ingest")
-        return
+        return False  # skipped, not a successful fetch (ADR-012)
     db = SessionLocal()
     try:
         for station in gios_client.find_stations(set(station_ids)):
             ingest_station(station, db)
     finally:
         db.close()
+    return True
 
 
 def run_imgw_hydro() -> None:
@@ -86,13 +88,31 @@ def run_imgw_warningshydro() -> None:
         db.close()
 
 
-def _run_job_safely(name: str, job: Callable[[], None]) -> None:
+def _run_job_safely(name: str, job: Callable[[], bool | None]) -> None:
     """Rule #1: a connector failure (source down, retry exhausted, bad payload)
-    must not take down the scheduler and stop every other source's refresh."""
+    must not take down the scheduler and stop every other source's refresh.
+    ADR-012: every run is recorded in source_status (`name` is the source_id); a
+    job returning False skipped itself and records nothing."""
     try:
-        job()
-    except Exception:
+        ran = job()
+    except Exception as exc:
         logger.exception("scheduled job %s failed - other jobs still run (rule #1)", name)
+        _record_run(name, success=False, error=f"{type(exc).__name__}: {exc}")
+        return
+    if ran is not False:
+        _record_run(name, success=True)
+
+
+def _record_run(source_id: str, *, success: bool, error: str | None = None) -> None:
+    # Own session, and never raises: a DB hiccup while recording status must not
+    # turn a successful ingest into a crashed scheduler (rule #1).
+    db = SessionLocal()
+    try:
+        record_source_run(db, source_id, success=success, error=error)
+    except Exception:
+        logger.exception("could not record source_status for %s", source_id)
+    finally:
+        db.close()
 
 
 def main(*, iterations: int | None = None) -> None:

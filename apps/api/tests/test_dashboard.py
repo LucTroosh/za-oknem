@@ -47,6 +47,9 @@ class _FakeSession:
     def execute(self, _stmt):
         return _FakeResult(self._queue.pop(0))
 
+    def get(self, _model, _key):
+        return None  # no source_status rows -> UNAVAILABLE (ADR-012)
+
 
 def _client(areas, stations, weather_rows, alert_rows=()) -> TestClient:
     def _override():
@@ -214,6 +217,9 @@ def test_dashboard_station_query_filters_by_gios_source():
                 )
             return _FakeResult([])
 
+        def get(self, _model, _key):
+            return None
+
     def _override():
         yield _CapturingSession()
 
@@ -284,6 +290,7 @@ def test_dashboard_includes_national_alerts_block():
     assert body["alerts"]["attribution"].startswith("Źródłem pochodzenia danych jest Instytut")
     assert [a["event_type"] for a in body["alerts"]["items"]] == ["Susza hydrologiczna"]
     assert body["alerts"]["items"][0]["freshness"] == "FRESH"
+    assert body["alerts"]["source_status"]["imgw_warningshydro"]["freshness"] == "UNAVAILABLE"
     assert "alerts" not in body["areas"][0]  # never presented as local
 
 

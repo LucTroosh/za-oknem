@@ -122,6 +122,7 @@ class TestMain:
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
+        monkeypatch.setattr(scheduler, "_record_run", MagicMock())
         return mocks
 
     def test_first_iteration_runs_every_job(self, monkeypatch):
@@ -165,3 +166,47 @@ class TestMain:
 
         for mock in mocks.values():
             mock.assert_called_once()
+
+
+class TestSourceStatusRecording:
+    """ADR-012: each job run is recorded so an empty list can be told apart from
+    a source we couldn't fetch."""
+
+    def test_successful_job_records_success(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("imgw_warningshydro", lambda: None)
+
+        record.assert_called_once_with("imgw_warningshydro", success=True)
+
+    def test_failing_job_records_failure_with_error(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        def _boom():
+            raise RuntimeError("IMGW down")
+
+        scheduler._run_job_safely("imgw_warningshydro", _boom)
+
+        record.assert_called_once_with(
+            "imgw_warningshydro", success=False, error="RuntimeError: IMGW down"
+        )
+
+    def test_skipped_job_records_nothing(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+
+        scheduler._run_job_safely("gios", scheduler.run_gios)
+
+        record.assert_not_called()
+
+    def test_recording_failure_does_not_raise(self, monkeypatch):
+        # rule #1: a DB hiccup while recording must not crash the scheduler.
+        def _broken_session():
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(scheduler, "SessionLocal", _broken_session)
+
+        scheduler._record_run("imgw_warningshydro", success=True)  # no exception

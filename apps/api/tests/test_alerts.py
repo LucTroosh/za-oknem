@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from app.api.v1.alerts import AlertsLatestResponse
 from app.db import get_db
 from app.main import app
-from app.models import Alert
+from app.models import Alert, SourceStatus
 
 
 class _FakeResult:
@@ -26,16 +26,20 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, rows):
+    def __init__(self, rows, statuses=None):
         self._rows = rows
+        self._statuses = statuses or {}
 
     def execute(self, _stmt):
         return _FakeResult(self._rows)
 
+    def get(self, _model, key):
+        return self._statuses.get(key)
 
-def _client_with_rows(rows: list[Alert]) -> TestClient:
+
+def _client_with_rows(rows: list[Alert], statuses=None) -> TestClient:
     def _override():
-        yield _FakeSession(rows)
+        yield _FakeSession(rows, statuses)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -73,7 +77,12 @@ def test_latest_alerts_returns_empty_list_when_no_rows():
     response = client.get("/api/v1/alerts/latest")
 
     assert response.status_code == 200
-    assert response.json() == {"alerts": []}
+    assert response.json() == {
+        "alerts": [],
+        "source_status": {
+            "imgw_warningshydro": {"freshness": "UNAVAILABLE", "last_success_at": None}
+        },
+    }
 
 
 def test_latest_alerts_shapes_response_from_rows():
@@ -82,26 +91,24 @@ def test_latest_alerts_shapes_response_from_rows():
 
     body = client.get("/api/v1/alerts/latest").json()
 
-    assert body == {
-        "alerts": [
-            {
-                "external_id": "31",
-                "source": "imgw_warningshydro",
-                "event_type": "Susza hydrologiczna",
-                "severity_raw": "-1",
-                "probability_pct": 90.0,
-                "issuing_office": "Biuro Prognoz Hydrologicznych we Wrocławiu",
-                "description": "opis",
-                "comment": "komentarz",
-                "areas": [{"wojewodztwo": "wielkopolskie"}],
-                "valid_from": row.valid_from.isoformat(),
-                "valid_until": row.valid_until.isoformat(),
-                "published_at": row.published_at.isoformat(),
-                "fetched_at": row.fetched_at.isoformat(),
-                "freshness": "FRESH",
-            }
-        ]
-    }
+    assert body["alerts"] == [
+        {
+            "external_id": "31",
+            "source": "imgw_warningshydro",
+            "event_type": "Susza hydrologiczna",
+            "severity_raw": "-1",
+            "probability_pct": 90.0,
+            "issuing_office": "Biuro Prognoz Hydrologicznych we Wrocławiu",
+            "description": "opis",
+            "comment": "komentarz",
+            "areas": [{"wojewodztwo": "wielkopolskie"}],
+            "valid_from": row.valid_from.isoformat(),
+            "valid_until": row.valid_until.isoformat(),
+            "published_at": row.published_at.isoformat(),
+            "fetched_at": row.fetched_at.isoformat(),
+            "freshness": "FRESH",
+        }
+    ]
 
 
 def test_latest_alerts_marks_stale_fetch_as_stale():
@@ -136,7 +143,17 @@ _VALID_ALERT_OUT = {
 
 
 def test_alerts_latest_response_accepts_the_real_shape():
-    AlertsLatestResponse.model_validate({"alerts": [_VALID_ALERT_OUT]})
+    AlertsLatestResponse.model_validate(
+        {
+            "alerts": [_VALID_ALERT_OUT],
+            "source_status": {
+                "imgw_warningshydro": {
+                    "freshness": "FRESH",
+                    "last_success_at": "2026-09-29T12:00:00+00:00",
+                }
+            },
+        }
+    )
 
 
 def test_alerts_latest_response_rejects_missing_required_field():
@@ -157,3 +174,33 @@ def test_alerts_latest_response_rejects_unknown_freshness():
     bad = {**_VALID_ALERT_OUT, "freshness": "ANCIENT"}
     with pytest.raises(ValidationError):
         AlertsLatestResponse.model_validate({"alerts": [bad]})
+
+
+# --- source_status (ADR-012) --------------------------------------------------
+
+
+def test_empty_alerts_with_recent_successful_fetch_is_confirmed_zero():
+    status = SourceStatus(
+        source_id="imgw_warningshydro",
+        last_attempt_at=datetime.now(UTC),
+        last_success_at=datetime.now(UTC),
+    )
+    client = _client_with_rows([], {"imgw_warningshydro": status})
+
+    body = client.get("/api/v1/alerts/latest").json()
+
+    assert body["alerts"] == []
+    assert body["source_status"]["imgw_warningshydro"]["freshness"] == "FRESH"
+
+
+def test_empty_alerts_with_old_last_success_is_stale_not_all_clear():
+    status = SourceStatus(
+        source_id="imgw_warningshydro",
+        last_attempt_at=datetime.now(UTC),
+        last_success_at=datetime.now(UTC) - timedelta(hours=12),
+    )
+    client = _client_with_rows([], {"imgw_warningshydro": status})
+
+    body = client.get("/api/v1/alerts/latest").json()
+
+    assert body["source_status"]["imgw_warningshydro"]["freshness"] == "STALE"

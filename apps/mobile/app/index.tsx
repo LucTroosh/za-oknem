@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { type AlertsBlock, alertAreasLabel } from "./alerts";
+import { type AlertsBlock, alertAreasLabel, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
 import { FRESHNESS_LABEL, type Freshness } from "./freshness";
 
@@ -59,6 +59,43 @@ function formatObservedAt(iso: string): string {
   return new Date(iso).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" });
 }
 
+function AlertsSection({ alerts }: { alerts: AlertsBlock }) {
+  const summary = summarizeAlerts(alerts);
+  const lastSuccess = (at: string | null) =>
+    at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
+  return (
+    <View style={styles.alerts}>
+      <Text style={styles.alertsTitle}>Ostrzeżenia — cała Polska</Text>
+      {summary.kind === "unavailable" && (
+        <Text style={styles.metric}>
+          Ostrzeżenia chwilowo niedostępne ({lastSuccess(summary.lastSuccessAt)}).
+        </Text>
+      )}
+      {summary.kind === "none-confirmed" && (
+        <Text style={styles.metric}>Brak aktywnych ostrzeżeń: {summary.sources.join(", ")}.</Text>
+      )}
+      {summary.kind === "list-maybe-outdated" && (
+        <Text style={styles.freshness}>
+          Lista może być nieaktualna ({lastSuccess(summary.lastSuccessAt)}).
+        </Text>
+      )}
+      {alerts.items.map((alert) => (
+        <View key={alert.external_id} style={styles.alertItem}>
+          <Text style={styles.metric}>
+            {alert.event_type} (stopień {alert.severity_raw})
+          </Text>
+          {alertAreasLabel(alert.areas) !== "" && <Text>{alertAreasLabel(alert.areas)}</Text>}
+          <Text style={styles.freshness}>
+            do {formatObservedAt(alert.valid_until)} · {alert.issuing_office} ·{" "}
+            {FRESHNESS_LABEL[alert.freshness]}
+          </Text>
+        </View>
+      ))}
+      <Text style={styles.attribution}>{alerts.attribution}</Text>
+    </View>
+  );
+}
+
 export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
   const [areas, setAreas] = useState<DashboardArea[]>([]);
@@ -108,31 +145,9 @@ export default function Home() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         // TASK-7.2: labelled "cała Polska" until TASK-9.5 adds geo matching - an
         // unfiltered alert must never look like it concerns the user's location.
-        // Empty list renders nothing (not "brak ostrzeżeń"): without source-level
-        // freshness (TASK-7.4) an empty list can't be told apart from IMGW being
-        // down, and a false all-clear is worse than silence for safety data.
-        ListHeaderComponent={
-          alerts && alerts.items.length > 0 ? (
-            <View style={styles.alerts}>
-              <Text style={styles.alertsTitle}>Ostrzeżenia — cała Polska</Text>
-              {alerts.items.map((alert) => (
-                <View key={alert.external_id} style={styles.alertItem}>
-                  <Text style={styles.metric}>
-                    {alert.event_type} (stopień {alert.severity_raw})
-                  </Text>
-                  {alertAreasLabel(alert.areas) !== "" && (
-                    <Text>{alertAreasLabel(alert.areas)}</Text>
-                  )}
-                  <Text style={styles.freshness}>
-                    do {formatObservedAt(alert.valid_until)} · {alert.issuing_office} ·{" "}
-                    {FRESHNESS_LABEL[alert.freshness]}
-                  </Text>
-                </View>
-              ))}
-              <Text style={styles.attribution}>{alerts.attribution}</Text>
-            </View>
-          ) : null
-        }
+        // ADR-012: "brak ostrzeżeń" only when every alert source is FRESH/RECENT;
+        // otherwise the source is silent and we say so (no false all-clear).
+        ListHeaderComponent={alerts ? <AlertsSection alerts={alerts} /> : null}
         ListEmptyComponent={
           state === "error" ? null : (
             <Text>

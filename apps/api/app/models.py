@@ -181,3 +181,18 @@ class SourceFetchCounter(Base):
     source_id: Mapped[str] = mapped_column(String(50), index=True)
     day: Mapped[date] = mapped_column(Date, index=True)
     count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SourceStatus(Base):
+    """Last scheduler run per source (ADR-012): lets an empty list be told apart
+    from a source we haven't managed to fetch (rule #8 UNAVAILABLE). One row per
+    source, upserted by the scheduler after each job run. Postgres, not Redis
+    (rule #2) - "when did this last succeed" must survive a restart."""
+
+    __tablename__ = "source_status"
+
+    source_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ops diagnostics only - never exposed through the API (ADR-012).
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

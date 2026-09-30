@@ -89,7 +89,7 @@ Alerts/Settings/push/profilu).
 | Scheduler | ✅ DONE — ADR-007, loop-based, per-job interval gating, izolacja awarii (rule #1, `_run_job_safely`) |
 | Workers (oddzielny proces/kolejka) | ⬜ TODO — świadomie NIE zrobione (ADR-007): scheduler w jednym procesie wystarcza przy obecnej skali, przejście na worker/queue dopiero gdy realnie potrzebne |
 | Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 4 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
-| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) działa dla `/air`, `/hydro`, `/alerts`, `/weather`; **brak source-level freshness** dla przypadku "pusta lista = potwierdzone zero czy dawno nie było fetcha" (UNAVAILABLE) — świadomy non-goal z ADR-009, dotyczy wszystkich czterech endpointów (włącznie z `/weather` — `{"areas": []}` ma tę samą niejednoznaczność, dziedziczoną też przez `weather: null` w `/dashboard/latest`), wymaga własnego ADR |
+| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń: tabela `source_status` zapisywana przez scheduler, `source_status` w `/alerts/latest` i agregacie, mobile nie pokazuje „brak ostrzeżeń”, gdy źródło milczy; dla `air`/`weather`/`hydro` w agregacie jeszcze nie (TASK-7.3) |
 | Geo matching | 🟡 PARTIAL — tylko nearest-station GIOŚ↔geo_area (ADR-006, próg 50km); brak dopasowania alertów do województw/lokalizacji |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
@@ -162,6 +162,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #55 | Dzienny licznik wywołań per źródło + alert 70% (TASK-13.1a): jednostki rozliczeniowe Open-Meteo, każda próba HTTP liczona przed wysłaniem, atomowy inkrement |
 | #56 | Per-param `observed_at`/`freshness` pogody w `dashboard_latest()` + mobile (Codex P1 z PR #50, rezydualny w agregacie) |
 | #58 | Ostrzeżenia IMGW w `dashboard_latest()` + mobile, jawnie ogólnokrajowe do czasu geo-matchingu (TASK-7.2) |
+| #(nowy) | Source-level freshness / UNAVAILABLE dla ostrzeżeń (ADR-012, TASK-7.4) |
 
 ---
 

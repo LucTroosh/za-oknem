@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Alert
+from app.source_status import source_freshness
 
 router = APIRouter()
 
@@ -51,8 +52,26 @@ class AlertOut(BaseModel):
     freshness: Literal["FRESH", "RECENT", "STALE"]
 
 
+class SourceStatusOut(BaseModel):
+    freshness: Literal["FRESH", "RECENT", "STALE", "UNAVAILABLE"]
+    last_success_at: str | None
+
+
 class AlertsLatestResponse(BaseModel):
     alerts: list[AlertOut]
+    # ADR-012: per alert source, so an empty `alerts` can be told apart from a
+    # source we haven't managed to fetch. A client must not present an empty list
+    # as "no alerts" unless every source here is FRESH or RECENT.
+    source_status: dict[str, SourceStatusOut]
+
+
+# Every source_id that feeds `alerts`. imgw_warningsmeteo joins once its
+# normalize() is unblocked (TASK-9.2) - until then it is not an alert source.
+ALERT_SOURCES = ("imgw_warningshydro",)
+
+
+def alerts_source_status(db: Session) -> dict[str, dict]:
+    return {source: source_freshness(db, source, freshness) for source in ALERT_SOURCES}
 
 
 def current_alerts(db: Session) -> list[dict]:
@@ -89,4 +108,4 @@ def current_alerts(db: Session) -> list[dict]:
 @router.get("/alerts/latest", response_model=AlertsLatestResponse)
 def latest_alerts(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14). See current_alerts()."""
-    return {"alerts": current_alerts(db)}
+    return {"alerts": current_alerts(db), "source_status": alerts_source_status(db)}
