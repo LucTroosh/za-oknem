@@ -39,7 +39,13 @@ type DashboardArea = {
     attribution: string;
     observed_at: string;
     freshness: Freshness;
-    params: Record<string, { value: number; unit: string }>;
+    // Per-param observed_at/freshness (dashboard.py) — the object-level pair above
+    // is only the newest of any param, so a stale hourly-derived value must be
+    // labelled with its own status, same as air params.
+    params: Record<
+      string,
+      { value: number; unit: string; observed_at: string; freshness: Freshness }
+    >;
   } | null;
 };
 
@@ -130,11 +136,12 @@ export default function Home() {
                   <Text style={styles.metric}>
                     {item.weather.params.temperature_2m.value}
                     {item.weather.params.temperature_2m.unit}{" "}
-                    <Text style={styles.freshness}>({FRESHNESS_LABEL[item.weather.freshness]})</Text>
+                    <Text style={styles.freshness}>
+                      ({FRESHNESS_LABEL[item.weather.params.temperature_2m.freshness]},{" "}
+                      {formatObservedAt(item.weather.params.temperature_2m.observed_at)})
+                    </Text>
                   </Text>
-                  <Text style={styles.attribution}>
-                    {item.weather.attribution} · {formatObservedAt(item.weather.observed_at)}
-                  </Text>
+                  <Text style={styles.attribution}>{item.weather.attribution}</Text>
                 </View>
               ) : (
                 <Text style={styles.metric}>pogoda: brak danych</Text>
