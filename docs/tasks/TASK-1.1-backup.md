@@ -141,7 +141,9 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
 - Manifest musi być kompletny: brakujący/pusty licznik lub `alembic_version` to
   błąd, nie domyślne 0 (tabela legalnie pusta przeszłaby inaczej porównanie).
 - Najnowszy backup starszy niż `BACKUP_MAX_AGE_HOURS` to błąd — test odtworzenia
-  nie może świecić na zielono, gdy backupy przestały się wykonywać.
+  nie może świecić na zielono, gdy backupy przestały się wykonywać. Backup z datą
+  z przyszłości (>5 min) też jest błędem — inaczej zawsze byłby „najnowszy” i
+  maskowałby zatrzymane backupy.
 
 ## Architecture Impact
 

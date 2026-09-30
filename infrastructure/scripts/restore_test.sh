@@ -191,7 +191,15 @@ if ! [[ "$STAMP" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2
   exit 1
 fi
 BACKUP_EPOCH="$(date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}Z" +%s)"
-BACKUP_AGE_HOURS=$(( ($(date -u +%s) - BACKUP_EPOCH) / 3600 ))
+NOW_EPOCH="$(date -u +%s)"
+# Backup "z przyszłości" (zły zegar hosta, ręcznie nazwany plik) byłby zawsze
+# "najnowszy" przy sortowaniu po nazwie i maskowałby zatrzymane backupy — ujemny
+# wiek przeszedłby test poniżej. 5 min tolerancji na rozjazd zegarów (Codex review).
+if [ "$BACKUP_EPOCH" -gt $(( NOW_EPOCH + 300 )) ]; then
+  echo "[restore_test] BŁĄD: najnowszy backup (${LATEST_DUMP}) ma datę z przyszłości — zegar hosta backupu lub nazwa pliku są błędne." >&2
+  exit 1
+fi
+BACKUP_AGE_HOURS=$(( (NOW_EPOCH - BACKUP_EPOCH) / 3600 ))
 if [ "$BACKUP_AGE_HOURS" -gt "$BACKUP_MAX_AGE_HOURS" ]; then
   echo "[restore_test] BŁĄD: najnowszy backup (${LATEST_DUMP}) ma ${BACKUP_AGE_HOURS}h, limit ${BACKUP_MAX_AGE_HOURS}h — backupy przestały się wykonywać?" >&2
   exit 1
