@@ -14,6 +14,12 @@ router = APIRouter()
 # fake a match between locations that aren't actually close together.
 MAX_MATCH_DISTANCE_KM = 50.0
 
+# TASK-7.1: source transparency (Master Plan Principle 2) - attribution text is
+# copied verbatim from docs/data/source-registry.md, not reworded here. Only two
+# sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
+GIOS_ATTRIBUTION = "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
+OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
+
 
 @router.get("/dashboard/latest")
 def dashboard_latest(db: Session = Depends(get_db)) -> dict:
@@ -81,9 +87,16 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
         air = None
         if nearest is not None and nearest_km is not None and nearest_km <= MAX_MATCH_DISTANCE_KM:
+            # source+observed_at+freshness together, not source alone (Principle 2 /
+            # TASK-7.1) - observed_at here is the latest across this station's params,
+            # same aggregation weather already does below.
+            air_observed_at = max(p["observed_at"] for p in nearest["params"].values())
             air = {
                 "station_id": nearest["station_id"],
                 "station_name": nearest["station_name"],
+                "source": "gios",
+                "attribution": GIOS_ATTRIBUTION,
+                "observed_at": air_observed_at,
                 "params": nearest["params"],
                 "distance_km": round(nearest_km, 1),
             }
@@ -93,6 +106,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         if params:
             latest_observed_at = max(p.observed_at for p in params)
             weather = {
+                "source": "open_meteo",
+                "attribution": OPEN_METEO_ATTRIBUTION,
                 "observed_at": latest_observed_at.isoformat(),
                 "freshness": weather_freshness(latest_observed_at),
                 "params": {p.param_code: {"value": p.value, "unit": p.unit} for p in params},
