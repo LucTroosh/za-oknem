@@ -36,4 +36,13 @@ describe("forecastLine", () => {
     });
     expect(forecastLine([d, d, d, d])?.split("   ")).toHaveLength(3);
   });
+
+  it("skips incomplete days before applying the limit", () => {
+    const full = day({
+      temperature_2m_max: { value: 18, unit: "°C" },
+      temperature_2m_min: { value: 9, unit: "°C" },
+    });
+    const partial = day({ temperature_2m_max: { value: 18, unit: "°C" } });
+    expect(forecastLine([partial, full, full, full])?.split("   ")).toHaveLength(3);
+  });
 });

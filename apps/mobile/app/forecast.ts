@@ -23,9 +23,11 @@ export function forecastDayLabel(day: ForecastDay): string | null {
 // Up to `limit` days joined into one line; null when no day has both max and min,
 // so the screen shows nothing rather than an empty "Prognoza:" label.
 export function forecastLine(days: ForecastDay[], limit = 3): string | null {
+  // Filter BEFORE limiting (Codex): an incomplete day must not use up one of the
+  // `limit` slots and hide a later complete day.
   const labels = days
-    .slice(0, limit)
     .map((day) => forecastDayLabel(day))
-    .filter((label): label is string => label !== null);
+    .filter((label): label is string => label !== null)
+    .slice(0, limit);
   return labels.length > 0 ? labels.join("   ") : null;
 }
