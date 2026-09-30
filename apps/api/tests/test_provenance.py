@@ -46,6 +46,23 @@ class TestRecordFetch:
         assert row.parser_version == "7"
         assert row.validation_status == provenance.PENDING
 
+    def test_json_null_body_is_not_confused_with_a_purged_payload(self, db_session):
+        # A source answering with a JSON `null` body: stored as the JSON literal,
+        # while SQL NULL is reserved for "purged by retention".
+        provenance.record_fetch(
+            db_session,
+            source_id="s",
+            endpoint="e",
+            payload=None,
+            fetched_at=NOW,
+            parser_version="1",
+        )
+
+        is_sql_null = db_session.execute(
+            text("SELECT payload IS NULL FROM source_fetches")
+        ).scalar_one()
+        assert not is_sql_null
+
     def test_set_validation_status_updates_the_row(self, db_session):
         fetch_id = provenance.record_fetch(
             db_session, source_id="s", endpoint="e", payload={}, fetched_at=NOW, parser_version="1"
@@ -180,7 +197,7 @@ class TestPurgeExpiredPayloads:
         assert db_session.query(Measurement).one().source_fetch_id == old.id
 
     def test_purged_payload_is_sql_null_not_json_null(self, db_session):
-        # JSON(none_as_null=True) + null(): a JSON literal 'null' would make
+        # null() (not Python None): a JSON literal 'null' would make
         # `payload IS NOT NULL` true forever and re-purge the row on every run.
         _fetch(db_session, "gios", age_days=40)
         provenance.purge_expired_payloads(db_session, now=NOW)

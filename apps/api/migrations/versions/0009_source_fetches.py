@@ -32,9 +32,7 @@ def upgrade() -> None:
         sa.Column("validation_status", sa.String(length=20), nullable=False),
         sa.Column(
             "payload",
-            sa.JSON(none_as_null=True).with_variant(
-                postgresql.JSONB(none_as_null=True), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
             nullable=True,
         ),
     )

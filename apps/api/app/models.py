@@ -226,9 +226,11 @@ class SourceFetch(Base):
     `source_fetch_id`.
 
     `payload` is the decoded JSON response (PostgreSQL JSONB; plain JSON on SQLite in
-    tests). Retention (ADR-014) sets it to NULL after the source's window; the row
-    itself (endpoint, parser_version, validation_status, fetched_at) is kept.
-    none_as_null: a purged payload must be SQL NULL, not the JSON literal `null`.
+    tests). Retention (ADR-014) sets it to SQL NULL after the source's window; the
+    row itself (endpoint, parser_version, validation_status, fetched_at) is kept.
+    SQL NULL therefore means "purged"; a source that answered with a JSON `null`
+    body is stored as the JSON literal `null` (JSON's default for Python None), so
+    the two stay distinguishable (`payload IS NULL` vs `payload = 'null'`).
     """
 
     __tablename__ = "source_fetches"
@@ -241,6 +243,6 @@ class SourceFetch(Base):
     # pending | valid | partial | invalid (app.provenance)
     validation_status: Mapped[str] = mapped_column(String(20))
     payload: Mapped[Any | None] = mapped_column(
-        JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), "postgresql"),
+        JSON().with_variant(JSONB(), "postgresql"),
         nullable=True,
     )

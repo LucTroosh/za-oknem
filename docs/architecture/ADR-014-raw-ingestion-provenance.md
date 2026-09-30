@@ -76,7 +76,9 @@ Opcja 3.
   connector musi świadomie wybrać dłuższe. Retencja **zeruje `payload`
   (SQL NULL), nie kasuje wiersza**: endpoint, `parser_version`, status i
   `fetched_at` zostają, FK nigdy nie wisi, a czyszczenie to jeden idempotentny
-  `UPDATE` bez obsługi FK. Wiersz to ok. 200 B; rośnie proporcjonalnie do
+  `UPDATE` bez obsługi FK. SQL NULL znaczy „wyczyszczony”; odpowiedź źródła
+  będąca JSON `null` jest zapisana jako literał JSON `null`, więc się nie myli.
+  Wiersz to ok. 200 B; rośnie proporcjonalnie do
   liczby pobrań (mniej niż same rekordy znormalizowane, które też nie mają
   retencji). `# ponytail:` jeśli rozmiar tabeli zacznie przeszkadzać — kasować
   wiersze starsze niż N miesięcy i zerować FK.
