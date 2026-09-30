@@ -591,28 +591,46 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       aktywne wszystkie ~2.5k gmin i wymusił ~20k wywołań Open-Meteo/dzień
       — dokładnie przekroczenie limitu, któremu ten task ma zapobiec.
       Realny zakres:
-      (a) **anonimowy heartbeat instalacji** — losowy `installation_id`
-      generowany na urządzeniu przy pierwszym uruchomieniu (bez konta,
-      bez danych osobowych, rule #11), wysyłany z wybraną gminą niezależnie
-      od zgody na push; aktywność gminy = liczba RÓŻNYCH instalacji z
-      heartbeatem w oknie (np. 30 dni), nie liczba odczytów;
+      (a) **heartbeat instalacji** — losowy `installation_id` generowany
+      na urządzeniu przy pierwszym uruchomieniu (bez konta, rule #11),
+      wysyłany z wybraną gminą niezależnie od zgody na push; aktywność
+      gminy = liczba RÓŻNYCH instalacji z heartbeatem w oknie (np. 30 dni),
+      nie liczba odczytów. **To są dane pseudonimowe, nie anonimowe**
+      (Codex): trwały identyfikator urządzenia + gmina + IP widziane przez
+      serwer pozwalają powiązać rekordy z urządzeniem, więc RODO ich
+      dotyczy. Wymagane: wpis w inwentarzu danych TASK-14.2 (cel,
+      podstawa, retencja); przechowywanie tylko `(installation_id, gmina,
+      ostatni heartbeat)`, usuwane po wyjściu poza okno aktywności; IP
+      wyłącznie do rate limitu, z krótkim TTL w Redis, nigdy w
+      PostgreSQL; rotacja identyfikatora (np. przy zmianie gminy lub co
+      okno) i ścieżka usunięcia na żądanie (reset identyfikatora w
+      aplikacji kasuje powiązane rekordy);
       (b) **limity po stronie serwera**: jedna instalacja liczy się dla
       ograniczonej liczby gmin naraz (np. ≤3) i może zmieniać gminę
       ograniczoną liczbę razy na dobę; rate limit per IP na endpoint
       heartbeatu — nowe `installation_id` są tanie, więc sam identyfikator
       nie jest zabezpieczeniem;
-      (c) **twardy limit liczby odpytywanych gmin wyliczony z budżetu**,
-      nie tylko alert 70%: przy cyklu 3h (8 wywołań/dobę/gminę) i
-      `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) limit 10 000/dobę daje
-      max ~625 gmin; scheduler odpytuje co najwyżej `floor(0.7 × limit /
-      (8 × units))` gmin, wybierając te z największą liczbą różnych
-      instalacji, a nadwyżka dostaje dane rzadziej/wcale (jawnie oznaczone
-      freshness STALE/UNAVAILABLE, rule #8) zamiast przepalać limit.
+      (c) **twardy limit budżetu na KAŻDĄ próbę HTTP**, nie tylko alert
+      70% i nie tylko limit liczby gmin (Codex: retry w kliencie i
+      natychmiastowy pierwszy fetch nowo aktywowanej gminy potrafią
+      przebić limit liczony samym mnożnikiem per gmina). Przed każdą próbą
+      (regularną, retry i bootstrap) connector rezerwuje jednostki w
+      istniejącym trwałym liczniku dziennym z TASK-13.1a
+      (`record_fetch_call` przez `on_attempt`, już wołany PRZED requestem)
+      i **odmawia próby**, jeśli rezerwacja przekroczyłaby twardy próg
+      (np. 90% limitu 10 000/dobę) — atomowo, żeby równoległe workery nie
+      przebiły go razem. Dodatkowo, jako planowanie (nie zabezpieczenie):
+      przy cyklu 3h (8 wywołań/dobę/gminę) i
+      `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) scheduler wybiera co
+      najwyżej `floor(0.7 × limit / (8 × units))` (~437) gmin z największą
+      liczbą różnych instalacji; nadwyżka i odmówione próby dają jawnie
+      oznaczone STALE/UNAVAILABLE (rule #8) zamiast przepalać limit.
       Kryterium odbioru: gmina używana wyłącznie przez dashboard (odmowa
       zgody na push) pozostaje aktywna dzięki heartbeatowi; masowe odczyty
       dashboardu dla wszystkich `geo_area_id` NIE zwiększają liczby
-      odpytywanych gmin; liczba wywołań Open-Meteo/dobę nigdy nie
-      przekracza limitu z (c) niezależnie od ruchu (test).
+      odpytywanych gmin; suma jednostek w liczniku dziennym nigdy nie
+      przekracza twardego progu z (c) — także przy retry, masowych
+      aktywacjach i równoległych workerach (test).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
@@ -702,8 +720,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Safety / App Privacy — oparte na TASK-14.1 (SDK inventory) **oraz na
       pełnym data inventory z §71** (SDK inventory pokrywa tylko dane
       przechodzące przez SDK-i mobilne, nie dane przetwarzane wyłącznie
-      backendowo: `device_id`, push token, `observed_area_code`, logi
-      serwera i ich retencja — §71: DATA INVENTORY → PURPOSE → LEGAL BASIS →
+      backendowo: `device_id`, push token, `observed_area_code`,
+      rekordy heartbeatu `installation_id` z TASK-12.2 (dane pseudonimowe),
+      logi serwera i ich retencja — §71: DATA INVENTORY → PURPOSE → LEGAL BASIS →
       RETENTION → PROCESSORS → USER RIGHTS, dla wszystkich danych, nie tylko
       tych z SDK). W dużej mierze praca dokumentacyjna/prawna, nie kod;
       część do zrobienia razem z Tobą (deklaracje sklepowe wymagają decyzji
@@ -719,7 +738,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       żądanie przez support) — TASK-14.2 opisuje wyłącznie politykę i
       inwentaryzację. Zakres obejmuje więc dodanie i przetestowanie
       zaimplementowanego mechanizmu czyszczenia (endpoint/job kasujący
-      rekord `Device` po nieaktywności lub na żądanie), nie tylko
+      rekord `Device` oraz heartbeat `installation_id` po nieaktywności
+      lub na żądanie), nie tylko
       udokumentowanie deklarowanego okresu retencji. **Brakujący element
       (Codex):**
       "Przegląd bezpieczeństwa" jak dotąd opisany to wyłącznie inwentaryzacje
