@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.connectors.prg_gminy.ingest import import_records
+from app.connectors.prg_gminy.ingest import import_records, retire_missing
 from app.connectors.prg_gminy.parser import parse_feature_collection
 from app.geo import resolve_gmina
 
@@ -153,6 +153,15 @@ def test_invalid_self_intersecting_polygon_is_repaired(pg):
     report = import_records(records, pg)
     assert report.repaired == 1 and report.rejected == []
     assert _code(pg, 49.7, 22.05) == "9999905"
+
+
+def test_retire_missing_clears_obsolete_boundary_only(pg):
+    _load(pg, A, B)
+    assert retire_missing(["9999901"], pg) == 1
+    assert _code(pg, 49.75, 22.75) is None  # B retired: resolver must not return it
+    assert _code(pg, 49.75, 22.25) == "9999901"
+    with pytest.raises(ValueError):
+        retire_missing([], pg)
 
 
 def test_geojson_roundtrip_sanity():

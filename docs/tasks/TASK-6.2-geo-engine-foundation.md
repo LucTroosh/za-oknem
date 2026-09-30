@@ -70,6 +70,9 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
       (eksklawa vs brak), poza wielokątami = `None`, nie „najbliższa" (`test_postgis_geo.py`).
 - [ ] Reimport tego samego pliku jest idempotentny; zaseedowane miasto w wielokącie dostaje
       TERYT zachowując `id`; nowe gminy mają `weather_polling_active = false`.
+- [ ] Coroczny pełny snapshot: `--retire-missing` zeruje `boundary` gmin nieobecnych w pliku
+      (wiersze nie są usuwane; tylko gdy brak odrzuconych rekordów; seedy bez TERYT nietknięte),
+      więc resolver nie zwróci przestarzałej gminy (Codex, runda 1).
 - [ ] Nieprawidłowy rekord (zły TERYT, nie-WGS84, niezamknięty pierścień, duplikat) jest
       odrzucany z powodem, reszta importowana; nieprawidłowa geometria naprawiana
       (`ST_MakeValid`) i policzona w raporcie.

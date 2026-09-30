@@ -6,6 +6,7 @@ the same file changes nothing but `boundary` of existing rows.
 
     docker compose exec api python -m app.connectors.prg_gminy.ingest --file /data/gminy.geojson
     ... --validate-only   # parse + report, no database access
+    ... --retire-missing  # the file is a full snapshot: drop boundaries of gminas not in it
 
 Per record, in this order:
 1. row with this TERYT code exists      -> update its boundary;
@@ -73,12 +74,34 @@ _INSERT_SQL = text(
 )
 
 
+# Rows are never deleted (weather_snapshots/devices may reference them); an obsolete gmina
+# just loses its boundary, so the resolver can no longer return it.
+_RETIRE_SQL = text(
+    """
+    UPDATE geo_areas SET boundary = NULL
+    WHERE boundary IS NOT NULL AND teryt_code IS NOT NULL
+      AND teryt_code <> ALL(CAST(:codes AS text[]))
+    """
+)
+
+
+def retire_missing(codes: list[str], db) -> int:
+    """Clears the boundary of every gmina absent from `codes` (a COMPLETE snapshot).
+    Returns the number of retired rows. Seed rows without TERYT are untouched."""
+    if not codes:
+        raise ValueError("refusing to retire everything: empty snapshot")
+    result = db.execute(_RETIRE_SQL, {"codes": codes})
+    db.commit()
+    return result.rowcount
+
+
 @dataclass
 class ImportReport:
     inserted: int = 0
     updated: int = 0
     adopted_seeds: int = 0
     repaired: int = 0  # boundaries PostGIS had to make valid
+    retired: int = 0  # obsolete gminas whose boundary was cleared (--retire-missing)
     rejected: list[str] = field(default_factory=list)
 
 
@@ -115,6 +138,12 @@ def main() -> None:
     parser.add_argument("--teryt-field", default=DEFAULT_TERYT_FIELD)
     parser.add_argument("--name-field", default=DEFAULT_NAME_FIELD)
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--retire-missing",
+        action="store_true",
+        help="file is a COMPLETE snapshot: clear the boundary of gminas absent from it "
+        "(only applied when nothing was rejected)",
+    )
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -145,6 +174,10 @@ def main() -> None:
             report.inserted, report.updated = db_report.inserted, db_report.updated
             report.adopted_seeds, report.repaired = db_report.adopted_seeds, db_report.repaired
             report.rejected += db_report.rejected
+            if args.retire_missing and not report.rejected:
+                report.retired = retire_missing([r.teryt_code for r in records], db)
+            elif args.retire_missing:
+                print("--retire-missing skipped: snapshot had rejected records", file=sys.stderr)
             provenance.set_validation_status(
                 db, fetch_id, provenance.batch_status(total, len(report.rejected))
             )
@@ -152,7 +185,8 @@ def main() -> None:
             db.close()
         print(
             f"inserted={report.inserted} updated={report.updated} "
-            f"adopted_seeds={report.adopted_seeds} repaired={report.repaired}"
+            f"adopted_seeds={report.adopted_seeds} repaired={report.repaired} "
+            f"retired={report.retired}"
         )
     for line in report.rejected:
         print(f"REJECTED {line}", file=sys.stderr)
