@@ -7,12 +7,13 @@ jest przemyślana sekwencja zależności (np. Geo Engine przed geo-relevance
 alertów), nie coś wymyślonego na nowo tutaj. W obrębie fazy: najpierw to, co
 odblokowuje kolejne fazy i nie ma zewnętrznych zależności poza naszą kontrolą.
 
-Status faz 0-4: **częściowo.** Vertical slice (GIOŚ PM2.5 → DB → API → mobile)
-i szkielet infra (Docker/Caddy/CI, bez PostGIS/Redis/workerów/monitoringu/backupu
-— patrz sekcja "Świadomie NIE w tej kolejce" niżej, to nie jest to samo co
-"zrobione") są gotowe, patrz ROADMAP.md. Faza 4 (Air) ma jednak dziury —
-patrz nowa sekcja "Phase 4 — Air (dokończenie)" poniżej: tylko PM2.5 jest
-faktycznie zaciągane, reszta parametrów GIOŚ i indeks jakości powietrza — nie.
+Stan na 2026-09-30 (szczegóły i numery PR: ROADMAP.md): vertical slice i
+szkielet infra (Docker/Caddy/CI, bez PostGIS/Redis/workerów) są gotowe; pełny
+zestaw parametrów GIOŚ, prognoza, pola pogodowe §5, source transparency,
+typowane `response_model` i dzienny licznik wywołań są w `main`. Pozycje
+oznaczone `[x]` są zmergowane; `(PR #N, w review)` = kod gotowy, czeka na merge.
+Odznaczać w tym pliku przy każdym merge'u — plik, który twierdzi, że zrobione
+rzeczy są do zrobienia, jest równie mylący jak odwrotnie.
 
 Ten plik żyje obok `ROADMAP.md` (stan faktyczny) i `source-registry.md` (źródła):
 BACKLOG = co i w jakiej kolejności, ROADMAP = co już jest zrobione.
@@ -52,7 +53,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 1 — Infra (dokończenie)
 
-- [ ] **TASK-1.1:** Backup — §68 Master Planu definiuje zakres jako
+- [ ] **TASK-1.1** (PR #47, w review): Backup — §68 Master Planu definiuje zakres jako
       PostgreSQL + **konfigurację** + kluczowe dane, nie tylko bazę
       (poprzednia wersja tego tasku pokrywała wyłącznie PostgreSQL). `pg_dump`
       cykliczny dla bazy + kopia plików konfiguracyjnych (`.env`-szablony bez
@@ -76,6 +77,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 ### Phase 2 — Backend Core (dokończenie)
 
 - [ ] **TASK-2.1:** Generowany klient TypeScript z OpenAPI (§17 Master Planu)
+      **Postęp:** `response_model` jest już na `/air`, `/hydro`, `/alerts`
+      (PR #51/#53/#54) i `/weather/*` (PR #52); brakuje `/dashboard/latest`
+      i samego generowania klienta.
       — `packages/api-contract/README.md` jest wciąż placeholderem, a
       `apps/mobile/app/index.tsx` ręcznie typuje odpowiedź dashboardu
       (potwierdzone w kodzie). Ta kolejka dokłada sporo nowych endpointów/pól
@@ -120,7 +124,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 4 — Air (dokończenie)
 
-- [ ] **TASK-4.1:** Pełny zestaw parametrów GIOŚ — dziś connector `gios`
+- [x] **TASK-4.1** (PR #48): Pełny zestaw parametrów GIOŚ — dziś connector `gios`
       zaciąga wyłącznie PM2.5 (świadomy zakres vertical slice, §108 Master
       Planu). Rozszerzyć `parser.py`/`ingest.py` o PM10, NO2, SO2, O3, CO,
       C6H6 (te same sensory API GIOŚ, ten sam kontrakt fetch/parse/validate/
@@ -143,13 +147,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 5 — Weather (dokończenie)
 
-- [ ] **TASK-5.3:** Forecast (§30 Master Planu) — nowy model `Forecast`
+- [x] **TASK-5.3** (PR #46): Forecast (§30 Master Planu) — nowy model `Forecast`
       (odrębny od `Measurement`, rule #7: `forecast_reference_time`,
       `valid_from`, `valid_until`, `model`, `source`), rozszerzenie
       `open_meteo` connectora o zapytanie `hourly`/`daily` obok `current`,
       `GET /api/v1/weather/forecast`. Wymaga ADR-010 (nowy typ danych w
       modelu, precedens: ADR-008 dla Measurement, ADR-009 dla Alert).
-- [ ] **TASK-5.4:** Rozszerzyć `current`/`daily` o dew point, visibility, UV
+- [ ] **TASK-5.4** (backend: PR #50; brakuje prezentacji pól na mobile): Rozszerzyć `current`/`daily` o dew point, visibility, UV
       index. **Korekta (Codex) — poprzedni opis był błędny:** to NIE jest
       samo rozszerzenie `PARAM_CODES` "w tym samym zapytaniu bez
       dodatkowego round-tripu" — `client.py` (komentarz przy
@@ -181,7 +185,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       poprawki) dew point/visibility/UV. Zakres API/mobile presentation w
       tym tasku obejmuje więc pełny zestaw MVP z §5, nie tylko 3 pola
       wymagające dociągnięcia z `hourly`.
-- [ ] **TASK-5.5:** Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
+- [ ] **TASK-5.5** (PR #57, w review): Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
       się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
       `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
       current-weather. Dodać prognozę do agregatu (albo osobny fetch na
@@ -255,7 +259,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 7 — Dashboard (dokończenie)
 
-- [ ] **TASK-7.1:** Source transparency na mobile — **korekta względem
+- [x] **TASK-7.1** (PR #49): Source transparency na mobile — **korekta względem
       wcześniejszej wersji:** samo wyrenderowanie `station_name` nie
       wystarczy (a) bo weather w ogóle nie jest station-based (`geo_area`,
       nie stacja — nie ma czego tu renderować jako "nazwę stacji"), (b) bo
@@ -277,7 +281,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
       już wymaga widocznej atrybucji IMGW i Copernicus, więc to nie jest
       opcjonalne rozszerzenie.
-- [ ] **TASK-7.2:** **Korekta: `alerts` musi wejść do `dashboard_latest()`**
+- [ ] **TASK-7.2** (część alertowa: PR #58, w review; hydrologia na mobile — do zrobienia): **Korekta: `alerts` musi wejść do `dashboard_latest()`**
       (§55 Master Planu wymienia `alerts` wprost w agregacie: location,
       alerts, air, weather, pollen, outdoor, water) — dziś `dashboard_latest()`
       ma tylko `air`+`weather`, poprzednia wersja tego tasku kazała mobile
@@ -309,7 +313,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bez właściciela.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
-- [ ] **TASK-7.4:** Source-level freshness (UNAVAILABLE: pusta lista =
+- [ ] **TASK-7.4** (ostrzeżenia: PR #59 + ADR-012, w review): Source-level freshness (UNAVAILABLE: pusta lista =
       potwierdzone zero czy dawno nie było fetcha) — dotyczy `/air`,
       `/hydro`, `/alerts`, `/weather` razem. Wymaga własnego ADR-012
       (świadomy non-goal z ADR-009, teraz adresowany). **Korekta (Codex):**
@@ -574,7 +578,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       z każdym nowym wyborem różnych użytkowników i nigdy się nie
       kurczy, aż zbliży się do pełnego katalogu TERYT (~2.5k), który
       TASK-6.2 już wskazuje jako przekraczający limit Open-Meteo
-      10000/dzień. Alert 70% z TASK-13.1 tylko powiadamia, nie
+      10000/dzień. Alert 70% z TASK-13.1a tylko powiadamia, nie
       zatrzymuje requestów. Zakres obejmuje więc też odwrotną ścieżkę:
       "ostatnio obserwowana" per gmina + okresowy job dezaktywujący
       gminy bez żadnej aktywności dłużej niż ustalony próg (np. 30 dni)
@@ -602,9 +606,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       podstawa, retencja); przechowywanie tylko `(installation_id, gmina,
       ostatni heartbeat)`, usuwane po wyjściu poza okno aktywności; IP
       wyłącznie do rate limitu, z krótkim TTL w Redis, nigdy w
-      PostgreSQL; rotacja identyfikatora (np. przy zmianie gminy lub co
-      okno) i ścieżka usunięcia na żądanie (reset identyfikatora w
-      aplikacji kasuje powiązane rekordy);
+      PostgreSQL. **Bez automatycznej rotacji identyfikatora** (Codex):
+      rotacja przy zmianie gminy tworzyłaby „nową instalację”, omijając
+      limity z (b), a stare rekordy zostawałyby aktywne do końca retencji.
+      Minimalizacja wynika z retencji (nieaktywny `installation_id` znika po
+      oknie). Reset na żądanie użytkownika: aplikacja wysyła
+      `DELETE` z bieżącym `installation_id` (serwer atomowo kasuje wszystkie
+      jego rekordy), dopiero po potwierdzeniu generuje nowy — stary nie może
+      zostać osierocony;
       (b) **limity po stronie serwera**: jedna instalacja liczy się dla
       ograniczonej liczby gmin naraz (np. ≤3) i może zmieniać gminę
       ograniczoną liczbę razy na dobę; rate limit per IP na endpoint
@@ -615,11 +624,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       natychmiastowy pierwszy fetch nowo aktywowanej gminy potrafią
       przebić limit liczony samym mnożnikiem per gmina). Przed każdą próbą
       (regularną, retry i bootstrap) connector rezerwuje jednostki w
-      istniejącym trwałym liczniku dziennym z TASK-13.1a
-      (`record_fetch_call` przez `on_attempt`, już wołany PRZED requestem)
-      i **odmawia próby**, jeśli rezerwacja przekroczyłaby twardy próg
-      (np. 90% limitu 10 000/dobę) — atomowo, żeby równoległe workery nie
-      przebiły go razem. Dodatkowo, jako planowanie (nie zabezpieczenie):
+      trwałym liczniku dziennym z TASK-13.1a (gotowy w `main`:
+      `record_fetch_call` przez `on_attempt`, już wołany PRZED requestem —
+      ten task dokłada tylko odmowę) i **odmawia próby**, jeśli rezerwacja
+      przekroczyłaby twardy próg (np. 90% limitu 10 000/dobę) — atomowo,
+      żeby równoległe workery nie przebiły go razem. **Limit minutowy**
+      (source-registry: 600/min, Codex): ta sama rezerwacja sprawdza też
+      okno 60 s (licznik w Redis z TTL — stan krótkotrwały, rule #2) z
+      progiem np. 300 jednostek/min, a scheduler rozkłada zapytania w czasie
+      zamiast wysyłać ~437 gmin × 2 jednostki naraz; odmowa minutowa =
+      ponowienie w kolejnym oknie, nie utrata cyklu. Dodatkowo, jako planowanie (nie zabezpieczenie):
       przy cyklu 3h (8 wywołań/dobę/gminę) i
       `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) scheduler wybiera co
       najwyżej `floor(0.7 × limit / (8 × units))` (~437) gmin z największą
@@ -628,9 +642,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Kryterium odbioru: gmina używana wyłącznie przez dashboard (odmowa
       zgody na push) pozostaje aktywna dzięki heartbeatowi; masowe odczyty
       dashboardu dla wszystkich `geo_area_id` NIE zwiększają liczby
-      odpytywanych gmin; suma jednostek w liczniku dziennym nigdy nie
-      przekracza twardego progu z (c) — także przy retry, masowych
-      aktywacjach i równoległych workerach (test).
+      odpytywanych gmin; suma jednostek nigdy nie przekracza twardego progu
+      dziennego ani minutowego z (c) — także przy retry, masowych
+      aktywacjach i równoległych workerach (test); reset identyfikatora
+      kasuje wszystkie rekordy poprzedniego (test).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
@@ -679,14 +694,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       nie ma historii runów, więc po restarcie/nieudanym fetchu operator nie
       odtworzy tych sygnałów. Zakres obejmuje trwałe (DB lub zewnętrzny
       monitoring z TASK-13.2) przechowanie per-run telemetrii, nie tylko
-      aktualnego stanu. **Brakujący element (Codex):** ADR-001 wprost wymaga
-      "licznik dziennych wywołań per źródło w bazie, alert przy 70% dziennego
-      limitu", a ADR-004 rozszerza ten wymóg na każdy connector — żaden task
-      w tej kolejce tego nie implementuje. Bez tego rosnący zbiór aktywnych
-      gmin (TASK-6.2) może po cichu wyczerpać limit Open-Meteo/CAMS i
-      zostawić pogodę/pyłki stale dla wszystkich, zanim ktokolwiek to
-      zauważy. Zakres TASK-13.1 obejmuje więc też ten licznik+alert, nie
-      tylko listę sygnałów z §44.
+      aktualnego stanu. Licznik dziennych wywołań + alert 70% (ADR-001/004)
+      jest już zrobiony osobno jako TASK-13.1a; ostatnia próba/sukces per
+      źródło — jako `source_status` z ADR-012 (TASK-7.4). TASK-13.1 dokłada
+      resztę sygnałów §44 (duration, records processed, validation errors,
+      duplicate/stale rate) i historię runów.
+- [x] **TASK-13.1a** (PR #55): trwały dzienny licznik jednostek per źródło
+      (`source_fetch_counters`, `app/rate_budget.py`) + WARNING przy 70%;
+      Open-Meteo rezerwuje jednostki przed KAŻDĄ próbą HTTP (`on_attempt`),
+      atomowy inkrement. Zrobiony przed Phase 12, bo TASK-12.2 na nim polega.
 - [ ] **TASK-13.2:** Monitoring/error-reporting (§69 Master Planu) —
       **korekta: sam `logging` NIE wystarczy** (poprzednia wersja tego tasku
       błędnie na to pozwalała). §69 wymaga realnego capture wyjątków
