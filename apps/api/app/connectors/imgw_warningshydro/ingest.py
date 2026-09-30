@@ -77,12 +77,16 @@ def _store(record: dict, db) -> bool:
     return True
 
 
-def _expire_withdrawn(db, *, active_record_ids: set[str], fetched_at: datetime) -> int:
+def _expire_withdrawn(
+    db, *, active_record_ids: set[str], fetched_at: datetime, source_fetch_id: int | None = None
+) -> int:
     """Rule #10: a warning IMGW has withdrawn must stop being reported as active -
     some warnings (e.g. hydrological drought) carry `valid_until` as far out as
     year 9999, so without this a withdrawn alert would look valid indefinitely.
     Closes out every currently-active row this source didn't report in the
-    latest snapshot by setting its valid_until to the fetch time."""
+    latest snapshot by setting its valid_until to the fetch time. The row is
+    relinked to the fetch that closed it (ADR-014): that payload's absence of the
+    warning is what produced the new valid_until, not the older one that listed it."""
     query = (
         db.query(Alert)
         .filter(Alert.source_id == "imgw_warningshydro")
@@ -96,6 +100,7 @@ def _expire_withdrawn(db, *, active_record_ids: set[str], fetched_at: datetime) 
     stale = query.all()
     for alert in stale:
         alert.valid_until = fetched_at
+        alert.source_fetch_id = source_fetch_id
     if stale:
         db.commit()
     return len(stale)
@@ -141,7 +146,9 @@ def ingest_batch(
         return stored, 0, len(warnings) - len(records)
 
     active_ids = {r["source_record_id"] for r in records}
-    expired = _expire_withdrawn(db, active_record_ids=active_ids, fetched_at=fetched_at)
+    expired = _expire_withdrawn(
+        db, active_record_ids=active_ids, fetched_at=fetched_at, source_fetch_id=source_fetch_id
+    )
     return stored, expired, 0
 
 

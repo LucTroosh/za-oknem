@@ -146,6 +146,15 @@ class TestProvenance:
         assert db_session.query(SourceFetch).count() == 2
         assert db_session.query(Alert).one().source_fetch_id == latest.id
 
+    def test_withdrawn_alert_is_relinked_to_the_fetch_that_closed_it(self, db_session):
+        ingest.ingest_raw([WARNING], db_session, fetched_at=datetime.now(UTC))
+        ingest.ingest_raw({"message": "Brak"}, db_session, fetched_at=datetime.now(UTC))
+
+        closing = db_session.query(SourceFetch).order_by(SourceFetch.id.desc()).first()
+        alert = db_session.query(Alert).one()
+        assert alert.valid_until.year != 9999  # expired by the empty snapshot
+        assert alert.source_fetch_id == closing.id
+
     def test_refresh_with_failed_provenance_write_clears_the_link(self, db_session, monkeypatch):
         # Unknown provenance is honest; a link to an older payload that did not
         # produce the current values would be wrong.
