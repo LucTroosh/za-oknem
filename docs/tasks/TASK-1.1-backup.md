@@ -114,7 +114,12 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
   dotyczy tylko błędów SQL) — `backup.sh` jawnie sprawdza po transakcji, że
   zaszyfrowany dump istnieje i nie jest pusty, żeby cichy błąd `pg_dump`/`age`
   wewnątrz `\!` nie skończył się uploadem brakującego/pustego/nieodszyfrowywalnego
-  backupu jako "sukces".
+  backupu jako "sukces". `pg_dump | age` działa w helperze z `set -o pipefail`,
+  a sukces sygnalizuje wyłącznie marker tworzony na końcu helpera — sam niepusty
+  plik nie wystarcza, bo `age` potrafi zaszyfrować ucięty strumień po błędzie
+  `pg_dump` (LucTroosh review [P1], zweryfikowane symulowaną awarią pg_dump).
+- `restore_test.sh` sprawdza obecność `docker-compose.yml` i `.env.example` w
+  archiwum config, nie tylko poprawność kontenera tar.gz.
 
 ## Architecture Impact
 

@@ -176,7 +176,15 @@ if ! rclone copy "$BACKUP_REMOTE/$CONFIG_ARCHIVE" "$WORKDIR/" 2>/dev/null || [ !
   echo "[restore_test] BŁĄD: brak $CONFIG_ARCHIVE dla tego samego backupu (${STAMP}) — zestaw artefaktów niekompletny." >&2
   exit 1
 fi
-tar -tzf "$WORKDIR/$CONFIG_ARCHIVE" >/dev/null  # rzuca błąd głośno, jeśli archiwum jest uszkodzone
+# Sam poprawny kontener tar.gz nie wystarczy — puste archiwum albo bez kluczowych
+# plików też by przeszło (LucTroosh review [P2]). Sprawdzamy wymagane pliki.
+CONFIG_LISTING="$(tar -tzf "$WORKDIR/$CONFIG_ARCHIVE")"  # rzuca błąd głośno, jeśli archiwum jest uszkodzone
+for required in docker-compose.yml .env.example; do
+  echo "$CONFIG_LISTING" | grep -qxF "$required" || {
+    echo "[restore_test] BŁĄD: $CONFIG_ARCHIVE nie zawiera $required — konfiguracji nie da się odtworzyć." >&2
+    exit 1
+  }
+done
 
 echo "[restore_test] weryfikuję $MANIFEST..."
 # LucTroosh review [P2/P1]: manifest niesie autorytatywną informację o tym, co backup
