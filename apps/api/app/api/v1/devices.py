@@ -95,7 +95,10 @@ def register_device(
             installation_id=body.installation_id,
             secret_hash=_hash_secret(new_secret),
             platform=body.platform,
+            active=True,
             created_at=now,
+            updated_at=now,
+            last_seen_at=now,
         )
         db.add(device)
         response.status_code = 201
@@ -124,7 +127,12 @@ def register_device(
     except IntegrityError:
         # Concurrent registration of the same installation_id / token.
         db.rollback()
-        raise HTTPException(status_code=409, detail="Conflict, retry") from None
+        # If this was a first registration whose twin request won, its secret is gone
+        # from our side of the race: a retry would get 403, so say so.
+        raise HTTPException(
+            status_code=409,
+            detail="Conflict: retry; if the retry is 403, register a new installation_id",
+        ) from None
     return DeviceOut(
         installation_id=device.installation_id,
         platform=body.platform,

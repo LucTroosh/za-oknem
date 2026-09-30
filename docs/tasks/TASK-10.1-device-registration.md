@@ -70,7 +70,7 @@ rejestracji). Nie dodaje pakietów.
 (`DeviceOut`): `installation_id`, `platform`, `push_registered`, `observed_area_code`,
 `app_version`, `active`, `last_seen_at`, `device_secret` (tylko w 201, inaczej `null`).
 `DELETE /api/v1/devices/{installation_id}` → 204. Błędy: 403, 404, 409 (równoległa
-rejestracja — ponów), 422, 429.
+rejestracja — ponów; jeśli ponowienie da 403, nowy `installation_id`), 422, 429.
 
 ## Security
 

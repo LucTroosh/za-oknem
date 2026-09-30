@@ -239,3 +239,11 @@ def test_rate_limiter_window_expires_and_keys_are_independent(monkeypatch):
     assert exc.value.status_code == 429  # type: ignore[attr-defined]
     now[0] += 10.1
     limiter.check("a")
+
+
+def test_rate_limiter_key_count_stays_bounded(monkeypatch):
+    monkeypatch.setattr("app.rate_limit.MAX_KEYS", 5)
+    limiter = RateLimiter(limit=10, window_seconds=60)
+    for i in range(50):
+        limiter.check(f"ip{i}")
+    assert len(limiter._hits) <= 6

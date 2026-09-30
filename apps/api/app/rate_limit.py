@@ -34,6 +34,8 @@ class RateLimiter:
         with self._lock:
             if len(self._hits) > MAX_KEYS:
                 self._sweep(now)
+                while len(self._hits) > MAX_KEYS:  # all still active: evict oldest key
+                    del self._hits[next(iter(self._hits))]
             hits = self._hits.setdefault(key, deque())
             while hits and hits[0] <= now - self.window:
                 hits.popleft()
