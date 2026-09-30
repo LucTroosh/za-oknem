@@ -69,7 +69,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 1 — Infra (dokończenie)
 
-- [ ] **TASK-1.1** (PR #47, w review): Backup — §68 Master Planu definiuje zakres jako
+- [x] **TASK-1.1** (PR #47; wdrożenie z harmonogramem na produkcji → TASK-15.2): Backup — §68 Master Planu definiuje zakres jako
       PostgreSQL + **konfigurację** + kluczowe dane, nie tylko bazę
       (poprzednia wersja tego tasku pokrywała wyłącznie PostgreSQL). `pg_dump`
       cykliczny dla bazy + kopia plików konfiguracyjnych (`.env`-szablony bez
@@ -187,7 +187,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       poprawki) dew point/visibility/UV. Zakres API/mobile presentation w
       tym tasku obejmuje więc pełny zestaw MVP z §5, nie tylko 3 pola
       wymagające dociągnięcia z `hourly`.
-- [ ] **TASK-5.5** (PR #57, w review): Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
+- [x] **TASK-5.5** (PR #57): Dostarczenie prognozy do użytkownika — TASK-5.3 kończy
       się na `GET /api/v1/weather/forecast`, ale nic go nie konsumuje:
       `dashboard_latest()` i mobile Home (`index.tsx`) czytają tylko
       current-weather. Dodać prognozę do agregatu (albo osobny fetch na
@@ -283,7 +283,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
       już wymaga widocznej atrybucji IMGW i Copernicus, więc to nie jest
       opcjonalne rozszerzenie.
-- [ ] **TASK-7.2** (część alertowa: PR #58, w review; hydrologia na mobile — do zrobienia): **Korekta: `alerts` musi wejść do `dashboard_latest()`**
+- [ ] **TASK-7.2** (część alertowa: PR #58 ✅; hydrologia na mobile — do zrobienia): **Korekta: `alerts` musi wejść do `dashboard_latest()`**
       (§55 Master Planu wymienia `alerts` wprost w agregacie: location,
       alerts, air, weather, pollen, outdoor, water) — dziś `dashboard_latest()`
       ma tylko `air`+`weather`, poprzednia wersja tego tasku kazała mobile
