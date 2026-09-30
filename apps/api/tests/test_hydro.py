@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.api.v1.dashboard import IMGW_ATTRIBUTION
 from app.api.v1.hydro import (
     FRESH_MAX_AGE,
     RECENT_MAX_AGE,
@@ -16,7 +17,7 @@ from app.api.v1.hydro import (
 )
 from app.db import get_db
 from app.main import app
-from app.models import Measurement
+from app.models import Measurement, SourceStatus
 
 
 class _FakeResult:
@@ -31,16 +32,20 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, rows):
+    def __init__(self, rows, statuses=None):
         self._rows = rows
+        self._statuses = statuses or {}
 
     def execute(self, _stmt):
         return _FakeResult(self._rows)
 
+    def get(self, _model, key):
+        return self._statuses.get(key)
 
-def _client_with_rows(rows: list[Measurement]) -> TestClient:
+
+def _client_with_rows(rows: list[Measurement], statuses=None) -> TestClient:
     def _override():
-        yield _FakeSession(rows)
+        yield _FakeSession(rows, statuses)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -82,7 +87,10 @@ def test_latest_hydro_returns_empty_list_when_no_rows():
     response = client.get("/api/v1/hydro/latest")
 
     assert response.status_code == 200
-    assert response.json() == {"stations": []}
+    body = response.json()
+    assert body["stations"] == []
+    # Never fetched -> UNAVAILABLE, so a client can't read [] as "all clear".
+    assert body["source_status"] == {"freshness": "UNAVAILABLE", "last_success_at": None}
 
 
 def test_latest_hydro_shapes_response_from_rows():
@@ -93,6 +101,9 @@ def test_latest_hydro_shapes_response_from_rows():
 
     body = client.get("/api/v1/hydro/latest").json()
 
+    assert body["attribution"] == IMGW_ATTRIBUTION
+    assert body.pop("source_status")["freshness"] == "UNAVAILABLE"
+    del body["attribution"]
     assert body == {
         "stations": [
             {
@@ -138,7 +149,7 @@ def test_latest_hydro_ignores_threshold_only_station():
 
     body = client.get("/api/v1/hydro/latest").json()
 
-    assert body == {"stations": []}
+    assert body["stations"] == []
 
 
 def test_latest_hydro_uses_threshold_even_when_older_than_the_reading():
@@ -177,6 +188,39 @@ def test_compute_status_alarm_at_threshold():
 
 def test_compute_status_unknown_without_thresholds():
     assert compute_status(225.0, warning=None, alarm=None) == "UNKNOWN"
+
+
+# --- source_status (ADR-012) --------------------------------------------------
+
+
+def _status(last_success_hours_ago: float) -> SourceStatus:
+    now = datetime.now(UTC)
+    return SourceStatus(
+        source_id="imgw_hydro",
+        last_attempt_at=now,
+        last_success_at=now - timedelta(hours=last_success_hours_ago),
+    )
+
+
+def test_hydro_source_status_fresh_after_recent_successful_fetch():
+    client = _client_with_rows([_reading()], {"imgw_hydro": _status(0.5)})
+
+    body = client.get("/api/v1/hydro/latest").json()
+
+    assert body["source_status"]["freshness"] == "FRESH"
+
+
+def test_hydro_source_status_stale_after_old_last_success():
+    client = _client_with_rows([], {"imgw_hydro": _status(12)})
+
+    body = client.get("/api/v1/hydro/latest").json()
+
+    assert body["source_status"]["freshness"] == "STALE"
+
+
+def test_hydro_latest_response_requires_attribution_and_source_status():
+    with pytest.raises(ValidationError):
+        HydroLatestResponse.model_validate({"stations": []})
 
 
 # --- HydroLatestResponse (TASK-API-3: response_model enforces a shape) --------

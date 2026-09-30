@@ -8,9 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app import provenance
 from app.connectors.gios import client, ingest
-from app.connectors.gios.parser import GiosParseError
-from app.models import Measurement
+from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
+from app.models import Measurement, SourceFetch
 
 STATION = {
     "Identyfikator stacji": 38,
@@ -126,6 +127,74 @@ def test_ingest_station_isolates_malformed_sensor_missing_id(monkeypatch, db_ses
 
     assert stored == 1
     assert db_session.query(Measurement).one().param_code == "PM10"
+
+
+class TestProvenance:
+    """ADR-014: every stored reading points at the raw getData payload that produced it."""
+
+    def test_measurement_links_to_its_raw_fetch(self, monkeypatch, db_session):
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+
+        ingest.ingest_station(STATION, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert db_session.query(Measurement).one().source_fetch_id == fetch.id
+        assert fetch.source_id == "gios"
+        assert fetch.endpoint.endswith("/data/getData/25988")
+        assert fetch.payload == SENSOR_DATA
+        assert fetch.parser_version == PARSER_VERSION
+        assert fetch.validation_status == provenance.VALID
+
+    def test_each_param_gets_its_own_fetch(self, monkeypatch, db_session):
+        sensors = [
+            {"Identyfikator stanowiska": 1, "Wskaźnik - wzór": "PM10"},
+            {"Identyfikator stanowiska": 2, "Wskaźnik - wzór": "NO2"},
+        ]
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=sensors))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+
+        ingest.ingest_station(STATION, db_session)
+
+        ids = {m.source_fetch_id for m in db_session.query(Measurement).all()}
+        assert len(ids) == 2
+        assert db_session.query(SourceFetch).count() == 2
+
+    def test_unparseable_payload_is_kept_as_invalid(self, monkeypatch, db_session):
+        # The case raw payloads exist for: the source changed its shape.
+        bad = {"unexpected": "shape"}
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=bad))
+
+        stored = ingest.ingest_station(STATION, db_session)
+
+        assert stored == 0
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == bad
+        assert fetch.validation_status == provenance.INVALID
+
+    def test_payload_survives_an_unexpected_parser_crash_as_pending(self, monkeypatch, db_session):
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+        monkeypatch.setattr(ingest, "latest_value", MagicMock(side_effect=RuntimeError("bug")))
+
+        with pytest.raises(RuntimeError):
+            ingest.ingest_station(STATION, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == SENSOR_DATA
+        assert fetch.validation_status == provenance.PENDING
+
+    def test_provenance_failure_does_not_block_the_reading(self, monkeypatch, db_session):
+        # Rule #1: best-effort audit - the value is stored, link is NULL.
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
+        monkeypatch.setattr(provenance, "record_fetch", MagicMock(return_value=None))
+
+        stored = ingest.ingest_station(STATION, db_session)
+
+        assert stored == 1
+        assert db_session.query(Measurement).one().source_fetch_id is None
 
 
 class TestMain:

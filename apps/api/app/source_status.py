@@ -2,7 +2,7 @@
 successful one into FRESH/RECENT/STALE/UNAVAILABLE (rule #8)."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from app.models import SourceStatus
 
 MAX_ERROR_LENGTH = 500
+# Hosts writing source_status (scheduler, manual CLI) are expected to be
+# NTP-synced. A success dated further ahead than this, as seen by the reading
+# process, is not trusted and reads STALE (fail safe, never falsely FRESH).
+MAX_CLOCK_SKEW = timedelta(minutes=5)
 
 
 def record_source_run(
@@ -31,7 +35,10 @@ def record_source_run(
     one: a writer that computed `now` earlier and paused could otherwise move
     timestamps backward or replace a newer failure with an older success
     (Codex review). A late older result is dropped - at worst the source turns
-    STALE sooner, never falsely FRESH. `now` is injectable for tests."""
+    STALE sooner, never falsely FRESH. The guard compares only the writers'
+    own timestamps: judging "future" against one host's clock would let a slow
+    host's reading of a valid row defeat the guard (Codex review). `now` is
+    injectable for tests."""
     now = now or datetime.now(UTC)
     values = {"source_id": source_id, "last_attempt_at": now}
     updates = {"last_attempt_at": now}
@@ -61,4 +68,6 @@ def source_freshness(db: Session, source_id: str, freshness: Callable[[datetime]
     last = row.last_success_at
     if last.tzinfo is None:  # SQLite returns naive datetimes; Postgres keeps tz.
         last = last.replace(tzinfo=UTC)
+    if last > datetime.now(UTC) + MAX_CLOCK_SKEW:  # future success can't be verified
+        return {"freshness": "STALE", "last_success_at": last.isoformat()}
     return {"freshness": freshness(last), "last_success_at": last.isoformat()}
