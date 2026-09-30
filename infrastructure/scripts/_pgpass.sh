@@ -43,5 +43,9 @@ pg_secure_url() {
     esc="${esc//:/\\:}"
     (umask 077; printf '*:*:*:*:%s\n' "$esc" > "$dir/.pgpass")
     export PGPASSFILE="$dir/.pgpass"
+    # libpq uses PGPASSWORD as an explicit password and then never reads the
+    # passfile (libpq-pgpass docs) - a stale value in the environment would
+    # override the correct password from DATABASE_URL (Codex review).
+    unset PGPASSWORD
   fi
 }
