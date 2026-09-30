@@ -630,26 +630,31 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       70% i nie tylko limit liczby gmin (Codex: retry w kliencie i
       natychmiastowy pierwszy fetch nowo aktywowanej gminy potrafią
       przebić limit liczony samym mnożnikiem per gmina). Przed każdą próbą
-      (regularną, retry i bootstrap) connector rezerwuje jednostki w
-      trwałym liczniku dziennym z TASK-13.1a (gotowy w `main`:
-      `record_fetch_call` przez `on_attempt`, już wołany PRZED requestem —
-      ten task dokłada tylko odmowę) i **odmawia próby**, jeśli rezerwacja
-      przekroczyłaby twardy próg (np. 90% limitu 10 000/dobę) — atomowo,
-      żeby równoległe workery nie przebiły go razem. **Wszystkie okna z
-      source-registry** (Open-Meteo: 600/min, 5 000/h, 10 000/dobę,
-      300 000/miesiąc — Codex): ta sama atomowa rezerwacja sprawdza okno
-      60 s i okno 1 h (np. progi 300/min i 4 000/h) — w PostgreSQL, tym
-      samym atomowym `UPDATE … RETURNING` co licznik dzienny z TASK-13.1a,
-      kluczowane początkiem okna, bo scheduler jest jedynym klientem, a
-      wolumen to pojedyncze żądania na sekundę; bez zależności od Redis,
-      który w tej kolejce wchodzi dopiero w TASK-15.4 (tam można te liczniki
-      przenieść);
-      miesięczny wynika z dziennego (90% × 10 000 × 31 < 300 000 — do
-      sprawdzenia, jeśli zmieni się próg dzienny). Scheduler rozkłada
-      zapytania w czasie (pełny cykl ~437 gmin × 2 jednostki ≈ 874 jednostki
-      mieści się w limicie godzinowym tylko przy równym rozłożeniu w cyklu
-      3 h), zamiast wysyłać je naraz; odmowa w oknie krótkim = ponowienie w
-      kolejnym oknie, nie utrata cyklu. Dodatkowo, jako planowanie (nie zabezpieczenie):
+      (regularną, retry i bootstrap) connector atomowo rezerwuje jednostki
+      i **odmawia próby**, jeśli rezerwacja przekroczyłaby którykolwiek próg.
+      **Wszystkie okna z source-registry, bez luk na granicach okien**
+      (Open-Meteo: 600/min, 5 000/h, 10 000/dobę, 300 000/miesiąc — Codex:
+      stałe okna kluczowane początkiem godziny/doby pozwalają zużyć próg
+      tuż przed i tuż po granicy, czyli do 2× w jednym oknie): jednostki
+      zapisywane w kubełkach minutowych (wiersz na źródło i minutę, ten sam
+      atomowy `UPDATE … RETURNING` co licznik z TASK-13.1a, w PostgreSQL —
+      bez zależności od Redis, który wchodzi dopiero w TASK-15.4), a
+      rezerwacja sprawdza sumy kroczące:
+        - bieżąca minuta ≤ 300 → dowolne 60 s obejmuje najwyżej 2 kubełki,
+          czyli ≤ 600 (= limit minutowy),
+        - ostatnie 60 kubełków ≤ 4 000 → dowolna godzina ≤ 4 000 + 300
+          (jeden niepełny kubełek na krawędzi) < 5 000,
+        - ostatnie 1 440 kubełków ≤ 9 000 → dowolna doba ≤ 9 300 < 10 000,
+        - miesiąc wynika z doby: 31 × 9 300 = 288 300 < 300 000.
+      Zmiana któregokolwiek progu wymaga ponownego przeliczenia tych
+      najgorszych przypadków (test). Kubełki starsze niż doba + margines
+      usuwa ten sam job co retencję; licznik dzienny z TASK-13.1a zostaje
+      do alertu 70% i raportowania. Scheduler rozkłada zapytania w czasie —
+      pełny cykl (~437 gmin × 2 jednostki ≈ 874) przy limicie 300/min
+      wymaga co najmniej 3 minut, więc zapytania są rozłożone równomiernie
+      w cyklu 3 h, zamiast wysyłane naraz; odmowa w oknie krótkim =
+      ponowienie w kolejnym oknie, nie utrata cyklu.
+      Dodatkowo, jako planowanie (nie zabezpieczenie):
       przy cyklu 3h (8 wywołań/dobę/gminę) i
       `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) scheduler wybiera co
       najwyżej `floor(0.7 × limit / (8 × units))` (~437) gmin z największą
@@ -658,9 +663,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Kryterium odbioru: gmina używana wyłącznie przez dashboard (odmowa
       zgody na push) pozostaje aktywna dzięki heartbeatowi; masowe odczyty
       dashboardu dla wszystkich `geo_area_id` NIE zwiększają liczby
-      odpytywanych gmin; suma jednostek nigdy nie przekracza twardego progu
-      dziennego, godzinowego ani minutowego z (c) — także przy retry, masowych
-      aktywacjach i równoległych workerach (test); reset identyfikatora
+      odpytywanych gmin; w ŻADNYM oknie kroczącym (minuta, godzina, doba,
+      miesiąc — także przez granice okien) zużycie nie przekracza limitu
+      providera — przy retry, masowych aktywacjach i równoległych workerach
+      (test z ruchem skupionym po obu stronach granicy okna); reset identyfikatora
       kasuje wszystkie rekordy poprzedniego (test).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
