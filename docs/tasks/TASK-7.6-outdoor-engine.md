@@ -55,7 +55,8 @@ Wejście: `OutdoorInputs` z polami `Reading(value, freshness) | None`:
 `temperature_2m, apparent_temperature, precipitation, wind_speed_10m,
 wind_gusts_10m, uv_index, visibility, pm25, pm10` (°C, mm, km/h, indeks, m,
 µg/m³). Wyjście: `OutdoorResult(rating, reasons, missing)`;
-`Missing(group, params, status MISSING|STALE|INVALID, core)`.
+`Missing(group, params, status MISSING|STALE|INVALID, core, blocking)` —
+`blocking=False`, gdy alternatywa w grupie jest użyteczna (tylko raport).
 
 ## Security
 

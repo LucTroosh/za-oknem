@@ -148,7 +148,7 @@ def test_cold_and_heat_codes_for_both_temperature_params():
 def test_no_inputs_is_unknown_not_good():
     result = evaluate(OutdoorInputs())
     assert result.rating is Rating.UNKNOWN
-    assert {m.group for m in result.missing if m.core} == {
+    assert {m.group for m in result.missing if m.core and m.blocking} == {
         "air",
         "precipitation",
         "wind",
@@ -165,23 +165,39 @@ def test_missing_core_factor_blocks_good():
     ):
         result = evaluate(make(**dict.fromkeys(core_fields)))
         assert result.rating is Rating.UNKNOWN, group
-        assert [(m.group, m.status, m.core) for m in result.missing] == [(group, "MISSING", True)]
+        assert [(m.group, m.status, m.core, m.blocking) for m in result.missing] == [
+            (group, "MISSING", True, True)
+        ]
 
 
-def test_one_of_two_alternatives_is_enough_for_a_group():
-    assert evaluate(make(pm10=None)).rating is Rating.GOOD
-    assert evaluate(make(pm25=None)).rating is Rating.GOOD
-    assert evaluate(make(apparent_temperature=None)).rating is Rating.GOOD
-    assert evaluate(make(temperature_2m=None)).rating is Rating.GOOD
+def test_one_of_two_alternatives_is_enough_for_a_group_but_absence_is_reported():
+    for absent, group in (
+        ("pm10", "air"),
+        ("pm25", "air"),
+        ("apparent_temperature", "thermal"),
+        ("temperature_2m", "thermal"),
+    ):
+        result = evaluate(make(**{absent: None}))
+        assert result.rating is Rating.GOOD
+        assert [(m.group, m.params, m.status, m.blocking) for m in result.missing] == [
+            (group, (absent,), "MISSING", False)
+        ]
+    # A stale sibling is reported as STALE, and its value is still not used.
+    stale = replace(make(), temperature_2m=Reading(-30.0, "STALE"))
+    result = evaluate(stale)
+    assert result.rating is Rating.GOOD
+    assert [(m.group, m.params, m.status, m.blocking) for m in result.missing] == [
+        ("thermal", ("temperature_2m",), "STALE", False)
+    ]
 
 
 def test_missing_optional_factor_is_good_but_reported():
     result = evaluate(make(uv_index=None, visibility=None, wind_gusts_10m=None))
     assert result.rating is Rating.GOOD
-    assert {(m.group, m.core) for m in result.missing} == {
-        ("uv", False),
-        ("visibility", False),
-        ("gusts", False),
+    assert {(m.group, m.core, m.blocking) for m in result.missing} == {
+        ("uv", False, True),
+        ("visibility", False, True),
+        ("gusts", False, True),
     }
 
 

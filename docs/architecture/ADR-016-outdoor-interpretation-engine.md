@@ -55,6 +55,9 @@ przy samej klasyfikacji. Wejścia już mamy: `WeatherSnapshot`
    - brakuje tylko opcjonalnych → `GOOD` + `missing[]` (UV nocą i tak ≈ 0;
      widoczność/porywy nie są warunkiem bezpieczeństwa sensu stricto);
    - brak wszystkiego → `UNKNOWN`.
+   `missing[]` raportuje KAŻDE nieużyteczne wejście; `blocking=True` oznacza, że
+   w grupie nie zostało żadne użyteczne (tylko wtedy grupa rdzeniowa blokuje GOOD),
+   `blocking=False` — alternatywa działa (np. pm25 jest, pm10 brak).
    Porządek "dla monotoniczności": `GOOD < UNKNOWN < MODERATE < POOR`
    (`SEVERITY`) — pogorszenie wartości nigdy nie poprawia wyniku; UNKNOWN znaczy
    "nie potwierdzono GOOD".

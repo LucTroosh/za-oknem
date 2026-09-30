@@ -154,6 +154,9 @@ class Missing:
     params: tuple[str, ...]
     status: str  # MISSING (None) | STALE (not FRESH/RECENT) | INVALID (NaN/inf)
     core: bool
+    # True = no usable input left in the group (a core group then blocks GOOD);
+    # False = an alternative is still usable (e.g. pm25 ok, pm10 absent): reported only.
+    blocking: bool = True
 
 
 @dataclass(frozen=True)
@@ -220,13 +223,14 @@ def evaluate(inputs: OutdoorInputs, rules: tuple[Rule, ...] = RULES) -> OutdoorR
             tuple(sorted(params)),
             "STALE" if "STALE" in statuses else "INVALID" if "INVALID" in statuses else "MISSING",
             core,
+            not group_ok[group],
         )
         for group, (params, statuses, core) in group_info.items()
-        if not group_ok[group]
+        if params
     )
 
     if worst is Level.GOOD:
-        rating = Rating.UNKNOWN if any(m.core for m in missing) else Rating.GOOD
+        rating = Rating.UNKNOWN if any(m.core and m.blocking for m in missing) else Rating.GOOD
     else:
         rating = Rating(worst.name)
     return OutdoorResult(rating, reasons, missing)
