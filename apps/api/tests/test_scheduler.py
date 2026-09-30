@@ -67,6 +67,41 @@ class TestRunGios:
 
         find_stations_mock.assert_not_called()
 
+    def test_no_matching_station_raises_so_it_is_not_recorded_as_success(
+        self, monkeypatch, db_session
+    ):
+        import pytest
+
+        monkeypatch.setenv("GIOS_STATION_IDS", "999")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(scheduler.gios_client, "find_stations", MagicMock(return_value=[]))
+
+        with pytest.raises(RuntimeError, match="no data fetched"):
+            scheduler.run_gios()
+
+    def test_all_stations_failing_raises(self, monkeypatch, db_session):
+        import pytest
+
+        monkeypatch.setenv("GIOS_STATION_IDS", "38,42")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        stations = [{"Identyfikator stacji": 38}, {"Identyfikator stacji": 42}]
+        find = MagicMock(return_value=stations)
+        monkeypatch.setattr(scheduler.gios_client, "find_stations", find)
+        monkeypatch.setattr(scheduler, "ingest_station", MagicMock(return_value=None))
+
+        with pytest.raises(RuntimeError, match="2 failed"):
+            scheduler.run_gios()
+
+    def test_partial_station_failure_is_still_a_run(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38,42")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        stations = [{"Identyfikator stacji": 38}, {"Identyfikator stacji": 42}]
+        find = MagicMock(return_value=stations)
+        monkeypatch.setattr(scheduler.gios_client, "find_stations", find)
+        monkeypatch.setattr(scheduler, "ingest_station", MagicMock(side_effect=[None, 0]))
+
+        assert scheduler.run_gios() is True
+
     def test_ingests_configured_stations(self, monkeypatch, db_session):
         monkeypatch.setenv("GIOS_STATION_IDS", "38, 42")
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)

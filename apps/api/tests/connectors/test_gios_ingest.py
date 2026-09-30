@@ -94,7 +94,7 @@ def test_ingest_station_isolates_api_failure(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored == 0
+    assert stored is None  # fetch failed: distinct from 0 = nothing new (TASK-13.1)
     assert db_session.query(Measurement).count() == 0
 
 

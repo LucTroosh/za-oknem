@@ -67,10 +67,15 @@ def run_gios() -> bool:
         return False  # skipped, not a successful fetch (ADR-012)
     db = SessionLocal()
     try:
-        for station in gios_client.find_stations(set(station_ids)):
-            ingest_station(station, db)
+        stations = gios_client.find_stations(set(station_ids))
+        failed = sum(ingest_station(station, db) is None for station in stations)
     finally:
         db.close()
+    # Per-station isolation (rule #1) swallows errors: configured IDs matching no
+    # station, or every station failing, is an outage - not a successful run
+    # (ADR-012, TASK-13.1). A partial failure still counts as a run.
+    if not stations or failed == len(stations):
+        raise RuntimeError(f"GIOS: no data fetched ({len(stations)} station(s), {failed} failed)")
     return True
 
 

@@ -41,6 +41,17 @@ Dla obu źródeł IMGW progi to założenie robocze, nie zweryfikowany cykl.
 (zegar innego hosta) czyta się jako STALE (istniejące `source_freshness`);
 endpoint niczego nie zapisuje, więc nie ma strażnika zapisu opartego na jednym zegarze.
 
+## Czym jest "sukces" źródła
+
+Health wynika z `source_status`, więc wymaga, by job nie raportował sukcesu przy
+całkowitej awarii. Dlatego (ponad ADR-012): `ingest_geo_area()` i `ingest_station()`
+zwracają `None` (nie `0`) gdy pobranie się nie udało (Open-Meteo także gdy żaden
+blok nie dał się sparsować), a `run_open_meteo()`/`run_gios()` rzucają, gdy zawiodły
+WSZYSTKIE obszary/stacje (albo `GIOS_STATION_IDS` nie pasuje do żadnej stacji).
+Częściowa awaria nadal liczy się jako run (rule #1). Nieobjęte: awaria pojedynczych
+parametrów wewnątrz stacji GIOŚ (izolacja per param) - per-row freshness zostaje
+tam źródłem prawdy.
+
 ## Acceptance Criteria
 
 - [x] Raport zawiera każde z 4 źródeł; nieznane źródło nie jest wymyślane.

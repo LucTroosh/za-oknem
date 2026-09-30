@@ -120,8 +120,10 @@ def _ingest_param(station: dict, sensors: list[dict], formula: str, db) -> bool:
     return True
 
 
-def ingest_station(station: dict, db) -> int:
-    """Returns the number of new readings stored across MONITORED_PARAMS. One
+def ingest_station(station: dict, db) -> int | None:
+    """Returns the number of new readings stored across MONITORED_PARAMS, or None
+    when fetch_sensors() itself failed (distinct from 0 = nothing new; the scheduler
+    uses it to avoid recording a total outage as success, TASK-13.1). One
     station's own fetch_sensors() failure is logged and skipped entirely — it must
     not abort ingestion for the rest of the run (rule #1); a single param's failure
     within a station is isolated by _ingest_param instead."""
@@ -130,7 +132,7 @@ def ingest_station(station: dict, db) -> int:
         sensors = client.fetch_sensors(str(station_id))
     except client.GiosApiError as exc:
         logger.warning("station %s: FAILED (%s), skipping — see rule #1", station_id, exc)
-        return 0
+        return None
 
     return sum(_ingest_param(station, sensors, formula, db) for formula in MONITORED_PARAMS)
 

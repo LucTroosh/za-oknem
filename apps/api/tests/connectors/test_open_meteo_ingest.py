@@ -160,7 +160,7 @@ def test_ingest_geo_area_isolates_parse_failure(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == 0
+    assert stored is None  # every block failed: a failed run (TASK-13.1)
     assert db_session.query(WeatherSnapshot).count() == 0
     assert db_session.query(Forecast).count() == 0
 
