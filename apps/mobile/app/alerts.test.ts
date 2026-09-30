@@ -70,6 +70,8 @@ describe("summarizeAlerts (ADR-012)", () => {
       block(0, { a: ["STALE", "2026-09-29T10:00:00Z"], b: ["STALE", "2026-09-28T10:00:00Z"] }),
     );
     expect(summary).toEqual({ kind: "unavailable", lastSuccessAt: "2026-09-28T10:00:00Z" });
+  });
+});
 
 describe("alertKey", () => {
   it("differs for the same external_id from another source or revision", () => {
