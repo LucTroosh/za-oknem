@@ -22,6 +22,7 @@ from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
 from app.provenance import purge_expired_payloads
+from app.source_health import SOURCES, collect_source_health, log_health_transitions
 from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,23 @@ def _record_run(source_id: str, *, success: bool, error: str | None = None) -> N
             db.close()
 
 
+def _check_source_health(state: dict[str, str]) -> None:
+    """TASK-13.1: log STALE/UNAVAILABLE once per state change (anti-spam: `state`
+    carries the previous states, in memory like the rest of the scheduler, ADR-007).
+    A GIOS deliberately skipped (no GIOS_STATION_IDS) is not monitored. Never
+    raises (rule #1)."""
+    db = None
+    try:
+        ids = [s for s in SOURCES if s != "gios" or _gios_station_ids()]
+        db = SessionLocal()
+        state.update(log_health_transitions(collect_source_health(db, ids), state))
+    except Exception:
+        logger.exception("source health check failed")
+    finally:
+        if db is not None:
+            db.close()
+
+
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -146,6 +164,7 @@ def main(*, iterations: int | None = None) -> None:
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
     last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
     last_retention = float("-inf")
+    health_state: dict[str, str] = {}
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
@@ -164,6 +183,7 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
+        _check_source_health(health_state)
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)

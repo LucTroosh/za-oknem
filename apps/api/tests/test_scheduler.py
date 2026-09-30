@@ -174,6 +174,7 @@ class TestMain:
             monkeypatch.setattr(scheduler, name, mock)
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
         monkeypatch.setattr(scheduler, "_record_run", MagicMock())
+        monkeypatch.setattr(scheduler, "_check_source_health", MagicMock())
         return mocks
 
     def test_first_iteration_runs_every_job(self, monkeypatch):
@@ -261,3 +262,32 @@ class TestSourceStatusRecording:
         monkeypatch.setattr(scheduler, "SessionLocal", _broken_session)
 
         scheduler._record_run("imgw_warningshydro", success=True)  # no exception
+
+
+class TestCheckSourceHealth:
+    def test_logs_transition_once_across_ticks(self, monkeypatch, db_session, caplog):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setenv("GIOS_STATION_IDS", "1")
+        state: dict[str, str] = {}
+
+        scheduler._check_source_health(state)
+        scheduler._check_source_health(state)
+
+        # Nothing ever fetched -> every source UNAVAILABLE, logged once each.
+        errors = [r for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 4
+        assert set(state.values()) == {"UNAVAILABLE"}
+
+    def test_skips_gios_when_not_configured(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        state: dict[str, str] = {}
+
+        scheduler._check_source_health(state)
+
+        assert "gios" not in state
+
+    def test_never_raises(self, monkeypatch):
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        scheduler._check_source_health({})

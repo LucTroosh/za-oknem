@@ -52,7 +52,10 @@ Opcja 3.
   jako „brak ostrzeżeń”, jeśli którekolwiek źródło tej listy ma stan STALE lub
   UNAVAILABLE — wtedy pokazuje stan „niedostępne” z czasem ostatniej udanej
   aktualizacji.
-- `last_error` jest tylko do diagnostyki operacyjnej, nie trafia do API.
+- `last_error` jest tylko do diagnostyki operacyjnej, nie trafia do API mobilnego
+  (`/alerts`, `/hydro`, `/dashboard`). Jedyny wyjątek: operatorski
+  `GET /api/v1/health/sources` (TASK-13.1) zwraca go zsanityzowanego (bez query
+  stringów i wartości `key/token/secret/password/authorization`, max 200 znaków).
 
 ## Consequences
 
