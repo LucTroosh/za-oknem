@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -44,6 +45,11 @@ class Measurement(Base):
     unit: Mapped[str] = mapped_column(String(20))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ADR-014: which raw payload produced this row. NULL = row predates TASK-3.1, or
+    # the provenance write failed (best-effort, rule #1) - never a broken link.
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
 
 
 class Alert(Base):
@@ -78,6 +84,11 @@ class Alert(Base):
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ADR-014: which raw payload produced this row. NULL = row predates TASK-3.1, or
+    # the provenance write failed (best-effort, rule #1) - never a broken link.
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
 
 
 class GeoArea(Base):
@@ -118,6 +129,11 @@ class WeatherSnapshot(Base):
     unit: Mapped[str] = mapped_column(String(20))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ADR-014: which raw payload produced this row. NULL = row predates TASK-3.1, or
+    # the provenance write failed (best-effort, rule #1) - never a broken link.
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
 
 
 class Forecast(Base):
@@ -152,6 +168,11 @@ class Forecast(Base):
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ADR-014: which raw payload produced this row. NULL = row predates TASK-3.1, or
+    # the provenance write failed (best-effort, rule #1) - never a broken link.
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
 
 
 class SourceFetchCounter(Base):
@@ -196,3 +217,32 @@ class SourceStatus(Base):
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Ops diagnostics only - never exposed through the API (ADR-012).
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class SourceFetch(Base):
+    """One raw fetch from an external source (ADR-014, Master Plan §33-34): what
+    exactly the source returned when we stored a value. Not a Measurement/Forecast/
+    Event/Alert (rule #7) - it is the provenance record those rows point at via
+    `source_fetch_id`.
+
+    `payload` is the decoded JSON response (PostgreSQL JSONB; plain JSON on SQLite in
+    tests). Retention (ADR-014) sets it to SQL NULL after the source's window; the
+    row itself (endpoint, parser_version, validation_status, fetched_at) is kept.
+    SQL NULL therefore means "purged"; a source that answered with a JSON `null`
+    body is stored as the JSON literal `null` (JSON's default for Python None), so
+    the two stay distinguishable (`payload IS NULL` vs `payload = 'null'`).
+    """
+
+    __tablename__ = "source_fetches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    endpoint: Mapped[str] = mapped_column(String(500))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    parser_version: Mapped[str] = mapped_column(String(30))
+    # pending | valid | partial | invalid (app.provenance)
+    validation_status: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[Any | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"),
+        nullable=True,
+    )

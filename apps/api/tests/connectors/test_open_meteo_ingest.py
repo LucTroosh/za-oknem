@@ -7,9 +7,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app import provenance
 from app.connectors.open_meteo import client, ingest
-from app.connectors.open_meteo.parser import FORECAST_PARAM_CODES, HOURLY_PARAM_CODES, PARAM_CODES
-from app.models import Forecast, GeoArea, SourceFetchCounter, WeatherSnapshot
+from app.connectors.open_meteo.parser import (
+    FORECAST_PARAM_CODES,
+    HOURLY_PARAM_CODES,
+    PARAM_CODES,
+    PARSER_VERSION,
+)
+from app.models import Forecast, GeoArea, SourceFetch, SourceFetchCounter, WeatherSnapshot
 
 CURRENT_BLOCK = {
     "current": {
@@ -204,8 +210,9 @@ def test_ingest_geo_area_commits_forecast_batch_atomically(db_session, monkeypat
     ingest.ingest_geo_area(area, db_session)
 
     # 1 commit for the forecast batch + PARAM_COUNT commits for current-weather
-    # snapshots (those stay one-per-row, per Codex's explicit request).
-    assert len(commit_calls) == PARAM_COUNT + 1
+    # snapshots (those stay one-per-row, per Codex's explicit request) + 2 commits
+    # for provenance: the pending raw-payload row and its status update (ADR-014).
+    assert len(commit_calls) == PARAM_COUNT + 3
     assert db_session.query(Forecast).count() == FORECAST_COUNT
 
 
@@ -217,6 +224,82 @@ def test_ingest_geo_area_fetched_at_is_recent(db_session, monkeypatch):
 
     row = db_session.query(WeatherSnapshot).first()
     assert (datetime.now(UTC) - row.fetched_at).total_seconds() < 5
+
+
+class TestProvenance:
+    """ADR-014: snapshots and forecasts from one fetch all point at its raw payload."""
+
+    def test_rows_link_to_the_raw_fetch(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD_WITH_HOURLY))
+
+        ingest.ingest_geo_area(area, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.source_id == "open_meteo"
+        assert "latitude=50.43" in fetch.endpoint
+        assert fetch.payload == PAYLOAD_WITH_HOURLY
+        assert fetch.parser_version == PARSER_VERSION
+        assert fetch.validation_status == provenance.VALID
+        snapshot_links = {r.source_fetch_id for r in db_session.query(WeatherSnapshot).all()}
+        forecast_links = {r.source_fetch_id for r in db_session.query(Forecast).all()}
+        assert snapshot_links == forecast_links == {fetch.id}
+
+    def test_broken_block_makes_the_fetch_partial(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        broken = {**CURRENT_BLOCK, "daily": {"bad": "shape"}}
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=broken))
+
+        ingest.ingest_geo_area(area, db_session)
+
+        assert db_session.query(SourceFetch).one().validation_status == provenance.PARTIAL
+
+    def test_unparseable_payload_is_kept_as_invalid(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        bad = {"bad": "shape"}
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=bad))
+
+        ingest.ingest_geo_area(area, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == bad
+        assert fetch.validation_status == provenance.INVALID
+
+    def test_each_run_records_a_fetch_and_dedupe_keeps_the_original_link(
+        self, db_session, monkeypatch
+    ):
+        area = _make_area(db_session)
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+
+        ingest.ingest_geo_area(area, db_session)
+        ingest.ingest_geo_area(area, db_session)
+
+        first, second = db_session.query(SourceFetch).order_by(SourceFetch.id).all()
+        links = {r.source_fetch_id for r in db_session.query(WeatherSnapshot).all()}
+        assert links == {first.id}  # same reading, not re-linked by the duplicate fetch
+        assert second.id != first.id
+
+    def test_payload_survives_an_unexpected_parser_crash_as_pending(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+        monkeypatch.setattr(ingest, "normalize", MagicMock(side_effect=RuntimeError("bug")))
+
+        with pytest.raises(RuntimeError):
+            ingest.ingest_geo_area(area, db_session)
+
+        fetch = db_session.query(SourceFetch).one()
+        assert fetch.payload == PAYLOAD
+        assert fetch.validation_status == provenance.PENDING
+
+    def test_provenance_failure_does_not_block_rows(self, db_session, monkeypatch):
+        area = _make_area(db_session)
+        monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=PAYLOAD))
+        monkeypatch.setattr(provenance, "record_fetch", MagicMock(return_value=None))
+
+        stored = ingest.ingest_geo_area(area, db_session)
+
+        assert stored == PARAM_COUNT + FORECAST_COUNT
+        assert {r.source_fetch_id for r in db_session.query(WeatherSnapshot).all()} == {None}
 
 
 class TestMain:
