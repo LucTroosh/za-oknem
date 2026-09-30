@@ -9,10 +9,11 @@ the same file changes nothing but `boundary` of existing rows.
     ... --retire-missing  # the file is a full snapshot: drop boundaries of gminas not in it
 
 Per record, in this order:
-1. row with this TERYT code exists      -> update its boundary;
-2. a seeded city (no TERYT yet) lies inside the polygon (point-in-polygon, never by
-   name) -> that row adopts the TERYT code + boundary, keeping its id/slug so its
-   weather history stays attached;
+1. row with this TERYT code exists      -> update its boundary and name;
+2. a seeded city (slug not `teryt-*`) with no TERYT yet, or one whose old code is absent
+   from this snapshot (renumbered gmina), lies inside the polygon (point-in-polygon, never
+   by name) -> that row adopts the TERYT code + boundary + name, keeping its id/slug so
+   weather history and polling stay attached;
 3. otherwise                             -> insert a new row with weather_polling_active
    = false (geo-matching only; polling is opt-in, BACKLOG TASK-6.2 (4)).
 """
@@ -54,11 +55,14 @@ _PREPARE_SQL = text(
     """
 )
 _GEOM = "ST_GeomFromEWKB(decode(CAST(:hex AS text), 'hex'))"
-_UPDATE_SQL = text(f"UPDATE geo_areas SET boundary = {_GEOM} WHERE teryt_code = :code")
+_UPDATE_SQL = text(
+    f"UPDATE geo_areas SET boundary = {_GEOM}, name = :name WHERE teryt_code = :code"
+)
 _ADOPT_SQL = text(
     f"""
-    UPDATE geo_areas SET teryt_code = :code, boundary = {_GEOM}
-    WHERE teryt_code IS NULL
+    UPDATE geo_areas SET teryt_code = :code, boundary = {_GEOM}, name = :name
+    WHERE left(slug, 6) <> 'teryt-'
+      AND (teryt_code IS NULL OR teryt_code <> ALL(CAST(:snapshot AS text[])))
       AND ST_Covers({_GEOM}, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))
     """
 )
@@ -107,20 +111,21 @@ class ImportReport:
 
 def import_records(records: list[GminaRecord], db) -> ImportReport:
     report = ImportReport()
+    snapshot = [r.teryt_code for r in records]
     for rec in records:
         try:
             prepared = db.execute(_PREPARE_SQL, {"geojson": rec.geometry_json}).one()
             if prepared.is_empty:
                 raise ValueError("no polygon left after validation")
-            params = {"hex": prepared.hex, "code": rec.teryt_code}
+            params = {"hex": prepared.hex, "code": rec.teryt_code, "name": rec.name}
             if db.execute(_UPDATE_SQL, params).rowcount:
                 report.updated += 1
-            elif db.execute(_ADOPT_SQL, params).rowcount:
+            elif db.execute(_ADOPT_SQL, {**params, "snapshot": snapshot}).rowcount:
                 report.adopted_seeds += 1
             else:
                 db.execute(
                     _INSERT_SQL,
-                    {**params, "slug": f"teryt-{rec.teryt_code}", "name": rec.name},
+                    {**params, "slug": f"teryt-{rec.teryt_code}"},
                 )
                 report.inserted += 1
             db.commit()

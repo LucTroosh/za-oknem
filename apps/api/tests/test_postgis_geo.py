@@ -155,6 +155,30 @@ def test_invalid_self_intersecting_polygon_is_repaired(pg):
     assert _code(pg, 49.7, 22.05) == "9999905"
 
 
+def test_seed_with_obsolete_code_is_readopted_by_new_code(pg):
+    pg.execute(
+        text(
+            "INSERT INTO geo_areas (slug, name, latitude, longitude, teryt_code) "
+            "VALUES ('synth-seed', 'Synth Seed', 49.75, 22.25, '9999950')"
+        )
+    )
+    seed_id = pg.execute(text("SELECT id FROM geo_areas WHERE slug='synth-seed'")).scalar()
+    report = _load(pg, A)  # snapshot no longer contains 9999950
+    assert (report.adopted_seeds, report.inserted) == (1, 0)
+    row = pg.execute(
+        text("SELECT teryt_code, weather_polling_active FROM geo_areas WHERE id=:i"),
+        {"i": seed_id},
+    ).one()
+    assert row == ("9999901", True)
+
+
+def test_reimport_refreshes_name(pg):
+    _load(pg, A)
+    renamed = _feature("9999901", "Synth A renamed", _ring(22.0, 49.6, 22.5, 49.9))
+    _load(pg, renamed)
+    assert resolve_gmina(pg, 49.75, 22.25).name == "Synth A renamed"
+
+
 def test_retire_missing_clears_obsolete_boundary_only(pg):
     _load(pg, A, B)
     assert retire_missing(["9999901"], pg) == 1

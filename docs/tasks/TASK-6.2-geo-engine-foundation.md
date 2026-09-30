@@ -73,6 +73,8 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
 - [ ] Coroczny pełny snapshot: `--retire-missing` zeruje `boundary` gmin nieobecnych w pliku
       (wiersze nie są usuwane; tylko gdy brak odrzuconych rekordów; seedy bez TERYT nietknięte),
       więc resolver nie zwróci przestarzałej gminy (Codex, runda 1).
+- [ ] Reimport odświeża nazwę; seed z kodem nieobecnym w nowym snapshocie (przenumerowana
+      gmina) adoptuje nowy kod, zachowując `id`/polling (Codex, runda 2).
 - [ ] Nieprawidłowy rekord (zły TERYT, nie-WGS84, niezamknięty pierścień, duplikat) jest
       odrzucany z powodem, reszta importowana; nieprawidłowa geometria naprawiana
       (`ST_MakeValid`) i policzona w raporcie.
