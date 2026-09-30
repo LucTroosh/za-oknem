@@ -584,15 +584,35 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zarejestrowane urządzenie push — użytkownik może odmówić zgody na
       powiadomienia i mimo to normalnie korzystać z dashboardu dla
       ręcznie wybranej gminy (rule #11: konto/push nie są obowiązkowe).
-      Sam "ostatnio obserwowana" musi więc aktualizować się też przy
-      zwykłym odczycie `dashboard_latest()` dla danej `geo_area_id`
-      (niezależnie od tego, czy urządzenie ma zarejestrowany push token),
-      nie tylko przy wysyłce `observed_area_code`. Kryterium odbioru:
-      gmina wybrana ręcznie i używana wyłącznie przez czytanie
-      dashboardu (odmowa zgody na push) pozostaje aktywna i otrzymuje
-      pogodę; wygaszeniu podlegają tylko gminy bez ŻADNEJ z tych dwóch
-      form aktywności (push-heartbeat lub odczyt dashboardu) dłużej niż
-      próg.
+      Potrzebny jest więc sygnał niezależny od push — **ale NIE sam
+      odczyt `dashboard_latest()`** (Codex, runda kolejna): to publiczny,
+      nieuwierzytelniony endpoint z wyliczalnymi `geo_area_id`, więc
+      crawler jednym requestem na gminę na okres dzierżawy utrzymałby
+      aktywne wszystkie ~2.5k gmin i wymusił ~20k wywołań Open-Meteo/dzień
+      — dokładnie przekroczenie limitu, któremu ten task ma zapobiec.
+      Realny zakres:
+      (a) **anonimowy heartbeat instalacji** — losowy `installation_id`
+      generowany na urządzeniu przy pierwszym uruchomieniu (bez konta,
+      bez danych osobowych, rule #11), wysyłany z wybraną gminą niezależnie
+      od zgody na push; aktywność gminy = liczba RÓŻNYCH instalacji z
+      heartbeatem w oknie (np. 30 dni), nie liczba odczytów;
+      (b) **limity po stronie serwera**: jedna instalacja liczy się dla
+      ograniczonej liczby gmin naraz (np. ≤3) i może zmieniać gminę
+      ograniczoną liczbę razy na dobę; rate limit per IP na endpoint
+      heartbeatu — nowe `installation_id` są tanie, więc sam identyfikator
+      nie jest zabezpieczeniem;
+      (c) **twardy limit liczby odpytywanych gmin wyliczony z budżetu**,
+      nie tylko alert 70%: przy cyklu 3h (8 wywołań/dobę/gminę) i
+      `ESTIMATED_BILLABLE_UNITS_PER_CALL` (dziś 2) limit 10 000/dobę daje
+      max ~625 gmin; scheduler odpytuje co najwyżej `floor(0.7 × limit /
+      (8 × units))` gmin, wybierając te z największą liczbą różnych
+      instalacji, a nadwyżka dostaje dane rzadziej/wcale (jawnie oznaczone
+      freshness STALE/UNAVAILABLE, rule #8) zamiast przepalać limit.
+      Kryterium odbioru: gmina używana wyłącznie przez dashboard (odmowa
+      zgody na push) pozostaje aktywna dzięki heartbeatowi; masowe odczyty
+      dashboardu dla wszystkich `geo_area_id` NIE zwiększają liczby
+      odpytywanych gmin; liczba wywołań Open-Meteo/dobę nigdy nie
+      przekracza limitu z (c) niezależnie od ruchu (test).
 - [ ] **TASK-12.3:** Foreground location (device geolocation, jednorazowe
       żądanie, minimalne uprawnienia — rule #8/§8 Master Planu Principle 8).
       **Brakujące podpięcie (Codex):** dziś żaden task nie łączy wyniku tego
