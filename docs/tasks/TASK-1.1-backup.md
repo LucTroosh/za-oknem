@@ -132,6 +132,10 @@ Brak zmian schematu bazy — to czysto operacyjne skrypty, żadnych migracji Ale
   hasła (LucTroosh review [P2]; zweryfikowane shimami logującymi argv każdego
   wywołania przy auth scram-sha-256). `PGPASSWORD` jest wtedy czyszczone (libpq
   preferuje je przed passfile).
+  Drugi (i jedyny poza `password`) sekretny parametr libpq, `sslpassword`
+  (hasło klucza prywatnego TLS), trafia do `PGSERVICEFILE` (0600) i jest
+  dołączany przez `service=` — również nigdy w argv. `service=` podany w
+  `DATABASE_URL` jest odrzucany (zostałby po cichu nadpisany).
 - `restore_test.sh` odszyfrowuje dump strumieniowo do `pg_restore` — plaintext nie
   trafia na dysk także na hoście weryfikacyjnym.
 - Manifest musi być kompletny: brakujący/pusty licznik lub `alembic_version` to

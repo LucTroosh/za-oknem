@@ -8,12 +8,19 @@
 # a password-free URL in PG_SAFE_URL for use in command lines. libpq reads the
 # passfile itself, so no child process ever gets the secret as an argument.
 #
-# Usage: pg_secure_url "$URL" "$PRIVATE_DIR"   -> sets PG_SAFE_URL, exports PGPASSFILE
+# libpq has exactly two secret connection parameters: `password` and `sslpassword`
+# (private-key passphrase, libpq-connect docs; sslkey/sslcert are paths). Both are
+# removed from the URL: `password` goes to PGPASSFILE, `sslpassword` - which pgpass
+# can't hold - to a mode-600 PGSERVICEFILE section referenced via `service=`
+# (libpq merges service-file parameters with the connection string).
+#
+# Usage: pg_secure_url "$URL" "$PRIVATE_DIR"
+#   -> sets PG_SAFE_URL, exports PGPASSFILE / PGSERVICEFILE when needed
 
 _pg_urldecode() { printf '%b' "${1//%/\\x}"; }
 
 pg_secure_url() {
-  local url="$1" dir="$2" password="" query="" part
+  local url="$1" dir="$2" password="" sslpassword="" query="" part key
   case "$url" in
     *\?*) query="${url#*\?}"; url="${url%%\?*}" ;;
   esac
@@ -25,15 +32,26 @@ pg_secure_url() {
     local kept=() qparts=()
     IFS='&' read -ra qparts <<< "$query"
     for part in "${qparts[@]}"; do
-      if [ "$(_pg_urldecode "${part%%=*}")" = "password" ]; then
-        password="$(_pg_urldecode "${part#*=}")"
-        continue
-      fi
+      key="$(_pg_urldecode "${part%%=*}")"
+      case "$key" in
+        password) password="$(_pg_urldecode "${part#*=}")"; continue ;;
+        sslpassword) sslpassword="$(_pg_urldecode "${part#*=}")"; continue ;;
+        service)
+          # We need `service=` for sslpassword; a user-supplied one would be
+          # silently replaced, so refuse instead of guessing.
+          echo "[pgpass] BŁĄD: parametr service= w DATABASE_URL nie jest obsługiwany." >&2
+          return 1 ;;
+      esac
       kept+=("$part")
     done
     if [ "${#kept[@]}" -gt 0 ]; then
       url="$url?$(IFS='&'; echo "${kept[*]}")"
     fi
+  fi
+  if [ -n "$sslpassword" ]; then
+    (umask 077; printf '[za_oknem_backup]\nsslpassword=%s\n' "$sslpassword" > "$dir/.pg_service.conf")
+    export PGSERVICEFILE="$dir/.pg_service.conf"
+    case "$url" in *\?*) url="$url&service=za_oknem_backup" ;; *) url="$url?service=za_oknem_backup" ;; esac
   fi
   PG_SAFE_URL="$url"
   if [ -n "$password" ]; then
