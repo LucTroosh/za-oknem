@@ -104,7 +104,10 @@ def collect_source_health(db: Session, source_ids: Iterable[str] | None = None) 
             report.append(_source_health(db, source_id, SOURCES[source_id], today))
         except Exception:
             logger.exception("source health evaluation failed for %s", source_id)
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception:  # broken connection: still produce the fallback entry
+                logger.exception("rollback failed during source health evaluation")
             report.append(
                 {
                     "source_id": source_id,

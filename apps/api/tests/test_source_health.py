@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
@@ -99,6 +100,18 @@ def test_one_broken_source_does_not_break_the_report(db_session, monkeypatch):
     assert by_id["gios"]["freshness"] == "UNAVAILABLE"
     assert by_id["gios"]["last_error"] == "health evaluation failed"
     assert by_id["imgw_hydro"]["freshness"] == "FRESH"
+
+
+def test_rollback_failure_still_yields_full_report(db_session, monkeypatch):
+    import app.source_health as sh
+
+    monkeypatch.setattr(sh, "_source_health", MagicMock(side_effect=RuntimeError("db gone")))
+    monkeypatch.setattr(db_session, "rollback", MagicMock(side_effect=RuntimeError("dead conn")))
+
+    report = collect_source_health(db_session)
+
+    assert [e["source_id"] for e in report] == list(SOURCES)
+    assert {e["freshness"] for e in report} == {"UNAVAILABLE"}
 
 
 def test_sanitize_error_strips_query_secrets_and_truncates():
