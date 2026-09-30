@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { type AlertsBlock, alertAreasLabel } from "./alerts";
+import { type AlertsBlock, alertAreasLabel, alertKey } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
 import { FRESHNESS_LABEL, type Freshness } from "./freshness";
@@ -125,7 +125,7 @@ export default function Home() {
             <View style={styles.alerts}>
               <Text style={styles.alertsTitle}>Ostrzeżenia — cała Polska</Text>
               {alerts.items.map((alert) => (
-                <View key={alert.external_id} style={styles.alertItem}>
+                <View key={alertKey(alert)} style={styles.alertItem}>
                   <Text style={styles.metric}>
                     {alert.event_type} (stopień {alert.severity_raw})
                   </Text>
