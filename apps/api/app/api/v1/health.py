@@ -43,6 +43,8 @@ class SourceHealthOut(BaseModel):
     last_success_at: str | None
     last_error: str | None  # sanitized + truncated (ADR-012, TASK-13.1)
     daily_budget: DailyBudgetOut | None
+    # False: source deliberately off (e.g. GIOS without GIOS_STATION_IDS) - not a fault.
+    monitored: bool
 
 
 class SourcesHealthResponse(BaseModel):

@@ -328,6 +328,32 @@ class TestMain:
 
         assert ingest_mock.call_count == 1
 
+    def test_cli_records_source_status(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "open_meteo").last_success_at is not None
+
+    def test_cli_records_failure_when_every_area_failed(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=None))
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        row = db_session.get(SourceStatus, "open_meteo")
+        assert row.last_success_at is None and "all 1 geo area" in row.last_error
+
     def test_slug_filters_to_matching_areas_only(self, monkeypatch, db_session):
         _make_area(db_session)  # slug="klodzko"
         other = GeoArea(slug="warszawa", name="Warszawa", latitude=52.23, longitude=21.01)

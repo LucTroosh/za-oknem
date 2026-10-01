@@ -22,7 +22,7 @@ from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
 from app.provenance import purge_expired_payloads
-from app.source_health import SOURCES, collect_source_health, log_health_transitions
+from app.source_health import collect_source_health, log_health_transitions
 from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
@@ -46,18 +46,27 @@ def _gios_station_ids() -> list[str]:
     return [s.strip() for s in raw.split(",") if s.strip()]
 
 
-def run_open_meteo() -> None:
+def _last_cause(errors: list[str]) -> str:
+    return f"; last cause: {errors[-1]}" if errors else ""
+
+
+def run_open_meteo() -> bool:
     db = SessionLocal()
+    errors: list[str] = []
     try:
         areas = db.query(GeoArea).all()
-        failed = sum(ingest_geo_area(area, db) is None for area in areas)
+        failed = sum(ingest_geo_area(area, db, errors) is None for area in areas)
     finally:
         db.close()
-    if areas and failed == len(areas):
+    if not areas:
+        logger.warning("no geo_areas configured - skipping scheduled Open-Meteo ingest")
+        return False  # skipped, not a successful fetch (ADR-012)
+    if failed == len(areas):
         # Per-area isolation (rule #1) swallows fetch errors; if EVERY area failed the
         # source is down and this run must not refresh last_success_at (ADR-012,
         # TASK-13.1) - a partial failure still counts as a run.
-        raise RuntimeError(f"Open-Meteo fetch failed for all {failed} geo area(s)")
+        raise RuntimeError(f"Open-Meteo failed for all {failed} geo area(s){_last_cause(errors)}")
+    return True
 
 
 def run_gios() -> bool:
@@ -66,16 +75,20 @@ def run_gios() -> bool:
         logger.info("GIOS_STATION_IDS not set - skipping scheduled GIOS ingest")
         return False  # skipped, not a successful fetch (ADR-012)
     db = SessionLocal()
+    errors: list[str] = []
     try:
         stations = gios_client.find_stations(set(station_ids))
-        failed = sum(ingest_station(station, db) is None for station in stations)
+        failed = sum(ingest_station(station, db, errors) is None for station in stations)
     finally:
         db.close()
     # Per-station isolation (rule #1) swallows errors: configured IDs matching no
     # station, or every station failing, is an outage - not a successful run
     # (ADR-012, TASK-13.1). A partial failure still counts as a run.
     if not stations or failed == len(stations):
-        raise RuntimeError(f"GIOS: no data fetched ({len(stations)} station(s), {failed} failed)")
+        raise RuntimeError(
+            f"GIOS: no data fetched ({len(stations)} station(s), {failed} failed)"
+            f"{_last_cause(errors)}"
+        )
     return True
 
 
@@ -150,13 +163,12 @@ def _record_run(source_id: str, *, success: bool, error: str | None = None) -> N
 def _check_source_health(state: dict[str, str]) -> None:
     """TASK-13.1: log STALE/UNAVAILABLE once per state change (anti-spam: `state`
     carries the previous states, in memory like the rest of the scheduler, ADR-007).
-    A GIOS deliberately skipped (no GIOS_STATION_IDS) is not monitored. Never
+    Deliberately disabled sources (GIOS without GIOS_STATION_IDS) are skipped. Never
     raises (rule #1)."""
     db = None
     try:
-        ids = [s for s in SOURCES if s != "gios" or _gios_station_ids()]
         db = SessionLocal()
-        state.update(log_health_transitions(collect_source_health(db, ids), state))
+        state.update(log_health_transitions(collect_source_health(db), state))
     except Exception:
         logger.exception("source health check failed")
     finally:

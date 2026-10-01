@@ -61,12 +61,14 @@ Opcja 3.
 
 - Rozróżnienie „potwierdzone zero” vs „źródło milczy” dla ostrzeżeń,
   wymagane przed pokazaniem stanu „brak ostrzeżeń” komukolwiek.
-- Sukces joba jest sygnałem na poziomie całego przebiegu. Joby, które
-  izolują błędy per element (Open-Meteo per gmina, GIOŚ per stacja — rule #1),
-  mogą zakończyć się „sukcesem” mimo częściowych błędów; dla nich per-wiersz
-  freshness pozostaje źródłem prawdy, a `source_status` mówi tylko, że
-  scheduler działa. `ponytail:` — rozbicie per element, jeśli kiedyś będzie
-  potrzebne dla tych domen.
+- Sukces joba oznacza, że źródło dało dane, nie tylko że nic nie wyrzuciło wyjątku
+  (TASK-13.1): joby izolujące błędy per element (Open-Meteo per gmina, GIOŚ per
+  stacja i per parametr) raportują porażkę, gdy zawiodły WSZYSTKIE elementy
+  (albo konfiguracja nie pasuje do żadnej stacji); częściowa awaria nadal jest
+  runem. Znane ograniczenie: Open-Meteo traktuje obszar jako porażkę tylko gdy
+  padł fetch albo wszystkie 3 bloki, więc awaria 1-2 bloków w każdym obszarze
+  nadal daje "sukces" - tu per-wiersz freshness zostaje źródłem prawdy.
+  `ponytail:` rozbicie per blok, jeśli kiedyś będzie potrzebne.
 - Pollen (TASK-8.x) i woda/kąpieliska (TASK-11.x) muszą reużyć ten sam model,
   nie definiować własnego.
 - TASK-3.1 (`source_fetches`) może w przyszłości zastąpić tę tabelę jako

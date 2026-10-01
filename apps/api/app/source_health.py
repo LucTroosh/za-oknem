@@ -8,6 +8,7 @@ its own domain, already sized off that source's cycle (ADR-004, source-registry)
 so the health view and the data endpoints can never disagree about "stale"."""
 
 import logging
+import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -32,6 +33,8 @@ MAX_PUBLIC_ERROR_LENGTH = 200
 class SourceSpec:
     freshness: Callable[[datetime], str]
     daily_limit: int | None = None  # None = no documented daily cap (source-registry)
+    # False = deliberately switched off (not a fault): no alarm, `monitored: false`.
+    enabled: Callable[[], bool] = lambda: True
 
 
 # Exactly the source_ids the scheduler records in source_status (ADR-012).
@@ -42,23 +45,32 @@ class SourceSpec:
 #   warnings being safety-critical (rule #16 exception).
 SOURCES: dict[str, SourceSpec] = {
     "open_meteo": SourceSpec(weather_freshness, OPEN_METEO_DAILY_LIMIT),
-    "gios": SourceSpec(air_freshness),
+    # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
+    "gios": SourceSpec(
+        air_freshness, enabled=lambda: bool(os.environ.get("GIOS_STATION_IDS", "").strip(", "))
+    ),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),
 }
 
 # Error text comes from exception messages (HTTP libs embed URLs, sometimes with
-# keys). Strip query strings and key=value secrets before it leaves the process.
+# credentials). Redact URL userinfo, query strings and anything key/token/secret/
+# password/authorization-like, including `access_token=x`, `x_api_key: x`, JSON
+# `"token": "x"`. Input is capped first so the scan stays linear-ish (no ReDoS).
+_USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
 _SECRET = re.compile(
-    r"(?i)\b(api[_-]?key|token|secret|password|passwd|authorization|bearer)\b\s*[=:]?\s*(?:bearer\s+)?\S+"
+    r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
+    r"""\s*[=:]?\s*(?:bearer\s+)?["']?[^\s"',;&)]+["']?"""
 )
+_MAX_SCAN = 1000
 
 
 def sanitize_error(error: str | None) -> str | None:
     if not error:
         return None
-    text = _SECRET.sub(r"\1=[redacted]", _QUERY.sub("", " ".join(error.split())))
+    text = " ".join(error[:_MAX_SCAN].split())
+    text = _SECRET.sub("[redacted]", _QUERY.sub("", _USERINFO.sub("//[redacted]@", text)))
     return text[:MAX_PUBLIC_ERROR_LENGTH]
 
 
@@ -90,6 +102,7 @@ def _source_health(db: Session, source_id: str, spec: SourceSpec, today: date) -
         "last_attempt_at": _iso(row.last_attempt_at) if row else None,
         "last_success_at": fresh["last_success_at"],
         "last_error": sanitize_error(row.last_error) if row else None,
+        "monitored": spec.enabled(),
         "daily_budget": _budget(db, source_id, spec.daily_limit, today),
     }
 
@@ -116,6 +129,7 @@ def collect_source_health(db: Session, source_ids: Iterable[str] | None = None) 
                     "last_success_at": None,
                     "last_error": "health evaluation failed",
                     "daily_budget": None,
+                    "monitored": True,
                 }
             )
     return report
@@ -128,6 +142,8 @@ def log_health_transitions(report: list[dict], previous: dict[str, str]) -> dict
     also logged once. Returns the new state."""
     current: dict[str, str] = {}
     for entry in report:
+        if not entry.get("monitored", True):
+            continue  # deliberately disabled source: no alarm (and no stale state kept)
         source_id, state = entry["source_id"], entry["freshness"]
         current[source_id] = state
         before = previous.get(source_id)

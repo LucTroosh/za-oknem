@@ -14,7 +14,7 @@ tylko wewnątrz odpowiedzi `/alerts` i `/hydro`.
   `collect_source_health()`, `sanitize_error()`, `log_health_transitions()`.
 - `GET /api/v1/health/sources`: per źródło `freshness`
   (FRESH/RECENT/STALE/UNAVAILABLE), `last_attempt_at`, `last_success_at`,
-  `last_error` (zsanityzowany), `daily_budget {used, limit, used_pct}` (tylko
+  `last_error` (zsanityzowany), `monitored`, `daily_budget {used, limit, used_pct}` (tylko
   źródła z udokumentowanym limitem dziennym, dziś Open-Meteo, licznik z 13.1a).
   Zawsze HTTP 200; `/health` i `/health/ready` bez zmian.
 - Scheduler (ADR-007) po każdym ticku ocenia zdrowie i loguje **raz na zmianę
@@ -48,9 +48,15 @@ całkowitej awarii. Dlatego (ponad ADR-012): `ingest_geo_area()` i `ingest_stati
 zwracają `None` (nie `0`) gdy pobranie się nie udało (Open-Meteo także gdy żaden
 blok nie dał się sparsować), a `run_open_meteo()`/`run_gios()` rzucają, gdy zawiodły
 WSZYSTKIE obszary/stacje (albo `GIOS_STATION_IDS` nie pasuje do żadnej stacji).
-Częściowa awaria nadal liczy się jako run (rule #1). Nieobjęte: awaria pojedynczych
-parametrów wewnątrz stacji GIOŚ (izolacja per param) - per-row freshness zostaje
-tam źródłem prawdy.
+Częściowa awaria nadal liczy się jako run (rule #1). GIOŚ: stacja to porażka także
+gdy KAŻDY parametr, który ma sensor, zakończył się błędem (np. 429); "nic nowego"
+to nie błąd. `last_error` niesie ostatnią przyczynę z connectora (zsanityzowaną
+przy odczycie). Brak `geo_areas` = skip, nie sukces. Ręczne CLI gios i open_meteo
+zapisują teraz `source_status` tą samą regułą (ADR-012: każdy punkt wejścia).
+
+Znane luki: Open-Meteo - awaria 1-2 z 3 bloków w każdym obszarze nadal daje sukces
+(patrz ADR-012, Consequences). GIOŚ wyłączony (brak `GIOS_STATION_IDS`) ma w
+raporcie `monitored: false` i nie generuje alarmów w logach.
 
 ## Acceptance Criteria
 

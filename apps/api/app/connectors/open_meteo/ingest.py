@@ -29,6 +29,7 @@ from app.connectors.open_meteo.parser import (
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
 from app.rate_budget import check_daily_budget, record_fetch_call
+from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +98,13 @@ def _store_forecast_batch(records: list[dict], db) -> int:
     return len(new_records)
 
 
-def ingest_geo_area(area: GeoArea, db) -> int | None:
+def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int | None:
     """Returns the number of new rows stored (current-weather snapshots +
     hourly-derived fields + forecast days), or None when the fetch itself failed or
     no block parsed (distinct from 0 = fetched, nothing new; the scheduler needs the
     difference to avoid recording a total outage as a successful run, TASK-13.1). One
     geo_area's fetch failure is logged and skipped — it must not abort ingestion
-    for the rest (rule #1).
+    for the rest (rule #1). Failure causes are appended to `errors` when given.
     All three parse steps are isolated from each other too (ADR-010, TASK-5.4):
     a malformed block in one must not cost an otherwise-valid reading in another."""
 
@@ -122,6 +123,8 @@ def ingest_geo_area(area: GeoArea, db) -> int | None:
         payload = client.fetch_weather(area.latitude, area.longitude, on_attempt=_on_attempt)
     except client.OpenMeteoApiError as exc:
         logger.warning("geo_area %s: FAILED (%s), skipping — see rule #1", area.slug, exc)
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
         return None
 
     fetched_at = datetime.now(UTC)
@@ -147,6 +150,8 @@ def ingest_geo_area(area: GeoArea, db) -> int | None:
         logger.warning("geo_area %s: current weather FAILED (%s)", area.slug, exc)
         snapshots = []
         failed_blocks += 1
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
 
     # TASK-5.4: dew point/visibility/UV, own try/except - a hiccup in this newer,
     # hourly-array-derived block must not cost the already-proven current fields
@@ -159,6 +164,8 @@ def ingest_geo_area(area: GeoArea, db) -> int | None:
         logger.warning("geo_area %s: hourly-derived fields FAILED (%s)", area.slug, exc)
         hourly_snapshots = []
         failed_blocks += 1
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
 
     try:
         forecasts = normalize_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
@@ -166,6 +173,8 @@ def ingest_geo_area(area: GeoArea, db) -> int | None:
         logger.warning("geo_area %s: forecast FAILED (%s)", area.slug, exc)
         forecasts = []
         failed_blocks += 1
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
 
     provenance.set_validation_status(db, fetch_id, provenance.batch_status(3, failed_blocks))
     if failed_blocks == 3:
@@ -204,8 +213,20 @@ def main() -> None:
         if not areas:
             print("No matching geo_areas found.", file=sys.stderr)
             sys.exit(1)
-        for area in areas:
-            ingest_geo_area(area, db)
+        errors: list[str] = []
+        # ADR-012: the CLI records its outcome like the scheduler (same success rule).
+        try:
+            failed = sum(ingest_geo_area(area, db, errors) is None for area in areas)
+            if failed == len(areas):
+                raise RuntimeError(f"Open-Meteo failed for all {failed} geo area(s)")
+        except Exception as exc:
+            db.rollback()
+            cause = f"; last cause: {errors[-1]}" if errors else ""
+            record_source_run(
+                db, "open_meteo", success=False, error=f"{type(exc).__name__}: {exc}{cause}"
+            )
+            raise
+        record_source_run(db, "open_meteo", success=True)
     finally:
         db.close()
 

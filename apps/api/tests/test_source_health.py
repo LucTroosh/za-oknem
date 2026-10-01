@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db import get_db
@@ -125,11 +126,41 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
     assert "SECRET123" not in out and "abc.def" not in out and "xyz" not in out
     assert "ConnectionError" in out
     assert len(sanitize_error("x" * 1000)) == 200
+
+
+@pytest.mark.parametrize(
+    "raw,secret",
+    [
+        ('{"token": "abc123"}', "abc123"),
+        ("failed access_token=abc123", "abc123"),
+        ("client_secret=xyz789 rejected", "xyz789"),
+        ("header x_api_key: k9k9k9", "k9k9k9"),
+        ("https://user:pw0rd@host/x unreachable", "pw0rd"),
+        ("password is wrong, key=abc777", "abc777"),
+        ("Authorization: Bearer tok.en.val", "tok.en.val"),
+    ],
+)
+def test_sanitize_error_redacts_credential_shapes(raw, secret):
+    assert secret not in sanitize_error(raw)
+
+
+def test_sanitize_error_is_fast_on_pathological_input():
+    import time
+
+    start = time.monotonic()
+    sanitize_error("-" * 200_000 + "key")
+    assert time.monotonic() - start < 1
     assert sanitize_error(None) is None and sanitize_error("") is None
 
 
-def _entry(source_id, state):
-    return {"source_id": source_id, "freshness": state, "last_success_at": None, "last_error": "e"}
+def _entry(source_id, state, monitored=True):
+    return {
+        "source_id": source_id,
+        "freshness": state,
+        "last_success_at": None,
+        "last_error": "e",
+        "monitored": monitored,
+    }
 
 
 def test_transitions_log_once_per_state_change(caplog):
@@ -151,6 +182,21 @@ def test_transitions_log_once_per_state_change(caplog):
     assert state == {"gios": "FRESH"}
 
 
+def test_unmonitored_source_is_never_logged(caplog):
+    state = log_health_transitions([_entry("gios", "UNAVAILABLE", monitored=False)], {})
+
+    assert caplog.records == [] and state == {}
+
+
+def test_gios_without_station_ids_is_reported_unmonitored(db_session, monkeypatch):
+    monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+    by_id = _by_id(collect_source_health(db_session))
+    assert by_id["gios"]["monitored"] is False and by_id["open_meteo"]["monitored"] is True
+
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+    assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is True
+
+
 def test_already_bad_source_is_logged_once_on_first_observation(caplog):
     log_health_transitions([_entry("imgw_hydro", "UNAVAILABLE")], {})
 
@@ -170,6 +216,7 @@ def test_endpoint_reports_sources_and_leaves_liveness_alone(monkeypatch):
             "last_success_at": "2026-09-30T02:00:00+00:00",
             "last_error": "ConnectionError: boom",
             "daily_budget": None,
+            "monitored": True,
         },
         {
             "source_id": "open_meteo",
@@ -178,6 +225,7 @@ def test_endpoint_reports_sources_and_leaves_liveness_alone(monkeypatch):
             "last_success_at": None,
             "last_error": None,
             "daily_budget": {"used": 5, "limit": 10, "used_pct": 50.0},
+            "monitored": True,
         },
     ]
     monkeypatch.setattr(health_module, "collect_source_health", lambda db: canned)

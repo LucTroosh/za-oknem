@@ -49,6 +49,29 @@ class TestRunOpenMeteo:
 
         scheduler.run_open_meteo()  # no raise
 
+    def test_no_geo_areas_is_a_skip_not_a_success(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("open_meteo", scheduler.run_open_meteo)
+
+        record.assert_not_called()
+
+    def test_failure_message_carries_last_cause(self, monkeypatch, db_session):
+        import pytest
+
+        _make_area(db_session)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+
+        def failing(_area, _db, errors):
+            errors.append("OpenMeteoApiError: HTTP 429")
+
+        monkeypatch.setattr(scheduler, "ingest_geo_area", failing)
+
+        with pytest.raises(RuntimeError, match="last cause: OpenMeteoApiError: HTTP 429"):
+            scheduler.run_open_meteo()
+
     def test_zero_new_rows_is_success_not_failure(self, monkeypatch, db_session):
         _make_area(db_session)
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
@@ -115,7 +138,8 @@ class TestRunGios:
         scheduler.run_gios()
 
         scheduler.gios_client.find_stations.assert_called_once_with({"38", "42"})
-        ingest_mock.assert_called_once_with(station, db_session)
+        ingest_mock.assert_called_once()
+        assert ingest_mock.call_args.args[:2] == (station, db_session)
 
 
 class TestRunImgwHydro:
