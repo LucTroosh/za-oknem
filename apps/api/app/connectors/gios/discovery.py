@@ -171,7 +171,9 @@ def stations_by_id(db: Session, ids: list[str]) -> list[dict]:
     return [rows[i] for i in ids if i in rows]
 
 
-def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[str, float, float]]:
+def assignment_candidates(
+    db: Session, stations: dict[str, dict], *, unmeasured: bool = False
+) -> list[tuple[str, float, float]]:
     """(id, lat, lon) points the API may assign, from `stations` (id -> row with latitude/
     longitude, i.e. the ones that have measurements). Once a catalog exists it is the
     authority: only catalog stations qualify, at their CATALOG coordinates (the ones polling
@@ -179,7 +181,9 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
     live, so even if also catalogued) at their measured coordinates.
     A station GIOŚ dropped from the catalog is therefore never
     assigned on the strength of its old measurements. No catalog yet = legacy setup:
-    measured coordinates, no filtering."""
+    measured coordinates, no filtering. `unmeasured=True` also returns catalog stations
+    without measurements yet: geographic coverage must not depend on whether the nearest
+    station already has data (ADR-029)."""
     catalog = {
         r.station_id: (r.latitude, r.longitude)
         for r in db.execute(select(GiosStation).options(defer(GiosStation.raw))).scalars().all()
@@ -192,16 +196,9 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
             points.append((sid, s["latitude"], s["longitude"]))
         elif sid in catalog:
             points.append((sid, *catalog[sid]))
+    if unmeasured:
+        points += [(sid, *c) for sid, c in catalog.items() if sid not in stations]
     return points
-
-
-def catalog_points(db: Session) -> list[tuple[str, float, float]]:
-    """(id, lat, lon) of every catalog station, measured or not: geographic coverage must not
-    depend on whether the nearest station already has a measurement (ADR-029)."""
-    return [
-        (r.station_id, r.latitude, r.longitude)
-        for r in db.execute(select(GiosStation).options(defer(GiosStation.raw))).scalars().all()
-    ]
 
 
 def polling_expected(db: Session) -> bool:
