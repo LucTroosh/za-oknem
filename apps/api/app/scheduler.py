@@ -98,9 +98,13 @@ def run_imgw_hydro() -> None:
     db = SessionLocal()
     try:
         stations = imgw_hydro_client.fetch_stations()
-        ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
+        _stored, rejected = ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
+    # TASK-13.1: an empty answer or one where EVERY station failed to parse is a source
+    # outage (schema change), not a successful run; a few rejected stations still are.
+    if not stations or rejected >= len(stations):
+        raise RuntimeError(f"IMGW hydro: no usable stations ({len(stations)}, {rejected} rejected)")
 
 
 def run_imgw_warningshydro() -> None:

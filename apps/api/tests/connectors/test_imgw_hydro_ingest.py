@@ -212,6 +212,17 @@ class TestMain:
 
         assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is not None
 
+    def test_all_stations_malformed_is_a_failed_run(self, monkeypatch, db_session):
+        bad = {**STATION, "lat": "not-a-number"}
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[bad]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        status = db_session.get(SourceStatus, "imgw_hydro")
+        assert status.last_success_at is None and "no usable stations" in status.last_error
+
     def test_fetch_failure_is_recorded_and_reraised(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_stations", MagicMock(side_effect=RuntimeError("down")))
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)

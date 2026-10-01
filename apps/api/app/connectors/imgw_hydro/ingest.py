@@ -156,7 +156,11 @@ def main() -> None:
         try:
             stations = client.fetch_stations()
             fetched_at = datetime.now(UTC)
-            stored, _rejected = ingest_snapshot(stations, db, fetched_at=fetched_at)
+            stored, rejected = ingest_snapshot(stations, db, fetched_at=fetched_at)
+            if not stations or rejected >= len(stations):  # same rule as the scheduler
+                raise RuntimeError(
+                    f"IMGW hydro: no usable stations ({len(stations)}, {rejected} rejected)"
+                )
         except Exception as exc:
             db.rollback()
             record_source_run(db, "imgw_hydro", success=False, error=f"{type(exc).__name__}: {exc}")

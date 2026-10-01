@@ -5,6 +5,8 @@ by the connectors' own ingest tests - only the scheduling wiring is new here."""
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
+import pytest
+
 import app.scheduler as scheduler
 from app.models import Alert, GeoArea, SourceFetch
 
@@ -143,6 +145,28 @@ class TestRunGios:
 
 
 class TestRunImgwHydro:
+    @pytest.mark.parametrize("stations,rejected", [([{"a": 1}, {"a": 2}], 2), ([], 0)])
+    def test_no_usable_stations_raises(self, monkeypatch, db_session, stations, rejected):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=stations)
+        )
+        monkeypatch.setattr(
+            scheduler, "ingest_hydro_snapshot", MagicMock(return_value=(0, rejected))
+        )
+
+        with pytest.raises(RuntimeError, match="no usable stations"):
+            scheduler.run_imgw_hydro()
+
+    def test_some_rejected_stations_still_a_run(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=[{}, {}])
+        )
+        monkeypatch.setattr(scheduler, "ingest_hydro_snapshot", MagicMock(return_value=(1, 1)))
+
+        scheduler.run_imgw_hydro()
+
     def test_ingests_whole_response_as_one_snapshot_no_gating(self, monkeypatch, db_session):
         # Unlike GIOS, no env var gate - one call already returns every station,
         # deterministic (ADR-008). ADR-014: the whole response is one raw fetch.
