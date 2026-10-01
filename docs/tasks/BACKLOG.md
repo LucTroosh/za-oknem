@@ -726,6 +726,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (`source_fetch_counters`, `app/rate_budget.py`) + WARNING przy 70%;
       Open-Meteo rezerwuje jednostki przed KAŻDĄ próbą HTTP (`on_attempt`),
       atomowy inkrement. Zrobiony przed Phase 12, bo TASK-12.2 na nim polega.
+- [x] **TASK-13.4** (PR #73, w review): Provider config Free→Paid (ADR-022).
+      Endpointy Open-Meteo (`OPEN_METEO_FORECAST_BASE_URL`,
+      `OPEN_METEO_AIR_QUALITY_BASE_URL`) i `OPEN_METEO_API_KEY` w `Settings`;
+      domyślnie hosty Free; klucz jako `apikey` tylko gdy ustawiony; maskowanie
+      klucza w wyjątkach/logach httpx/provenance/`last_error`. Acceptance:
+      config domyślny = Free; env → nowy host + `apikey`; klucz nie wycieka
+      (testy, oba connectory). Non-goals: nowa warstwa abstrakcji providera,
+      OBAŚ, Google Pollen. Przed monetyzacją: checklista w ADR-003.
 - [ ] **TASK-13.2:** Monitoring/error-reporting (§69 Master Planu) —
       **korekta: sam `logging` NIE wystarczy** (poprzednia wersja tego tasku
       błędnie na to pozwalała). §69 wymaga realnego capture wyjątków

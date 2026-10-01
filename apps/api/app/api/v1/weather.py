@@ -59,7 +59,7 @@ class WeatherArea(BaseModel):
     observed_at: datetime
     freshness: Literal["FRESH", "RECENT", "STALE"]
     params: dict[str, WeatherLatestParam]
-    source: Literal["open_meteo"]
+    source: str  # provider-neutral source_id (ADR-022)
 
 
 class WeatherLatestResponse(BaseModel):
@@ -83,7 +83,7 @@ class ForecastArea(BaseModel):
     fetched_at: datetime
     freshness: Literal["FRESH", "RECENT", "STALE"]
     days: list[ForecastDay]
-    source: Literal["open_meteo"]
+    source: str  # provider-neutral source_id (ADR-022)
 
 
 class WeatherForecastResponse(BaseModel):

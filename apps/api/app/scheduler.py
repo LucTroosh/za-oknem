@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
@@ -203,6 +204,7 @@ def _check_source_health(state: dict[str, str]) -> None:
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    warn_if_open_meteo_host_unusual()
     # -inf, not 0.0: time.monotonic()'s epoch is undefined (docs: "reference point
     # is undefined, only the difference between two calls is valid") - 0.0 happened
     # to work on Linux (monotonic counts from boot, so "now" is usually already

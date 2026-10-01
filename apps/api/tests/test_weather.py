@@ -354,25 +354,27 @@ def test_weather_latest_response_rejects_missing_required_field():
         )
 
 
-def test_weather_latest_response_rejects_unknown_source():
-    with pytest.raises(ValidationError):
-        WeatherLatestResponse.model_validate(
-            {
-                "areas": [
-                    {
-                        "geo_area_id": 1,
-                        "slug": "klodzko",
-                        "name": "Kłodzko",
-                        "latitude": 50.43,
-                        "longitude": 16.65,
-                        "observed_at": "2026-09-29T12:00:00+00:00",
-                        "freshness": "FRESH",
-                        "params": {},
-                        "source": "not_open_meteo",
-                    }
-                ]
-            }
-        )
+def test_weather_latest_response_source_is_provider_neutral():
+    # ADR-022: `source` is a plain source_id, so swapping the weather provider does not
+    # change the client contract (it used to be Literal["open_meteo"]).
+    response = WeatherLatestResponse.model_validate(
+        {
+            "areas": [
+                {
+                    "geo_area_id": 1,
+                    "slug": "klodzko",
+                    "name": "Kłodzko",
+                    "latitude": 50.43,
+                    "longitude": 16.65,
+                    "observed_at": "2026-09-29T12:00:00+00:00",
+                    "freshness": "FRESH",
+                    "params": {},
+                    "source": "met_norway",
+                }
+            ]
+        }
+    )
+    assert response.areas[0].source == "met_norway"
 
 
 def test_weather_latest_response_rejects_invalid_observed_at():

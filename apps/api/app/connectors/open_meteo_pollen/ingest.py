@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import provenance
+from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.open_meteo import ingest as open_meteo_ingest
 from app.connectors.open_meteo_pollen import client
 from app.connectors.open_meteo_pollen.parser import (
@@ -122,7 +123,7 @@ def ingest_geo_area(area: GeoArea, db: Session) -> bool:
         source_id=SOURCE_ID,
         # Query params are fixed by client.py (tracked by PARSER_VERSION); the point is
         # a public geo_area centroid, not user data.
-        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
+        endpoint=f"{client.base_url()}?latitude={area.latitude}&longitude={area.longitude}",
         payload=payload,
         fetched_at=fetched_at,
         parser_version=PARSER_VERSION,
@@ -160,6 +161,7 @@ def main() -> None:
     parser.add_argument("--slug", action="append", dest="slugs", default=[])
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    warn_if_open_meteo_host_unusual()
 
     db = SessionLocal()
     try:

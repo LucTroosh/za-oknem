@@ -211,7 +211,7 @@ class TestProvenance:
 
         fetch = db_session.query(SourceFetch).one()
         assert fetch.source_id == "open_meteo_pollen"
-        assert fetch.endpoint.startswith(client.BASE_URL)
+        assert fetch.endpoint.startswith(client.base_url())
         assert "latitude=50.43" in fetch.endpoint
         assert fetch.payload == PAYLOAD
         assert fetch.parser_version == PARSER_VERSION
