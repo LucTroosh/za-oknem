@@ -431,18 +431,43 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-8.11:** `hourly` pyłków w API (wymagane pole kontraktu dla ekranu
       szczegółów pyłków i wykresu godzinowego, `docs/ui/screen-map.md` sekcja 4).
       **Goal:** wystawić szereg godzinowy prognozy CAMS, który już leży w
-      `pollen_snapshots` (96 wierszy/obszar/dobę, ADR-020), bez nowego fetchu.
-      **Scope:** `GET /api/v1/pollen/latest` — per obszar `hourly[]`
-      (`valid_at` + 5 gatunków `float | null`; `unit`, `kind="model_forecast"` jak w
-      reszcie bloku), tylko z bazy (reguła #14); NIE w `/dashboard/latest` (rozmiar);
-      regeneracja `openapi.json`/`schema.ts` (ADR-024); `hourly: []` + freshness
-      UNAVAILABLE gdy brak snapshotu (NULL ≠ 0). **Acceptance Criteria:** kontrakt
-      zawiera `hourly`; wartości i godziny zgodne z wierszami bazy (test); freshness i
-      `source_status` bez zmian; zakres godzin = od bieżącej godziny do końca przebiegu;
-      CI (w tym `--check` kontraktu) zielone. **Non-goals:** nowe źródło, zmiana
-      częstotliwości fetchu, progi/poziomy po stronie API, retencja snapshotów.
-      **Dependencies:** TASK-8.6/8.7 ✅. Odblokowuje zamianę mocka z TASK-12.14 na live.
-
+      `pollen_snapshots` (96 wierszy/obszar/dobę, ADR-020), dla JEDNEGO wskazanego obszaru,
+      bez nowego fetchu. **Scope:** (1) `GET /api/v1/pollen/latest` dostaje parametr
+      `geo_area_id` (dziś go nie ma, choć `latest_pollen(db, geo_area_id)` filtr
+      wspiera; walidacja 1..2147483647 jak w `/air/latest` i `/alerts/latest`, ADR-026);
+      bez parametru zachowanie bez zmian; (2) per obszar `hourly[]` (`valid_at` + 5
+      gatunków `float | null`; `unit`, `kind="model_forecast"` jak w reszcie bloku) z
+      najnowszego przebiegu, tylko godziny od bieżącej wzwyż; tylko z bazy (reguła #14);
+      NIE w `/dashboard/latest` (rozmiar); (3) regeneracja `openapi.json`/`schema.ts`
+      (ADR-024). **Stany (rule #8, ADR-012):** brak snapshotu dla obszaru (także
+      nieistniejące/nieaktywne `geo_area_id`) ⇒ `areas: []` + `source_status`, bez 404 i
+      bez zgadywania; klient odczytuje to jako „niedostępne”, nie „puste”; przebieg nie
+      obejmujący bieżącej godziny ⇒ `freshness: STALE`, `current: null`, `hourly: []`.
+      **Acceptance Criteria:** kontrakt zawiera `geo_area_id` i `hourly`; test: filtr
+      zwraca tylko wskazany obszar; wartości i godziny zgodne z wierszami bazy; brak
+      snapshotu, nieznany id i przebieg nieaktualny dają opisane wyżej odpowiedzi;
+      `source_status` bez zmian; CI (w tym `--check` kontraktu) zielone.
+      **Non-goals:** nowe źródło, zmiana częstotliwości fetchu, progi/poziomy po stronie
+      API, retencja snapshotów. **Dependencies:** TASK-8.6/8.7 ✅. Odblokowuje zamianę
+      mocka z TASK-12.14 na live.
+- [ ] **TASK-7.9:** Rekomendacje aktywności w API („Co możesz dziś robić?”, spec UI §13–15,
+      P0 #10) — **backend; bez mocka na UI** (to interpretacja zbliżona do werdyktu).
+      **Goal:** deterministyczne, testowalne rekomendacje per aktywność z danych, które już
+      mamy; dziś istnieje tylko jeden werdykt `outdoor`. **Scope:** czysty moduł
+      `app/activities.py` (wzór `app/outdoor.py`, ADR-016) + pole `areas[].activities[]`
+      w `dashboard_latest()` (izolowany blok, rule #1): `activity` (klucz: spacer,
+      bieganie/rower, wietrzenie), `status` GOOD/CAUTION/AVOID/UNKNOWN, `reasons[]` (kod,
+      parametr, wartość, próg, jednostka, porównanie — jak `OutdoorReasonOut`), `missing[]`,
+      `valid_until`, `window` = `null` (przedziały czasu wymagają prognozy godzinowej
+      powietrza i pogody, której nie mamy — decyzja właściciela, screen-map sekcja 5);
+      regeneracja kontraktu; krótki ADR (progi i ich źródła; progi bez źródła oznaczone
+      „do kalibracji” jak w ADR-016). **Acceptance Criteria:** brak/stare dane rdzenia ⇒
+      UNKNOWN, nigdy GOOD (jak `outdoor`); testy granic progów; pyłki NIE wchodzą do
+      reguł (progi ADR-020 to sezon/szczyt, nie ryzyko objawów) bez osobnego ADR; teksty
+      kopiuje klient z kodów powodów (backend nie generuje prozy, żadnego LLM, rule #10);
+      aktywne alerty mogą obniżyć status tylko przez jawny, testowany kod powodu; CI
+      zielone. **Non-goals:** „wieczorny wysiłek” i przedziały czasu, personalizacja,
+      pyłki, UI (TASK-12.18). **Dependencies:** TASK-7.6/7.7 ✅, ADR-016.
 ### Phase 9 — Alerts (dokończenie)
 
 - [ ] **TASK-9.4** (ADR-013, PR #81: granica Alert ≠ Event ≠ Notification opisana; `Event` NIE zaimplementowany — nadal BLOKADA decyzji o źródle): `Event` model (§31) — odrębny od `Alert`/`Measurement`
@@ -503,6 +528,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       „Stany wody” jako **cała Polska** (bez geo-filtra, bez szczegółu alertu).
       Zostaje do zrobienia tutaj: filtrowanie po lokalizacji (`local_alerts` /
       `?geo_area_id=`), lista z szczegółem alertu.
+      **Uzupełnienie (spec UI v1, screen-map S2/S3):** chipy kategorii tylko dla kategorii z
+      danymi (dziś jedna ⇒ bez chipów); karta alertu z „Źródło: …”; szczegół rozdziela
+      „Oficjalny komunikat” (treść źródłowa dosłownie) od „Co to oznacza?” (statyczny tekst
+      redagowany przez ludzi, bez LLM — wymaga decyzji właściciela; bez treści sekcja nie
+      istnieje); lokalne ostrzeżenia z `local_alerts`, `unresolved` zawsze pokazane.
 - [ ] ⛔ Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
@@ -779,7 +809,7 @@ Mapa ekranów i podział LIVE/MOCK/BLOCKED: `docs/ui/screen-map.md`. Zadania pon
 **struktury informacji i kontraktu danych**, nie wyglądu (design robi właściciel). Reguły
 przekrojowe dla wszystkich: mock tylko wg ADR-028 (flaga, `lib/mock/`, `Sourced<T>`,
 `MockBadge`/`MockBanner`), **zero mocków danych bezpieczeństwa** (alerty, stany wody, kąpieliska,
-jakość wody, „Na dwór”, indeks powietrza); bez nowych zależności bez uzasadnienia w PR; stany
+jakość wody, „Na dwór”, rekomendacje aktywności, indeks powietrza); bez nowych zależności bez uzasadnienia w PR; stany
 loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
 
 - [ ] **TASK-12.10 (UI-MOCK-0):** Infrastruktura mocków UI (ADR-028).
@@ -796,22 +826,23 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       fixture'ów (krok CI); `MockBanner` pojawia się automatycznie z `origin="mock"`.
       **Non-goals:** żadne fixture'y domenowe, zmiana wyglądu poza dwoma tokenami,
       `eas.json`. **Dependencies:** ADR-028 zaakceptowany.
-- [ ] **TASK-12.11 (UI-MOCK-1):** Ekran „Wybór lokalizacji” (S4) — lista 7 miast **live**,
-      reszta mock. **Goal:** pokazać strukturę wyboru lokalizacji na realnym backendzie
-      (ADR-026), uczciwie oznaczając to, czego jeszcze nie ma. **Scope:** trasa modalna;
-      lista `GET /areas` (live) + zawężenie Home do `?geo_area_id=`; wyszukiwarka gmin z
-      fixture'a typu `AreaOut` (`weather_polling_active=false`, wymyślone nazwy);
-      przycisk „Użyj mojej lokalizacji” jako stub zwracający `GeoLocateResponse` w
-      trzech wariantach (`point_in_polygon`, `nearest_area`, `out_of_range`) + stany
-      uprawnienia (nie pytano / zgoda / odmowa → wybór ręczny / odmowa trwała) i
-      wyjaśnienie (§24); stan „obszar bez pollingu” z `weather_polling_active=false`.
-      **Acceptance Criteria:** lista miast pochodzi z API (nie z fixture'a) także przy
-      włączonych mockach; każdy element z mocka ma `MockBadge`, ekran `MockBanner`;
-      `nearest_area` NIE jest opisany jako „Twoja gmina”; brak zapisu współrzędnych;
-      po wyłączeniu flagi znika wyszukiwarka i GPS-stub, zostaje lista live; testy
-      widoków (komunikaty trzech wyników, stany P). **Non-goals:** `expo-location`,
-      trwały zapis wyboru, aktywacja pollingu, endpoint `q` (TASK-12.2/12.3), mapa.
-      **Dependencies:** TASK-12.10. Zamiana mocków na live: TASK-12.2, 12.3.
+- [ ] **TASK-12.11 (UI-MOCK-1):** Ekran lokalizacji (S4; onboarding i zmiana) — lista
+      **live**, wyszukiwarka i GPS-stub tylko dev/preview. **Goal:** jedna aktywna
+      lokalizacja na realnym backendzie (ADR-026), bez udawania funkcji, której nie ma.
+      **Scope:** lista `GET /areas` (dziś 7 miast, live) + zawężenie Start do
+      `?geo_area_id=`; pole „Wpisz miejscowość lub gminę” z fixture'a typu `Proposed*`
+      zgodnego z kontraktem PR #85 (`/places`) **wyłącznie** gdy `mocksEnabled()`; GPS-stub
+      zwracający `GeoLocateResponse` (3 warianty) + stany uprawnienia (nie pytano / zgoda /
+      odmowa → wybór ręczny / odmowa trwała) i wyjaśnienie (§24) **wyłącznie** gdy
+      `mocksEnabled()`; stan „obszar bez pollingu” (`weather_polling_active=false`).
+      **Acceptance Criteria:** w buildzie produkcyjnym jest tylko lista z API — brak pola
+      szukania i brak CTA GPS (spec UI §7: żadnego CTA prowadzącego donikąd); lista miast
+      zawsze z API, także przy włączonych mockach; każdy element z mocka ma `MockBadge`,
+      ekran `MockBanner`; `nearest_area` NIE jest opisany jako „Twoja gmina”; współrzędne
+      nie są zapisywane; testy widoków (trzy wyniki, stany P). **Non-goals:**
+      `expo-location`, trwały zapis (TASK-12.17), aktywacja obszaru (TASK-12.2/12.7),
+      mapa, wiele lokalizacji. **Dependencies:** TASK-12.10. Live: TASK-12.7 (po merge
+      PR #85), TASK-12.3.
 - [ ] **TASK-12.12 (UI-LIVE-1):** Szczegóły „Powietrze” (S5) i „Pogoda” (S6) — **live, bez mocka**.
       **Goal:** pokazać dane, które kontrakt już niesie, a UI pomija. **Scope:** nazwa
       stacji, `distance_km`, `assignment_method`, pełne `air.index` (składowe, `dominant`,
@@ -821,47 +852,87 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       opisana jako „w Twoim mieście”; U/S ⇒ bez indeksu i bez „dobrych” wartości
       (reguła #8); testy czystych modułów `lib/*`. **Non-goals:** trend/historia 24 h,
       prognoza godzinowa, nowe pola API. **Dependencies:** brak (dane ✅).
-- [ ] **TASK-12.13 (UI-MOCK-2):** Profil alergika i preferencje (S10) — stan w pamięci.
-      **Goal:** pokazać strukturę profilu lokalnego (Master Plan §61/§62) bez zapisu.
-      **Scope:** wybór gatunków (`PollenSpecies`), przełącznik „pokazuj Na dwór”;
-      stan tylko w pamięci aplikacji (bez nowej biblioteki do persystencji); `MockBadge`
-      informujący, że ustawienia nie są zapisywane. **Acceptance Criteria:** profil nigdy
-      nie zmienia wartości źródłowych ani nie ukrywa alertów/danych bezpieczeństwa; pusty
-      wybór = wszystkie gatunki; test czystej funkcji filtrującej. **Non-goals:**
-      trwały zapis, „rodzina” (niezdefiniowane, decyzja właściciela), wpływ na silnik
-      „Na dwór”. **Dependencies:** TASK-12.10. Live: TASK-12.4.
-- [ ] **TASK-12.14 (UI-MOCK-3):** Szczegóły pyłków z wykresem godzinowym (S7).
+- [ ] **TASK-12.13:** Obserwowane tematy (S10) — lokalne, **bez mocka** (spec UI §3, §8).
+      **Goal:** wybór tematów widocznych na Start; NIE „profil”. **Scope:** wspólny
+      komponent kafelków multi-select dla onboardingu i Ustawień: Powietrze, Pogoda,
+      Pyłki, Alerty, Aktywność (kafelek Aktywność tylko gdy moduł dostępny po TASK-7.9);
+      zapis przez magazyn z TASK-12.17; wyłączony temat ukrywa kartę. **Acceptance
+      Criteria:** brak kafelków Woda/Kąpieliska; pusty wybór = wszystkie dostępne;
+      wybór nigdy nie zmienia wartości źródłowych ani nie ukrywa banera istotnego
+      ostrzeżenia (decyzja w screen-map 5.2); test czystej funkcji „które moduły
+      pokazać”. **Non-goals:** wybór gatunków pyłków, wiek/płeć/zdrowie/rodzina,
+      konto, wpływ na silnik „Na dwór”. **Dependencies:** TASK-12.17.
+- [ ] **TASK-12.14 (UI-MOCK-3):** Szczegóły pyłków z wykresem godzinowym (S7; poza P0, spec UI §56).
       **Goal:** struktura ekranu pyłków z przebiegiem godzinowym, zawsze jako prognoza
       modelu. **Scope:** `current` i `days[]` **live**; szereg godzinowy z fixture'a
       typu `Proposed*` zgodnego z TASK-8.11, w **osobnej karcie** z `MockBadge` i
-      wymyśloną nazwą („Przykład”), nie pod nazwą wybranej gminy; tytuł „prognoza modelu
-      CAMS (nie pomiar)”, atrybucja, `forecast_reference_time`; wersja tekstowa/tabela dla
-      czytników ekranu; filtr gatunków z profilu (12.13) jeśli jest. **Acceptance
-      Criteria:** poziomy sezon/szczyt wyłącznie z `unit="grains/m³"` (jak
-      `lib/pollen.ts`); S/U ⇒ bez wykresu; `null` ≠ 0; wykres bez nowej zależności albo
-      z uzasadnieniem w PR; po TASK-8.11 zamiana fixture'a na hook live bez zmiany
-      komponentu (test na typie). **Non-goals:** progi ryzyka objawów, prognoza godzinowa
-      pogody, pomiary (OBAŚ). **Dependencies:** TASK-12.10; backend TASK-8.11 do live.
-- [ ] **TASK-12.15 (UI-MOCK-4):** Ekran „Powiadomienia” jako placeholder (S11).
-      **Goal:** pokazać strukturę kategorii powiadomień, niczego nie udając. **Scope:**
-      lista kategorii (ostrzeżenia hydrologiczne, meteorologiczne, kąpieliska) z
-      przełącznikami **nieaktywnymi** i powodem (push: klucze FCM/APNs; meteo i kąpieliska:
-      źródła ⛔), stan zgody systemowej (P) bez wywołań `expo-notifications`.
-      **Acceptance Criteria:** żaden przełącznik nie wygląda na działający; brak wywołań
-      sieciowych; `MockBanner`; test, że kategorie ⛔ są nieaktywne. **Non-goals:**
-      rejestracja urządzenia, preferencje na backendzie (TASK-10.3a), wysyłka push.
-      **Dependencies:** TASK-12.10. Live: TASK-10.3/10.5.
-- [ ] **TASK-12.16 (UI-MOCK-5):** Sekcja „Woda i hydrologia” (S8): rzeki live, kąpieliska „wkrótce”.
-      **Goal:** struktura sekcji wody bez fałszywych danych bezpieczeństwa. **Scope:**
-      ekran rzek z `GET /hydro/latest` (pełna lista stacji z poziomem i progami, stacje bez
-      progów = „nie oceniamy”); komponent `ComingSoon` (tytuł + jedno zdanie, zero
-      liczb/statusów/ikon stanu) dla kąpielisk, widoczny tylko w dev/preview (decyzja
-      właściciela o produkcji); brak wzmianki o wodzie pitnej. **Acceptance Criteria:**
-      w `lib/mock/**` brak jakiegokolwiek fixture'a kąpieliska/jakości wody; `ComingSoon` nie
-      przyjmuje danych (typ); w buildzie produkcyjnym brak sekcji kąpielisk bez decyzji
-      właściciela; stany rzek jak w S2. **Non-goals:** `/water`, connector, nearest-station
-      hydro (TASK-9.5). **Dependencies:** TASK-12.10; źródło kąpielisk: TASK-11.x ⛔.
-
+      wymyśloną nazwą („Przykład”), nie pod nazwą wybranej miejscowości; tytuł „prognoza
+      modelu CAMS (nie pomiar)”, atrybucja, `forecast_reference_time`; wersja
+      tekstowa/tabela dla czytników ekranu. **Acceptance Criteria:** poziomy sezon/szczyt
+      wyłącznie z `unit="grains/m³"` (jak `lib/pollen.ts`); S/U ⇒ bez wykresu; `null` ≠ 0;
+      wykres bez nowej zależności albo z uzasadnieniem w PR; mock tylko dev/preview;
+      po TASK-8.11 zamiana fixture'a na hook live bez zmiany komponentu (test na typie).
+      **Non-goals:** progi ryzyka objawów, filtr gatunków, prognoza godzinowa pogody,
+      pomiary (OBAŚ). **Dependencies:** TASK-12.10; backend TASK-8.11 do live.
+- [ ] **TASK-12.15:** Powiadomienia — **ukryte w produkcji** (spec UI §25, wariant A).
+      **Goal:** żaden element UI nie sugeruje działających powiadomień, dopóki nie ma
+      FCM/APNs i modelu preferencji. **Scope:** brak wiersza i ekranu w Ustawieniach w
+      buildzie produkcyjnym i preview (opcjonalny ekran szkicowy tylko dev, za
+      `mocksEnabled()`, z `MockBanner` i przełącznikami nieaktywnymi). **Acceptance
+      Criteria:** test: lista wierszy Ustawień w produkcji nie zawiera „Powiadomienia”;
+      brak wywołań `expo-notifications`; po TASK-10.3/10.5 wiersz wraca jako live.
+      **Non-goals:** rejestracja urządzenia, preferencje na backendzie (TASK-10.3a),
+      wysyłka. **Dependencies:** TASK-12.10 (tylko dla wariantu dev).
+- [ ] **TASK-12.16:** Ekran stanów rzek (S8) — live, **bez kąpielisk i wody pitnej w UI**.
+      **Goal:** pokazać hydrologię, którą kontrakt już niesie. **Scope:** ekran/sekcja z
+      `GET /hydro/latest` (pełna lista stacji z poziomem i progami; stacje bez progów =
+      „nie oceniamy”), wejście z zakładki Alerty; moduł wody renderowany wyłącznie wg
+      dostępności danych/flagi (spec UI §50), kąpieliska i woda pitna **nie istnieją** w
+      UI (ani „wkrótce”, ani nieaktywny kafelek). **Acceptance Criteria:** w `lib/mock/**`
+      brak jakiegokolwiek fixture'a kąpieliska/jakości wody; w produkcji brak odniesień do
+      kąpielisk w UI i w Welcome; stany jak w S2 (L/E/Er/S/U); testy czystych modułów.
+      **Non-goals:** `/water`, connector, nearest-station hydro (TASK-9.5).
+      **Dependencies:** brak (dane ✅); kąpieliska wracają jako osobny etap przed sezonem
+      (TASK-11.x ⛔).
+- [ ] **TASK-12.17:** Welcome + onboarding (lokalizacja i tematy, jeden ekran) + lokalny
+      magazyn ustawień (spec UI §5–8, P0 #1–3). **Goal:** pierwsze uruchomienie
+      Welcome → Lokalizacja + tematy → Start, kolejne od razu Start. **Scope:** ekran
+      Welcome (copy ze spec UI §6, **bez wzmianki o wodzie**); ekran onboardingu
+      składający TASK-12.11 i TASK-12.13; magazyn lokalny `{aktywna lokalizacja (geo_area_id
+      lub place_id), tematy, onboardingZakończony, trybMotywu}` (biblioteka do pamięci
+      lokalnej — nowa zależność, uzasadnić w PR). **Acceptance Criteria:** Welcome nie
+      wraca po zakończeniu; jedna aktywna lokalizacja (brak listy zapisanych); błąd
+      odczytu/zapisu ⇒ wartości domyślne i działająca aplikacja; brak konta, brak
+      współrzędnych w magazynie; onboarding pomijalny tylko przez wybór lokalizacji z
+      dostępnej listy; testy czystej logiki stanu. **Non-goals:** konto, synchronizacja,
+      zapisane lokalizacje, grafika hero (właściciel). **Dependencies:** TASK-12.11,
+      TASK-12.13.
+- [ ] **TASK-12.18:** Przebudowa ekranu Start (spec UI §10–17, §40–44, §50; P0 #4–10, #15).
+      **Goal:** Start odpowiada na „co dzieje się wokół mnie i co mogę robić” w kilka
+      sekund. **Scope:** zakładki Start | Alerty | Ustawienia (ikony Home/Bell/Settings);
+      nagłówek (miejscowość ⌄, data, temperatura teraz i max/min z `forecast.days[0]`);
+      werdykt (live, istniejący `OutdoorCard`, tap → powody); karty statusu Powietrze/
+      Pogoda/Prognoza pyłków renderowane data-driven wg dostępności i tematów; karty
+      aktywności z TASK-7.9 (stany ✓ ! × ?, powód po tapnięciu; sekcja nie istnieje do
+      czasu TASK-7.9); podgląd alertu (reguła kolejności — decyzja właściciela,
+      screen-map 5.2); skeleton per moduł zamiast globalnego spinnera; częściowa awaria nie
+      blokuje ekranu; teksty błędów bez szczegółów technicznych. **Acceptance Criteria:**
+      „✓ Brak aktywnych ostrzeżeń” tylko przy potwierdzonym zero, inaczej „? Nie udało się
+      sprawdzić ostrzeżeń”; pyłki zawsze jako prognoza modelu; dane stale/UNAVAILABLE bez
+      poziomów; zero mocków na tym ekranie w jakimkolwiek buildzie; testy czystych modułów.
+      **Non-goals:** wykres pyłków godzinowych, prognoza godzinowa, wiele lokalizacji.
+      **Dependencies:** TASK-12.17; karty aktywności: TASK-7.9; prognoza w nagłówku
+      wymaga ustalenia obsługi `source_status` (follow-up TASK-7.3).
+- [ ] **TASK-12.19:** Wygląd i dostępność (spec UI §26–27, §34–39; P0 #13–14). **Goal:**
+      wybór motywu Systemowy | Jasny | Ciemny (domyślnie Systemowy) i respektowanie
+      ustawień dostępności systemu. **Scope:** wiersz „Wygląd” w Ustawieniach zapisany w
+      magazynie z TASK-12.17, nadpisanie schematu w `useTheme`; sprawdzenie Dynamic Type,
+      Reduce Motion, VoiceOver/TalkBack dla istniejących komponentów; własnych przełączników
+      dostępności tylko tam, gdzie system nie daje ustawienia. **Acceptance Criteria:**
+      „Systemowy” podąża za systemem w czasie działania; kontrast ≥ 4.5:1 w obu paletach
+      (`theme.test.ts`); minimalny dotyk 44; test wyboru motywu. **Non-goals:** nowa
+      paleta/wygląd (właściciel), ikony. **Dependencies:** TASK-12.17; follow-up (a) z
+      Phase 12 (przełączanie motywu na Androidzie).
 ### Phase 13 — Data Quality / Observability
 
 - [ ] 🟡 **TASK-13.1** (PR #69: `GET /api/v1/health/sources` + logi zmian stanu; zostaje historia runów i telemetria §44 — osobny ADR + migracja): Source health / stale monitoring — rozszerzenie

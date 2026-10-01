@@ -43,7 +43,7 @@ Opcja **3**.
   `mockFg`/`mockBg` w `TEXT_PAIRS`).
 - **Zakaz:** żadnych fixture'ów ostrzeżeń, stanów alarmowych stacji, statusu kąpielisk, jakości wody, werdyktu
   „Na dwór” ani indeksu powietrza. Hooki tych domen powstają bez parametru `mock` (typ). Test polityki skanuje
-  `lib/mock/**`. Dla źródeł ⛔ pokazujemy „wkrótce” bez danych albo nic.
+  `lib/mock/**`. Dla źródeł ⛔ sekcja nie istnieje w UI (spec UI właściciela: bez „wkrótce”, bez nieaktywnych kafelków); to samo dotyczy rekomendacji aktywności do czasu backendu (TASK-7.9).
 - Mock nie dziedziczy tożsamości live (wymyślone nazwy, osobna karta przy polu spoza kontraktu), nie udaje
   świeżości, nie robi żądań.
 - Znacznik `__UI_MOCK_FIXTURE__` w każdym pliku fixture; CI sprawdza jego brak w bundlu produkcyjnym.
@@ -53,7 +53,7 @@ Opcja **3**.
 - Dodatkowy kod (`lib/mock/`, dwa komponenty, hooki adapterów); w zamian podmiana na live = zmiana źródła w hooku.
 - Zmiana kontraktu (nowe pole w `schema.ts`) łamie kompilację fixture'ów — to zamierzone (mock nie wyprzedza ani nie
   zostaje w tyle za rzeczywistością).
-- Produkcja jest chroniona trzema warstwami: logika `mocksEnabled()`, test jednostkowy i skan bundla w CI.
+- W produkcji nie pokazujemy też kontrolek udających brakującą funkcję (wyszukiwarka bez danych, GPS bez TASK-12.3) — mock tych elementów istnieje tylko w dev/preview. Produkcja jest chroniona trzema warstwami: logika `mocksEnabled()`, test jednostkowy i skan bundla w CI.
   Dopóki nie istnieje `eas.json` (§87), „production” to `APP_ENV=production` lub brak zmiennej.
 - Bez nowych zależności. Wymaga decyzji właściciela o wyglądzie `MockBadge`/`MockBanner` (kolor, kształt), nie o
   samym mechanizmie.
