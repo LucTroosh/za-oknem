@@ -199,9 +199,23 @@ class TestMain:
         )
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
 
-        ingest.main()
+        with pytest.raises(RuntimeError, match="1/2 failed"):
+            ingest.main()  # 50% rejected is over the 2% bound; valid rows still stored
 
         assert db_session.query(Measurement).count() == 1
+
+    def test_one_rejected_station_in_a_large_snapshot_is_still_a_success(
+        self, monkeypatch, db_session, caplog
+    ):
+        stations = [{**STATION, "id_stacji": str(i)} for i in range(100)]
+        stations.append({**STATION, "id_stacji": "BAD", "lat": "not-a-number"})
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=stations))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is not None
+        assert "BAD" in caplog.text  # rejected ids are logged on every run
 
     def test_success_is_recorded_in_source_status(self, monkeypatch, db_session):
         # ADR-012: CLI-only operators must still get a FRESH /hydro source_status.
@@ -211,6 +225,17 @@ class TestMain:
         ingest.main()
 
         assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is not None
+
+    def test_all_stations_malformed_is_a_failed_run(self, monkeypatch, db_session):
+        bad = {**STATION, "lat": "not-a-number"}
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[bad]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        status = db_session.get(SourceStatus, "imgw_hydro")
+        assert status.last_success_at is None and "1/1 failed" in status.last_error
 
     def test_fetch_failure_is_recorded_and_reraised(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_stations", MagicMock(side_effect=RuntimeError("down")))
