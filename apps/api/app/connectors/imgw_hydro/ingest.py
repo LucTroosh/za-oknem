@@ -16,7 +16,7 @@ from app.connectors.imgw_hydro import client
 from app.connectors.imgw_hydro.parser import PARSER_VERSION, ImgwHydroParseError, normalize
 from app.db import SessionLocal
 from app.models import Measurement
-from app.source_status import record_source_run
+from app.source_status import record_source_run, run_failure_reason
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +122,17 @@ def _ingest_station(
     return stored
 
 
+# ~900 stations: one permanently malformed record must not keep /hydro STALE forever
+# (rule #1). ADR-012: warnings stay strict (a rejected one may be the active alert).
+MAX_REJECTED_FRACTION = 0.02
+
+
+def snapshot_failure(stations: list[dict], rejected: int) -> str | None:
+    """Failure reason for one hydro run, shared by the scheduler and the CLI."""
+    reason = run_failure_reason(len(stations), rejected, max_failed_fraction=MAX_REJECTED_FRACTION)
+    return f"IMGW hydro: {reason}" if reason else None
+
+
 def ingest_snapshot(stations: list[dict], db, *, fetched_at: datetime) -> tuple[int, int]:
     """One whole IMGW response: records the raw payload (ADR-014), ingests every
     station, then sets the validation status. Returns (stored, rejected) - rejected
@@ -137,13 +148,22 @@ def ingest_snapshot(stations: list[dict], db, *, fetched_at: datetime) -> tuple[
     )
     stored = 0
     rejected = 0
+    rejected_ids: list[str] = []
     for station in stations:
         count = _ingest_station(station, db, fetched_at=fetched_at, source_fetch_id=fetch_id)
         if count is None:
             rejected += 1
+            rejected_ids.append(str(station.get("id_stacji")))
         else:
             stored += count
     provenance.set_validation_status(db, fetch_id, provenance.batch_status(len(stations), rejected))
+    if rejected_ids:
+        logger.warning(
+            "imgw_hydro: %s/%s station(s) rejected (ids: %s)",
+            rejected,
+            len(stations),
+            ", ".join(rejected_ids[:20]) + (" ..." if len(rejected_ids) > 20 else ""),
+        )
     return stored, rejected
 
 
@@ -156,7 +176,10 @@ def main() -> None:
         try:
             stations = client.fetch_stations()
             fetched_at = datetime.now(UTC)
-            stored, _rejected = ingest_snapshot(stations, db, fetched_at=fetched_at)
+            stored, rejected = ingest_snapshot(stations, db, fetched_at=fetched_at)
+            failure = snapshot_failure(stations, rejected)
+            if failure:
+                raise RuntimeError(failure)
         except Exception as exc:
             db.rollback()
             record_source_run(db, "imgw_hydro", success=False, error=f"{type(exc).__name__}: {exc}")

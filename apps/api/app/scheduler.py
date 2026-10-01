@@ -7,21 +7,26 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 """
 
 import logging
-import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.connectors.gios import client as gios_client
-from app.connectors.gios.ingest import ingest_station
+from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
+from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.db import SessionLocal
 from app.provenance import purge_expired_payloads
-from app.source_status import record_source_run
+from app.source_health import collect_source_health, log_health_transitions
+from app.source_status import (
+    SMALL_SET_MAX_FAILED_FRACTION,
+    record_source_run,
+    run_failure_reason,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,20 +43,33 @@ POLL_INTERVAL_SECONDS = 60
 
 
 def _gios_station_ids() -> list[str]:
-    # ADR-007: which stations to poll is a deliberate, explicit choice (rule #9),
-    # never guessed here - comma-separated env var, empty means "skip GIOS".
-    raw = os.environ.get("GIOS_STATION_IDS", "")
-    return [s.strip() for s in raw.split(",") if s.strip()]
+    return gios_station_ids()
 
 
-def run_open_meteo() -> None:
+def _last_cause(errors: list[str]) -> str:
+    return f"; last cause: {errors[-1]}" if errors else ""
+
+
+def run_open_meteo() -> bool:
     db = SessionLocal()
+    errors: list[str] = []
     try:
         # ADR-019: only areas with active weather polling (see polling_areas).
-        for area in polling_areas(db):
-            ingest_geo_area(area, db)
+        areas = polling_areas(db)
+        failed = sum(ingest_geo_area(area, db, errors) is None for area in areas)
     finally:
         db.close()
+    if not areas:
+        logger.warning("no areas with active weather polling - skipping Open-Meteo ingest")
+        return False  # skipped, not a successful fetch (ADR-012)
+    # Per-area isolation (rule #1) swallows fetch errors; a failing majority is an
+    # outage and must not refresh last_success_at (ADR-012, TASK-13.1).
+    reason = run_failure_reason(
+        len(areas), failed, max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION
+    )
+    if reason:
+        raise RuntimeError(f"Open-Meteo: {reason}{_last_cause(errors)}")
+    return True
 
 
 def run_gios() -> bool:
@@ -60,11 +78,18 @@ def run_gios() -> bool:
         logger.info("GIOS_STATION_IDS not set - skipping scheduled GIOS ingest")
         return False  # skipped, not a successful fetch (ADR-012)
     db = SessionLocal()
+    errors: list[str] = []
     try:
-        for station in gios_client.find_stations(set(station_ids)):
-            ingest_station(station, db)
+        wanted = set(station_ids)
+        stations = gios_client.find_stations(wanted)
+        failed = sum(ingest_station(station, db, errors) is None for station in stations)
     finally:
         db.close()
+    # Per-station isolation (rule #1) swallows errors: a failing majority of the CONFIGURED
+    # stations (unmatched ids included) is an outage, not a success (ADR-012, TASK-13.1).
+    failure = run_failure(wanted, stations, failed, errors)
+    if failure:
+        raise RuntimeError(f"{failure}{_last_cause(errors)}")
     return True
 
 
@@ -74,9 +99,14 @@ def run_imgw_hydro() -> None:
     db = SessionLocal()
     try:
         stations = imgw_hydro_client.fetch_stations()
-        ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
+        _stored, rejected = ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
+    # No successes or more than 2% rejected = failed run; below that the run counts and
+    # the rejected ids are logged by ingest_snapshot (ADR-012 Consequences).
+    failure = snapshot_failure(stations, rejected)
+    if failure:
+        raise RuntimeError(failure)
 
 
 def run_imgw_warningshydro() -> None:
@@ -136,6 +166,27 @@ def _record_run(source_id: str, *, success: bool, error: str | None = None) -> N
             db.close()
 
 
+def _check_source_health(state: dict[str, str]) -> None:
+    """TASK-13.1: log STALE/UNAVAILABLE once per state change (anti-spam: `state`
+    carries the previous states, in memory like the rest of the scheduler, ADR-007).
+    Deliberately disabled sources (GIOS without GIOS_STATION_IDS) are skipped. Never
+    raises (rule #1)."""
+    db = None
+    try:
+        db = SessionLocal()
+        new_state = log_health_transitions(collect_source_health(db), state)
+        state.clear()  # replace, not merge: a source that stopped being monitored must
+        state.update(new_state)  # lose its cached state, or re-enabling suppresses the log
+    except Exception:
+        logger.exception("source health check failed")
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:  # broken connection: monitoring must never kill the loop
+                logger.exception("could not close source health session")
+
+
 def main(*, iterations: int | None = None) -> None:
     """iterations caps the loop for tests; None (default) runs forever."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -146,6 +197,7 @@ def main(*, iterations: int | None = None) -> None:
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
     last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
     last_retention = float("-inf")
+    health_state: dict[str, str] = {}
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
@@ -164,6 +216,7 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
+        _check_source_health(health_state)
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)

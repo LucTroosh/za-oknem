@@ -149,7 +149,7 @@ def test_ingest_geo_area_isolates_api_failure(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == 0
+    assert stored is None  # fetch failed: distinct from 0 = fetched, nothing new
     assert db_session.query(WeatherSnapshot).count() == 0
     assert db_session.query(Forecast).count() == 0
 
@@ -160,7 +160,7 @@ def test_ingest_geo_area_isolates_parse_failure(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == 0
+    assert stored is None  # every block failed: a failed run (TASK-13.1)
     assert db_session.query(WeatherSnapshot).count() == 0
     assert db_session.query(Forecast).count() == 0
 
@@ -328,6 +328,44 @@ class TestMain:
 
         assert ingest_mock.call_count == 1
 
+    def test_cli_records_source_status(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "open_meteo").last_success_at is not None
+
+    def test_cli_records_failure_when_every_area_failed(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=None))
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        row = db_session.get(SourceStatus, "open_meteo")
+        assert row.last_success_at is None and "1/1 failed" in row.last_error
+
+    def test_cli_slug_subset_does_not_record_source_status(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest", "--slug", "klodzko"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "open_meteo") is None
+
     def test_skips_inactive_areas_when_no_slug_given(self, monkeypatch, db_session):
         _make_area(db_session)
         inactive = GeoArea(
@@ -341,12 +379,17 @@ class TestMain:
         db_session.commit()
         monkeypatch.setattr(sys, "argv", ["ingest"])
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
-        ingest_mock = MagicMock()
-        monkeypatch.setattr(ingest, "ingest_geo_area", ingest_mock)
+        slugs: list[str] = []  # read inside: the CLI's source_status commit expires the rows
+
+        def fake_ingest(area, *_args):
+            slugs.append(area.slug)
+            return 0
+
+        monkeypatch.setattr(ingest, "ingest_geo_area", fake_ingest)
 
         ingest.main()
 
-        assert [c[0][0].slug for c in ingest_mock.call_args_list] == ["klodzko"]
+        assert slugs == ["klodzko"]
 
     def test_explicit_slug_overrides_polling_flag(self, monkeypatch, db_session):
         inactive = GeoArea(

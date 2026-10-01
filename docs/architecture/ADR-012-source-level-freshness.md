@@ -52,18 +52,36 @@ Opcja 3.
   jako „brak ostrzeżeń”, jeśli którekolwiek źródło tej listy ma stan STALE lub
   UNAVAILABLE — wtedy pokazuje stan „niedostępne” z czasem ostatniej udanej
   aktualizacji.
-- `last_error` jest tylko do diagnostyki operacyjnej, nie trafia do API.
+- `last_error` jest tylko do diagnostyki operacyjnej, nie trafia do API mobilnego
+  (`/alerts`, `/hydro`, `/dashboard`). Jedyny wyjątek: operatorski
+  `GET /api/v1/health/sources` (TASK-13.1) zwraca go zsanityzowanego (bez query
+  stringów i userinfo URL; komunikat z czymkolwiek przypominającym poświadczenia
+  redukowany do typu wyjątku; max 200 znaków).
 
 ## Consequences
 
 - Rozróżnienie „potwierdzone zero” vs „źródło milczy” dla ostrzeżeń,
   wymagane przed pokazaniem stanu „brak ostrzeżeń” komukolwiek.
-- Sukces joba jest sygnałem na poziomie całego przebiegu. Joby, które
-  izolują błędy per element (Open-Meteo per gmina, GIOŚ per stacja — rule #1),
-  mogą zakończyć się „sukcesem” mimo częściowych błędów; dla nich per-wiersz
-  freshness pozostaje źródłem prawdy, a `source_status` mówi tylko, że
-  scheduler działa. `ponytail:` — rozbicie per element, jeśli kiedyś będzie
-  potrzebne dla tych domen.
+- Sukces joba oznacza, że źródło dało dane, nie tylko że nic nie wyrzuciło wyjątku
+  (TASK-13.1). Joby izolujące błędy per element stosują jedną politykę
+  (`source_status.run_failure_reason`): run jest porażką, gdy nic nie wróciło,
+  żaden element się nie udał albo odsetek nieudanych przekracza próg źródła;
+  poniżej progu to (częściowy) sukces.
+  - IMGW hydro (~900 stacji): próg **2%** odrzuconych stacji. Jedna na stałe
+    uszkodzona stacja nie może trzymać całego `/hydro` w STALE/UNAVAILABLE
+    (rule #1). ID odrzuconych stacji trafiają do `logger.warning` w każdym runie,
+    a provenance zapisuje partial.
+  - Open-Meteo (gminy) i GIOŚ (stacje): małe, jawnie skonfigurowane zbiory,
+    więc próg **50%** (awaria większości = awaria źródła; przy 1-2 elementach
+    jedna porażka z dwóch jeszcze nie).
+  - **Ostrzeżenia IMGW zostają ścisłe**: jakikolwiek odrzucony rekord to
+    porażka, bo odrzucony rekord może być właśnie aktywnym alertem (fałszywe
+    „brak ostrzeżeń" jest groźniejsze niż STALE).
+  Znane ograniczenia: Open-Meteo traktuje obszar jako porażkę tylko gdy padł
+  fetch albo wszystkie 3 bloki (awaria 1-2 bloków w każdym obszarze nadal daje
+  „sukces"); sukces oznacza transport, nie świeżość danych (GIOŚ "nic nowego"
+  przy zamrożonym feedzie jest sukcesem; tu pomaga per-wiersz freshness).
+  `ponytail:` rozbicie per blok i detekcja zamrożonego feedu, jeśli kiedyś potrzebne.
 - Pollen (TASK-8.x) i woda/kąpieliska (TASK-11.x) muszą reużyć ten sam model,
   nie definiować własnego.
 - TASK-3.1 (`source_fetches`) może w przyszłości zastąpić tę tabelę jako
