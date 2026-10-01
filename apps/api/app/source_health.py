@@ -65,7 +65,7 @@ _AUTH = re.compile(r"""(?i)[\w-]*auth[\w-]*["']?\s*[=:].*""")
 _BEARER = re.compile(r"""(?i)\bbearer\s+[^\s"',;&)]+""")
 _SECRET = re.compile(
     r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
-    r"""\s*[=:]?\s*(?:bearer\s+)?["']?[^\s"',;&)]+["']?"""
+    r"""\s*[=:]?\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s"',;&)]+)"""
 )
 _MAX_SCAN = 1000
 
