@@ -69,7 +69,7 @@ jobs:
           REQUIRE_POSTGIS: "1"
         run: |
           set -o pipefail
-          uv run pytest -rs 2>&1 | tee /tmp/pytest.out
+          uv run pytest -rfEs 2>&1 | tee /tmp/pytest.out
         continue-on-error: true
         id: pytest
       - name: Report pytest failure
