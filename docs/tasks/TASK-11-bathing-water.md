@@ -36,7 +36,7 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 1. Napisać do GIS (właściciel `sk.gis.gov.pl`) z prośbą o: udokumentowany
    eksport/API, pisemną zgodę na automatyczne pobieranie, warunki licencji i
    `commercial_use`, atrybucję, limit żądań i współrzędne/TERYT kąpielisk.
-2. W przeglądarce potwierdzić licencję wydania 2025 i schemat pliku EEA (Datahub, metadata factsheet), pola usługi `BathingWater_Dyna_WM_2025` i filtr `countryName=Poland`
+2. W przeglądarce potwierdzić licencję wydania 2025 i schemat pliku EEA (Datahub, metadata factsheet), pola usługi `BathingWater_Dyna_WM_2025` i filtr `countryName=Poland` oraz limit żądań EEA
 3. Ręcznie sprawdzić portal dane.gov.pl pod kątem zbioru o kąpieliskach.
 4. Po 1–3 — zatwierdzić źródło; wtedy zadanie można wznowić jako osobny PR.
 
@@ -52,7 +52,9 @@ Mobile (11.5), agregat dashboard (11.6), alert zamknięć (11.3), własny geo-ma
 
 ## Dependencies
 
-Zgoda/dane od GIS lub potwierdzona licencja EEA; ADR-009, ADR-012, ADR-014, TASK-6.2.
+Zgoda/dane od GIS (EEA samo NIE odblokowuje 11.2 w pełnym zakresie: nie ma statusu
+bieżącego, przyczyny zamknięcia ani pomiarów — może odblokować tylko rejestr
+lokalizacji + klasyfikację roczną po potwierdzeniu licencji i limitu); ADR-009, ADR-012, ADR-014, TASK-6.2.
 
 ## Data Contract
 
