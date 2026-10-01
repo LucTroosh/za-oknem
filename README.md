@@ -94,6 +94,8 @@ npm install
 npm start
 ```
 
+Aplikacja ma trzy zakładki (Home / Alerty / Ustawienia) i podąża za jasnym/ciemnym
+motywem systemu (przełącz go w ustawieniach telefonu lub emulatora, bez restartu).
 Domyślnie łączy się z `http://localhost:8000`. Na emulatorze Androida ustaw
 `EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`, na fizycznym urządzeniu — LAN IP hosta
 (patrz niżej). Zobacz `.env.example` w `apps/mobile/`.

@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { OUTDOOR_DISCLAIMER, outdoorView } from "../app/outdoor";
+import { OUTDOOR_DISCLAIMER, type OutdoorLevel, outdoorView } from "../lib/outdoor";
+import { type Theme, type Tone, radius, space, toneColors, typo } from "../lib/theme";
+import useNow from "./useNow";
+import useTheme, { useThemedStyles } from "./useTheme";
 
-// TASK-7.8: one card per location. All wording/classification comes from
-// app/outdoor.ts + the backend block; this only lays it out. Renders nothing when
-// the backend sent no `outdoor` (older backend).
+// TASK-7.8: the verdict "na dwór" - the first and largest thing on Home. All wording and
+// classification comes from app/outdoor.ts + the backend block; this only lays it out.
+// Renders nothing when the backend sent no `outdoor` (older backend). Level = glyph + word
+// + tint + side band; colour is never the only carrier.
+const TONE: Record<OutdoorLevel, Tone> = { GOOD: "good", MODERATE: "warning", POOR: "danger", UNKNOWN: "neutral" };
+
 export default function OutdoorCard({
   outdoor,
   receivedAt,
@@ -15,38 +20,48 @@ export default function OutdoorCard({
   // scroll must not reset the age of an old verdict).
   receivedAt: number;
 }) {
-  // The response is aged on the device clock: a mounted screen only re-renders on
-  // state changes, so tick.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const view = outdoorView(outdoor, now, receivedAt);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+  // The response is aged on the device clock: a mounted screen only re-renders on state changes.
+  const view = outdoorView(outdoor, useNow(), receivedAt);
   if (!view) return null;
+  const { fg, bg } = toneColors(colors, TONE[view.level]);
   return (
-    <View style={styles.card}>
-      <Text style={view.level === "POOR" ? styles.poor : view.level === "MODERATE" ? styles.moderate : styles.headline}>
-        {view.icon} {view.headline}
-      </Text>
+    <View
+      style={[styles.card, { backgroundColor: bg, borderLeftColor: fg }]}
+      accessible
+      accessibilityLabel={`Na dwór: ${view.headline}. ${view.reasonLines.join(". ")}`}
+    >
+      <Text style={styles.kicker}>Na dwór</Text>
+      <View style={styles.headRow}>
+        <Text style={[styles.icon, { color: fg }]} importantForAccessibility="no" accessibilityElementsHidden>
+          {view.icon}
+        </Text>
+        <Text style={[styles.headline, { color: fg }]}>{view.headline}</Text>
+      </View>
       {view.reasonLines.map((line) => (
         <Text key={line} style={styles.line}>
           {line}
         </Text>
       ))}
       {view.missingLine && <Text style={styles.note}>{view.missingLine}</Text>}
-      <Text style={styles.disclaimer}>{OUTDOOR_DISCLAIMER}</Text>
+      <Text style={styles.note}>{OUTDOOR_DISCLAIMER}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: { gap: 2, paddingTop: 4 },
-  headline: { fontSize: 16, fontWeight: "600" },
-  moderate: { fontSize: 16, fontWeight: "600", color: "#b26a00" },
-  poor: { fontSize: 16, fontWeight: "700", color: "#b00020" },
-  line: { fontSize: 14 },
-  note: { fontSize: 12, color: "#666" },
-  disclaimer: { fontSize: 10, color: "#999" },
-});
+const createStyles = (t: Theme) =>
+  StyleSheet.create({
+    card: {
+      gap: space.xs,
+      padding: space.lg,
+      borderRadius: radius.lg,
+      borderLeftWidth: 6,
+    },
+    kicker: { ...typo.caption, color: t.colors.textSecondary, fontWeight: "600" },
+    headRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    icon: { ...typo.display },
+    headline: { ...typo.display, flexShrink: 1 },
+    line: { ...typo.body, color: t.colors.text },
+    note: { ...typo.caption, color: t.colors.textSecondary },
+  });

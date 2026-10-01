@@ -8,7 +8,9 @@ import type {
 import type { AlertsBlock } from "./alerts";
 import type { AirIndexBlock } from "./aqi";
 import type { ForecastDay } from "./forecast";
-import type { DashboardArea as ScreenArea, DashboardSourceStatus } from "./index";
+// The screen types live in ./dashboardTypes since the UI foundation PR split the old
+// single-screen index.tsx into tabs/components (only this import path changed).
+import type { DashboardArea as ScreenArea, DashboardSourceStatus } from "./dashboardTypes";
 import type { OutdoorBlock } from "./outdoor";
 import type { PollenBlock } from "./pollen";
 

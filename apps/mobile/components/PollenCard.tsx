@@ -1,11 +1,15 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
-import { pollenView } from "../app/pollen";
+import { pollenView } from "../lib/pollen";
+import { type Theme, space, typo } from "../lib/theme";
+import Card from "./Card";
+import useTheme, { useThemedStyles } from "./useTheme";
 
 // TASK-8.8: one card per location. All wording/levels come from app/pollen.ts + the
 // backend block; this only lays it out. Renders nothing when the backend sent no
 // `pollen` (older backend). Always shows the attribution (ADR-020: CAMS + Open-Meteo).
-const COLOR = { BELOW_SEASON: "#2e7d32", SEASON: "#8a5300", PEAK: "#b00020" } as const;
+// The level is spelled out in words ("sezon", "szczyt"), the colour only reinforces it.
+const LEVEL_KEY = { BELOW_SEASON: "good", SEASON: "warning", PEAK: "danger" } as const;
 
 // null for an unparsable timestamp: never render "Invalid Date".
 function format(iso: string | null, opts: Intl.DateTimeFormatOptions): string | null {
@@ -14,12 +18,14 @@ function format(iso: string | null, opts: Intl.DateTimeFormatOptions): string | 
 }
 
 export default function PollenCard({ pollen }: { pollen: unknown }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const view = pollenView(pollen);
   if (!view) return null;
   const fetched = format(view.fetchedAt, { dateStyle: "short", timeStyle: "short" });
   const validHour = format(view.validAt, { hour: "2-digit", minute: "2-digit" });
   return (
-    <View style={styles.card}>
+    <Card>
       <Text style={styles.title} accessibilityRole="header">
         {view.title}
       </Text>
@@ -29,24 +35,24 @@ export default function PollenCard({ pollen }: { pollen: unknown }) {
       {view.lines.map((line) => (
         <Text key={line.species} style={styles.line}>
           {line.name}:{" "}
-          <Text style={line.level ? { color: COLOR[line.level] } : styles.note}>{line.text}</Text>
+          <Text style={line.level ? { color: colors[LEVEL_KEY[line.level]], fontWeight: "600" } : styles.note}>
+            {line.text}
+          </Text>
         </Text>
       ))}
-      {view.lines.length > 0 && validHour && (
-        <Text style={styles.note}>wartości na godz. {validHour}</Text>
-      )}
+      {view.lines.length > 0 && validHour && <Text style={styles.note}>wartości na godz. {validHour}</Text>}
       {fetched && <Text style={styles.note}>pobrano {fetched}</Text>}
-      <Text style={styles.disclaimer}>{view.note}</Text>
-      <Text style={styles.disclaimer}>{view.attribution}</Text>
-    </View>
+      <Text style={styles.micro}>{view.note}</Text>
+      <Text style={styles.micro}>{view.attribution}</Text>
+    </Card>
   );
 }
 
-const styles = StyleSheet.create({
-  card: { gap: 2, paddingTop: 4 },
-  title: { fontSize: 16, fontWeight: "600" },
-  line: { fontSize: 14 },
-  status: { fontSize: 14, color: "#8a5300" },
-  note: { fontSize: 12, color: "#666" },
-  disclaimer: { fontSize: 11, color: "#595959" },
-});
+const createStyles = (t: Theme) =>
+  StyleSheet.create({
+    title: { ...typo.heading, color: t.colors.text, marginBottom: space.xs },
+    line: { ...typo.body, color: t.colors.text },
+    status: { ...typo.body, color: t.colors.warning },
+    note: { ...typo.caption, color: t.colors.textSecondary },
+    micro: { ...typo.micro, color: t.colors.textSecondary },
+  });

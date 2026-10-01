@@ -114,9 +114,10 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu, `OutdoorCard` (TASK-7.7/7.8, PR #68), `AirIndexBadge` (PR #63). Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #75). |
-| Alerts (ekran) | ⬜ TODO |
-| Settings | ⬜ TODO |
+| Home / Dashboard | 🟡 PARTIAL — zakładka „Dziś” (`apps/mobile/app/(tabs)/index.tsx`, sekcje w `components/AreaSection.tsx`; hierarchia: werdykt „Na dwór” → powietrze → pogoda/prognoza → pyłki; do dwóch linii-banerów o stacjach hydro w stanie alarmowym/ostrzegawczym i ostrzeżeniach, z odnośnikiem do Alertów — tylko dane aktualne wg freshness, brak/stare dane = neutralne „niedostępne”, nigdy cisza czytelna jako „spokój”), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, ostrzeżenia i „Stany wody” (stacje WARNING/ALARM, osobny request `/hydro/latest` współdzielony przez `DashboardProvider`; TASK-7.2, PR #58/#62) przeniesione na zakładkę Alerty, pull-to-refresh odświeża dashboard i hydro, freshness z backendu, `OutdoorCard` (TASK-7.7/7.8, PR #68), `AirIndexBadge` (PR #63). Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #75). |
+| Nawigacja + design system | 🟡 PARTIAL — Expo Router, tab bar Dziś/Alerty/Ustawienia (`app/(tabs)/`; w `app/` tylko trasy, moduły logiki i testy w `apps/mobile/lib/`), tokeny (`lib/theme.ts`, kontrast ≥ 4.5:1 sprawdzany testem w obu paletach), jasny/ciemny motyw wg systemu, safe-area, a11y (role/labele, min. dotyk 44, status = glif + słowo + kolor). Bez NativeWind (ADR-027) — StyleSheet + tokeny. **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR): wygląd i tab bar do obejrzenia ręcznie |
+| Alerts (ekran) | 🟡 PARTIAL — zakładka Alerty: ostrzeżenia IMGW + stany wody, **cała Polska** (bez geo-filtra do czasu lokalizacji/TASK-9.5+9.7; `local_alerts` i `?geo_area_id=` z backendu jeszcze nieużyte), brak szczegółu pojedynczego alertu |
+| Settings | 🟡 PARTIAL — placeholder (TASK-12.1): wersja, lista źródeł z `attribution` backendu, informacja o braku konta/lokalizacji; brak preferencji, brak strony polityki prywatności (nie ma jej w `docs/`) |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
 | ręczny wybór lokalizacji | ⬜ TODO |
 | push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |
@@ -207,6 +208,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #81 | Alerty ↔ obszar (TASK-9.5 część, ADR-013): `app/alert_geo.py` (województwo → TERYT, fail-safe `unresolved`), `?geo_area_id=` w `/alerts/latest`, `geo_match`, `local_alerts` w dashboardzie, kontrakt zregenerowany; ADR-013 = granica Measurement/Forecast/Event/Alert/Notification (`Event`/`Notification` nie powstały) — 🟡 |
 | #78 | Stany stale/no-data dla air i weather (TASK-7.3): `source_status` w blokach dashboardu, efektywna świeżość + etykieta wieku + przygaszenie w UI; prezentacja pól pogody na mobile (TASK-5.4) |
 | #80 | Mobile: karta „Kalendarz pylenia — typowy sezon” (TASK-8.10 UI, `pollenCalendar.ts`/`PollenCalendarCard`, osobny fetch `/pollen/calendar`, pusty `active` ≠ „nic nie pyli”) + typy `index`/`alerts`/`hydro`/`outdoor`/`aqi` z kontraktu API (follow-up TASK-2.1) |
+| #83 | Mobile: fundament UI — zakładki Dziś/Alerty/Ustawienia (Expo Router), tokeny designu + ciemny motyw (kontrast testowany), safe-area, a11y, stany pusty/błąd bez wskazówek deweloperskich w produkcji, rozbicie `index.tsx` na komponenty; ostrzeżenia i stany wody przeniesione na Alerty (nadal cała Polska) |
 | #82 | Wybór lokalizacji w API (TASK-6.2 (8), ADR-026): `/dashboard/latest?geo_area_id=`, `GET /areas`, `POST /geo/locate` (nearest active area ≤ 25 km jawnie, `out_of_range`), `weather_polling_active` w `DashboardArea`, kontrakt zregenerowany; bez klienta mobile — 🟡 |
 
 ---

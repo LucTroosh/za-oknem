@@ -1,6 +1,9 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
-import { pollenCalendarView } from "../app/pollenCalendar";
+import { pollenCalendarView } from "../lib/pollenCalendar";
+import { type Theme, space, typo } from "../lib/theme";
+import Card from "./Card";
+import { useThemedStyles } from "./useTheme";
 
 // TASK-8.10 (UI) / ADR-023: typical pollen season. Visibly separate from the CAMS forecast
 // card (PollenCard). All wording comes from app/pollenCalendar.ts + the backend block.
@@ -12,21 +15,22 @@ export default function PollenCalendarCard({
   calendar: unknown;
   error: boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
   const view = pollenCalendarView(calendar);
   if (!view) {
     return error ? (
-      <View style={styles.card}>
+      <Card>
         <Text style={styles.title} accessibilityRole="header">
           Kalendarz pylenia
         </Text>
         <Text style={styles.error} accessibilityRole="alert">
-          Kalendarz pylenia chwilowo niedostępny — pociągnij w dół, aby spróbować ponownie.
+          Kalendarz pylenia chwilowo niedostępny. Odśwież widok, aby spróbować ponownie.
         </Text>
-      </View>
+      </Card>
     ) : null;
   }
   return (
-    <View style={styles.card}>
+    <Card>
       <Text style={styles.title} accessibilityRole="header">
         {view.title}
       </Text>
@@ -36,7 +40,7 @@ export default function PollenCalendarCard({
       </Text>
       {error && (
         <Text style={styles.error} accessibilityRole="alert">
-          Błąd odświeżania — pokazany kalendarz może być nieaktualny.
+          Nie udało się odświeżyć — pokazany kalendarz może być nieaktualny.
         </Text>
       )}
       {view.emptyMessage && <Text style={styles.empty}>{view.emptyMessage}</Text>}
@@ -56,20 +60,20 @@ export default function PollenCalendarCard({
       <Text style={styles.note}>{view.coverageWarning}</Text>
       <Text style={styles.note}>{view.disclaimer}</Text>
       <Text style={styles.note}>{view.attribution}</Text>
-    </View>
+    </Card>
   );
 }
 
-// Text colours >= 4.5:1 on white (#595959 7.0, #8a5300 6.6, #b00020 7.1).
-const styles = StyleSheet.create({
-  card: { gap: 2, paddingVertical: 12 },
-  title: { fontSize: 16, fontWeight: "600" },
-  kind: { fontSize: 12, color: "#595959" },
-  sub: { fontSize: 13, fontWeight: "600", color: "#595959", paddingTop: 2 },
-  line: { fontSize: 14 },
-  phase: { color: "#8a5300" },
-  peak: { color: "#b00020", fontWeight: "700" },
-  empty: { fontSize: 14, color: "#8a5300" },
-  error: { fontSize: 13, color: "#b00020" },
-  note: { fontSize: 11, color: "#595959" },
-});
+// Colours come from the palettes, whose text pairs are contrast-tested (theme.test.ts).
+const createStyles = (t: Theme) =>
+  StyleSheet.create({
+    title: { ...typo.heading, color: t.colors.text, marginBottom: space.xs },
+    kind: { ...typo.caption, color: t.colors.textSecondary },
+    sub: { ...typo.caption, fontWeight: "600", color: t.colors.textSecondary, paddingTop: 2 },
+    line: { ...typo.body, color: t.colors.text },
+    phase: { color: t.colors.warning },
+    peak: { color: t.colors.danger, fontWeight: "700" },
+    empty: { ...typo.body, color: t.colors.warning },
+    error: { ...typo.caption, color: t.colors.danger },
+    note: { ...typo.micro, color: t.colors.textSecondary },
+  });
