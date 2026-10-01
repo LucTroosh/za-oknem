@@ -18,10 +18,9 @@ from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
-from app.connectors.open_meteo.ingest import ingest_geo_area
+from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
-from app.models import GeoArea
 from app.provenance import purge_expired_payloads
 from app.source_status import record_source_run
 
@@ -51,7 +50,8 @@ def _gios_station_ids() -> list[str]:
 def run_open_meteo() -> None:
     db = SessionLocal()
     try:
-        for area in db.query(GeoArea).all():
+        # ADR-019: only areas with active weather polling (see polling_areas).
+        for area in polling_areas(db):
             ingest_geo_area(area, db)
     finally:
         db.close()
@@ -59,10 +59,10 @@ def run_open_meteo() -> None:
 
 def run_open_meteo_pollen() -> bool:
     # Raises when EVERY geo_area failed (ADR-012: no false success); returns False
-    # when there are no geo_areas (nothing fetched - not a success either).
+    # when there are no polling areas (nothing fetched - not a success either).
     db = SessionLocal()
     try:
-        return ingest_pollen_areas(db.query(GeoArea).all(), db) or False
+        return ingest_pollen_areas(polling_areas(db), db) or False
     finally:
         db.close()
 

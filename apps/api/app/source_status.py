@@ -3,6 +3,7 @@ successful one into FRESH/RECENT/STALE/UNAVAILABLE (rule #8)."""
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -40,8 +41,8 @@ def record_source_run(
     host's reading of a valid row defeat the guard (Codex review). `now` is
     injectable for tests."""
     now = now or datetime.now(UTC)
-    values = {"source_id": source_id, "last_attempt_at": now}
-    updates = {"last_attempt_at": now}
+    values: dict[str, Any] = {"source_id": source_id, "last_attempt_at": now}
+    updates: dict[str, Any] = {"last_attempt_at": now}
     if success:
         values |= {"last_success_at": now, "last_error": None}
         updates |= {"last_success_at": now, "last_error": None}

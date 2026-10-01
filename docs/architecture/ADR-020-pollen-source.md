@@ -130,7 +130,9 @@ wspólne rozszerzenie zmieszałoby dwa cykle w jednym jobie i jednym wierszu
   brak udanego przebiegu → `areas: []` + `source_status: UNAVAILABLE`. Gdy
   zapisany przebieg nie pokrywa bieżącej godziny (scheduler stoi > ~4 dni):
   `current: null`, `freshness: STALE`.
-- **Scheduler:** job `open_meteo_pollen` co 24 h, `_run_job_safely`, wpis w
+- **Scheduler:** job `open_meteo_pollen` co 24 h, na tych samych obszarach co pogoda
+  (`polling_areas`, flaga `weather_polling_active` z ADR-019 — nigdy cała lista
+  zaimportowanych gmin), `_run_job_safely`, wpis w
   `source_status`. `ingest_areas` rzuca wyjątek przy TOTALNEJ awarii (żadna
   gmina nie dała poprawnego payloadu), więc `last_success_at` nie kłamie (ADR-012);
   brak `geo_areas` = job pominięty (nie sukces). Awaria części gmin jest tylko

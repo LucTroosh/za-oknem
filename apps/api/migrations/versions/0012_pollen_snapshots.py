@@ -1,11 +1,10 @@
 """add pollen_snapshots (ADR-020, TASK-8.6)
 
 Revision ID: 0012
-Revises: 0009
+Revises: 0011
 Create Date: 2026-10-01
 
-down_revision points at the real head of main at PR time (0009); PR #67 (0010) and
-#70 (0011) are in flight, so the coordinator re-points it after they merge.
+down_revision is the head of main after #67 (0010) and #70 (0011) merged.
 """
 
 from collections.abc import Sequence
@@ -14,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0012"
-down_revision: str | None = "0009"
+down_revision: str | None = "0011"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

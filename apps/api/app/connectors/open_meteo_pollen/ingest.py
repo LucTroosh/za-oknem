@@ -127,10 +127,9 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        query = db.query(GeoArea)
-        if args.slugs:
-            query = query.filter(GeoArea.slug.in_(args.slugs))
-        areas = query.all()
+        # Same area selection as the weather CLI/scheduler (ADR-019): never the whole
+        # imported gmina list.
+        areas = open_meteo_ingest.polling_areas(db, args.slugs)
         if not areas:
             print("No matching geo_areas found.", file=sys.stderr)
             sys.exit(1)

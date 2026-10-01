@@ -3,19 +3,23 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.geometry import MultiPolygon4326
 
 
 class Measurement(Base):
@@ -92,20 +96,39 @@ class Alert(Base):
 
 
 class GeoArea(Base):
-    """Flat, manually-seeded location reference (ADR-005).
+    """Location reference: the 7 seeded cities (ADR-005) plus imported gminy (ADR-019).
 
-    Stand-in for the full TERYT/gmina model (Phase 6 Geo Engine) — deliberately
-    minimal so Phase 5 (Weather) isn't blocked on it. Extending later is additive
-    (add a TERYT column), not a rewrite.
+    Two separate concerns live on one row (BACKLOG TASK-6.2 (4)):
+    - geo-matching: every gmina with `teryt_code` + `boundary` (point-in-polygon, rule #9);
+    - weather polling: only rows with `weather_polling_active` (Open-Meteo 10k/day budget).
     """
 
     __tablename__ = "geo_areas"
+    __table_args__ = (
+        # Matches migration 0003 (unique constraint + plain index); the old model said
+        # `unique=True, index=True` (one unique index) and `alembic check` flagged the drift -
+        # unnoticed while CI's `| tee` swallowed the exit code.
+        UniqueConstraint("slug", name="uq_geo_area_slug"),
+        UniqueConstraint("teryt_code", name="uq_geo_area_teryt_code"),
+        Index("ix_geo_areas_boundary", "boundary", postgresql_using="gist"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    slug: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(50), index=True)
     name: Mapped[str] = mapped_column(String(200))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
+    # 7-digit TERYT id of the gmina (TERC, incl. rodzaj digit). NULL = seed row not yet
+    # linked to an imported boundary.
+    teryt_code: Mapped[str | None] = mapped_column(String(7))
+    # Gmina boundary, EPSG:4326 MultiPolygon (PostGIS). deferred: ~2.5k large polygons
+    # must never ride along with `select(GeoArea)` (dashboard, weather, scheduler).
+    boundary: Mapped[str | None] = mapped_column(MultiPolygon4326(), deferred=True)
+    # Default True keeps today's behaviour for the seeded cities; the importer creates
+    # new gminas with False (ADR-019).
+    weather_polling_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true()
+    )
 
 
 class WeatherSnapshot(Base):
@@ -284,3 +307,31 @@ class SourceFetch(Base):
         JSON().with_variant(JSONB(), "postgresql"),
         nullable=True,
     )
+
+
+class Device(Base):
+    """One app installation registered for push (ADR-017, Master Plan §66). No user
+    account (rule #11): the row is keyed by a client-generated pseudonymous
+    `installation_id`, and every later change is authorized by a server-generated
+    `device_secret` of which only the SHA-256 hash is stored.
+
+    Location is `observed_area_code` (TERYT, ADR-002) only - never GPS coordinates.
+    `push_token` is NULL when the user declined notifications or after unregistering.
+    Not a Notification or a preference (rule #7): sending is TASK-10.2, per-device
+    preferences are TASK-10.3a.
+    """
+
+    __tablename__ = "devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    installation_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # sha256 hex of the device secret (high-entropy random token, so no slow KDF needed)
+    secret_hash: Mapped[str] = mapped_column(String(64))
+    platform: Mapped[str] = mapped_column(String(10))
+    push_token: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    observed_area_code: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

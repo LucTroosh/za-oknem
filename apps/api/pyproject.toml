@@ -45,6 +45,11 @@ select = [
 # not a suppression. https://docs.astral.sh/ruff/rules/function-call-in-default-argument/
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
+[tool.pytest.ini_options]
+markers = [
+    "postgis: needs a real PostGIS database (DATABASE_URL); skipped when unavailable (ADR-019)",
+]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true

@@ -488,3 +488,51 @@ def test_dashboard_outdoor_unknown_without_any_data():
     assert outdoor["level"] == "UNKNOWN"
     assert outdoor["reasons"] == []
     assert {m["group"] for m in outdoor["missing"]} >= {"air", "thermal", "wind", "precipitation"}
+
+
+# --- TASK-4.2: European AQI in the air block ---------------------------------
+
+
+def _eaqi_rows(**values) -> list[Measurement]:
+    base = {"PM2.5": 3.0, "PM10": 10.0, "NO2": 5.0, "O3": 40.0, "SO2": 10.0}
+    base.update(values)
+    return [_station(param_code=c, value=v, source_record_id=c) for c, v in base.items()]
+
+
+def test_dashboard_air_index_uses_loaded_params_and_is_worst_subindex():
+    client = _client([GeoArea(**KLODZKO)], _eaqi_rows(O3=130.0), [])
+
+    index = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]["index"]
+
+    assert index["level"] == "POOR" and index["complete"] is True
+    assert index["dominant"] == ["O3"]
+    assert index["params"]["PM2.5"] == "GOOD"
+
+
+def test_dashboard_air_index_is_no_index_without_minimum_set():
+    client = _client([GeoArea(**KLODZKO)], [_station()], [])  # PM2.5 alone
+
+    index = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]["index"]
+
+    assert index["level"] is None and index["complete"] is False
+    assert {"NO2", "O3"} <= set(index["missing"])
+
+
+def test_dashboard_lists_only_actively_polled_areas():
+    """ADR-019: imported gminas (weather_polling_active=false) must not fan out into the
+    dashboard. FakeSession ignores statements, so assert on the compiled area query."""
+    statements = []
+
+    class _Recording(_FakeSession):
+        def execute(self, stmt):
+            statements.append(stmt)
+            return super().execute(stmt)
+
+    def _override():
+        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [])
+
+    app.dependency_overrides[get_db] = _override
+    assert TestClient(app).get("/api/v1/dashboard/latest").status_code == 200
+
+    area_sql = str(statements[0].compile())
+    assert "geo_areas.weather_polling_active IS" in area_sql
