@@ -114,9 +114,10 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu, `OutdoorCard` (TASK-7.7/7.8, PR #68), `AirIndexBadge` (PR #63). Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #75). |
-| Alerts (ekran) | ⬜ TODO |
-| Settings | ⬜ TODO |
+| Home / Dashboard | 🟡 PARTIAL — zakładka Home (`apps/mobile/app/(tabs)/index.tsx`, sekcje w `components/AreaSection.tsx`; hierarchia: werdykt „Na dwór” → powietrze → pogoda/prognoza → pyłki, jedna linia o ostrzeżeniach z odnośnikiem do Alertów), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, ostrzeżenia i „Stany wody” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62) przeniesione na zakładkę Alerty, pull-to-refresh, freshness z backendu, `OutdoorCard` (TASK-7.7/7.8, PR #68), `AirIndexBadge` (PR #63). Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #75). |
+| Nawigacja + design system | 🟡 PARTIAL — Expo Router, tab bar Home/Alerty/Ustawienia (`app/(tabs)/`), tokeny (`app/theme.ts`, kontrast ≥ 4.5:1 sprawdzany testem w obu paletach), jasny/ciemny motyw wg systemu, safe-area, a11y (role/labele, min. dotyk 44, status = glif + słowo + kolor). Bez NativeWind (nie zainstalowany) — StyleSheet + tokeny. **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR): wygląd i tab bar do obejrzenia ręcznie |
+| Alerts (ekran) | 🟡 PARTIAL — zakładka Alerty: ostrzeżenia IMGW + stany wody, **cała Polska** (bez geo-filtra do czasu lokalizacji/TASK-9.5+9.7; `local_alerts` i `?geo_area_id=` z backendu jeszcze nieużyte), brak szczegółu pojedynczego alertu |
+| Settings | 🟡 PARTIAL — placeholder (TASK-12.1): wersja, lista źródeł z `attribution` backendu, informacja o braku konta/lokalizacji; brak preferencji, brak strony polityki prywatności (nie ma jej w `docs/`) |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
 | ręczny wybór lokalizacji | ⬜ TODO |
 | push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |

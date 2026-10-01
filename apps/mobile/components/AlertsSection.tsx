@@ -1,0 +1,72 @@
+import { StyleSheet, Text, View } from "react-native";
+
+import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "../app/alerts";
+import { formatObservedAt } from "../app/dashboardTypes";
+import { FRESHNESS_LABEL } from "../app/freshness";
+import { type Theme, space, typo } from "../app/theme";
+import Card from "./Card";
+import FreshnessBadge from "./FreshnessBadge";
+import useNow from "./useNow";
+import { useThemedStyles } from "./useTheme";
+
+const lastSuccess = (at: string | null) =>
+  at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
+
+// TASK-7.2: nationwide IMGW alerts, shown verbatim (rule #10). Labelled "cała Polska":
+// an unfiltered alert must never look like it concerns the user's location (geo matching
+// arrives with the location screen). ADR-012: "brak ostrzeżeń" only when every alert
+// source is FRESH/RECENT; otherwise the source is silent and we say so.
+export default function AlertsSection({ alerts }: { alerts: AlertsBlock }) {
+  const styles = useThemedStyles(createStyles);
+  // Ages on the device clock: a FRESH status that crosses the bound stops claiming "brak
+  // ostrzeżeń" without user action.
+  const summary = summarizeAlerts(alerts, useNow());
+  return (
+    <Card>
+      <Text style={styles.title} accessibilityRole="header">
+        Ostrzeżenia hydrologiczne
+      </Text>
+      <Text style={styles.scope}>Cała Polska — lista nie jest jeszcze dopasowana do Twojej lokalizacji.</Text>
+      {summary.kind === "unavailable" && (
+        <Text style={styles.body}>Ostrzeżenia chwilowo niedostępne ({lastSuccess(summary.lastSuccessAt)}).</Text>
+      )}
+      {summary.kind === "none-confirmed" && (
+        <Text style={styles.body}>Brak aktywnych ostrzeżeń: {summary.sources.join(", ")}.</Text>
+      )}
+      {summary.kind === "list-maybe-outdated" && (
+        <Text style={styles.warn}>Lista może być nieaktualna ({lastSuccess(summary.lastSuccessAt)}).</Text>
+      )}
+      {alerts.items.map((alert) => (
+        <View key={alertKey(alert)} style={styles.item}>
+          <Text style={styles.strong}>
+            {alert.event_type} (stopień {alert.severity_raw})
+          </Text>
+          {alertAreasLabel(alert.areas) !== "" && <Text style={styles.body}>{alertAreasLabel(alert.areas)}</Text>}
+          <Text style={styles.meta}>
+            do {formatObservedAt(alert.valid_until)} · {alert.issuing_office}
+          </Text>
+          <FreshnessBadge state={alert.freshness} label={FRESHNESS_LABEL[alert.freshness]} />
+        </View>
+      ))}
+      <Text style={styles.micro}>{alerts.attribution}</Text>
+    </Card>
+  );
+}
+
+const createStyles = (t: Theme) =>
+  StyleSheet.create({
+    title: { ...typo.heading, color: t.colors.text },
+    scope: { ...typo.caption, color: t.colors.textSecondary, marginBottom: space.xs },
+    body: { ...typo.body, color: t.colors.text },
+    strong: { ...typo.strong, color: t.colors.danger },
+    warn: { ...typo.caption, color: t.colors.warning, fontWeight: "600" },
+    meta: { ...typo.caption, color: t.colors.textSecondary },
+    micro: { ...typo.micro, color: t.colors.textSecondary, marginTop: space.xs },
+    item: {
+      gap: 2,
+      paddingTop: space.md,
+      marginTop: space.xs,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: t.colors.border,
+    },
+  });

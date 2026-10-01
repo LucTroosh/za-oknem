@@ -483,6 +483,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       niego dostał. Wprowadzić tab layout tutaj, jako pierwszy task, który
       faktycznie potrzebuje drugiej zakładki (Settings z TASK-12.1 dokłada
       tylko trzecią do gotowego layoutu).
+      **Stan (PR „fundament UI”):** tab layout Home/Alerty/Ustawienia już jest
+      (`app/(tabs)/`), a zakładka Alerty pokazuje dotychczasowe ostrzeżenia +
+      „Stany wody” jako **cała Polska** (bez geo-filtra, bez szczegółu alertu).
+      Zostaje do zrobienia tutaj: filtrowanie po lokalizacji (`local_alerts` /
+      `?geo_area_id=`), lista z szczegółem alertu.
 - [ ] ⛔ Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
@@ -587,6 +592,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       realne preferencje. Bottom navigation (§57) wprowadzone już w TASK-9.7
       (pierwszy ekran wymagający drugiej zakładki) — tu tylko dodać trzecią
       zakładkę do istniejącego tab layoutu, nie tworzyć nawigacji od nowa.
+      **Stan (PR „fundament UI”):** placeholder jest (wersja, źródła z
+      `attribution` backendu, zdanie o prywatności); brak realnych preferencji.
 - [ ] **TASK-12.6:** Pozostałe sekcje Settings z §60 Master Planu — location/
       profile/allergies/outdoor/notifications pokrywają TASK-12.2/12.3/
       12.4/10.3, ale §60 wymienia też **data & privacy, sources, about**, dla

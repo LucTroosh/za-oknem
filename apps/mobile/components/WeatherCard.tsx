@@ -1,4 +1,5 @@
 import { weatherView } from "../app/weather";
+import Card from "./Card";
 import ReadingsList from "./ReadingsList";
 import useNow from "./useNow";
 
@@ -12,11 +13,13 @@ export default function WeatherCard({
 }) {
   const view = weatherView(weather, useNow(), sourceStatus);
   return (
-    <ReadingsList
-      title="Pogoda"
-      view={view}
-      emptyText="pogoda: brak danych"
-      unavailableText="Dane pogodowe niedostępne."
-    />
+    <Card>
+      <ReadingsList
+        title="Pogoda"
+        view={view}
+        emptyText="Brak danych pogodowych dla tej lokalizacji."
+        unavailableText="Dane pogodowe są chwilowo niedostępne."
+      />
+    </Card>
   );
 }
