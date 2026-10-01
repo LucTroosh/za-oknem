@@ -223,7 +223,7 @@ def test_ingest_geo_area_fetched_at_is_recent(db_session, monkeypatch):
     ingest.ingest_geo_area(area, db_session)
 
     row = db_session.query(WeatherSnapshot).first()
-    assert (datetime.now(UTC) - row.fetched_at).total_seconds() < 5
+    assert (datetime.now(UTC) - row.fetched_at.replace(tzinfo=UTC)).total_seconds() < 5
 
 
 class TestProvenance:
