@@ -137,9 +137,10 @@ def ingest_station(station: dict, db, errors: list[str] | None = None) -> int | 
     when the station yielded nothing but failures: fetch_sensors() failed, it has no
     monitored sensor, or every param that has a sensor failed (distinct from 0 =
     nothing new; the scheduler uses it to avoid recording an outage as success,
-    TASK-13.1). Failure causes are appended to `errors` when given. One station's own failure is logged and skipped
-    entirely — it must not abort ingestion for the rest of the run (rule #1); a
-    single param's failure within a station is isolated by _ingest_param instead."""
+    TASK-13.1). Failure causes are appended to `errors` when given. One station's own
+    failure is logged and skipped entirely — it must not abort ingestion for the rest
+    of the run (rule #1); a single param's failure within a station is isolated by
+    _ingest_param instead."""
     station_id = station.get("Identyfikator stacji")
     try:
         sensors = client.fetch_sensors(str(station_id))
