@@ -8,9 +8,9 @@ hiccup must not cost users a flood alert or a PM2.5 reading).
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import null, update
+from sqlalchemy import CursorResult, null, update
 from sqlalchemy.orm import Session
 
 from app.models import SourceFetch
@@ -108,4 +108,4 @@ def _purge(db: Session, source_filter, cutoff: datetime) -> int:
         .values(payload=null())
     )
     db.commit()
-    return result.rowcount
+    return cast(CursorResult, result).rowcount  # UPDATE always yields a CursorResult

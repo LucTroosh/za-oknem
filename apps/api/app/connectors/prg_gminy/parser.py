@@ -73,6 +73,7 @@ def _to_multipolygon(geometry: Any) -> dict:
     if not isinstance(geometry, dict):
         raise ValueError("missing geometry")
     kind, coords = geometry.get("type"), geometry.get("coordinates")
+    polygons: Any
     if kind == "Polygon":
         polygons = [coords]
     elif kind == "MultiPolygon":

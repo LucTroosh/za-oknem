@@ -82,8 +82,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         )
     )
     weather_by_area: dict[int, list[WeatherSnapshot]] = {}
-    for row in db.execute(weather_stmt).scalars().all():
-        weather_by_area.setdefault(row.geo_area_id, []).append(row)
+    for snapshot in db.execute(weather_stmt).scalars().all():
+        weather_by_area.setdefault(snapshot.geo_area_id, []).append(snapshot)
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.

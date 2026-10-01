@@ -204,6 +204,7 @@ def forecasts_by_area(db: Session) -> dict[int, dict]:
         # at :59 as up to 3h older than it really is. Not to be confused with
         # valid_until, which only says the forecast period hasn't ended yet — a
         # stalled scheduler still serves old-but-not-expired rows.
+        assert latest_fetched_at is not None  # days is non-empty, so a fetch time was seen
         result[geo_area_id] = {
             "model": model,
             "fetched_at": latest_fetched_at,
