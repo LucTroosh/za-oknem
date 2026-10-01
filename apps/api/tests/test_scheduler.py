@@ -169,6 +169,31 @@ class TestRunGios:
 
         find_stations_mock.assert_not_called()
 
+    def test_recent_place_refused_weather_polling_still_gets_air(self, monkeypatch, db_session):
+        from app.models import GiosStation
+
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        db_session.add_all(
+            [
+                GeoArea(
+                    slug="place-1", name="p", latitude=50.43, longitude=16.65, place_id=1,
+                    weather_polling_active=False, last_requested_at=datetime.now(UTC),
+                ),
+                GiosStation(
+                    station_id="38", station_name="s", latitude=50.433, longitude=16.654,
+                    raw={"Identyfikator stacji": 38}, fetched_at=datetime.now(UTC),
+                ),
+            ]
+        )  # fmt: skip
+        db_session.commit()
+        monkeypatch.setattr(scheduler, "ensure_catalog", MagicMock())
+        ingest_mock = MagicMock(return_value=1)
+        monkeypatch.setattr(scheduler, "ingest_station", ingest_mock)
+
+        assert scheduler.run_gios() is True
+        assert ingest_mock.call_args.args[0] == {"Identyfikator stacji": 38}
+
     def test_without_env_polls_stations_assigned_to_active_areas(self, monkeypatch, db_session):
         from app.models import GiosStation
 

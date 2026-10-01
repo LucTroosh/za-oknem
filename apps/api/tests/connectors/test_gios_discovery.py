@@ -299,6 +299,18 @@ def test_malformed_catalog_shape_keeps_the_cache(monkeypatch, db_session):
     assert db_session.query(GiosStation).count() == 3
 
 
+def test_unmeasured_override_station_is_a_candidate_other_catalog_ones_are_not(
+    monkeypatch, db_session
+):
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+
+    ids = [p[0] for p in discovery.assignment_candidates(db_session, {}, unmeasured=True)]
+
+    assert ids == ["38"]
+
+
 def test_unmeasured_catalog_stations_are_not_candidates_under_an_env_override(
     monkeypatch, db_session
 ):

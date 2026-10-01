@@ -134,7 +134,7 @@ def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
         return False
 
 
-def _air_areas(db: Session) -> list[GeoArea]:
+def air_areas(db: Session) -> list[GeoArea]:
     cutoff = datetime.now(UTC) - timedelta(days=settings.place_activation_ttl_days)
     recent = db.query(GeoArea).filter(
         GeoArea.weather_polling_active.is_(False),
@@ -157,7 +157,7 @@ def assigned_station_ids(db: Session) -> list[str]:
     return sorted(
         {
             m.station_id
-            for area in _air_areas(db)
+            for area in air_areas(db)
             for m in select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
         }
     )
@@ -196,8 +196,12 @@ def assignment_candidates(
             points.append((sid, s["latitude"], s["longitude"]))
         elif sid in catalog:
             points.append((sid, *catalog[sid]))
-    if unmeasured and not override:  # with an override only those ids are fetched
-        points += [(sid, *c) for sid, c in catalog.items() if sid not in stations]
+    if unmeasured:  # with an override only those ids are fetched
+        points += [
+            (sid, *c)
+            for sid, c in catalog.items()
+            if sid not in stations and (not override or sid in override)
+        ]
     return points
 
 
@@ -209,4 +213,4 @@ def polling_expected(db: Session) -> bool:
         return True
     if db.query(GiosStation.id).first() is not None:
         return bool(assigned_station_ids(db))
-    return bool(polling_areas(db))
+    return bool(air_areas(db))

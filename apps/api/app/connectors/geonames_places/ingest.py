@@ -98,6 +98,14 @@ def import_records(
             }
             counts = ImportReport()
             for rec in chunk:
+                # A refresh without the admin files must not wipe enriched names.
+                changed = [
+                    f
+                    for f in _FIELDS
+                    if not (
+                        f.startswith("admin") and f.endswith("_name") and getattr(rec, f) is None
+                    )
+                ]
                 row = existing.get(rec.source_record_id)
                 if row is None:
                     db.add(
@@ -109,8 +117,8 @@ def import_records(
                         )
                     )
                     counts.inserted += 1
-                elif any(getattr(row, f) != getattr(rec, f) for f in _FIELDS):
-                    for f in _FIELDS:
+                elif any(getattr(row, f) != getattr(rec, f) for f in changed):
+                    for f in changed:
                         setattr(row, f, getattr(rec, f))
                     row.imported_at = imported_at
                     counts.updated += 1

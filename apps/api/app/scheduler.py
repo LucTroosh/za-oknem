@@ -15,7 +15,12 @@ from sqlalchemy import func, or_, select
 
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
-from app.connectors.gios.discovery import assigned_station_ids, ensure_catalog, stations_by_id
+from app.connectors.gios.discovery import (
+    air_areas,
+    assigned_station_ids,
+    ensure_catalog,
+    stations_by_id,
+)
 from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
@@ -185,7 +190,7 @@ def run_gios() -> bool:
         else:
             # ADR-025: stations derived from the actively polled areas (nearest within the
             # distance limit) via the cached catalog, refreshed at most daily.
-            if not polling_areas(db):  # nothing to serve: no catalog walk either
+            if not air_areas(db):  # nothing to serve: no catalog walk either
                 logger.info("no areas with active polling - skipping GIOS ingest")
                 return False
             ensure_catalog(db)

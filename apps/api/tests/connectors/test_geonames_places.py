@@ -198,6 +198,22 @@ def test_load_with_admin_files_and_import_stores_the_names(tmp_path, db_session)
     assert (row.admin1_name, row.admin2_name) == ("Silesia", "Gliwice")
 
 
+def test_refresh_without_admin_files_keeps_the_enriched_names(tmp_path, db_session):
+    txt = tmp_path / "PL.txt"
+    txt.write_text(_line(3099230, "Gliwice", 50.3, 18.67, a1="83", a2="2466"), encoding="utf-8")
+    f1, f2 = tmp_path / "a1.txt", tmp_path / "a2.txt"
+    f1.write_text("".join(ADMIN1), encoding="utf-8")
+    f2.write_text("".join(ADMIN2), encoding="utf-8")
+    ingest.import_records(ingest.load(txt, f1, f2).records, db_session)
+    txt.write_text(_line(3099230, "Gliwice", 50.31, 18.67, a1="83", a2="2466"), encoding="utf-8")
+
+    ingest.import_records(ingest.load(txt).records, db_session)  # base file only
+
+    row = db_session.query(Place).one()
+    assert row.latitude == 50.31  # the refresh did apply
+    assert (row.admin1_name, row.admin2_name) == ("Silesia", "Gliwice")
+
+
 def _transport(handler):
     return httpx.MockTransport(handler)
 
