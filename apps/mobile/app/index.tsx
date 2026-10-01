@@ -24,7 +24,7 @@ import {
 // Freshness labels are the server's own (app/api/v1/dashboard.py, per-domain thresholds,
 // ADR-004). The client never upgrades one; it only combines it with `source_status`
 // (worst wins, ADR-012) and ages it on the device clock (app/readings.ts, TASK-7.3).
-type DashboardArea = {
+export type DashboardArea = {
   geo_area_id: number;
   slug: string;
   name: string;
@@ -81,7 +81,7 @@ type DashboardArea = {
 // TASK-7.3: top-level (not per area) because `air`/`weather` are null when there is no
 // station/snapshot - the source status must survive that. Optional on an older backend.
 type SourceStatus = { freshness: FreshnessState; last_success_at: string | null };
-type DashboardSourceStatus = { air?: SourceStatus; weather?: SourceStatus };
+export type DashboardSourceStatus = { air?: SourceStatus; weather?: SourceStatus };
 
 type LoadState = "loading" | "ready" | "error";
 

@@ -51,6 +51,7 @@ Alerts/Settings/push/profilu).
 | Metryka | Status |
 |---|---|
 | olcha, brzoza, trawy, bylica, ambrozja | 🟡 PARTIAL — **backend ✅** (TASK-8.5–8.7, PR #71, ADR-020): connector `open_meteo_pollen` (CAMS Europe przez Open-Meteo Air Quality — **prognoza modelowa, nie pomiar**, `kind=model_forecast`), `PollenSnapshot` (5 gatunków, NULL ≠ 0), scheduler 24 h z `source_status`, provenance, `GET /api/v1/pollen/latest`. **Brak** karty mobile (TASK-8.8) i bloku `pollen` w `dashboard_latest()` (TASK-8.9) — w toku w osobnym PR, nie DONE. Rzeczywiste pomiary (OBAŚ) niezweryfikowane |
+| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica, Cladosporium; ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); brak UI |
 
 ### 2.4. Woda / kąpieliska (§7)
 
@@ -99,7 +100,7 @@ Alerts/Settings/push/profilu).
 | Geo matching | 🟡 PARTIAL — nearest-station GIOŚ↔geo_area (ADR-006, próg 50 km) oraz **point-in-polygon lat/lon → gmina** (`app/geo.py::resolve_gmina`, `POST /api/v1/geo/resolve`, TASK-6.2 punkty 1–6, PR #70, ADR-019). Resolver bez danych zwraca `None` (granice gmin niezaładowane). Nie zrobione: odkrywanie stacji GIOŚ per gmina (6.2/7), zawężenie dashboardu do lokalizacji (6.2/8), dopasowanie alertów (TASK-9.5) |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
-| REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/pollen`, `/dashboard/latest`, `/geo/resolve`, `/devices`, `/health`, `/health/sources`; wersjonowane pod `/api/v1/`. Brak `/water` (kąpieliska ⛔) i typowanego `response_model` dla `/dashboard/latest` (TASK-2.1) |
+| REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/pollen`, `/dashboard/latest`, `/geo/resolve`, `/devices`, `/health`, `/health/sources`; wersjonowane pod `/api/v1/`. Brak `/water` (kąpieliska ⛔). `/dashboard/latest` ma `response_model` + typy TS generowane z OpenAPI (TASK-2.1, ADR-024) |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
 | Source health (TASK-13.1) | 🟡 PARTIAL — `GET /api/v1/health/sources` (freshness FRESH/RECENT/STALE/UNAVAILABLE, ostatnia próba/sukces, zsanityzowany `last_error`, budżet dzienny), scheduler loguje raz na zmianę stanu (PR #69; ADR-012). **Brak** historii runów i telemetrii §44 (duration, records processed, validation errors, duplicate/stale rate) — wymaga osobnego ADR i migracji; pyłki w rejestrze dołączone w PR #71 |
 | Device registration (TASK-10.1, ADR-017) | 🟡 PARTIAL — backend: `POST/DELETE /api/v1/devices` bez konta, sekret urządzenia (SHA-256), rate limit in-memory, migracja `0010` (PR #67). Realna wysyłka push wymaga kluczy FCM/APNs (sekcja 6); klient mobilny (10.5), preferencje (10.3a) i Notification Engine (10.2) ⬜ |
@@ -200,6 +201,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
 | #75 | Pyłki w dashboardzie: blok `pollen` w `dashboard_latest()` (TASK-8.9, izolowany, freshness + `source_status`) + karta mobile `PollenCard`/`pollen.ts` (TASK-8.8); progi sezon/szczyt EAACI wg CAMS/EEA (ADR-020) |
+| #77 | Kontrakt API (TASK-2.1, ADR-024): `response_model` `DashboardResponse` dla `/dashboard/latest` (1:1 z dotychczasowym JSON-em), `openapi.json` + typy TS generowane bez zależności w `packages/api-contract`, kroki CI `--check`, `contract.test.ts` w mobile |
+| #76 | Kalendarz pylenia: statyczne dane referencyjne + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10); 8 taksonów (z trawami), ambrozja/pokrzywowate niezweryfikowane |
 | #78 | Stany stale/no-data dla air i weather (TASK-7.3): `source_status` w blokach dashboardu, efektywna świeżość + etykieta wieku + przygaszenie w UI; prezentacja pól pogody na mobile (TASK-5.4) |
 
 ---
