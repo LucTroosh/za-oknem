@@ -511,7 +511,7 @@ class TestCheckSourceHealth:
         errors = [
             r for r in caplog.records if r.name == "app.source_health" and r.levelname == "ERROR"
         ]
-        assert len(errors) == 4
+        assert len(errors) == 5  # open_meteo, open_meteo_pollen, gios, hydro, warnings
         assert set(state.values()) == {"UNAVAILABLE"}
 
     def test_open_meteo_without_geo_areas_is_not_monitored(self, monkeypatch, db_session):
@@ -521,6 +521,7 @@ class TestCheckSourceHealth:
         scheduler._check_source_health(state)
 
         assert "open_meteo" not in state
+        assert "open_meteo_pollen" not in state  # same polling-area switch (ADR-019/020)
 
     def test_state_is_replaced_so_a_disabled_source_loses_its_cache(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
