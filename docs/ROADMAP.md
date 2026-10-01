@@ -212,6 +212,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #80 | Mobile: karta „Kalendarz pylenia — typowy sezon” (TASK-8.10 UI, `pollenCalendar.ts`/`PollenCalendarCard`, osobny fetch `/pollen/calendar`, pusty `active` ≠ „nic nie pyli”) + typy `index`/`alerts`/`hydro`/`outdoor`/`aqi` z kontraktu API (follow-up TASK-2.1) |
 | #83 | Mobile: fundament UI — zakładki Dziś/Alerty/Ustawienia (Expo Router), tokeny designu + ciemny motyw (kontrast testowany), safe-area, a11y, stany pusty/błąd bez wskazówek deweloperskich w produkcji, rozbicie `index.tsx` na komponenty; ostrzeżenia i stany wody przeniesione na Alerty (nadal cała Polska) |
 | #82 | Wybór lokalizacji w API (TASK-6.2 (8), ADR-026): `/dashboard/latest?geo_area_id=`, `GET /areas`, `POST /geo/locate` (nearest active area ≤ 25 km jawnie, `out_of_range`), `weather_polling_active` w `DashboardArea`, kontrakt zregenerowany; bez klienta mobile — 🟡 |
+| #85 | Dowolna miejscowość w Polsce (TASK-6.3, ADR-029): rejestr `places` (migracja `0014`, import GeoNames PL z lokalnego pliku), `GET /places`, `POST /places/{id}/activate` (limit z budżetu Open-Meteo, TTL 7 dni, pierwszy fetch w minuty), jawny `coverage` powietrza `exact/nearby/regional/none` + `grid` dla pogody/pyłków, polling GIOŚ do 100 km, `regional` poza werdyktem „Na dwór”, kontrakt zregenerowany; bez klienta mobile i bez danych (plik GeoNames do zaimportowania) — 🟡 |
 
 ---
 
