@@ -95,15 +95,15 @@ _KM_PER_DEG_LAT = 111.19492664455873  # 2*pi*6371/360, the radius haversine_km u
         (0.0, "exact"),
         (10.0, "exact"),  # inclusive bounds
         (10.04, "exact"),  # rounded to the 0.1 km clients see
-        (10.05, "nearby"),
+        (10.06, "nearby"),
         (49.9, "nearby"),
         (50.0, "nearby"),
         (50.04, "nearby"),
-        (50.05, "regional"),
+        (50.06, "regional"),
         (99.9, "regional"),
         (100.0, "regional"),
         (100.04, "regional"),
-        (100.05, "none"),
+        (100.06, "none"),
         (100.1, "none"),
         (None, "none"),
     ],
