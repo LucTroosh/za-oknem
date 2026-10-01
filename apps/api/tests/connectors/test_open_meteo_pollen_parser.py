@@ -134,6 +134,30 @@ def test_timestamps_with_an_offset_raise_instead_of_being_relabelled(stamp):
         _normalize(bad)
 
 
+@pytest.mark.parametrize("stamp", ["2026-05-04", 20260504, "20260504T0100", None, 1777852800])
+def test_non_hourly_timestamp_shapes_raise_instead_of_becoming_midnight(stamp):
+    bad = deepcopy(PAYLOAD)
+    bad["hourly"]["time"][1] = stamp
+    with pytest.raises(OpenMeteoPollenParseError):
+        _normalize(bad)
+
+
+def test_oversized_integer_is_a_parse_error_not_an_overflow():
+    bad = deepcopy(PAYLOAD)
+    bad["hourly"]["birch_pollen"][0] = 10**309
+    with pytest.raises(OpenMeteoPollenParseError):
+        _normalize(bad)
+
+
+@pytest.mark.parametrize("unit", [None, "", "  ", 5])
+def test_non_string_or_empty_units_raise(unit):
+    bad = deepcopy(PAYLOAD)
+    for variable in VARS:
+        bad["hourly_units"][variable] = unit
+    with pytest.raises(OpenMeteoPollenParseError):
+        _normalize(bad)
+
+
 def test_differing_units_raise():
     bad = deepcopy(PAYLOAD)
     bad["hourly_units"]["birch_pollen"] = "other"

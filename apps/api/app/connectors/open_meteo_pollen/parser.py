@@ -7,6 +7,7 @@ anything unexpected rather than guessing (rule #10/#15).
 """
 
 import math
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -40,14 +41,35 @@ class OpenMeteoPollenParseError(Exception):
     """Raised when a payload doesn't match the expected shape."""
 
 
+# Docs: `timeformat=iso8601` (default) gives "YYYY-MM-DDTHH:MM". Anything else (date-only,
+# numeric basic-ISO, unixtime) is a schema change, not a midnight slot.
+_HOUR_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?P<offset>Z|[+-]\d{2}(?::?\d{2})?)?$"
+)
+
+
+def _parse_hour(raw: Any) -> datetime:
+    """A naive wall-clock stamp in the requested timezone (UTC) -> aware UTC datetime."""
+    if not isinstance(raw, str) or (match := _HOUR_RE.match(raw)) is None:
+        raise ValueError(f"hourly.time entry is not an ISO 8601 date-time: {raw!r}")
+    if match.group("offset"):
+        # An explicit offset would be relabelled, not converted - reject instead.
+        raise ValueError(f"hourly.time must be naive UTC timestamps, got an offset: {raw!r}")
+    return datetime.fromisoformat(raw).replace(tzinfo=UTC)
+
+
 def _value(raw: Any, variable: str, time: str) -> float | None:
     if raw is None:
         return None  # model gave no value (e.g. outside the pollen season) - NOT zero
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         raise OpenMeteoPollenParseError(f"{variable} at {time}: not a number: {raw!r}")
-    if not math.isfinite(raw) or raw < 0:
+    try:
+        value = float(raw)  # OverflowError for ints beyond float range (e.g. 10**309)
+    except OverflowError as exc:
+        raise OpenMeteoPollenParseError(f"{variable} at {time}: value out of range") from exc
+    if not math.isfinite(value) or value < 0:
         raise OpenMeteoPollenParseError(f"{variable} at {time}: impossible value {raw!r}")
-    return float(raw)
+    return value
 
 
 def normalize(
@@ -76,16 +98,14 @@ def normalize(
             if not isinstance(values, list) or len(values) != len(times):
                 raise TypeError(f"hourly[{variable!r}] must be a list of length {len(times)}")
             series[variable] = values
-        unit_values = {str(units[variable]) for variable in SPECIES_BY_VARIABLE}
+        raw_units = [units[variable] for variable in SPECIES_BY_VARIABLE]
+        if not all(isinstance(u, str) and u.strip() for u in raw_units):
+            raise ValueError(f"species units must be non-empty strings, got {raw_units!r}")
+        unit_values = set(raw_units)
         if len(unit_values) != 1:
             raise ValueError(f"species units differ: {sorted(unit_values)}")
         unit = unit_values.pop()
-        parsed = [datetime.fromisoformat(str(t)) for t in times]
-        if any(p.tzinfo is not None for p in parsed):
-            # Contract: naive wall-clock stamps in the requested timezone (UTC). An
-            # explicit offset would be relabelled, not converted - reject instead.
-            raise ValueError("hourly.time must be naive UTC timestamps, got an offset")
-        valid_times = [p.replace(tzinfo=UTC) for p in parsed]
+        valid_times = [_parse_hour(t) for t in times]
         if len(set(valid_times)) != len(valid_times):
             # Would collide on source_record_id and be silently swallowed as a "race".
             raise ValueError("hourly.time contains duplicate timestamps")
