@@ -33,6 +33,10 @@ monetyzację (niekoniecznie Open-Meteo jako takie, ale ogólnie produkt)?
 - Pyłki i CAMS Air pobieramy bezpośrednio z Copernicus Atmosphere Data Store (ADS) —
   dane opisane przez Copernicus jako dostępne bez ograniczeń użycia, wymagana
   atrybucja programu Copernicus. Nie zależy to od statusu komercyjnego Open-Meteo.
+  **Zaktualizowane przez ADR-020 (2026-10-01):** bez klucza ADS pyłki MVP idą przez
+  Open-Meteo Air Quality API (ten sam model CAMS Europe), więc podlegają TEJ SAMEJ
+  zasadzie niekomercyjnego tieru i triggerom rewizji poniżej. Bezpośredni ADS
+  zostaje opcją po rewizji.
 
 ## Trigger do rewizji tego ADR
 

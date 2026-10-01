@@ -159,6 +159,16 @@ class TestPurgeExpiredPayloads:
         assert payload[young_gios.id] is not None
         assert payload[young_warn.id] is not None
 
+    def test_open_meteo_pollen_is_listed_with_a_7_day_window(self, db_session):
+        assert provenance.RETENTION_DAYS["open_meteo_pollen"] == 7
+        old = _fetch(db_session, "open_meteo_pollen", age_days=8)
+        young = _fetch(db_session, "open_meteo_pollen", age_days=6)
+
+        provenance.purge_expired_payloads(db_session, now=NOW)
+
+        assert db_session.get(SourceFetch, old.id).payload is None
+        assert db_session.get(SourceFetch, young.id).payload is not None
+
     def test_unlisted_source_gets_the_shortest_window(self, db_session):
         old = _fetch(db_session, "future_source", age_days=8)
         young = _fetch(db_session, "future_source", age_days=6)

@@ -43,7 +43,51 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   wymyślona etykieta.
 - **last_verified_at:** 2026-09-28 (current), 2026-09-29 (dokumentacja daily)
 
+## open_meteo_pollen (CAMS Europe pyłki przez Open-Meteo Air Quality API)
+
+Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
+
+- **owner:** OpenMeteo GmbH (relay) / ECMWF-Copernicus CAMS (model)
+- **connector:** `open_meteo_pollen` (`app/connectors/open_meteo_pollen/`)
+- **endpoint:** `https://air-quality-api.open-meteo.com/v1/air-quality`,
+  `hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,ragweed_pollen`,
+  `domains=cams_europe`, `forecast_days=4`, `timezone=UTC` — bez klucza
+- **species:** dokładnie 5 gatunków MVP (Master Plan §6): olcha=alder, brzoza=birch,
+  trawy=grass, bylica=mugwort, ambrozja=ragweed; jednostka grains/m³. Open-Meteo
+  oferuje też `olive_pollen` — poza MVP, nie pobieramy.
+- **frequency:** ZWERYFIKOWANE wg dokumentacji — Open-Meteo: „Every 24 hours, 4 days
+  forecast”; ADS (CAMS Europe air quality forecasts): raz dziennie, dostępne 06:45 UTC
+  (lead 0–48 h) i 08:30 UTC (lead 49–96 h). Fetch **raz na dobę** (ADR-004, rule #16).
+- **coverage:** tylko Europa („Only available in Europe during pollen season”), siatka
+  0,1° (~11 km), godzinowo; poza sezonem pyłkowym wartości mogą być puste (null vs 0:
+  NIEZWERYFIKOWANE — parser zachowuje oba wiernie)
+- **nature:** PROGNOZA MODELOWA, nie pomiar (rule #7). ADS: prognozy zmiennych poza
+  NO/NO₂/SO₂/O₃/PM2.5/PM10/pyłem „are unvalidated and should be considered experimental”
+- **license:** Open-Meteo: CC BY 4.0; dane CAMS: CC-BY (strona datasetu ADS). Wcześniejszy
+  wpis `cams_ads` mówił „bez ograniczeń użycia” — strona datasetu podaje CC-BY, więc
+  atrybucja jest obowiązkowa
+- **commercial_use:** NIE na darmowym tierze Open-Meteo — ta sama zasada co ADR-003
+  (subskrypcja/reklamy = komercyjne; Patronite nieopisane). Rewizja wymagana przed
+  jakąkolwiek monetyzacją; alternatywa: płatny plan Open-Meteo albo CAMS ADS
+  bezpośrednio (klucz — blokada człowieka)
+- **redistribution:** dozwolona pod CC BY 4.0 z atrybucją
+- **caching:** snapshot w bazie (ADR-001, `pollen_snapshots`), zero zapytań on-demand
+- **rate_limit:** 600/min, 5000/h, 10000/dzień, 300000/mies. (darmowy tier; pricing page
+  wymienia Air Quality API w tym samym tierze). Koszt wywołania: zakładane 1 jednostka
+  (5 zmiennych, 4 dni) wg reguły „>10 zmiennych / >14 dni = więcej wywołań” — czy reguła
+  dotyczy Air Quality API: NIEZWERYFIKOWANE. Liczone we wspólnym liczniku `open_meteo`
+- **attribution:** "Pollen forecast: Copernicus Atmosphere Monitoring Service (CAMS) European air quality forecast, via Open-Meteo.com (CC BY 4.0). Contains modified Copernicus Atmosphere Monitoring Service information." — wymagane w ekranie Źródła i na karcie pyłkowej (Open-Meteo wymaga też linku do open-meteo.com przy wyświetlanych danych)
+- **status:** IMPLEMENTED (backend: connector + `pollen_snapshots` + scheduler +
+  `GET /api/v1/pollen/latest`, 2026-10-01). Kształt odpowiedzi JSON NIEZWERYFIKOWANY NA
+  ŻYWO (egress zablokowany) — parser używa tylko pól z dokumentacji i odrzuca resztę;
+  pierwsza żywa weryfikacja przy pierwszym realnym ingeście
+- **last_verified_at:** 2026-10-01 (dokumentacja; bez żywego przykładu)
+
 ## cams_ads (Copernicus Atmosphere Data Store — pyłki, CAMS Air)
+
+> Od ADR-020 pyłki MVP idą przez `open_meteo_pollen` (bez klucza). Ten wpis zostaje jako
+> alternatywa (źródło pierwotne, licencja bez rozróżnienia komercyjne/niekomercyjne) —
+> wymaga klucza od człowieka (TASK-8.5 pierwotnie).
 
 - **owner:** ECMWF / Copernicus (Unia Europejska)
 - **connector:** `cams` (do zaprojektowania — inny kształt niż API pogodowe: pobranie

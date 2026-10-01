@@ -27,6 +27,7 @@ INVALID = "invalid"  # payload unusable (unknown shape) - the case raw payloads 
 # new connector must opt into a longer one explicitly (ADR-014).
 RETENTION_DAYS = {
     "open_meteo": 7,  # not safety data, ~10 KB/fetch, re-fetchable forecast
+    "open_meteo_pollen": 7,  # modelled forecast, re-fetchable, one small payload per area/day
     "imgw_hydro": 7,  # all-stations payload, hundreds of KB per hourly fetch
     "gios": 14,  # air quality, small payloads
     "imgw_warningshydro": 30,  # safety data (rule #10): longest audit window

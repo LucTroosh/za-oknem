@@ -198,6 +198,44 @@ class Forecast(Base):
     )
 
 
+class PollenSnapshot(Base):
+    """One hourly MODELLED pollen concentration for a geo_area (ADR-001 option C,
+    ADR-020). NOT a Measurement (rule #7): values come from the CAMS European
+    air-quality forecast model, never from a pollen trap, and the source itself calls
+    them unvalidated/experimental. Hence `model` and `forecast_reference_time`.
+
+    One row per (geo_area, valid_at, forecast run), with the five MVP species (Master
+    Plan §6) as explicit columns, grains/m3. NULL = the model gave no value for that
+    species/hour (typically outside its pollen season) - never 0, which is a real
+    modelled concentration. The source's own unit string is kept in `unit`.
+    """
+
+    __tablename__ = "pollen_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source_id", "source_record_id", name="uq_pollen_snapshot_source_record"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    source_record_id: Mapped[str] = mapped_column(String(150))
+    geo_area_id: Mapped[int] = mapped_column(ForeignKey("geo_areas.id"), index=True)
+    alder: Mapped[float | None] = mapped_column(Float, nullable=True)  # olcha
+    birch: Mapped[float | None] = mapped_column(Float, nullable=True)  # brzoza
+    grass: Mapped[float | None] = mapped_column(Float, nullable=True)  # trawy
+    mugwort: Mapped[float | None] = mapped_column(Float, nullable=True)  # bylica
+    ragweed: Mapped[float | None] = mapped_column(Float, nullable=True)  # ambrozja
+    unit: Mapped[str] = mapped_column(String(20))
+    model: Mapped[str] = mapped_column(String(30))
+    forecast_reference_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    valid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # ADR-014: which raw payload produced this row. NULL = the provenance write failed
+    # (best-effort, rule #1) - never a broken link.
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
+
+
 class SourceFetchCounter(Base):
     """Daily outbound-call counter per source (ADR-001/ADR-003/ADR-004: "licznik
     dziennych wywołań per źródło w bazie, alert przy 70% dziennego limitu").

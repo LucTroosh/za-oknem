@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import app.scheduler as scheduler
+from app.connectors.open_meteo_pollen import client as pollen_client
 from app.models import Alert, GeoArea, SourceFetch
 
 
@@ -95,6 +96,64 @@ class TestRunOpenMeteo:
         scheduler.run_open_meteo()
 
         assert [c.args[0].slug for c in mock.call_args_list] == ["klodzko"]
+
+
+class TestRunOpenMeteoPollen:
+    def test_ingests_every_geo_area_and_reports_success(self, monkeypatch, db_session):
+        _make_area(db_session, "klodzko")
+        _make_area(db_session, "warszawa")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(db_session, "close", lambda: None)
+        mock = MagicMock(return_value=True)
+        monkeypatch.setattr(scheduler, "ingest_pollen_areas", mock)
+
+        assert scheduler.run_open_meteo_pollen() is True
+
+        (areas, db), _ = mock.call_args
+        assert len(areas) == 2 and db is db_session
+
+    def test_skips_areas_without_active_polling(self, monkeypatch, db_session):
+        # ADR-019/ADR-001 option C: never fan out over every imported gmina.
+        _make_area(db_session, "klodzko")
+        inactive = _make_area(db_session, "teryt-9999901")
+        inactive.weather_polling_active = False
+        db_session.commit()
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(db_session, "close", lambda: None)
+        mock = MagicMock(return_value=True)
+        monkeypatch.setattr(scheduler, "ingest_pollen_areas", mock)
+
+        scheduler.run_open_meteo_pollen()
+
+        (areas, _db), _ = mock.call_args
+        assert [a.slug for a in areas] == ["klodzko"]
+
+    def test_no_geo_areas_is_skipped_not_a_success(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(db_session, "close", lambda: None)
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("open_meteo_pollen", scheduler.run_open_meteo_pollen)
+
+        record.assert_not_called()  # ADR-012: nothing fetched -> nothing recorded
+
+    def test_total_failure_is_recorded_as_failure(self, monkeypatch, db_session):
+        _make_area(db_session)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(db_session, "close", lambda: None)
+        monkeypatch.setattr(
+            pollen_client,
+            "fetch_pollen",
+            MagicMock(side_effect=pollen_client.OpenMeteoPollenApiError("down")),
+        )
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+
+        scheduler._run_job_safely("open_meteo_pollen", scheduler.run_open_meteo_pollen)
+
+        assert record.call_args.kwargs["success"] is False
+        assert "all 1 geo_area" in record.call_args.kwargs["error"]
 
 
 class TestRunGios:
@@ -324,6 +383,7 @@ class TestMain:
     def _mock_all_jobs(self, monkeypatch):
         mocks = {
             "run_open_meteo": MagicMock(),
+            "run_open_meteo_pollen": MagicMock(),
             "run_gios": MagicMock(),
             "run_imgw_hydro": MagicMock(),
             "run_imgw_warningshydro": MagicMock(),
@@ -365,6 +425,20 @@ class TestMain:
 
         assert mocks["run_gios"].call_count == 2
         assert mocks["run_open_meteo"].call_count == 1
+        assert mocks["run_open_meteo_pollen"].call_count == 1
+
+    def test_pollen_runs_once_per_24h_cycle_not_more_often(self, monkeypatch):
+        # ADR-004/ADR-020: CAMS Europe publishes once a day - 23h later is too early,
+        # 24h later is the next cycle.
+        mocks = self._mock_all_jobs(monkeypatch)
+        day = 24 * 60 * 60
+        ticks = iter([0.0, day - 3600, day])
+        monkeypatch.setattr(scheduler.time, "monotonic", lambda: next(ticks))
+
+        scheduler.main(iterations=3)
+
+        assert day == scheduler.OPEN_METEO_POLLEN_INTERVAL_SECONDS
+        assert mocks["run_open_meteo_pollen"].call_count == 2
 
     def test_one_job_failing_does_not_abort_the_others(self, monkeypatch):
         # Codex review (PR #37): an unhandled connector failure used to propagate
@@ -437,7 +511,7 @@ class TestCheckSourceHealth:
         errors = [
             r for r in caplog.records if r.name == "app.source_health" and r.levelname == "ERROR"
         ]
-        assert len(errors) == 4
+        assert len(errors) == 5  # open_meteo, open_meteo_pollen, gios, hydro, warnings
         assert set(state.values()) == {"UNAVAILABLE"}
 
     def test_open_meteo_without_geo_areas_is_not_monitored(self, monkeypatch, db_session):
@@ -447,6 +521,7 @@ class TestCheckSourceHealth:
         scheduler._check_source_health(state)
 
         assert "open_meteo" not in state
+        assert "open_meteo_pollen" not in state  # same polling-area switch (ADR-019/020)
 
     def test_state_is_replaced_so_a_disabled_source_loses_its_cache(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)

@@ -19,6 +19,7 @@ from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
+from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 # data is hourly. IMGW hydro/warnings cadence isn't documented (ADR-008/009) -
 # 1h is a starting assumption, same as GIOŚ, pending real verification.
 OPEN_METEO_INTERVAL_SECONDS = 3 * 60 * 60
+# CAMS Europe (pollen via Open-Meteo) is produced once a day - ADR-004/ADR-020.
+OPEN_METEO_POLLEN_INTERVAL_SECONDS = 24 * 60 * 60
 GIOS_INTERVAL_SECONDS = 60 * 60
 IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
 IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
@@ -70,6 +73,16 @@ def run_open_meteo() -> bool:
     if reason:
         raise RuntimeError(f"Open-Meteo: {reason}{_last_cause(errors)}")
     return True
+
+
+def run_open_meteo_pollen() -> bool:
+    # Raises when EVERY geo_area failed (ADR-012: no false success); returns False
+    # when there are no polling areas (nothing fetched - not a success either).
+    db = SessionLocal()
+    try:
+        return ingest_pollen_areas(polling_areas(db), db) or False
+    finally:
+        db.close()
 
 
 def run_gios() -> bool:
@@ -195,7 +208,9 @@ def main(*, iterations: int | None = None) -> None:
     # to work on Linux (monotonic counts from boot, so "now" is usually already
     # hours past either interval) but that's an assumption about the platform, not
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
-    last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
+    last_open_meteo = last_open_meteo_pollen = last_gios = last_imgw_hydro = last_imgw_warnings = (
+        float("-inf")
+    )
     last_retention = float("-inf")
     health_state: dict[str, str] = {}
     count = 0
@@ -204,6 +219,9 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
             _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
+        if now - last_open_meteo_pollen >= OPEN_METEO_POLLEN_INTERVAL_SECONDS:
+            _run_job_safely("open_meteo_pollen", run_open_meteo_pollen)
+            last_open_meteo_pollen = now
         if now - last_gios >= GIOS_INTERVAL_SECONDS:
             _run_job_safely("gios", run_gios)
             last_gios = now
