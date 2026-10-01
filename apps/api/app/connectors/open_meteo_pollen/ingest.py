@@ -60,15 +60,21 @@ def _store_batch(records: list[dict], db: Session) -> int:
     existing = {
         row.source_record_id: row
         for row in db.execute(
-            select(PollenSnapshot).where(
+            select(PollenSnapshot)
+            .where(
                 PollenSnapshot.source_id == SOURCE_ID,
                 PollenSnapshot.geo_area_id == area_id,
                 PollenSnapshot.forecast_reference_time == reference,
             )
+            # Row locks (no-op on SQLite): a concurrent older run blocks here until the
+            # newer one commits, then re-reads it and the fetched_at guard below holds.
+            # A first-ever insert race is settled by the unique constraint instead.
+            .with_for_update()
         ).scalars()
     }
     incoming_fetched_at = records[0]["fetched_at"]
     if any(_utc(row.fetched_at) > incoming_fetched_at for row in existing.values()):
+        db.rollback()  # release the row locks
         return 0  # a concurrent run (scheduler + CLI) already stored a NEWER fetch - keep it
     inserted = 0
     incoming = set()
