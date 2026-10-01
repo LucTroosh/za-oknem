@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.air_index import air_index
 from app.connectors.gios.discovery import assignment_candidates
 from app.db import get_db
-from app.geo import select_stations
+from app.geo import REGIONAL_MAX_KM, classify_air_coverage, coverage_radius_km, select_stations
 from app.models import GeoArea, Measurement
 
 router = APIRouter()
@@ -67,6 +67,9 @@ class AirStation(BaseModel):
     # Only with ?geo_area_id= (ADR-025): provenance of the area -> station assignment.
     distance_km: float | None = None
     assignment_method: str | None = None
+    # ADR-029: exact (<=10 km) | nearby (<=50) | regional (<=100, far-away station).
+    coverage: Literal["exact", "nearby", "regional"] | None = None
+    coverage_radius_km: int | None = None
 
 
 class AirLatestResponse(BaseModel):
@@ -87,8 +90,9 @@ def latest_air_quality(
     top-level `pm25` field.
 
     ADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area
-    (nearest within MAX_MATCH_DISTANCE_KM, with `distance_km` + `assignment_method`);
-    no station in range = empty list ("brak danych dla obszaru"), unknown area = 404."""
+    (nearest within REGIONAL_MAX_KM = 100 km, with `distance_km`, `assignment_method` and the
+    ADR-029 `coverage` band); no station in range = empty list ("brak danych dla obszaru"),
+    unknown area = 404."""
     area = None
     if geo_area_id is not None:
         area = db.get(GeoArea, geo_area_id)
@@ -146,11 +150,13 @@ def latest_air_quality(
     # ADR-025: catalog = authority for who may be assigned and at which coordinates.
     points = assignment_candidates(db, stations)
     coords = {sid: (lat, lon) for sid, lat, lon in points}
-    matches = select_stations(area.latitude, area.longitude, points)
+    matches = select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
     return {
         "stations": [
             {
                 **stations[m.station_id],
+                "coverage": classify_air_coverage(m.distance_km),
+                "coverage_radius_km": coverage_radius_km(classify_air_coverage(m.distance_km)),
                 # the position the distance was computed from (catalog), not the measured one
                 "latitude": coords[m.station_id][0],
                 "longitude": coords[m.station_id][1],

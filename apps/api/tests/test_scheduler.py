@@ -9,7 +9,7 @@ import pytest
 
 import app.scheduler as scheduler
 from app.connectors.open_meteo_pollen import client as pollen_client
-from app.models import Alert, GeoArea, SourceFetch
+from app.models import Alert, GeoArea, SourceFetch, WeatherSnapshot
 
 
 def _make_area(db, slug="klodzko") -> GeoArea:
@@ -411,6 +411,101 @@ class TestRunImgwWarningsHydroIncomplete:
         assert "snapshot incomplete" in record.call_args.kwargs["error"]
 
 
+class TestNewAreaBootstrap:
+    """ADR-029: a freshly activated place gets its first fetch within a tick, bounded."""
+
+    def _setup(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        weather, pollen = MagicMock(), MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_geo_area", weather)
+        monkeypatch.setattr(scheduler, "ingest_pollen_areas", pollen)
+        return weather, pollen
+
+    def _area(self, db, slug, *, place_id=None, active=True):
+        a = GeoArea(
+            slug=slug, name=slug, latitude=50.0, longitude=19.0, place_id=place_id,
+            weather_polling_active=active,
+        )  # fmt: skip
+        db.add(a)
+        db.commit()
+        return a
+
+    def test_fetches_only_active_place_areas_without_weather(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        new = self._area(db_session, "place-1", place_id=1)
+        self._area(db_session, "seed-city")  # seeded: regular cycle only
+        self._area(db_session, "place-2", place_id=2, active=False)
+        has_data = self._area(db_session, "place-3", place_id=3)
+        db_session.add(
+            WeatherSnapshot(
+                source_id="open_meteo", source_record_id="r", geo_area_id=has_data.id,
+                param_code="temperature_2m", value=1.0, unit="C",
+                observed_at=datetime.now(UTC), fetched_at=datetime.now(UTC),
+            )  # fmt: skip
+        )
+        db_session.commit()
+        attempts: dict = {}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 1000.0) == 1
+
+        assert weather.call_args.args[0].id == new.id
+        assert [a.id for a in pollen.call_args.args[0]] == [new.id]
+        assert attempts == {new.id: (1, 1000.0)}
+
+    def test_retries_are_spaced_and_capped(self, monkeypatch, db_session):
+        weather, _ = self._setup(monkeypatch, db_session)
+        self._area(db_session, "place-1", place_id=1)  # never gets weather (fetch mocked)
+        attempts: dict = {}
+        retry = scheduler.BOOTSTRAP_RETRY_SECONDS
+
+        assert scheduler.run_new_area_bootstrap(attempts, 0.0) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 60.0) == 0  # too soon
+        assert scheduler.run_new_area_bootstrap(attempts, retry) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 2 * retry) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 10 * retry) == 0  # cap reached
+        assert weather.call_count == scheduler.BOOTSTRAP_MAX_ATTEMPTS == 3
+
+    def test_pollen_failure_never_raises(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        pollen.side_effect = RuntimeError("pollen down")
+        self._area(db_session, "place-1", place_id=1)
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 1
+        weather.assert_called_once()
+
+    def test_database_failure_never_raises(self, monkeypatch):
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 0
+
+
+class TestRunPlaceExpiry:
+    def test_switches_off_idle_place_areas(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        old = datetime.now(UTC) - timedelta(days=30)
+        stale = GeoArea(
+            slug="place-1", name="p", latitude=50.0, longitude=19.0, place_id=1,
+            last_requested_at=old,
+        )  # fmt: skip
+        seed = _make_area(db_session, "seed-city")
+        db_session.add(stale)
+        db_session.commit()
+
+        scheduler.run_place_expiry()
+
+        assert (stale.weather_polling_active, seed.weather_polling_active) == (False, True)
+
+    def test_runs_daily_without_a_source_status_row(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        scheduler._run_job_safely("place_expiry", scheduler.run_place_expiry, track_status=False)
+
+        record.assert_not_called()
+        assert scheduler.PLACE_EXPIRY_INTERVAL_SECONDS == 24 * 60 * 60
+
+
 class TestRunRawRetention:
     def test_purges_expired_payloads(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
@@ -452,9 +547,12 @@ class TestMain:
             "run_imgw_hydro": MagicMock(),
             "run_imgw_warningshydro": MagicMock(),
             "run_raw_retention": MagicMock(),
+            "run_place_expiry": MagicMock(),
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)
+        # Runs every tick (not gated by an interval), so it is not part of `mocks`.
+        monkeypatch.setattr(scheduler, "run_new_area_bootstrap", MagicMock())
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
         monkeypatch.setattr(scheduler, "_record_run", MagicMock())
         monkeypatch.setattr(scheduler, "_check_source_health", MagicMock())

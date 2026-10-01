@@ -2,6 +2,7 @@
 
 **Status:** Proposed (do zaakceptowania wraz z merge PR TASK-6.2 (8))
 **Data:** 2026-10-01
+**Uwaga (ADR-029):** aktywację pollingu wybranego miejsca definiuje `POST /api/v1/places/{id}/activate` (rejestr `places`, budżet, TTL).
 
 ## Context
 

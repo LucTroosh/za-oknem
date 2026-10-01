@@ -2,6 +2,7 @@
 
 **Status:** Proposed (do zaakceptowania wraz z merge PR TASK-6.2 (7))
 **Data:** 2026-10-01
+**Uwaga (ADR-029):** limit 50 km jest teraz progiem `nearby`; polling i API przypisują najbliższą stację do 100 km (`regional`, jawnie oznaczone).
 
 ## Context
 

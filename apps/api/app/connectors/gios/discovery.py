@@ -20,7 +20,7 @@ from app.connectors.gios import client
 from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
 from app.connectors.open_meteo.ingest import polling_areas
-from app.geo import select_stations
+from app.geo import REGIONAL_MAX_KM, select_stations
 from app.models import GiosStation
 
 logger = logging.getLogger(__name__)
@@ -134,7 +134,8 @@ def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
 
 
 def assigned_station_ids(db: Session) -> list[str]:
-    """Station ids to poll: nearest catalog station within the limit for every actively
+    """Station ids to poll: nearest catalog station within REGIONAL_MAX_KM (ADR-029: the
+    50-100 km "regional" band is polled too, so it has data to disclose) for every actively
     polled area, de-duplicated, sorted. Areas with no station in range contribute nothing
     ("brak danych dla obszaru")."""
     rows = db.query(GiosStation).options(defer(GiosStation.raw))  # raw JSON not needed here
@@ -145,7 +146,7 @@ def assigned_station_ids(db: Session) -> list[str]:
         {
             m.station_id
             for area in polling_areas(db)
-            for m in select_stations(area.latitude, area.longitude, points)
+            for m in select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
         }
     )
 

@@ -134,10 +134,23 @@ def test_assigned_station_ids_nearest_per_active_area_deduplicated(monkeypatch, 
     _area(db_session, "klodzko", 50.433493, 16.65366)
     _area(db_session, "klodzko-2", 50.45, 16.66)  # same nearest station -> one id
     _area(db_session, "warszawa", 52.23, 21.01)
-    _area(db_session, "szczecin", 53.43, 14.55)  # nothing within 50 km -> no data
+    _area(db_session, "szczecin", 53.43, 14.55)  # nothing within 100 km -> no data
     _area(db_session, "inactive-krakow", 50.06, 19.94, active=False)  # not polled
 
     assert discovery.assigned_station_ids(db_session) == ["114", "38"]
+
+
+def test_assigned_station_ids_reaches_the_regional_band(monkeypatch, db_session):
+    # ADR-029: a station 50-100 km away is polled (so the regional band has data); one more
+    # than 100 km away is not.
+    _fetch(monkeypatch, [_st(71, 50.93, 16.65366), _st(72, 51.40, 16.65366)])  # ~55 / ~107 km
+    discovery.discover_stations(db_session)
+    _area(db_session, "klodzko", 50.433493, 16.65366)
+
+    assert discovery.assigned_station_ids(db_session) == ["71"]  # 72 is out of range
+
+    _area(db_session, "north", 52.2, 16.65366)  # ~89 km from 72, ~145 km from 71
+    assert discovery.assigned_station_ids(db_session) == ["71", "72"]
 
 
 def test_assigned_station_ids_is_stable_and_empty_without_catalog(monkeypatch, db_session):

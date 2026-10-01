@@ -70,3 +70,13 @@ def limit_device_writes(request: Request) -> None:
     # Behind Caddy, request.client is the proxy unless uvicorn runs with
     # --proxy-headers and FORWARDED_ALLOW_IPS set to it (deploy follow-up, TASK-15.x).
     device_writes.check(request.client.host if request.client else "unknown")
+
+
+# ADR-029: switching polling on for a place costs Open-Meteo budget, and place ids are
+# public and enumerable - so new activations are scarce per IP (refreshing an already active
+# area is not counted). A person picks a handful of places an hour at most.
+place_activations = RateLimiter(limit=10, window_seconds=3600)
+
+
+def limit_place_activations(request: Request) -> None:
+    place_activations.check(request.client.host if request.client else "unknown")

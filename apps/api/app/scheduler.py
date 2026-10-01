@@ -11,6 +11,8 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from sqlalchemy import exists, select
+
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.discovery import assigned_station_ids, ensure_catalog, stations_by_id
@@ -23,6 +25,8 @@ from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
+from app.models import GeoArea, WeatherSnapshot
+from app.places import expire_idle_areas
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
 from app.source_status import (
@@ -45,6 +49,12 @@ IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
 # ADR-014: payload retention is coarse (days), so once a day is plenty.
 RAW_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60
 POLL_INTERVAL_SECONDS = 60
+# ADR-029: idle place-areas are switched off once a day (TTL is days, so daily is plenty).
+PLACE_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
+# ADR-029: a freshly activated place gets its first weather/pollen fetch within a minute
+# instead of waiting for the 3 h / 24 h cycle. Bounded so a failing area cannot burn budget.
+BOOTSTRAP_MAX_ATTEMPTS = 3
+BOOTSTRAP_RETRY_SECONDS = 15 * 60
 
 
 def _gios_station_ids() -> list[str]:
@@ -85,6 +95,57 @@ def run_open_meteo_pollen() -> bool:
         return ingest_pollen_areas(polling_areas(db), db) or False
     finally:
         db.close()
+
+
+def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -> int:
+    """First fetch for place-based areas that are polled but have no weather yet (ADR-029).
+    `attempts` (area id -> (count, monotonic time of the last one)) lives in the scheduler
+    loop, in memory like the rest of its state (ADR-007): at most BOOTSTRAP_MAX_ATTEMPTS
+    tries, BOOTSTRAP_RETRY_SECONDS apart; after that the regular cycle takes over. Records
+    no source_status (that is the regular runs' job). Never raises (rule #1). Returns the
+    number of areas attempted."""
+    db = SessionLocal()
+    try:
+        has_weather = exists().where(WeatherSnapshot.geo_area_id == GeoArea.id)
+        due = [
+            a
+            for a in db.execute(
+                select(GeoArea).where(
+                    GeoArea.weather_polling_active.is_(True),
+                    GeoArea.place_id.is_not(None),
+                    ~has_weather,
+                )
+            )
+            .scalars()
+            .all()
+            if attempts.get(a.id, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
+            and now - attempts.get(a.id, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
+        ]
+        for area in due:
+            count = attempts.get(area.id, (0, 0.0))[0]
+            attempts[area.id] = (count + 1, now)
+            ingest_geo_area(area, db)  # failure is logged inside, per area (rule #1)
+            try:
+                ingest_pollen_areas([area], db)
+            except Exception:
+                logger.exception("bootstrap: pollen for %s failed", area.slug)
+        return len(due)
+    except Exception:
+        logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
+        db.rollback()
+        return 0
+    finally:
+        db.close()
+
+
+def run_place_expiry() -> None:
+    """ADR-029: stop polling place-based areas nobody re-activated within the TTL."""
+    db = SessionLocal()
+    try:
+        expired = expire_idle_areas(db)
+    finally:
+        db.close()
+    logger.info("place expiry: %s idle area(s) no longer polled", expired)
 
 
 def run_gios() -> bool:
@@ -226,7 +287,8 @@ def main(*, iterations: int | None = None) -> None:
     last_open_meteo = last_open_meteo_pollen = last_gios = last_imgw_hydro = last_imgw_warnings = (
         float("-inf")
     )
-    last_retention = float("-inf")
+    last_retention = last_place_expiry = float("-inf")
+    bootstrap_attempts: dict[int, tuple[int, float]] = {}
     health_state: dict[str, str] = {}
     count = 0
     while iterations is None or count < iterations:
@@ -249,6 +311,10 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
+        if now - last_place_expiry >= PLACE_EXPIRY_INTERVAL_SECONDS:
+            _run_job_safely("place_expiry", run_place_expiry, track_status=False)
+            last_place_expiry = now
+        run_new_area_bootstrap(bootstrap_attempts, now)
         _check_source_health(health_state)
         count += 1
         if iterations is None or count < iterations:

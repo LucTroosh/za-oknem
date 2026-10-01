@@ -37,6 +37,8 @@ export type AirParam = {
 
 export type AirStation = {
   assignment_method?: string | null;
+  coverage?: "exact" | "nearby" | "regional" | null;
+  coverage_radius_km?: number | null;
   distance_km?: number | null;
   index: AirIndex;
   latitude: number;
@@ -93,6 +95,8 @@ export type DailyBudgetOut = {
 export type DashboardAir = {
   assignment_method: string;
   attribution: string;
+  coverage: "exact" | "nearby" | "regional";
+  coverage_radius_km: number;
   distance_km: number;
   index: AirIndex;
   observed_at: string;
@@ -113,6 +117,7 @@ export type DashboardAlerts = {
 
 export type DashboardArea = {
   air: DashboardAir | null;
+  coverage: DashboardCoverage;
   forecast: DashboardForecast | null;
   geo_area_id: number;
   latitude: number;
@@ -124,6 +129,14 @@ export type DashboardArea = {
   slug: string;
   weather: DashboardWeather | null;
   weather_polling_active: boolean;
+};
+
+export type DashboardCoverage = {
+  air: "exact" | "nearby" | "regional" | "none";
+  air_radius_km: number | null;
+  grid_description: string;
+  pollen: "grid";
+  weather: "grid";
 };
 
 export type DashboardForecast = {
@@ -296,6 +309,29 @@ export type OutdoorReasonOut = {
   threshold: number;
   unit: string;
   value: number;
+};
+
+export type PlaceAreaResponse = {
+  area: AreaOut | null;
+  attribution: string;
+  place: PlaceOut;
+  polling: "active" | "inactive" | "capacity_reached" | "budget_exhausted";
+};
+
+export type PlaceOut = {
+  admin1_code: string | null;
+  admin2_code: string | null;
+  kind: string;
+  latitude: number;
+  longitude: number;
+  name: string;
+  place_id: number;
+  population: number | null;
+};
+
+export type PlacesResponse = {
+  attribution: string;
+  places: Array<PlaceOut>;
 };
 
 export type PollenArea = {

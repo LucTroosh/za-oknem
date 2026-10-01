@@ -20,6 +20,15 @@ EARTH_RADIUS_KM = 6371.0
 MAX_MATCH_DISTANCE_KM = 50.0
 METHOD_NEAREST_STATION = "nearest_station"
 
+# ADR-029: air coverage ladder, by distance from the area centre to the assigned station
+# (inclusive upper bounds, on the distance rounded to 1 m - the number the client sees).
+# exact/nearby are measurements "around" the place; regional (50-100 km) is a far-away
+# station disclosed as such and never trusted for the outdoor verdict; beyond = none.
+EXACT_MAX_KM = 10.0
+NEARBY_MAX_KM = MAX_MATCH_DISTANCE_KM
+REGIONAL_MAX_KM = 100.0
+AirCoverage = Literal["exact", "nearby", "regional", "none"]
+
 # ADR-026: GPS/manual point -> app area. `point_in_polygon` = the gmina itself (ADR-019);
 # `nearest_area` = fallback to the closest ACTIVE area within this distance (inclusive),
 # always disclosed with its distance - it never replaces the administrative answer.
@@ -64,6 +73,20 @@ def select_stations(
             scored.append((round(km, 3), sid))
     scored.sort(key=lambda t: (t[0], not t[1].isdigit(), len(t[1]), t[1]))
     return [StationMatch(sid, km) for km, sid in scored[:limit]]
+
+
+def classify_air_coverage(distance_km: float | None) -> AirCoverage:
+    """Pure ladder (rule #9): None (no station within REGIONAL_MAX_KM) or > 100 km = none."""
+    if distance_km is None or distance_km > REGIONAL_MAX_KM:
+        return "none"
+    if distance_km <= EXACT_MAX_KM:
+        return "exact"
+    return "nearby" if distance_km <= NEARBY_MAX_KM else "regional"
+
+
+def coverage_radius_km(level: AirCoverage) -> int | None:
+    """The radius the client may quote ("w promieniu ~50 km"); None for none."""
+    return {"exact": 10, "nearby": 50, "regional": 100, "none": None}[level]
 
 
 def nearest_area(
