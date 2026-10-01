@@ -52,9 +52,9 @@ Alerts/Settings/push/profilu).
 
 | Metryka | Status |
 |---|---|
-| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⬜ TODO — brak connectora, brak Source Approval Gate |
-| E. coli, enterokoki, sinice | ⬜ TODO — brak connectora, brak Source Approval Gate |
-| data ostatniego / następnego badania próbki | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⛔ BLOCKED — research + ADR-021 (Proposed) gotowe (TASK-11.1 częściowo); GIS (`sk.gis.gov.pl`) to HTML bez API/licencji, EEA daje tylko rejestr + klasyfikację roczną (licencja wydania 2025 niepotwierdzona); brak źródła statusu bieżącego |
+| E. coli, enterokoki, sinice | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
+| data ostatniego / następnego badania próbki | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
 
 ### 2.5. Hydrologia (§8)
 
@@ -171,6 +171,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #62 | Hydrologia na mobile: „Stany wody — cała Polska” (WARNING/ALARM), `attribution` + `source_status` w `/hydro/latest`, CLI hydro zapisuje `source_status` (TASK-7.2) |
 | #64 | Outdoor Interpretation Engine (ADR-016, TASK-7.6) — czysty moduł, niepodłączony do API |
 | #65 | Provenance: `source_fetches` + `source_fetch_id`, retencja payloadów (ADR-014, TASK-3.1) |
+| #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 
 ---
 
