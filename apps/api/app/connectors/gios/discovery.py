@@ -16,12 +16,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, defer
 
 from app import provenance
+from app.config import settings
 from app.connectors.gios import client
 from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
 from app.connectors.open_meteo.ingest import polling_areas
 from app.geo import REGIONAL_MAX_KM, select_stations
-from app.config import settings
 from app.models import GeoArea, GiosStation
 
 logger = logging.getLogger(__name__)
