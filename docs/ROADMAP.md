@@ -106,7 +106,7 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu. Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #PRNUM). Brak karty outdoor. |
+| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu. Karta pyłków (prognoza modelu CAMS, TASK-8.8; PR #75). Brak karty outdoor. |
 | Alerts (ekran) | ⬜ TODO |
 | Settings | ⬜ TODO |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
@@ -174,7 +174,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #63 | Europejski indeks jakości powietrza EAQI/EEA (ADR-015, TASK-4.2): `air_index.py`, `index` w `/air/latest` i dashboardzie, mobile `AirIndexBadge`; indeks GIOŚ odłożony |
 | #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
-| #PRNUM | Pyłki w dashboardzie: blok `pollen` w `dashboard_latest()` (TASK-8.9, izolowany, freshness + `source_status`) + karta mobile `PollenCard`/`pollen.ts` (TASK-8.8); progi sezon/szczyt EAACI wg CAMS/EEA (ADR-020) |
+| #75 | Pyłki w dashboardzie: blok `pollen` w `dashboard_latest()` (TASK-8.9, izolowany, freshness + `source_status`) + karta mobile `PollenCard`/`pollen.ts` (TASK-8.8); progi sezon/szczyt EAACI wg CAMS/EEA (ADR-020) |
 
 ---
 

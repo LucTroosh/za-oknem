@@ -376,13 +376,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
-- [x] **TASK-8.8** (DONE w PR #PRNUM; `pollen.ts` + `PollenCard`, progi EAACI/CAMS wg EEA — ADR-020; poziomy = próg sezonu/szczytu, nie ryzyko objawów): Karta pyłkowa na mobile dashboard (§Phase 8 Master
+- [x] **TASK-8.8** (DONE w PR #75; `pollen.ts` + `PollenCard`, progi EAACI/CAMS wg EEA — ADR-020; poziomy = próg sezonu/szczytu, nie ryzyko objawów): Karta pyłkowa na mobile dashboard (§Phase 8 Master
       Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
       użytkownikowi mimo działającego backendu. Profil alergika (który
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
       Wzorzec `source`/`attribution` z TASK-7.1 (Copernicus) dotyczy też tej
       karty.
-- [x] **TASK-8.9** (DONE w PR #PRNUM; blok per obszar, izolowany, ADR-020): Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
+- [x] **TASK-8.9** (DONE w PR #75; blok per obszar, izolowany, ADR-020): Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
       część głównego agregatu, nie tylko `/pollen/latest`; §55 wymaga też,
       że `pollen` w tej odpowiedzi zawsze pochodzi z lokalnego snapshotu, nie
       z zapytania do CAMS na żądanie). Zależne od TASK-8.7 (endpoint/dane
