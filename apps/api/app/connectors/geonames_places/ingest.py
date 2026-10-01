@@ -57,7 +57,11 @@ _FIELDS = (
     "population",
 )
 
-_ADMIN_NAMES = {"admin1_name": "admin1_code", "admin2_name": "admin2_code"}
+# the admin2 name is looked up by the composite PL.<admin1>.<admin2> key
+_ADMIN_NAMES = {
+    "admin1_name": ("admin1_code",),
+    "admin2_name": ("admin1_code", "admin2_code"),
+}
 
 
 def read_lines(path: Path) -> Iterator[str]:
@@ -110,7 +114,7 @@ def import_records(
                         row is not None
                         and f in _ADMIN_NAMES
                         and getattr(rec, f) is None
-                        and getattr(row, _ADMIN_NAMES[f]) == getattr(rec, _ADMIN_NAMES[f])
+                        and all(getattr(row, c) == getattr(rec, c) for c in _ADMIN_NAMES[f])
                     )
                 ]
                 if row is None:
