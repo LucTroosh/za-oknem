@@ -51,9 +51,16 @@ model pomocniczy — traktować jako wskazówki do potwierdzenia, nie cytaty.
   `maxRecordCount` 1000. Copyright usługi: „EEA, Bathing waters data and
   coordinates: Member states authorities". Wg wyników wyszukiwania istnieje też
   nowsza usługa `..._2024` — nie sprawdzono, która jest aktualna.
-- **Niezweryfikowane:** licencja aktualnego zbioru/usługi (strona datahubu jej
-  nie podała; rekord z 2011 ma CC BY 4.0, ale to inny rekord), schemat pliku
-  xlsx, czy filtr po kraju działa, stabilność URL usługi, rate limit.
+- **Dopisane (runda 2, WebFetch):** rekord katalogu EEA „Status of bathing water,
+  2024 v.1.0" (`sdi.eea.europa.eu/catalogue/srv/api/records/30e5d599-6bc1-408d-9e65-a10e433b81ef`,
+  publikacja 2025-06-19, pokrycie 1990–2024, Excel) ma licencję **CC BY 4.0**
+  (copyright: DG ENV / EEA). Folder ArcGIS `BathingWater` ma osobną usługę na
+  każdy rok (`BathingWater_Dyna_WM_2015` … `_2025`, plus `BathingWater_Dyna_WM`
+  i `BathingWater_TimeSlider_Dyna_WM`) — `_2018` z pierwszej rundy NIE jest
+  aktualna, istnieje `_2025`.
+- **Nadal niezweryfikowane:** licencja wydania 2025 (strona datahubu jej nie
+  podała), schemat pliku xlsx i pól usługi `_2025` (kolejne zapytania WebFetch
+  odrzucone: URL spoza zbioru provenance), filtr `countryName='Poland'`, rate limit.
 - Wniosek: wiarygodny rejestr lokalizacji (id, nazwa, WGS84) + roczna
   klasyfikacja; nie daje przydatności, przyczyny zamknięcia, E. coli,
   enterokoków, sinic ani dat badań.

@@ -200,15 +200,18 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   `maxRecordCount` 1000) — sprawdzone WebFetch 2026-10-01
 - **frequency:** roczna (cykl raportowania Dyrektywy); NIE status bieżący
 - **coverage:** Europa, w tym Polska (filtr po kraju niezweryfikowany)
-- **license / commercial_use:** NIEZWERYFIKOWANE dla aktualnego zbioru (rekord
-  z 2011 ma CC BY 4.0 — inny rekord). Copyright usługi: „EEA, Bathing waters
+- **license / commercial_use:** wydanie 2024 (rekord katalogu EEA
+  `30e5d599-6bc1-408d-9e65-a10e433b81ef`): CC BY 4.0, copyright DG ENV/EEA
+  (zweryfikowane 2026-10-01); wydanie 2025 — NIEZWERYFIKOWANE. ArcGIS ma
+  usługę per rok (`..._2015`…`_2025`) — aktualna to `_2025`, nie `_2018`. Copyright usługi: „EEA, Bathing waters
   data and coordinates: Member states authorities"
 - **rate_limit:** nieznany
 - **attribution:** do ustalenia po potwierdzeniu licencji
 - **nie zawiera:** przydatności bieżącej, przyczyny zamknięcia, E. coli,
   enterokoków, sinic, dat badań
 - **status:** DISCOVERY (kandydat na rejestr lokalizacji + klasyfikację roczną;
-  Gate niezaliczony — licencja i schemat pliku niepotwierdzone)
+  Gate niezaliczony — licencja wydania 2025, schemat pliku/pól `_2025` i filtr
+  po kraju niepotwierdzone)
 - **last_verified_at:** 2026-10-01
 
 ## dane.gov.pl (kąpieliska) — NIEZWERYFIKOWANE
