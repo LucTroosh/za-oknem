@@ -200,6 +200,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
 | #75 | Pyłki w dashboardzie: blok `pollen` w `dashboard_latest()` (TASK-8.9, izolowany, freshness + `source_status`) + karta mobile `PollenCard`/`pollen.ts` (TASK-8.8); progi sezon/szczyt EAACI wg CAMS/EEA (ADR-020) |
+| #79 | Stacje GIOŚ per aktywny obszar (TASK-6.2 (7), ADR-024): katalog `gios_stations` (migracja `0013`, odświeżany ≤ 1×/dobę), `geo.select_stations` (nearest ≤ 50 km, tie-break po id), polling stacji przypisanych do `polling_areas` (`GIOS_STATION_IDS` = override), `assignment_method` w dashboardzie i `/air/latest?geo_area_id=` |
 
 ---
 
