@@ -57,6 +57,8 @@ _FIELDS = (
     "population",
 )
 
+_ADMIN_NAMES = {"admin1_name": "admin1_code", "admin2_name": "admin2_code"}
+
 
 def read_lines(path: Path) -> Iterator[str]:
     """Lines of the dump: plain text, or the PL.txt member of a zip."""
@@ -98,15 +100,19 @@ def import_records(
             }
             counts = ImportReport()
             for rec in chunk:
-                # A refresh without the admin files must not wipe enriched names.
+                row = existing.get(rec.source_record_id)
+                # A refresh without the admin files keeps enriched names - unless the code
+                # they belong to changed (then the old name would be wrong, so it is cleared).
                 changed = [
                     f
                     for f in _FIELDS
                     if not (
-                        f.startswith("admin") and f.endswith("_name") and getattr(rec, f) is None
+                        row is not None
+                        and f in _ADMIN_NAMES
+                        and getattr(rec, f) is None
+                        and getattr(row, _ADMIN_NAMES[f]) == getattr(rec, _ADMIN_NAMES[f])
                     )
                 ]
-                row = existing.get(rec.source_record_id)
                 if row is None:
                     db.add(
                         Place(

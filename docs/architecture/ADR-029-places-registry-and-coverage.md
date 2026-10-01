@@ -208,3 +208,13 @@ kalibracji. `exact` i `nearby` — bez zmian (wchodzą do werdyktu).
   ponad szacunek 8/dobę (znane z ADR-003/022; próg 90% to bufor).
 - Zastępuje częściowo: ADR-025 (limit 50 km → pasma do 100 km), uzupełnia ADR-026 (mechanizm
   aktywacji, którego ADR-026 nie definiował; `POST /geo/locate` bez zmian).
+
+### Znane, świadomie przyjęte ograniczenia
+
+- **Reaktywacja po wygaśnięciu:** bootstrap ponawia pobranie, gdy dane są starsze niż jeden
+  regularny cykl (pogoda 3 h, pyłki 24 h), nie względem czasu aktywacji — porównanie z
+  `last_requested_at` odświeżałoby dane przy każdym otwarciu miejscowości i paliło budżet
+  Open-Meteo. Skutek: pyłki po reaktywacji mogą mieć do ~24 h; freshness (#8) to pokazuje.
+- **Granica 100 km:** wybór stacji tnie na dokładnej odległości (≤ 100 km), klasyfikacja i
+  `distance_km` używają 0,1 km. Stacja 100,001–100,049 km jest poza zasięgiem (`none`) —
+  rozbieżność ≤ 50 m, bez wpływu na wyświetlaną stację.
