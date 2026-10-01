@@ -51,7 +51,7 @@ Alerts/Settings/push/profilu).
 | Metryka | Status |
 |---|---|
 | olcha, brzoza, trawy, bylica, ambrozja | 🟡 PARTIAL — **backend ✅** (TASK-8.5–8.7, PR #71, ADR-020): connector `open_meteo_pollen` (CAMS Europe przez Open-Meteo Air Quality — **prognoza modelowa, nie pomiar**, `kind=model_forecast`), `PollenSnapshot` (5 gatunków, NULL ≠ 0), scheduler 24 h z `source_status`, provenance, `GET /api/v1/pollen/latest`. **Brak** karty mobile (TASK-8.8) i bloku `pollen` w `dashboard_latest()` (TASK-8.9) — w toku w osobnym PR, nie DONE. Rzeczywiste pomiary (OBAŚ) niezweryfikowane |
-| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica, Cladosporium; ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); brak UI |
+| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica, Cladosporium; ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); UI: karta „Kalendarz pylenia — typowy sezon” na mobile (osobna od prognozy CAMS) |
 
 ### 2.4. Woda / kąpieliska (§7)
 
@@ -206,6 +206,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #76 | Kalendarz pylenia: statyczne dane referencyjne + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10); 8 taksonów (z trawami), ambrozja/pokrzywowate niezweryfikowane |
 | #81 | Alerty ↔ obszar (TASK-9.5 część, ADR-013): `app/alert_geo.py` (województwo → TERYT, fail-safe `unresolved`), `?geo_area_id=` w `/alerts/latest`, `geo_match`, `local_alerts` w dashboardzie, kontrakt zregenerowany; ADR-013 = granica Measurement/Forecast/Event/Alert/Notification (`Event`/`Notification` nie powstały) — 🟡 |
 | #78 | Stany stale/no-data dla air i weather (TASK-7.3): `source_status` w blokach dashboardu, efektywna świeżość + etykieta wieku + przygaszenie w UI; prezentacja pól pogody na mobile (TASK-5.4) |
+| #80 | Mobile: karta „Kalendarz pylenia — typowy sezon” (TASK-8.10 UI, `pollenCalendar.ts`/`PollenCalendarCard`, osobny fetch `/pollen/calendar`, pusty `active` ≠ „nic nie pyli”) + typy `index`/`alerts`/`hydro`/`outdoor`/`aqi` z kontraktu API (follow-up TASK-2.1) |
 
 ---
 

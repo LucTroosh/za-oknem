@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import type {
+  DashboardArea as ContractArea,
+  DashboardResponse,
+  DashboardSourceStatus as ContractSourceStatus,
+} from "../../../packages/api-contract/schema";
 import AirParams from "../components/AirParams";
 import OutdoorCard from "../components/OutdoorCard";
+import PollenCalendarCard from "../components/PollenCalendarCard";
 import PollenCard from "../components/PollenCard";
 import WeatherCard from "../components/WeatherCard";
+import usePollenCalendar from "../components/usePollenCalendar";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
-import { type ForecastDay, forecastLine } from "./forecast";
-import { FRESHNESS_LABEL, type Freshness, type FreshnessState } from "./freshness";
+import { forecastLine } from "./forecast";
+import { FRESHNESS_LABEL } from "./freshness";
 import {
   HYDRO_FRESHNESS_LABEL,
   HYDRO_STATUS_LABEL,
@@ -17,71 +24,17 @@ import {
   summarizeHydro,
 } from "./hydro";
 
-// No shared api-contract package yet (packages/api-contract is still a
-// placeholder) — hand-typed here, one endpoint doesn't justify generating an
-// OpenAPI client.
+// Types come from the generated API contract (packages/api-contract, ADR-024). Components
+// still take `unknown` and parse defensively, so an older backend degrades, never crashes.
 //
 // Freshness labels are the server's own (app/api/v1/dashboard.py, per-domain thresholds,
 // ADR-004). The client never upgrades one; it only combines it with `source_status`
 // (worst wins, ADR-012) and ages it on the device clock (app/readings.ts, TASK-7.3).
-export type DashboardArea = {
-  geo_area_id: number;
-  slug: string;
-  name: string;
-  air: {
-    station_name: string;
-    // TASK-7.1: source transparency (Master Plan Principle 2) — server-provided
-    // attribution text, never hardcoded/reworded on the client. This top-level
-    // observed_at is only the newest of any param at this station (dashboard.py)
-    // — a rough station-level summary, not authoritative for any single
-    // pollutant (Codex review, round 3): render each param's OWN observed_at
-    // (below) next to that param, not this one.
-    attribution: string;
-    observed_at: string;
-    // TASK-4.1: full GIOŚ param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5
-    // — freshness AND observed_at are per-param since each param can be observed
-    // at a different time (dashboard.py already returns both per param).
-    params: Record<
-      string,
-      { value: number; unit: string; observed_at: string; freshness: Freshness }
-    >;
-    // TASK-4.2: optional - absent on an older backend; the badge renders nothing then.
-    index?: unknown;
-    // TASK-7.3 / ADR-012: optional - absent on an older backend.
-    source_status?: { freshness: FreshnessState; last_success_at: string | null };
-  } | null;
-  weather: {
-    attribution: string;
-    observed_at: string;
-    freshness: Freshness;
-    // Per-param observed_at/freshness (dashboard.py) — the object-level pair above
-    // is only the newest of any param, so a stale hourly-derived value must be
-    // labelled with its own status, same as air params.
-    params: Record<
-      string,
-      { value: number; unit: string; observed_at: string; freshness: Freshness }
-    >;
-    source_status?: { freshness: FreshnessState; last_success_at: string | null };
-  } | null;
-  // TASK-5.5: daily forecast from the same dashboard aggregate. Freshness is
-  // about when we fetched it (fetched_at), not about the forecast period.
-  forecast: {
-    attribution: string;
-    fetched_at: string;
-    freshness: Freshness;
-    days: ForecastDay[];
-  } | null;
-  // TASK-7.8: optional — absent on an older backend; the card renders nothing then.
-  outdoor?: unknown;
-  // TASK-8.8/8.9: CAMS model forecast (ADR-020), typed in pollen.ts (PollenBlock);
-  // optional - absent on an older backend, the card renders nothing then.
-  pollen?: unknown;
-};
+export type DashboardArea = ContractArea;
 
 // TASK-7.3: top-level (not per area) because `air`/`weather` are null when there is no
-// station/snapshot - the source status must survive that. Optional on an older backend.
-type SourceStatus = { freshness: FreshnessState; last_success_at: string | null };
-export type DashboardSourceStatus = { air?: SourceStatus; weather?: SourceStatus };
+// station/snapshot - the source status must survive that.
+export type DashboardSourceStatus = ContractSourceStatus;
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -146,16 +99,15 @@ export default function Home() {
   // Device time of the last successful dashboard response (ages the outdoor verdict).
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
+  // Typical pollen season (ADR-023): own fetch, one per screen (nationwide, not per area).
+  const calendar = usePollenCalendar(hydroRefreshTick);
 
   const load = useCallback(() => {
-    return apiGet<{
-      areas: DashboardArea[];
-      alerts: AlertsBlock;
-      source_status?: DashboardSourceStatus;
-    }>("/api/v1/dashboard/latest")
+    return apiGet<DashboardResponse>("/api/v1/dashboard/latest")
       .then((body) => {
         setAreas(body.areas);
         setAlerts(body.alerts);
+        // `?? null`: an older backend may omit it (runtime only; the contract says required).
         setSourceStatus(body.source_status ?? null);
         setLoadedAt(Date.now());
         setState("ready");
@@ -201,7 +153,13 @@ export default function Home() {
         // otherwise the source is silent and we say so (no false all-clear).
         ListHeaderComponent={alerts ? <AlertsSection alerts={alerts} /> : null}
         // TASK-7.2 (hydro): own fetch and own states - independent of the dashboard.
-        ListFooterComponent={<HydroSection refreshTick={hydroRefreshTick} />}
+        // Pollen calendar: nationwide too (region PL), so once per screen, not per area row.
+        ListFooterComponent={
+          <>
+            <HydroSection refreshTick={hydroRefreshTick} />
+            <PollenCalendarCard calendar={calendar.data} error={calendar.error} />
+          </>
+        }
         ListEmptyComponent={
           state === "error" ? null : (
             <Text>
@@ -228,7 +186,6 @@ export default function Home() {
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
             <PollenCard pollen={item.pollen} />
-            {/* Slot for the pollen calendar section (separate PR, /pollen/calendar). */}
             {item.forecast && forecastLine(item.forecast.days) && (
               <View>
                 <Text style={styles.metric}>

@@ -4,33 +4,20 @@
 // formats what the block says and decides what the card may CLAIM, so missing/old data
 // never reads as a confident GOOD (rule #8).
 
-export type OutdoorLevel = "GOOD" | "MODERATE" | "POOR" | "UNKNOWN";
+import type {
+  DashboardOutdoor,
+  OutdoorMissingOut,
+  OutdoorReasonOut,
+} from "../../../packages/api-contract/schema";
 
-export type OutdoorReason = {
-  code: string;
-  param: string;
-  value: number;
-  threshold: number;
-  comparison: "gt" | "gte" | "lt" | "lte";
-  unit: string;
-  level: "MODERATE" | "POOR";
-};
-
-export type OutdoorMissing = {
-  group: string;
-  params: string[];
-  status: "MISSING" | "STALE" | "INVALID";
-  core: boolean;
-  // false = an alternative in the group still worked (e.g. PM2.5 present, PM10 absent).
-  blocking: boolean;
-};
-
-export type OutdoorBlock = {
-  level: OutdoorLevel;
-  reasons: OutdoorReason[];
-  missing: OutdoorMissing[];
-  // ISO time after which the earliest usable input turns STALE (backend, from the
-  // same freshness bounds as the rest of the dashboard); null when no input fed it.
+// Types come from the generated contract (ADR-024). `valid_until` stays optional: an older
+// backend omits it (then the response age bounds the verdict, see below).
+export type OutdoorLevel = DashboardOutdoor["level"];
+export type OutdoorReason = OutdoorReasonOut;
+// blocking=false: an alternative in the group still worked (e.g. PM2.5 present, PM10 absent).
+export type OutdoorMissing = OutdoorMissingOut;
+export type OutdoorBlock = Omit<DashboardOutdoor, "valid_until"> & {
+  // ISO time after which the earliest usable input turns STALE; null when no input fed it.
   valid_until?: string | null;
 };
 

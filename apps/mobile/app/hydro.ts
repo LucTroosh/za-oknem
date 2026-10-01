@@ -2,32 +2,18 @@
 // Statuses come from the backend (app/api/v1/hydro.py compares IMGW's own published
 // thresholds) - nothing here classifies a level (rule #10). This module only decides
 // WHAT THE SECTION MAY CLAIM, so stale data never reads as "all clear" (rule #8).
+import type {
+  HydroLatestResponse,
+  HydroStation as ContractHydroStation,
+} from "../../../packages/api-contract/schema";
 import type { SourceFreshness } from "./alerts";
 import { asFreshness, worstFreshness } from "./freshness";
 
-export type HydroStatus = "NORMAL" | "WARNING" | "ALARM" | "UNKNOWN";
-
-export type HydroStation = {
-  station_id: string;
-  station_name: string;
-  latitude: number;
-  longitude: number;
-  water_level_cm: number;
-  warning_level_cm: number | null;
-  alarm_level_cm: number | null;
-  status: HydroStatus;
-  unit: string;
-  observed_at: string;
-  freshness: SourceFreshness;
-  source: string;
-};
-
-export type HydroBlock = {
-  stations: HydroStation[];
-  attribution: string;
-  // ADR-012: when did the scheduler last fetch IMGW hydro successfully.
-  source_status: { freshness: SourceFreshness; last_success_at: string | null };
-};
+// Types come from the generated contract (ADR-024); `source_status` = ADR-012, when the
+// scheduler last fetched IMGW hydro successfully.
+export type HydroStation = ContractHydroStation;
+export type HydroStatus = HydroStation["status"];
+export type HydroBlock = HydroLatestResponse;
 
 export const HYDRO_LIST_LIMIT = 5;
 
