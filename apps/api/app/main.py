@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -6,16 +8,35 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import air, alerts, dashboard, devices, geo, health, hydro, pollen, weather
+from app.api.v1 import (
+    air,
+    alerts,
+    dashboard,
+    devices,
+    geo,
+    health,
+    hydro,
+    pollen,
+    pollen_calendar,
+    weather,
+)
 from app.config import settings
 from app.middleware import RequestLoggingMiddleware
+from app.pollen_calendar import load_calendar
 
 # uvicorn's own logging config doesn't attach a handler to the root logger, so
 # without this, app.request's INFO lines would be silently dropped (root falls
 # back to WARNING-only lastResort handler).
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-app = FastAPI(title="Za Oknem API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    load_calendar()  # fail fast at startup if the reference data file is invalid (ADR-023)
+    yield
+
+
+app = FastAPI(title="Za Oknem API", lifespan=lifespan)
 
 
 @app.exception_handler(RequestValidationError)
@@ -45,3 +66,4 @@ app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(geo.router, prefix="/api/v1")
 app.include_router(pollen.router, prefix="/api/v1")
+app.include_router(pollen_calendar.router, prefix="/api/v1")

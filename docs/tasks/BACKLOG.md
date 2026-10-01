@@ -407,6 +407,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       na urządzeniu (godzina „teraz” = slot z odpowiedzi) — dodać timer jak w
       OutdoorCard, jeśli ekran bywa otwarty > 1 h.
 
+- [x] **TASK-8.10** (PR #76, ADR-023): Kalendarz pylenia — statyczne dane referencyjne
+      `app/data/pollen_calendar.json` + `GET /api/v1/pollen/calendar?date=` (typowy sezon
+      per takson z fazami start/peak/end i `upcoming` 30 dni; `kind: seasonal_calendar`,
+      NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica,
+      Cladosporium. **Do zrobienia po zweryfikowaniu źródeł:** ambrozja (potrzebny
+      zweryfikowany koniec sezonu), pokrzywowate; UI (karta „typowy sezon", wyraźnie
+      oddzielona od prognozy CAMS i pomiarów) → osobny task mobile.
+
 ### Phase 9 — Alerts (dokończenie)
 
 - [ ] **TASK-9.4:** `Event` model (§31) — odrębny od `Alert`/`Measurement`
