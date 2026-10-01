@@ -220,7 +220,6 @@
                 "type": "null"
               }
             ],
-            "default": null,
             "title": "Assignment Method"
           },
           "distance_km": {
@@ -232,7 +231,6 @@
                 "type": "null"
               }
             ],
-            "default": null,
             "title": "Distance Km"
           },
           "index": {
