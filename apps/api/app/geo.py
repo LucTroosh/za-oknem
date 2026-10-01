@@ -77,11 +77,14 @@ def select_stations(
 
 def classify_air_coverage(distance_km: float | None) -> AirCoverage:
     """Pure ladder (rule #9): None (no station within REGIONAL_MAX_KM) or > 100 km = none."""
-    if distance_km is None or distance_km > REGIONAL_MAX_KM:
+    if distance_km is None:
         return "none"
-    if distance_km <= EXACT_MAX_KM:
+    km = round(distance_km, 1)  # the precision clients see: "50.0" must never be "regional"
+    if km > REGIONAL_MAX_KM:
+        return "none"
+    if km <= EXACT_MAX_KM:
         return "exact"
-    return "nearby" if distance_km <= NEARBY_MAX_KM else "regional"
+    return "nearby" if km <= NEARBY_MAX_KM else "regional"
 
 
 def coverage_radius_km(level: AirCoverage) -> int | None:

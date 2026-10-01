@@ -155,8 +155,8 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
 
 ### 5. `coverage` powietrza i siatka modelu (reguła #9)
 
-Stałe w `app/geo.py`; odległość = centrum obszaru ↔ stacja, **zaokrąglona do 1 m** (liczba
-widoczna dla klienta), górne granice włącznie:
+Stałe w `app/geo.py`; odległość = centrum obszaru ↔ stacja, **zaokrąglona do 0,1 km** (dokładnie
+tak, jak widzi ją klient: `50.0` to nigdy `regional`), górne granice włącznie:
 
 | `coverage` | odległość | znaczenie |
 |---|---|---|
