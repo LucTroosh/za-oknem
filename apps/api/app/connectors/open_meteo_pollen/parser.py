@@ -8,7 +8,7 @@ anything unexpected rather than guessing (rule #10/#15).
 
 import math
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from app.connectors.open_meteo_pollen.client import DOMAIN, HOURLY_PARAMS
@@ -32,12 +32,11 @@ assert list(SPECIES_BY_VARIABLE) == HOURLY_PARAMS.split(",")
 MODEL = DOMAIN
 REFERENCE_CYCLE_HOURS = 24
 MAX_UNIT_LENGTH = 20  # width of pollen_snapshots.unit
-# Freshness of the PAYLOAD itself (not just of our fetch): a series must cover the hour it
-# was fetched in, or at most this much earlier (the hour can tick between the provider
-# computing the series and our `fetched_at`). A series entirely in the past would be stored
-# under today's forecast_reference_time and win over a good older run while serving no
-# `current` value - so it is rejected (`invalid`, payload kept) instead.
-CURRENT_HOUR_MAX_LAG = timedelta(hours=1)
+# Freshness of the PAYLOAD itself (not just of our fetch): the series must contain the exact
+# hour it was fetched in. latest_pollen serves `current` only from that exact slot, and a
+# real series runs contiguously from today 00:00 for 4 days, so a payload missing the slot
+# (all in the past, or sparse) would replace the previous bucket and leave `current` null
+# until the next daily run - rejected (`invalid`, payload kept) instead.
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested variables).
@@ -121,7 +120,7 @@ def normalize(
             raise ValueError(f"unit longer than {MAX_UNIT_LENGTH} characters: {unit!r}")
         valid_times = [_parse_hour(t) for t in times]
         slot = fetched_at.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
-        if not any(slot - CURRENT_HOUR_MAX_LAG <= t <= slot for t in valid_times):
+        if slot not in valid_times:
             raise ValueError(
                 f"forecast does not cover the fetch hour {slot.isoformat()} "
                 f"(series {min(valid_times).isoformat()} .. {max(valid_times).isoformat()})"

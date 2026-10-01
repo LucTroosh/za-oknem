@@ -321,6 +321,20 @@ class TestMain:
         status = db_session.get(SourceStatus, "open_meteo_pollen")
         assert status.last_success_at is not None and status.last_error is None
 
+    def test_slug_subset_run_does_not_touch_source_status(self, monkeypatch, db_session):
+        _area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest", "--slug", "klodzko"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(db_session, "close", lambda: None)
+        _patch_fetch(monkeypatch, PAYLOAD)
+        ingest.main()
+        assert db_session.get(SourceStatus, "open_meteo_pollen") is None
+
+        _patch_fetch(monkeypatch, client.OpenMeteoPollenApiError("down"))
+        with pytest.raises(RuntimeError):
+            ingest.main()
+        assert db_session.get(SourceStatus, "open_meteo_pollen") is None
+
     def test_total_failure_records_failure_and_raises(self, monkeypatch, db_session):
         _area(db_session)
         monkeypatch.setattr(sys, "argv", ["ingest"])

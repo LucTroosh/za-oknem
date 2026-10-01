@@ -169,14 +169,20 @@ def main() -> None:
         if not areas:
             print("No matching geo_areas found.", file=sys.stderr)
             sys.exit(1)
-        # ADR-012: the CLI records its outcome like the scheduler does.
+        # ADR-012: the CLI records its outcome like the scheduler does - but only for a
+        # full run. A --slug subset says nothing about the source as a whole.
+        record = not args.slugs
         try:
             ingest_areas(areas, db)
         except Exception as exc:
             db.rollback()
-            record_source_run(db, SOURCE_ID, success=False, error=f"{type(exc).__name__}: {exc}")
+            if record:
+                record_source_run(
+                    db, SOURCE_ID, success=False, error=f"{type(exc).__name__}: {exc}"
+                )
             raise
-        record_source_run(db, SOURCE_ID, success=True)
+        if record:
+            record_source_run(db, SOURCE_ID, success=True)
     finally:
         db.close()
 

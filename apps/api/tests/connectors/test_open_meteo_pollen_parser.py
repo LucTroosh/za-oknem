@@ -13,7 +13,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app.connectors.open_meteo_pollen.parser import (
-    CURRENT_HOUR_MAX_LAG,
     MODEL,
     SOURCE_ID,
     OpenMeteoPollenParseError,
@@ -109,18 +108,19 @@ def test_series_must_cover_the_fetch_hour():
             _normalize(bad)
 
 
-def test_fetch_hour_boundary_and_the_explicit_one_hour_lag():
-    assert timedelta(hours=1) == CURRENT_HOUR_MAX_LAG
-    ok = deepcopy(PAYLOAD)
-    ok["hourly"]["time"] = [_stamp(-3), _stamp(-2), _stamp(-1)]  # ends exactly one hour back
-    assert len(_normalize(ok)) == 3
-    too_old = deepcopy(PAYLOAD)
-    too_old["hourly"]["time"] = [_stamp(-4), _stamp(-3), _stamp(-2)]  # ends two hours back
+def test_the_exact_fetch_hour_slot_is_required_not_just_a_nearby_one():
+    # only the previous hour (+ future hours, slot omitted) would replace the previous bucket
+    # and leave `current` null until the next daily run
+    for hours in ([-3, -2, -1], [-1, 1, 2]):
+        bad = deepcopy(PAYLOAD)
+        bad["hourly"]["time"] = [_stamp(h) for h in hours]
+        with pytest.raises(OpenMeteoPollenParseError, match="cover"):
+            _normalize(bad)
+    # fetched_at late in the fetch hour is still that hour
+    assert len(normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=HOUR.replace(minute=59))) == 3
+    # a series that ended before the fetch hour no longer qualifies
     with pytest.raises(OpenMeteoPollenParseError, match="cover"):
-        _normalize(too_old)
-    # fetch hour ticked past the series end by exactly the lag: still accepted
-    late = normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=HOUR + timedelta(hours=2))
-    assert len(late) == 3
+        normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=HOUR + timedelta(hours=2))
 
 
 def test_all_null_series_covering_the_fetch_hour_is_valid_out_of_season():

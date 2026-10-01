@@ -92,12 +92,10 @@ Payload jest odrzucany (`invalid`, surowy zapis zostaje w `source_fetches`), gdy
 `YYYY-MM-DDTHH:MM`, ma offset albo nie jest wyrównany do pełnej godziny; jednostki nie są
 jednakowymi niepustymi stringami ≤ 20 znaków; wartość nie jest liczbą ≥ 0 (NaN/inf/
 przepełnienie też); długości serii się nie zgadzają. **Świeżość samego payloadu:** seria
-musi obejmować godzinę z `fetched_at` (zaokrągloną w dół) albo godzinę wcześniejszą
-(`CURRENT_HOUR_MAX_LAG = 1 h`, jawna stała — godzina może „przeskoczyć” między
-wyliczeniem serii u dostawcy a naszym `fetched_at`). Bez tego payload w całości z
+musi zawierać dokładnie godzinę z `fetched_at` (zaokrągloną w dół) — `current` jest serwowany tylko z tego slotu, a prawdziwa seria biegnie ciągle od 00:00 dziś na 4 dni (okno tolerancji „godzina wcześniej” odrzucone: zastąpiłoby poprzedni bucket i zostawiło `current = null` do następnego przebiegu). Bez tego payload w całości z
 przeszłości trafiłby pod dzisiejszy `forecast_reference_time`, wygrał ze starszym dobrym
 przebiegiem i nie dał żadnego `current`. Seria samych `null` (poza sezonem), która
-godzinę obejmuje, jest poprawna. Zapis (`_store_batch`) jest upsertem całego bucketu
+godzinę obejmuje, jest poprawna. CLI z `--slug` nie zapisuje `source_status` (podzbiór nic nie mówi o całym źródle). Zapis (`_store_batch`) jest upsertem całego bucketu
 (obszar + `forecast_reference_time`) z blokadą wierszy i strażnikiem `fetched_at` (starszy,
 równoległy fetch nie nadpisuje nowszego), z jednym retry po wyścigu pierwszego inserta.
 
