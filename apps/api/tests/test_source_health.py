@@ -164,6 +164,13 @@ def test_sanitize_error_keeps_diagnostics(raw):
 def test_sanitize_error_masks_ips_hosts_and_opaque_tokens():
     out = sanitize_error("could not connect to server at 10.0.3.7, port 5432 or db.internal:5432")
     assert "10.0.3.7" not in out and "db.internal" not in out
+    v6 = sanitize_error(
+        "connection to [fd00::12]:5432 failed; also fe80::1 and 2001:db8:0:0:0:0:0:1"
+    )
+    assert "fd00" not in v6 and "fe80" not in v6 and "2001:db8" not in v6
+    assert sanitize_error("failed at 2026-09-30 12:30:00 on Foo::bar") == (
+        "failed at 2026-09-30 12:30:00 on Foo::bar"
+    )
     assert "sk-abcdef123456" not in sanitize_error("rejected sk-abcdef123456 by upstream")
 
 

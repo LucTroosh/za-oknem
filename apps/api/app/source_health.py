@@ -65,6 +65,12 @@ SOURCES: dict[str, SourceSpec] = {
 _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
 _IP = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?![\d.])")
+_IPV6 = re.compile(
+    r"\[[0-9a-f:.]*:[0-9a-f:.]*\](?::\d+)?"  # bracketed, optional port
+    r"|(?<![\w:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{0,4}:){1,7}:[0-9a-f]{0,4})"
+    r"(?![\w:])",  # bare: full form or containing "::" (never plain 12:30:00 times)
+    re.IGNORECASE,
+)
 _HOST_PORT = re.compile(r"\b[A-Za-z][\w-]*(?:\.[\w-]+)*:\d{2,5}\b")
 _OPAQUE = re.compile(r"\bsk-[\w-]{6,}|\b[A-Za-z0-9+/_=-]{32,}")
 _KEYWORD = re.compile(
@@ -81,7 +87,7 @@ def sanitize_error(error: str | None) -> str | None:
         return None
     text = " ".join(error[:_MAX_SCAN].split())
     text = _QUERY.sub("", _USERINFO.sub("//[redacted]@", text))
-    text = _OPAQUE.sub("[redacted]", _IP.sub("[ip]", text))
+    text = _OPAQUE.sub("[redacted]", _IPV6.sub("[ip]", _IP.sub("[ip]", text)))
     text = _HOST_PORT.sub("[host]", text)
     if match := _KEYWORD.search(text):
         text = text[: match.start()] + "[redacted]"
