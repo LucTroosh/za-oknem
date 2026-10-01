@@ -69,8 +69,8 @@ rejestracji). Nie dodaje pakietów.
 `push_token`, `observed_area_code`, `app_version` opcjonalne/nullable. Odpowiedź
 (`DeviceOut`): `installation_id`, `platform`, `push_registered`, `observed_area_code`,
 `app_version`, `active`, `last_seen_at`, `device_secret` (tylko w 201, inaczej `null`).
-`DELETE /api/v1/devices/{installation_id}` → 204. Błędy: 403, 404, 409 (równoległa
-rejestracja — ponów; jeśli ponowienie da 403, nowy `installation_id`), 422, 429.
+`DELETE /api/v1/devices/{installation_id}` → 204. Błędy: 403, 404, 409 (tylko UNIQUE/deadlock 40P01/serialization 40001 przy równoległej
+rejestracji; ponów; jeśli ponowienie da 403, nowy `installation_id`; inne błędy bazy, np. rozłączenie, to 500, nie 409), 422, 429.
 
 ### Reguły dla klientów i konsumentów
 

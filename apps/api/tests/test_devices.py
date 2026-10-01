@@ -272,16 +272,34 @@ def test_flush_integrity_error_is_409_not_500(client, monkeypatch):
     assert r.status_code == 409
 
 
-def test_operational_error_is_409(client, monkeypatch):
+class _PgError(Exception):
+    def __init__(self, sqlstate):
+        self.sqlstate = sqlstate
+
+
+def _patch_flush_operational_error(monkeypatch, orig):
     from sqlalchemy.exc import OperationalError
     from sqlalchemy.orm import Session
 
     def boom(self, *a, **k):
         if self.new:
-            raise OperationalError("stmt", {}, Exception("deadlock"))
+            raise OperationalError("stmt", {}, orig)
 
     monkeypatch.setattr(Session, "flush", boom)
+
+
+@pytest.mark.parametrize("sqlstate", ["40P01", "40001"])
+def test_deadlock_or_serialization_failure_is_409(client, monkeypatch, sqlstate):
+    _patch_flush_operational_error(monkeypatch, _PgError(sqlstate))
     assert _register(client)[1].status_code == 409
+
+
+@pytest.mark.parametrize("orig", [_PgError("08006"), _PgError(None), Exception("timeout")])
+def test_other_operational_error_is_not_409(client, monkeypatch, orig):
+    _patch_flush_operational_error(monkeypatch, orig)
+    c = TestClient(app, raise_server_exceptions=False)
+    r = c.post("/api/v1/devices", json=_body())
+    assert r.status_code == 500
 
 
 def test_wrong_secret_does_not_steal_third_devices_token(client):

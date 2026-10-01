@@ -57,6 +57,15 @@ class DeviceOut(BaseModel):
     device_secret: str | None
 
 
+RETRYABLE_SQLSTATES = {"40P01", "40001"}  # deadlock_detected, serialization_failure
+
+
+def _sqlstate(exc: OperationalError) -> str | None:
+    # psycopg 3: `.sqlstate`; psycopg2: `.pgcode`
+    orig = exc.orig
+    return getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+
+
 def _hash_secret(secret: str) -> str:
     return hashlib.sha256(secret.encode()).hexdigest()
 
@@ -124,10 +133,14 @@ def register_device(
         device.updated_at = now
         device.last_seen_at = now
         db.commit()
-    except (IntegrityError, OperationalError):
-        # Concurrent registration of the same installation_id / token (unique violation
-        # at INSERT/UPDATE, or a deadlock when two installations swap tokens).
+    except (IntegrityError, OperationalError) as exc:
+        # 409 only for a real concurrency conflict: unique violation at INSERT/UPDATE, or
+        # a Postgres deadlock / serialization failure (two installations swapping tokens).
+        # Other OperationalErrors (disconnect, failover, timeout) are not the client's to
+        # fix: roll back and re-raise like any other DB error.
         db.rollback()
+        if isinstance(exc, OperationalError) and _sqlstate(exc) not in RETRYABLE_SQLSTATES:
+            raise
         # If this was a first registration whose twin request won, its secret is gone
         # from our side of the race: a retry would get 403, so say so.
         raise HTTPException(
