@@ -48,7 +48,7 @@ jobs:
         run: |
           # ONE annotation with the tail: GitHub caps annotations per step at 10, which
           # cut the actual error off after the log's INFO lines.
-          echo "::error title=alembic check::$(tail -n 60 /tmp/alembic-check.out | awk '{printf "%s%%0A", $0}')"
+          echo "::error title=alembic check::$(grep -v -e 'Detected sequence' -e 'autogenerate plugin' /tmp/alembic-check.out | tail -n 40 | awk '{printf "%s%%0A", $0}')"
           exit 1
       - name: mypy (with error annotations)
         run: |
