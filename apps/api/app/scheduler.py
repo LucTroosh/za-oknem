@@ -80,13 +80,14 @@ def run_gios() -> bool:
     db = SessionLocal()
     errors: list[str] = []
     try:
-        stations = gios_client.find_stations(set(station_ids))
+        wanted = set(station_ids)
+        stations = gios_client.find_stations(wanted)
         failed = sum(ingest_station(station, db, errors) is None for station in stations)
     finally:
         db.close()
-    # Per-station isolation (rule #1) swallows errors: IDs matching no station or a
-    # failing majority is an outage, not a successful run (ADR-012, TASK-13.1).
-    failure = run_failure(len(stations), failed)
+    # Per-station isolation (rule #1) swallows errors: a failing majority of the CONFIGURED
+    # stations (unmatched ids included) is an outage, not a success (ADR-012, TASK-13.1).
+    failure = run_failure(wanted, stations, failed, errors)
     if failure:
         raise RuntimeError(f"{failure}{_last_cause(errors)}")
     return True
@@ -173,7 +174,9 @@ def _check_source_health(state: dict[str, str]) -> None:
     db = None
     try:
         db = SessionLocal()
-        state.update(log_health_transitions(collect_source_health(db), state))
+        new_state = log_health_transitions(collect_source_health(db), state)
+        state.clear()  # replace, not merge: a source that stopped being monitored must
+        state.update(new_state)  # lose its cached state, or re-enabling suppresses the log
     except Exception:
         logger.exception("source health check failed")
     finally:

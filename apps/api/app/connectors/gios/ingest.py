@@ -43,9 +43,20 @@ def gios_station_ids() -> list[str]:
     return [s.strip() for s in raw.split(",") if s.strip()]
 
 
-def run_failure(total: int, failed: int) -> str | None:
-    """Failure reason for one GIOS run (shared by scheduler and CLI), or None."""
-    reason = run_failure_reason(total, failed, max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION)
+def run_failure(
+    wanted: set[str], stations: list[dict], failed: int, errors: list[str] | None = None
+) -> str | None:
+    """Failure reason for one GIOS run (shared by scheduler and CLI), or None. The
+    denominator is the CONFIGURED set: a requested id missing from the catalog counts
+    as a failed station, so a mistyped/removed majority cannot hide behind the one
+    station that still works."""
+    matched = {str(s.get("Identyfikator stacji")) for s in stations}
+    unmatched = wanted - matched
+    if unmatched and errors is not None:
+        errors.append(f"station id(s) not in catalog: {', '.join(sorted(unmatched))}")
+    reason = run_failure_reason(
+        len(wanted), failed + len(unmatched), max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION
+    )
     return f"GIOS: {reason}" if reason else None
 
 
@@ -219,7 +230,7 @@ def main() -> None:
         try:
             matched = client.find_stations(wanted)  # catalog outage is a failed run too
             failed = sum(ingest_station(station, db, errors) is None for station in matched)
-            failure = run_failure(len(matched), failed)
+            failure = run_failure(wanted, matched, failed, errors)
             if failure:
                 raise RuntimeError(failure)
         except Exception as exc:

@@ -68,8 +68,9 @@ _IP = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?![\d.])")
 _HOST_PORT = re.compile(r"\b[A-Za-z][\w-]*(?:\.[\w-]+)*:\d{2,5}\b")
 _OPAQUE = re.compile(r"\bsk-[\w-]{6,}|\b[A-Za-z0-9+/_=-]{32,}")
 _KEYWORD = re.compile(
-    r"(?<![a-z])(?:(?:api[ _-]?key|access[ _-]?token|token|secret|passw(?:or)?d|"
-    r"authorization|bearer|credential|signature|cookie)s?(?![a-z])|key(?![a-z])\s*[=:])",
+    r"(?<![a-z])(?:(?:api[ _-]?key|access[ _-]?token|token|secret|pass(?:w(?:or)?d|phrase)|"
+    r"pwd|authorization|bearer|credential|signature|cookie)s?(?![a-z])|"
+    r"keys?(?![a-z])\s*(?:[=:]|\b(?:is|was|are|were)\b))",
     re.IGNORECASE,
 )
 _MAX_SCAN = 1000

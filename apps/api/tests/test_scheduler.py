@@ -116,7 +116,7 @@ class TestRunGios:
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setattr(scheduler.gios_client, "find_stations", MagicMock(return_value=[]))
 
-        with pytest.raises(RuntimeError, match="nothing returned"):
+        with pytest.raises(RuntimeError, match="1/1 failed"):
             scheduler.run_gios()
 
     def test_all_stations_failing_raises(self, monkeypatch, db_session):
@@ -131,6 +131,29 @@ class TestRunGios:
 
         with pytest.raises(RuntimeError, match="2/2 failed"):
             scheduler.run_gios()
+
+    def test_unmatched_configured_ids_count_as_failures(self, monkeypatch, db_session):
+        import pytest
+
+        monkeypatch.setenv("GIOS_STATION_IDS", "38,42,43")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        find = MagicMock(return_value=[{"Identyfikator stacji": 38}])  # 42, 43 not in catalog
+        monkeypatch.setattr(scheduler.gios_client, "find_stations", find)
+        monkeypatch.setattr(scheduler, "ingest_station", MagicMock(return_value=1))
+
+        with pytest.raises(RuntimeError, match="2/3 failed; last cause: station id"):
+            scheduler.run_gios()
+
+    def test_one_unmatched_of_three_is_still_a_run(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38,42,43")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        stations = [{"Identyfikator stacji": 38}, {"Identyfikator stacji": 42}]
+        monkeypatch.setattr(
+            scheduler.gios_client, "find_stations", MagicMock(return_value=stations)
+        )
+        monkeypatch.setattr(scheduler, "ingest_station", MagicMock(return_value=1))
+
+        assert scheduler.run_gios() is True
 
     def test_partial_station_failure_is_still_a_run(self, monkeypatch, db_session):
         monkeypatch.setenv("GIOS_STATION_IDS", "38,42")
@@ -424,6 +447,15 @@ class TestCheckSourceHealth:
         scheduler._check_source_health(state)
 
         assert "open_meteo" not in state
+
+    def test_state_is_replaced_so_a_disabled_source_loses_its_cache(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        state = {"open_meteo": "UNAVAILABLE", "gios": "STALE"}  # both now unmonitored
+
+        scheduler._check_source_health(state)
+
+        assert "open_meteo" not in state and "gios" not in state
 
     def test_skips_gios_when_not_configured(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
