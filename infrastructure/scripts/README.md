@@ -63,6 +63,14 @@ bash infrastructure/scripts/test_backup_restore.sh
   osobnym, izolowanym hoście weryfikacyjnym — backup VPS nigdy nie ma możliwości
   odszyfrowania własnych backupów.
 
+### PostGIS (ADR-019)
+
+Od migracji `0011` baza używa rozszerzenia PostGIS. `pg_dump` zapisuje `CREATE EXTENSION
+postgis`, więc instancja Postgresa, na której działa `restore_test.sh`, MUSI mieć PostGIS
+(ten sam obraz `postgis/postgis:16-3.4` co dev/CI) i rolę uprawnioną do tworzenia
+rozszerzenia — bez tego `pg_restore --exit-on-error` przerwie test głośno (zamierzone).
+Nie zweryfikowano w tym PR-ze na realnym dumpie (brak Dockera w środowisku autora).
+
 ### Retencja
 
 Po stronie storage, nie w skryptach — np. lifecycle rule bucketu usuwająca obiekty

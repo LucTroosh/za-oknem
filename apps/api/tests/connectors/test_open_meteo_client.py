@@ -23,7 +23,14 @@ def test_fetch_weather_returns_json_on_success(monkeypatch):
 
 def test_fetch_weather_retries_once_then_succeeds(monkeypatch):
     attempts = [httpx.RequestError("boom"), _ok_response({"ok": True})]
-    monkeypatch.setattr(client.httpx, "get", MagicMock(side_effect=lambda *a, **k: attempts.pop(0)))
+
+    def _get(*a, **k):
+        outcome = attempts.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(client.httpx, "get", MagicMock(side_effect=_get))
     assert client.fetch_weather(50.43, 16.65) == {"ok": True}
 
 

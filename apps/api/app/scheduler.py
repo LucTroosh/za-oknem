@@ -18,9 +18,8 @@ from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_sna
 from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
-from app.connectors.open_meteo.ingest import ingest_geo_area
+from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.db import SessionLocal
-from app.models import GeoArea
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
 from app.source_status import (
@@ -55,12 +54,13 @@ def run_open_meteo() -> bool:
     db = SessionLocal()
     errors: list[str] = []
     try:
-        areas = db.query(GeoArea).all()
+        # ADR-019: only areas with active weather polling (see polling_areas).
+        areas = polling_areas(db)
         failed = sum(ingest_geo_area(area, db, errors) is None for area in areas)
     finally:
         db.close()
     if not areas:
-        logger.warning("no geo_areas configured - skipping scheduled Open-Meteo ingest")
+        logger.warning("no areas with active weather polling - skipping Open-Meteo ingest")
         return False  # skipped, not a successful fetch (ADR-012)
     # Per-area isolation (rule #1) swallows fetch errors; a failing majority is an
     # outage and must not refresh last_success_at (ADR-012, TASK-13.1).

@@ -60,7 +60,10 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     TASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/
     SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest."""
-    areas = db.execute(select(GeoArea)).scalars().all()
+    # ADR-019: imported gminas (geo-matching only) must not fan out here until TASK-6.2(8)
+    # narrows the dashboard to a chosen location - only actively polled areas are listed.
+    area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+    areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.
     # imgw_hydro's water_level_cm) — without it the nearest-station join could
@@ -101,8 +104,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         )
     )
     weather_by_area: dict[int, list[WeatherSnapshot]] = {}
-    for row in db.execute(weather_stmt).scalars().all():
-        weather_by_area.setdefault(row.geo_area_id, []).append(row)
+    for snapshot in db.execute(weather_stmt).scalars().all():
+        weather_by_area.setdefault(snapshot.geo_area_id, []).append(snapshot)
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.

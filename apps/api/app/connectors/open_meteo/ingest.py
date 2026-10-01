@@ -198,6 +198,16 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
     return stored
 
 
+def polling_areas(db, slugs: list[str] | None = None) -> list[GeoArea]:
+    """Areas to poll: explicit `slugs` (operator's deliberate choice, any area), else every
+    area with weather_polling_active (ADR-019) - never the full imported gmina list.
+    Shared by the scheduler and this CLI so they cannot drift."""
+    query = db.query(GeoArea)
+    if slugs:
+        return query.filter(GeoArea.slug.in_(slugs)).all()
+    return query.filter(GeoArea.weather_polling_active.is_(True)).all()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Open-Meteo current-weather ingest (Phase 5).")
     parser.add_argument("--slug", action="append", dest="slugs", default=[])
@@ -206,10 +216,7 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        query = db.query(GeoArea)
-        if args.slugs:
-            query = query.filter(GeoArea.slug.in_(args.slugs))
-        areas = query.all()
+        areas = polling_areas(db, args.slugs)
         if not areas:
             print("No matching geo_areas found.", file=sys.stderr)
             sys.exit(1)

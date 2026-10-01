@@ -21,7 +21,8 @@ from app.api.v1.hydro import freshness as hydro_freshness
 from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
-from app.models import GeoArea, SourceFetchCounter, SourceStatus
+from app.connectors.open_meteo.ingest import polling_areas
+from app.models import SourceFetchCounter, SourceStatus
 from app.source_status import source_freshness
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,11 @@ class SourceSpec:
 #   1h poll and 2h/6h thresholds are the documented working assumption (ADR-008/009),
 #   warnings being safety-critical (rule #16 exception).
 SOURCES: dict[str, SourceSpec] = {
-    # No geo_areas = nothing to poll (scheduler skips), not an outage.
+    # No areas with active weather polling (ADR-019) = nothing to poll, not an outage.
     "open_meteo": SourceSpec(
         weather_freshness,
         OPEN_METEO_DAILY_LIMIT,
-        enabled=lambda db: db.query(GeoArea).first() is not None,
+        enabled=lambda db: bool(polling_areas(db)),
     ),
     # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
     "gios": SourceSpec(air_freshness, enabled=lambda db: bool(gios_station_ids())),
