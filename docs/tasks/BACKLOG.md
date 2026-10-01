@@ -424,7 +424,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 9 — Alerts (dokończenie)
 
-- [ ] **TASK-9.4** (ADR-013, PR #PRNUM: granica Alert ≠ Event ≠ Notification opisana; `Event` NIE zaimplementowany — nadal BLOKADA decyzji o źródle): `Event` model (§31) — odrębny od `Alert`/`Measurement`
+- [ ] **TASK-9.4** (ADR-013, PR #81: granica Alert ≠ Event ≠ Notification opisana; `Event` NIE zaimplementowany — nadal BLOKADA decyzji o źródle): `Event` model (§31) — odrębny od `Alert`/`Measurement`
       (rule #7). Potrzebny do "istotne lokalne zagrożenia / zweryfikowane
       zdarzenia" z ROADMAP §2.6. Wymaga ADR-013 (nowy typ danych). **Zakres
       obejmuje też realną ścieżkę zasilania** — sam model bez źródła danych
@@ -449,7 +449,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zależny od realnych rekordów `Event`) bez albo działającego źródła,
       albo jawnej rewizji zakresu MVP w ADR-013 zatwierdzonej przez Ciebie
       (rule #12) — nie przez implementatora po cichu.
-- [ ] 🟡 **TASK-9.5** (CZĘŚCIOWO, PR #PRNUM, ADR-013: alerty ↔ obszar po prefiksie TERYT województwa — `/alerts/latest?geo_area_id=`, `geo_match`, `local_alerts` w `dashboard_latest()`; BRAK jeszcze: `/hydro/latest` po lokalizacji; poziom poniżej województwa niemożliwy, bo IMGW hydro nie podaje TERYT/powiatów, tylko `kod_zlewni`): Geo-matching alertów → lokalizacja (zależne od
+- [ ] 🟡 **TASK-9.5** (CZĘŚCIOWO, PR #81, ADR-013: alerty ↔ obszar po prefiksie TERYT województwa — `/alerts/latest?geo_area_id=`, `geo_match`, `local_alerts` w `dashboard_latest()`; BRAK jeszcze: `/hydro/latest` po lokalizacji; poziom poniżej województwa niemożliwy, bo IMGW hydro nie podaje TERYT/powiatów, tylko `kod_zlewni`): Geo-matching alertów → lokalizacja (zależne od
       TASK-6.2) — dziś `/alerts/latest` zwraca WSZYSTKO, bez filtrowania.
       **Zakres obejmuje też `dashboard_latest()`** — TASK-7.2 dodał tam
       `alerts` świadomie niefiltrowane (Phase 9 jeszcze nie istniało), a
