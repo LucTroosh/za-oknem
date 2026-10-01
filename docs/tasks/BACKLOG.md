@@ -52,10 +52,11 @@ je pominął; zamiast łatać każdy z osobna, obowiązują globalnie):
   nigdy w repo — rule #3).
 - **Phase 10, push (Expo/FCM/APNs):** wymaga kont deweloperskich
   Google/Apple i kluczy — podobnie, przygotuję kod, klucze dostarczysz Ty.
-- **Phase 11, kąpieliska (Sanepid/GIS):** `sk.gis.gov.pl` to appka JS bez
-  udokumentowanego publicznego API — zbadam przez przeglądarkę (network
-  requests), ale jeśli nie znajdę stabilnego, oficjalnego API, zgłoszę to
-  zamiast zgadywać czy scrapować niestabilny endpoint.
+- **Phase 11, kąpieliska (Sanepid/GIS):** `sk.gis.gov.pl` to HTML
+  renderowany serwerowo, bez API i bez licencji/regulaminu — patrz ADR-021.
+  Research zrobiony (TASK-11.1 częściowo); źródło statusu bieżącego
+  ZABLOKOWANE do zgody/API od GIS. EEA daje tylko rejestr + klasyfikację
+  roczną. Co musi zrobić człowiek: `docs/tasks/TASK-11-bathing-water.md`.
 - **Phase 9, ostrzeżenia meteo (TASK-9.2):** dalej BLOCKED — API IMGW wciąż
   nie zwróciło żadnego aktywnego ostrzeżenia (sprawdzone ponownie
   2026-09-29 11:xx, wciąż `{"message": "Brak ostrzeżeń meteorologicznych"}`).
@@ -496,8 +497,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 ### Phase 11 — Water / Hydrology (dokończenie)
 
 - [ ] **TASK-11.1:** Research + Source Approval Gate dla kąpielisk
-      (Sanepid/GIS) — zobacz blokadę wyżej, może wymagać zbadania
-      `sk.gis.gov.pl` przez przeglądarkę zamiast dokumentacji API.
+      (Sanepid/GIS) — zobacz blokadę wyżej i ADR-021: research zrobiony,
+      Gate niezaliczony (`docs/tasks/TASK-11-bathing-water.md`).
 - [ ] **TASK-11.2:** Connector `bathing_water` (o ile TASK-11.1 znajdzie
       stabilne źródło) — status kąpieliska, przyczyna zamknięcia, sezon,
       E. coli/enterokoki/sinice, daty badań, **oraz nazwa i lokalizacja
