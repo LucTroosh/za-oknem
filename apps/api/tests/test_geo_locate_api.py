@@ -45,7 +45,7 @@ class _Session:
         self.areas = areas
 
     def execute(self, stmt):
-        only_active = "weather_polling_active" in str(stmt.compile())
+        only_active = bool(stmt._where_criteria)  # the only WHERE ever added is "active"
         rows = [a for a in self.areas if a.weather_polling_active or not only_active]
         return _Rows(rows)
 
