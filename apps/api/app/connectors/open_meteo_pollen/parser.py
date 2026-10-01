@@ -55,7 +55,12 @@ def _parse_hour(raw: Any) -> datetime:
     if match.group("offset"):
         # An explicit offset would be relabelled, not converted - reject instead.
         raise ValueError(f"hourly.time must be naive UTC timestamps, got an offset: {raw!r}")
-    return datetime.fromisoformat(raw).replace(tzinfo=UTC)
+    parsed = datetime.fromisoformat(raw)
+    if parsed.minute or parsed.second or parsed.microsecond:
+        # The endpoint matches the current hour slot exactly; a shifted series would
+        # ingest "successfully" and never produce a `current` value.
+        raise ValueError(f"hourly.time entry is not aligned to the hour: {raw!r}")
+    return parsed.replace(tzinfo=UTC)
 
 
 def _value(raw: Any, variable: str, time: str) -> float | None:

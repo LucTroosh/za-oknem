@@ -142,6 +142,14 @@ def test_non_hourly_timestamp_shapes_raise_instead_of_becoming_midnight(stamp):
         _normalize(bad)
 
 
+@pytest.mark.parametrize("stamp", ["2026-05-04T01:30", "2026-05-04T01:00:30"])
+def test_timestamps_not_aligned_to_the_hour_raise(stamp):
+    bad = deepcopy(PAYLOAD)
+    bad["hourly"]["time"][1] = stamp
+    with pytest.raises(OpenMeteoPollenParseError, match="aligned"):
+        _normalize(bad)
+
+
 def test_oversized_integer_is_a_parse_error_not_an_overflow():
     bad = deepcopy(PAYLOAD)
     bad["hourly"]["birch_pollen"][0] = 10**309
