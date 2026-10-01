@@ -104,8 +104,9 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
     tries, BOOTSTRAP_RETRY_SECONDS apart; after that the regular cycle takes over. Records
     no source_status (that is the regular runs' job). Never raises (rule #1). Returns the
     number of areas attempted."""
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
         has_weather = exists().where(WeatherSnapshot.geo_area_id == GeoArea.id)
         due = [
             a
@@ -132,10 +133,12 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
         return len(due)
     except Exception:
         logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
-        db.rollback()
+        if db is not None:
+            db.rollback()
         return 0
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 def run_place_expiry() -> None:

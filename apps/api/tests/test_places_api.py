@@ -115,7 +115,9 @@ def test_search_does_not_log_the_query(client, caplog):
 
     client.get("/api/v1/places", params={"q": "sekretnemiasto"})
 
-    assert "sekretnemiasto" not in caplog.text
+    # (httpx's own client log of the test transport is not the app's)
+    app_logs = [r.getMessage() for r in caplog.records if r.name.startswith("app")]
+    assert app_logs and not any("sekretnemiasto" in m for m in app_logs)
 
 
 def test_get_place_never_creates_or_refreshes_an_area(client):

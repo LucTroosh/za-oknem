@@ -487,13 +487,14 @@ class TestRunPlaceExpiry:
             slug="place-1", name="p", latitude=50.0, longitude=19.0, place_id=1,
             last_requested_at=old,
         )  # fmt: skip
-        seed = _make_area(db_session, "seed-city")
+        _make_area(db_session, "seed-city")
         db_session.add(stale)
         db_session.commit()
 
-        scheduler.run_place_expiry()
+        scheduler.run_place_expiry()  # closes the session: re-read the rows
 
-        assert (stale.weather_polling_active, seed.weather_polling_active) == (False, True)
+        flags = {a.slug: a.weather_polling_active for a in db_session.query(GeoArea)}
+        assert flags == {"place-1": False, "seed-city": True}
 
     def test_runs_daily_without_a_source_status_row(self, monkeypatch):
         record = MagicMock()
