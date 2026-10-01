@@ -168,7 +168,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `open_meteo` connectora o zapytanie `hourly`/`daily` obok `current`,
       `GET /api/v1/weather/forecast`. Wymaga ADR-010 (nowy typ danych w
       modelu, precedens: ADR-008 dla Measurement, ADR-009 dla Alert).
-- [x] **TASK-5.4** (backend: PR #50; prezentacja pól na mobile: PR #PRNUM — `weather.ts`/`WeatherCard`, tylko pola faktycznie zwracane przez backend, z jednostkami, brak = „brak danych”; follow-up: `rain`/`snowfall` nie są osobno pokazywane (wchodzą w `precipitation`)): Rozszerzyć `current`/`daily` o dew point, visibility, UV
+- [x] **TASK-5.4** (backend: PR #50; prezentacja pól na mobile: PR #78 — `weather.ts`/`WeatherCard`, tylko pola faktycznie zwracane przez backend, z jednostkami, brak = „brak danych”; follow-up: `rain`/`snowfall` nie są osobno pokazywane (wchodzą w `precipitation`)): Rozszerzyć `current`/`daily` o dew point, visibility, UV
       index. **Korekta (Codex) — poprzedni opis był błędny:** to NIE jest
       samo rozszerzenie `PARAM_CODES` "w tym samym zapytaniu bez
       dodatkowego round-tripu" — `client.py` (komentarz przy
@@ -326,7 +326,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dopasowanie najbliższego wodowskazu per gmina, tym samym wzorcem
       nearest-station/haversine co ADR-006 dla GIOŚ — nie zostawiać tego
       bez właściciela.
-- [x] **TASK-7.3** (PR #PRNUM): Stany stale/no-data w UI dla `air` i `weather` —
+- [x] **TASK-7.3** (PR #78): Stany stale/no-data w UI dla `air` i `weather` —
       §59/§80 Master Planu. Backend: `source_status` (ADR-012, izolowane, guard
       `MAX_CLOCK_SKEW`) w blokach `air`/`weather` agregatu. Mobile: efektywna świeżość =
       najgorsza z `freshness` wartości, `source_status` i wieku na zegarze urządzenia
