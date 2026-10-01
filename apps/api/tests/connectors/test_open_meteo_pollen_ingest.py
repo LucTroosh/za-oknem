@@ -4,7 +4,7 @@ from the parser tests."""
 
 import sys
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import httpx
@@ -113,6 +113,27 @@ def test_later_fetch_same_day_drops_hours_the_newer_payload_omits(db_session, mo
     mine = db_session.query(PollenSnapshot).filter_by(geo_area_id=area.id).count()
     theirs = db_session.query(PollenSnapshot).filter_by(geo_area_id=other.id).count()
     assert (mine, theirs) == (1, HOURS)  # other areas' rows untouched
+
+
+def test_older_fetch_does_not_overwrite_a_newer_one(db_session, monkeypatch):
+    """Scheduler + CLI racing on one area/day: the run that paused after taking its
+    timestamp must not clobber what the newer run already committed."""
+    area = _area(db_session)
+    _patch_fetch(monkeypatch, PAYLOAD)
+    ingest.ingest_geo_area(area, db_session)
+    before = {r.valid_at: (r.birch, r.fetched_at) for r in db_session.query(PollenSnapshot)}
+
+    stale = deepcopy(PAYLOAD)
+    stale["hourly"]["birch_pollen"] = [0.5, 0.5, 0.5]
+    records = ingest.normalize(
+        geo_area_id=area.id,
+        payload=stale,
+        fetched_at=datetime.now(UTC) - timedelta(minutes=5),  # older than the stored run
+    )
+    assert ingest._store_batch(records, db_session) == 0
+
+    after = {r.valid_at: (r.birch, r.fetched_at) for r in db_session.query(PollenSnapshot)}
+    assert after == before
 
 
 def test_fetch_failure_is_isolated(db_session, monkeypatch):

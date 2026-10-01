@@ -41,6 +41,10 @@ BUDGET_COUNTER = "open_meteo"
 UNITS_PER_CALL = 1
 
 
+def _utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)  # SQLite returns naive datetimes
+
+
 def _store_batch(records: list[dict], db: Session) -> int:
     """All-or-nothing upsert of one geo_area's hourly rows in a single commit, so
     /pollen/latest never sees half of a forecast run. Keyed by source_record_id, whose
@@ -63,6 +67,9 @@ def _store_batch(records: list[dict], db: Session) -> int:
             )
         ).scalars()
     }
+    incoming_fetched_at = records[0]["fetched_at"]
+    if any(_utc(row.fetched_at) > incoming_fetched_at for row in existing.values()):
+        return 0  # a concurrent run (scheduler + CLI) already stored a NEWER fetch - keep it
     inserted = 0
     incoming = set()
     for r in records:
