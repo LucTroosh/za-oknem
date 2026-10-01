@@ -62,7 +62,7 @@ export default function PollenCalendarCard({
 
 // Text colours >= 4.5:1 on white (#595959 7.0, #8a5300 6.6, #b00020 7.1).
 const styles = StyleSheet.create({
-  card: { gap: 2, paddingTop: 4 },
+  card: { gap: 2, paddingVertical: 12 },
   title: { fontSize: 16, fontWeight: "600" },
   kind: { fontSize: 12, color: "#595959" },
   sub: { fontSize: 13, fontWeight: "600", color: "#595959", paddingTop: 2 },

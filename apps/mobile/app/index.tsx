@@ -153,7 +153,13 @@ export default function Home() {
         // otherwise the source is silent and we say so (no false all-clear).
         ListHeaderComponent={alerts ? <AlertsSection alerts={alerts} /> : null}
         // TASK-7.2 (hydro): own fetch and own states - independent of the dashboard.
-        ListFooterComponent={<HydroSection refreshTick={hydroRefreshTick} />}
+        // Pollen calendar: nationwide too (region PL), so once per screen, not per area row.
+        ListFooterComponent={
+          <>
+            <HydroSection refreshTick={hydroRefreshTick} />
+            <PollenCalendarCard calendar={calendar.data} error={calendar.error} />
+          </>
+        }
         ListEmptyComponent={
           state === "error" ? null : (
             <Text>
@@ -180,7 +186,6 @@ export default function Home() {
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
             <PollenCard pollen={item.pollen} />
-            <PollenCalendarCard calendar={calendar.data} error={calendar.error} />
             {item.forecast && forecastLine(item.forecast.days) && (
               <View>
                 <Text style={styles.metric}>
