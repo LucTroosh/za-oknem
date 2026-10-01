@@ -28,12 +28,11 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 - [ ] Pełny Source Approval Gate (Master Plan §38, 12 punktów: dostępność API,
       stabilność, regulamin, licencja, `commercial_use`, redystrybucja, caching,
       limity, atrybucja, niezawodność, użycie mobilne, dane osobowe) zaliczony i
-      zapisany w registry osobno dla każdego źródła (GIS i EEA), plus schemat/pola
+      zapisany w registry dla KAŻDEGO źródła wybranego do implementacji (nie dla
+      kandydatów niewybranych), plus schemat/pola
       potwierdzone na prawdziwej próbce, a status registry =
       VERIFIED/APPROVED. Samo istnienie zbioru (np. na dane.gov.pl) nie wystarcza.
 - [ ] Parser testowany na fixture z POTWIERDZONYCH pól (oznaczony jako fixture).
-- [ ] (TASK-11.4) `/water/latest`: `source` + `attribution` z registry, freshness,
-      `source_status`; brak bieżącego statusu => `UNAVAILABLE`, nigdy „dopuszczone".
 
 ## Blokada — co musi zrobić człowiek
 
@@ -56,7 +55,9 @@ Mobile (11.5), agregat dashboard (11.6), alert zamknięć (11.3), własny geo-ma
 
 ## Dependencies
 
-TASK-11.3 (alert zamknięć), 11.4 (`/water/latest`), 11.5, 11.6 zależą od 11.2, więc
+TASK-11.3 (alert zamknięć), 11.4 (`/water/latest`; jego kryteria — `source`+`attribution`,
+freshness, `source_status`, `UNAVAILABLE` zamiast „dopuszczone" przy braku statusu
+bieżącego — zostają w BACKLOG/11.4, nie w tym dokumencie), 11.5, 11.6 zależą od 11.2, więc
 są pośrednio ZABLOKOWANE do czasu zaliczenia Gate.
 
 Zgoda/dane od GIS (EEA samo NIE odblokowuje 11.2 w pełnym zakresie: nie ma statusu
