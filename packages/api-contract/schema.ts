@@ -70,6 +70,20 @@ export type AlertsLatestResponse = {
   source_status: Record<string, SourceStatusOut>;
 };
 
+export type AreaOut = {
+  geo_area_id: number;
+  latitude: number;
+  longitude: number;
+  name: string;
+  slug: string;
+  teryt_code: string | null;
+  weather_polling_active: boolean;
+};
+
+export type AreasResponse = {
+  areas: Array<AreaOut>;
+};
+
 export type DailyBudgetOut = {
   limit: number;
   used: number;
@@ -109,6 +123,7 @@ export type DashboardArea = {
   pollen: DashboardPollen;
   slug: string;
   weather: DashboardWeather | null;
+  weather_polling_active: boolean;
 };
 
 export type DashboardForecast = {
@@ -216,6 +231,13 @@ export type ForecastDay = {
   params: Record<string, WeatherParam>;
   valid_from: string;
   valid_until: string;
+};
+
+export type GeoLocateResponse = {
+  area: AreaOut | null;
+  assignment_method: "point_in_polygon" | "nearest_area" | null;
+  distance_km: number | null;
+  status: "resolved" | "out_of_range";
 };
 
 export type GeoResolveRequest = {

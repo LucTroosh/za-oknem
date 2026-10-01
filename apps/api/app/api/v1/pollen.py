@@ -106,17 +106,17 @@ def _day_max(rows: list[PollenSnapshot]) -> dict[str, float | None]:
     return out
 
 
-def latest_pollen(db: Session) -> list[dict]:
+def latest_pollen(db: Session, geo_area_id: int | None = None) -> list[dict]:
     """Newest forecast run per geo_area, reduced to the current hour + per-day maxima.
-    Plain portable SQL (no DISTINCT ON). Reads only our DB (rule #14)."""
-    newest = (
-        select(
-            PollenSnapshot.geo_area_id,
-            func.max(PollenSnapshot.forecast_reference_time).label("ref"),
-        )
-        .group_by(PollenSnapshot.geo_area_id)
-        .subquery()
+    Plain portable SQL (no DISTINCT ON). Reads only our DB (rule #14).
+    `geo_area_id` narrows it to one area (TASK-6.2(8))."""
+    newest_stmt = select(
+        PollenSnapshot.geo_area_id,
+        func.max(PollenSnapshot.forecast_reference_time).label("ref"),
     )
+    if geo_area_id is not None:
+        newest_stmt = newest_stmt.where(PollenSnapshot.geo_area_id == geo_area_id)
+    newest = newest_stmt.group_by(PollenSnapshot.geo_area_id).subquery()
     rows = (
         db.execute(
             select(PollenSnapshot)

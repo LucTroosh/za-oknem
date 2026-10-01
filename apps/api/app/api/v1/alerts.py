@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -112,7 +112,9 @@ def current_alerts(db: Session) -> list[dict]:
 
 
 @router.get("/alerts/latest", response_model=AlertsLatestResponse)
-def latest_alerts(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+def latest_alerts(
+    geo_area_id: int | None = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
     """Reads only from our own DB (rule #14). See current_alerts().
 
     ADR-013: `?geo_area_id=N` keeps only alerts that apply to that area (deterministic

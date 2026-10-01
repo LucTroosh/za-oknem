@@ -39,12 +39,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Za Oknem API", lifespan=lifespan)
 
 
+COORDINATE_PATHS = {"/api/v1/geo/resolve", "/api/v1/geo/locate"}  # bodies carry lat/lon (ADR-002)
+
+
 @app.exception_handler(RequestValidationError)
 async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """FastAPI's default 422 echoes the rejected `input`. For /geo/resolve that is the
     user's coordinates, so strip it there (ADR-002); other routes keep the default shape."""
     errors = exc.errors()
-    if request.url.path == "/api/v1/geo/resolve":
+    if request.url.path in COORDINATE_PATHS:
         errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")} for e in errors]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 

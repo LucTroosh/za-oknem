@@ -25,9 +25,14 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
 - **(7) Odkrywanie stacji GIOŚ per aktywna gmina — ✅ zrobione w osobnym PR (ADR-025, migracja `0013`, `connectors/gios/discovery.py`, `geo.select_stations`)**; oryginalny opis: katalog stacji (`/station/findAll`,
   aktualizowany raz/rok wg registry) + dobór nearest-station per gmina + polling; dziś
   `run_gios` czyta `GIOS_STATION_IDS`.
-- **(8) Zawężenie dashboardu do wybranej lokalizacji** — parametr `geo_area_id` /
-  `observed_area_code` w `GET /dashboard/latest`; usunięcie tymczasowego filtra
-  `weather_polling_active` z tego PR-a.
+- **(8) Zawężenie dashboardu do wybranej lokalizacji — ✅ zrobione w osobnym PR (ADR-026)**:
+  `GET /dashboard/latest?geo_area_id=N` (404 dla nieznanego; obszar bez aktywnego pollingu =
+  `weather_polling_active=false`, weather/forecast/pollen puste, air wg stacji z katalogu ≤ 50 km, outdoor UNKNOWN bez rdzenia; bez parametru jak dotąd), `GET /areas`,
+  `POST /geo/locate` (point-in-polygon → najbliższy AKTYWNY obszar ≤ 25 km jawnie jako
+  `nearest_area` z `distance_km` → `out_of_range`; `/geo/resolve` bez zmian, ADR-019).
+  Oryginalny opis: parametr `geo_area_id` / `observed_area_code` w `GET /dashboard/latest`;
+  usunięcie tymczasowego filtra `weather_polling_active` z tego PR-a (filtr zostaje tylko dla
+  wywołania bez parametru, żeby import gmin nie wyprodukował ~2,5 tys. obszarów).
 - Mechanizm *włączania* pollingu dla wybranej gminy (TASK-12.x / wygaszanie nieużywanych,
   BACKLOG ~l. 569-590): tu tylko kolumna i domyślne wartości; aktywować można ręcznie
   `UPDATE geo_areas SET weather_polling_active = true WHERE teryt_code = '...'`

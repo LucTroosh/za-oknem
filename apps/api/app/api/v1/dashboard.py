@@ -1,10 +1,10 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -169,6 +169,9 @@ class DashboardArea(BaseModel):
     name: str
     latitude: float
     longitude: float
+    # TASK-6.2(8): False = nobody polls this area (an imported gmina nobody activated), so
+    # the null/UNAVAILABLE blocks below mean "no data collected here", not a broken source.
+    weather_polling_active: bool
     air: DashboardAir | None
     weather: DashboardWeather | None
     forecast: DashboardForecast | None
@@ -202,7 +205,9 @@ class DashboardResponse(BaseModel):
 
 
 @router.get("/dashboard/latest", response_model=DashboardResponse)
-def dashboard_latest(db: Session = Depends(get_db)) -> dict:
+def dashboard_latest(
+    geo_area_id: int | None = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
     """Combined per-location view: weather (per geo_area, always) + nearest GIOŚ
     station's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006
     nearest-station join, not a general geo engine). Reads only from our own DB
@@ -210,11 +215,21 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     not worth a cross-table SQL join.
 
     TASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/
-    SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest."""
-    # ADR-019: imported gminas (geo-matching only) must not fan out here until TASK-6.2(8)
-    # narrows the dashboard to a chosen location - only actively polled areas are listed.
-    area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
-    areas = db.execute(area_stmt).scalars().all()
+    SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.
+
+    TASK-6.2(8) / ADR-026: `?geo_area_id=N` narrows `areas` to that one area (any known
+    area, also one without active polling - it then carries `weather_polling_active=false`
+    and empty blocks instead of vanishing); unknown id = 404. Without it: the actively
+    polled areas, as before (imported gminas must not fan out into ~2.5k areas)."""
+    areas: Sequence[GeoArea]
+    if geo_area_id is not None:
+        chosen = db.get(GeoArea, geo_area_id)
+        if chosen is None:
+            raise HTTPException(status_code=404, detail="geo_area not found")
+        areas = [chosen]
+    else:
+        area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+        areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.
     # imgw_hydro's water_level_cm) — without it the nearest-station join could
@@ -246,14 +261,15 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     # ADR-025: catalog is the authority for who may be assigned and where they are.
     points = assignment_candidates(db, stations)
 
-    weather_stmt = (
-        select(WeatherSnapshot)
-        .distinct(WeatherSnapshot.geo_area_id, WeatherSnapshot.param_code)
-        .order_by(
-            WeatherSnapshot.geo_area_id,
-            WeatherSnapshot.param_code,
-            WeatherSnapshot.observed_at.desc(),
-        )
+    weather_stmt = select(WeatherSnapshot)
+    if geo_area_id is not None:
+        weather_stmt = weather_stmt.where(WeatherSnapshot.geo_area_id == geo_area_id)
+    weather_stmt = weather_stmt.distinct(
+        WeatherSnapshot.geo_area_id, WeatherSnapshot.param_code
+    ).order_by(
+        WeatherSnapshot.geo_area_id,
+        WeatherSnapshot.param_code,
+        WeatherSnapshot.observed_at.desc(),
     )
     weather_by_area: dict[int, list[WeatherSnapshot]] = {}
     for snapshot in db.execute(weather_stmt).scalars().all():
@@ -261,7 +277,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.
-    forecasts = forecasts_by_area(db)
+    forecasts = forecasts_by_area(db, geo_area_id)
 
     # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
     # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
@@ -336,6 +352,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "name": area.name,
                 "latitude": area.latitude,
                 "longitude": area.longitude,
+                "weather_polling_active": bool(area.weather_polling_active),
                 "air": air,
                 "weather": weather,
                 "forecast": _forecast_block(forecasts.get(area.id)),
@@ -361,7 +378,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     # TASK-8.9 / ADR-020: computed LAST and isolated (rule #1) - a failing pollen read or
     # block build must not take the rest of the dashboard down; it degrades to UNAVAILABLE.
     try:
-        pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db)}
+        pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db, geo_area_id)}
         pollen_status = source_freshness(db, POLLEN_SOURCE_ID, pollen_freshness)
         for out in areas_out:
             area_pollen = pollen_by_area.get(out["geo_area_id"])
