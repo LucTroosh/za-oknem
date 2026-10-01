@@ -1,4 +1,4 @@
-import { weatherView } from "../app/weather";
+import { weatherView } from "../lib/weather";
 import Card from "./Card";
 import ReadingsList from "./ReadingsList";
 import useNow from "./useNow";

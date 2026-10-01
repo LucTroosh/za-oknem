@@ -14,6 +14,14 @@ describe("collectAttributions", () => {
     expect(collectAttributions(dash)).toEqual(["IMGW", "GIOŚ", "Open-Meteo", "CAMS"]);
   });
 
+  it("adds extra blocks (hydro, pollen calendar) and works without a dashboard", () => {
+    expect(collectAttributions(null, { attribution: "IMGW hydro" }, null, { attribution: "Kalendarz" })).toEqual([
+      "IMGW hydro",
+      "Kalendarz",
+    ]);
+    expect(collectAttributions({ alerts: { attribution: "IMGW" } }, { attribution: "IMGW" })).toEqual(["IMGW"]);
+  });
+
   it("ignores garbage and empty strings instead of throwing", () => {
     expect(collectAttributions(null)).toEqual([]);
     expect(collectAttributions({ alerts: { attribution: "  " }, areas: [null, 3, { air: { attribution: 5 } }] })).toEqual([]);

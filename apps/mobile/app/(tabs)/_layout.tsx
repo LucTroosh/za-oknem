@@ -4,7 +4,7 @@ import { Tabs } from "expo-router";
 
 import { DashboardProvider } from "../../components/DashboardProvider";
 import useTheme from "../../components/useTheme";
-import { typo } from "../theme";
+import { typo } from "../../lib/theme";
 
 // Icons: @expo/vector-icons ships with the Expo SDK (dependency of `expo`), no new package.
 // Every tab also has a text label, so the icon is never the only carrier.
@@ -20,8 +20,9 @@ export default function TabsLayout() {
     <DashboardProvider>
       <Tabs
         screenOptions={{
+          sceneStyle: { backgroundColor: colors.bg },
           headerStyle: { backgroundColor: colors.surface },
-          headerTitleStyle: { ...typo.heading, color: colors.text },
+          headerTitleStyle: { ...typo.heading },
           headerTintColor: colors.text,
           headerShadowVisible: false,
           tabBarActiveTintColor: colors.accent,
@@ -30,8 +31,8 @@ export default function TabsLayout() {
           tabBarLabelStyle: { fontSize: typo.micro.fontSize, fontWeight: "600" },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: "Za Oknem", tabBarLabel: "Home", tabBarIcon: icon("home-outline", "home") }} />
-        <Tabs.Screen name="alerty" options={{ title: "Alerty", tabBarIcon: icon("warning-outline", "warning") }} />
+        <Tabs.Screen name="index" options={{ title: "Za Oknem", tabBarLabel: "Dziś", tabBarIcon: icon("home-outline", "home") }} />
+        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("warning-outline", "warning") }} />
         <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
       </Tabs>
     </DashboardProvider>

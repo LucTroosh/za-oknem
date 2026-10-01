@@ -484,7 +484,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       faktycznie potrzebuje drugiej zakładki (Settings z TASK-12.1 dokłada
       tylko trzecią do gotowego layoutu).
       **Stan (PR „fundament UI”):** tab layout Home/Alerty/Ustawienia już jest
-      (`app/(tabs)/`), a zakładka Alerty pokazuje dotychczasowe ostrzeżenia +
+      (`app/(tabs)/`; moduły logiki przeniesione z `app/` do `lib/`), a zakładka Alerty pokazuje dotychczasowe ostrzeżenia +
       „Stany wody” jako **cała Polska** (bez geo-filtra, bez szczegółu alertu).
       Zostaje do zrobienia tutaj: filtrowanie po lokalizacji (`local_alerts` /
       `?geo_area_id=`), lista z szczegółem alertu.
@@ -587,6 +587,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zamiast najbliższego.
 
 ### Phase 12 — Settings / Profiles
+
+- [ ] **Follow-up (fundament UI, PR #83):** (a) zweryfikować na Androidzie, że
+      `userInterfaceStyle: automatic` realnie przełącza motyw — jeśli nie,
+      rozważyć `expo-system-ui` (nowa zależność: uzasadnienie w PR); (b) jeden
+      współdzielony `useNow` (dziś kilka niezależnych timerów 60 s); (c) wygląd
+      Home/Alerty/Ustawień obejrzeć ręcznie w jasnym i ciemnym motywie.
 
 - [ ] **TASK-12.1:** Ekran Settings (mobile) — placeholder/skeleton, potem
       realne preferencje. Bottom navigation (§57) wprowadzone już w TASK-9.7

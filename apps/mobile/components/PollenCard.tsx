@@ -1,7 +1,7 @@
 import { StyleSheet, Text } from "react-native";
 
-import { pollenView } from "../app/pollen";
-import { type Theme, space, typo } from "../app/theme";
+import { pollenView } from "../lib/pollen";
+import { type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
 import useTheme, { useThemedStyles } from "./useTheme";
 

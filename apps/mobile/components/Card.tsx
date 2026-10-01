@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
-import { type Theme, radius, space } from "../app/theme";
+import { type Theme, radius, space } from "../lib/theme";
 import { useThemedStyles } from "./useTheme";
 
 // The one surface everything on a screen sits on.

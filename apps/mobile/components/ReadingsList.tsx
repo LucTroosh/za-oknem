@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { NO_DATA, type ReadingLine, type ReadingsView } from "../app/readings";
-import { type Theme, space, typo } from "../app/theme";
+import { NO_DATA, type ReadingLine, type ReadingsView } from "../lib/readings";
+import { type Theme, space, typo } from "../lib/theme";
 import { useThemedStyles } from "./useTheme";
 
 // TASK-7.3: shared layout for air and weather lines. A stale line is dimmed and

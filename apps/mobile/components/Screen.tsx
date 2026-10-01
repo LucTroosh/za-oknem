@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { RefreshControl, ScrollView, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { space } from "../app/theme";
+import { space } from "../lib/theme";
 import useTheme from "./useTheme";
 
 // Shared screen body: themed background, optional pull-to-refresh, side/bottom safe-area

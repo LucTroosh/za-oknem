@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useColorScheme } from "react-native";
 
-import { type Theme, paletteFor } from "../app/theme";
+import { type Theme, paletteFor } from "../lib/theme";
 
 // Follows the system setting live (app.json: userInterfaceStyle "automatic").
 export default function useTheme(): Theme {

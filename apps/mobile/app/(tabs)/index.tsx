@@ -2,23 +2,26 @@
 import AreaSection from "../../components/AreaSection";
 import useDashboard from "../../components/DashboardProvider";
 import EmptyState, { LoadingState } from "../../components/EmptyState";
-import HomeAlertsBanner from "../../components/HomeAlertsBanner";
+import HomeBanners from "../../components/HomeBanners";
 import Notice from "../../components/Notice";
 import PollenCalendarCard from "../../components/PollenCalendarCard";
 import Screen from "../../components/Screen";
-import usePollenCalendar from "../../components/usePollenCalendar";
 
 // Home = the dashboard: per location the outdoor verdict, air, weather, pollen. Alerts and
 // water levels moved to the Alerts tab; only a one-line pointer stays here.
 export default function Home() {
   const d = useDashboard();
-  // Typical pollen season (ADR-023): own fetch, nationwide, once per screen.
-  const calendar = usePollenCalendar(d.refreshTick);
   const hasAreas = d.areas.length > 0;
 
   return (
     <Screen refreshing={d.refreshing} onRefresh={d.refresh}>
-      {d.alerts && <HomeAlertsBanner alerts={d.alerts} />}
+      {/* A missing block after loading is a neutral banner, never silence (ADR-012). */}
+      <HomeBanners
+        alerts={d.alerts}
+        alertsLoaded={d.state !== "loading"}
+        hydro={d.hydro}
+        hydroLoaded={d.hydroState !== "loading"}
+      />
 
       {/* Visible next to older data too: a failed refresh must not look like a fresh screen. */}
       {d.state === "error" && hasAreas && (
@@ -49,7 +52,7 @@ export default function Home() {
         <AreaSection key={area.slug} area={area} sourceStatus={d.sourceStatus} receivedAt={d.loadedAt} />
       ))}
 
-      <PollenCalendarCard calendar={calendar.data} error={calendar.error} />
+      <PollenCalendarCard calendar={d.calendar} error={d.calendarError} />
     </Screen>
   );
 }

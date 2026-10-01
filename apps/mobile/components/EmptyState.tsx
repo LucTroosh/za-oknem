@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { MIN_TOUCH, type Theme, radius, space, typo } from "../app/theme";
+import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
 import Card from "./Card";
 import useTheme, { useThemedStyles } from "./useTheme";
 

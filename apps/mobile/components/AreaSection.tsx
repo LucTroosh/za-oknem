@@ -1,10 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import type { DashboardArea, DashboardSourceStatus } from "../app/dashboardTypes";
-import { formatObservedAt } from "../app/dashboardTypes";
-import { forecastLine } from "../app/forecast";
-import { FRESHNESS_LABEL } from "../app/freshness";
-import { type Theme, space, typo } from "../app/theme";
+import type { DashboardArea, DashboardSourceStatus } from "../lib/dashboardTypes";
+import { formatObservedAt } from "../lib/dashboardTypes";
+import { forecastLine } from "../lib/forecast";
+import { FRESHNESS_LABEL } from "../lib/freshness";
+import { type Theme, space, typo } from "../lib/theme";
 import AirParams from "./AirParams";
 import Card from "./Card";
 import FreshnessBadge from "./FreshnessBadge";

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { OUTDOOR_DISCLAIMER, type OutdoorLevel, outdoorView } from "../app/outdoor";
-import { type Theme, type Tone, radius, space, toneColors, typo } from "../app/theme";
+import { OUTDOOR_DISCLAIMER, type OutdoorLevel, outdoorView } from "../lib/outdoor";
+import { type Theme, type Tone, radius, space, toneColors, typo } from "../lib/theme";
 import useNow from "./useNow";
 import useTheme, { useThemedStyles } from "./useTheme";
 

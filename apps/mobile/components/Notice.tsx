@@ -1,6 +1,6 @@
 import { StyleSheet, Text } from "react-native";
 
-import { radius, space, toneColors, typo } from "../app/theme";
+import { radius, space, toneColors, typo } from "../lib/theme";
 import useTheme from "./useTheme";
 
 // Inline notice (e.g. a failed refresh while older data is still on screen). Read out as

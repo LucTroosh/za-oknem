@@ -1,11 +1,11 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { airIndexView } from "../app/aqi";
-import { type Theme, type Tone, radius, space, toneColors, typo } from "../app/theme";
+import { airIndexView } from "../lib/aqi";
+import { type Theme, type Tone, radius, space, toneColors, typo } from "../lib/theme";
 import useNow from "./useNow";
 import useTheme, { useThemedStyles } from "./useTheme";
 
-// TASK-4.2: one badge per air block. All wording comes from app/aqi.ts + the backend
+// TASK-4.2: one badge per air block. All wording comes from lib/aqi.ts + the backend
 // block; this only lays it out. Renders nothing when the backend sent no `index`.
 // The level is carried by glyph + word + colour (colour alone is never enough).
 const TONE: Record<string, Tone> = { GOOD: "good", FAIR: "good", MODERATE: "warning" };

@@ -1,24 +1,34 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { DashboardResponse } from "../../../packages/api-contract/schema";
-import { apiGet } from "../app/api";
-import type { AlertsBlock } from "../app/alerts";
-import type { DashboardArea, DashboardSourceStatus, LoadState } from "../app/dashboardTypes";
+import type { AlertsBlock } from "../lib/alerts";
+import { apiGet } from "../lib/api";
+import type { DashboardArea, DashboardSourceStatus, LoadState } from "../lib/dashboardTypes";
+import type { HydroBlock } from "../lib/hydro";
+import { createLatestGuard } from "../lib/latest";
+import type { PollenCalendarBlock } from "../lib/pollenCalendar";
+import usePollenCalendar from "./usePollenCalendar";
 
-// One fetch of /api/v1/dashboard/latest shared by the tabs (Home: areas, Alerts: national
-// alerts, Settings: attributions). Reads only from our backend (rule #14). A failed refresh
-// keeps the previous data and flips `state` to "error", so screens can show both.
+// The shared data of the tabs, each from its own request (rule #1: one failing never blanks
+// another) and only from our backend (rule #14):
+//   /api/v1/dashboard/latest -> areas (Home), alerts (Alerts + Home banner), attributions
+//   /api/v1/hydro/latest     -> water levels (Alerts + Home banner)
+//   /api/v1/pollen/calendar  -> typical pollen season (Home, attribution in Settings)
+// A failed refresh keeps the previous data and flips the state to "error", so screens can
+// show both. Responses of superseded requests are ignored (latest wins).
 export type DashboardContext = {
   state: LoadState;
   dashboard: DashboardResponse | null;
   areas: DashboardArea[];
   alerts: AlertsBlock | null;
   sourceStatus: DashboardSourceStatus | null;
-  // Device time of the last successful response (ages the outdoor verdict and AQI).
+  hydroState: LoadState;
+  hydro: HydroBlock | null;
+  calendar: PollenCalendarBlock | null;
+  calendarError: boolean;
+  // Device time of the last successful dashboard response (ages the outdoor verdict and AQI).
   loadedAt: number;
   refreshing: boolean;
-  // Bumped on every pull-to-refresh: the screens' own fetches (hydro, pollen calendar) follow it.
-  refreshTick: number;
   refresh: () => void;
 };
 
@@ -27,29 +37,50 @@ const Ctx = createContext<DashboardContext | null>(null);
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LoadState>("loading");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [hydroState, setHydroState] = useState<LoadState>("loading");
+  const [hydro, setHydro] = useState<HydroBlock | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [refreshTick, setRefreshTick] = useState(0);
+  const calendar = usePollenCalendar(refreshTick);
+  const guards = useRef({ dashboard: createLatestGuard(), hydro: createLatestGuard(), refresh: createLatestGuard() });
 
-  const load = useCallback(() => {
+  const loadDashboard = useCallback(() => {
+    const isLatest = guards.current.dashboard();
     return apiGet<DashboardResponse>("/api/v1/dashboard/latest")
       .then((body) => {
+        if (!isLatest()) return;
         setDashboard(body);
         setLoadedAt(Date.now());
         setState("ready");
       })
-      .catch(() => setState("error"));
+      .catch(() => isLatest() && setState("error"));
+  }, []);
+
+  const loadHydro = useCallback(() => {
+    const isLatest = guards.current.hydro();
+    return apiGet<HydroBlock>("/api/v1/hydro/latest")
+      .then((body) => {
+        if (!isLatest()) return;
+        setHydro(body);
+        setHydroState("ready");
+      })
+      .catch(() => isLatest() && setHydroState("error"));
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadDashboard();
+    loadHydro();
+  }, [loadDashboard, loadHydro]);
 
   const refresh = useCallback(() => {
+    const isLatest = guards.current.refresh();
     setRefreshTick((t) => t + 1);
     setRefreshing(true);
-    load().finally(() => setRefreshing(false));
-  }, [load]);
+    // Both loaders swallow their errors, so this always settles; only the newest pull
+    // switches the spinner off.
+    Promise.all([loadDashboard(), loadHydro()]).finally(() => isLatest() && setRefreshing(false));
+  }, [loadDashboard, loadHydro]);
 
   const value = useMemo<DashboardContext>(
     () => ({
@@ -59,12 +90,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       alerts: dashboard?.alerts ?? null,
       // `?? null`: an older backend may omit it (runtime only; the contract says required).
       sourceStatus: dashboard?.source_status ?? null,
+      hydroState,
+      hydro,
+      calendar: calendar.data,
+      calendarError: calendar.error,
       loadedAt,
       refreshing,
-      refreshTick,
       refresh,
     }),
-    [state, dashboard, loadedAt, refreshing, refreshTick, refresh],
+    [state, dashboard, hydroState, hydro, calendar.data, calendar.error, loadedAt, refreshing, refresh],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

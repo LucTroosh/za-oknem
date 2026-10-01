@@ -1,4 +1,4 @@
-import { airView } from "../app/readings";
+import { airView } from "../lib/readings";
 import AirIndexBadge from "./AirIndexBadge";
 import Card from "./Card";
 import ReadingsList from "./ReadingsList";

@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "../app/alerts";
-import { formatObservedAt } from "../app/dashboardTypes";
-import { FRESHNESS_LABEL } from "../app/freshness";
-import { type Theme, space, typo } from "../app/theme";
+import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "../lib/alerts";
+import { formatObservedAt } from "../lib/dashboardTypes";
+import { FRESHNESS_LABEL } from "../lib/freshness";
+import { type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
 import FreshnessBadge from "./FreshnessBadge";
 import useNow from "./useNow";

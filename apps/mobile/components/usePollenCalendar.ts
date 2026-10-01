@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { apiGet } from "../app/api";
-import type { PollenCalendarBlock } from "../app/pollenCalendar";
+import { apiGet } from "../lib/api";
+import type { PollenCalendarBlock } from "../lib/pollenCalendar";
 
 // Own fetch, own state: the calendar failing (or being offline) must never touch the rest
 // of the screen (rule #1). Goes through our backend only (rule #14). `refreshTick` = pull-to-refresh.

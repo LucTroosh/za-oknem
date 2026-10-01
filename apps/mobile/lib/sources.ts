@@ -4,15 +4,17 @@
 const isObject = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 
-export function collectAttributions(dashboard: unknown): string[] {
-  if (!isObject(dashboard)) return [];
-  const blocks: unknown[] = [dashboard.alerts];
-  if (Array.isArray(dashboard.areas)) {
+// `extra` = other blocks that carry an `attribution` (water levels, pollen calendar).
+export function collectAttributions(dashboard: unknown, ...extra: unknown[]): string[] {
+  const blocks: unknown[] = [];
+  if (isObject(dashboard)) blocks.push(dashboard.alerts);
+  if (isObject(dashboard) && Array.isArray(dashboard.areas)) {
     for (const area of dashboard.areas) {
       if (!isObject(area)) continue;
       blocks.push(area.air, area.weather, area.forecast, area.pollen);
     }
   }
+  blocks.push(...extra);
   const out: string[] = [];
   for (const b of blocks) {
     const a = isObject(b) ? b.attribution : undefined;

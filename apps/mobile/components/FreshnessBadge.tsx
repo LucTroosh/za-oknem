@@ -1,7 +1,7 @@
 import { StyleSheet, Text } from "react-native";
 
-import type { FreshnessState } from "../app/freshness";
-import { freshnessColor, typo } from "../app/theme";
+import type { FreshnessState } from "../lib/freshness";
+import { freshnessColor, typo } from "../lib/theme";
 import useTheme from "./useTheme";
 
 // Freshness is shown as glyph + word + colour - colour alone never carries it (a11y).

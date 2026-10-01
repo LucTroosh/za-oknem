@@ -5,16 +5,16 @@ import Card from "../../components/Card";
 import useDashboard from "../../components/DashboardProvider";
 import Screen from "../../components/Screen";
 import { useThemedStyles } from "../../components/useTheme";
-import { collectAttributions } from "../sources";
-import { type Theme, space, typo } from "../theme";
+import { collectAttributions } from "../../lib/sources";
+import { type Theme, space, typo } from "../../lib/theme";
 
 // Placeholder (TASK-12.1): about + data sources. Location, profile, allergies and
 // notifications arrive with TASK-12.2-12.4; the privacy policy page with TASK-12.6.
 // Sources = the attribution strings the backend sent with the data (shown verbatim).
 export default function Settings() {
   const styles = useThemedStyles(createStyles);
-  const { dashboard } = useDashboard();
-  const sources = collectAttributions(dashboard);
+  const { dashboard, hydro, calendar } = useDashboard();
+  const sources = collectAttributions(dashboard, hydro, calendar);
   return (
     <Screen>
       <Card>

@@ -32,7 +32,7 @@ export type Palette = {
   unavailable: string;
 };
 
-// good/danger keep the category colours used before (#2e7d32 / #b00020, AirIndexBadge).
+// good/danger keep the category colours used before (#2e7d32 / #b00020, AirIndexBadge; light green darkened to #2a7430 for 4.5:1 on the screen background).
 // warning moves #b26a00 -> #8a5300 (the pollen cards already used it): #b26a00 is < 4.5:1.
 export const LIGHT: Palette = {
   bg: "#eaf0f3",
@@ -43,14 +43,14 @@ export const LIGHT: Palette = {
   dim: "#59666f",
   accent: "#0b5d7a",
   onAccent: "#ffffff",
-  good: "#2e7d32",
+  good: "#2a7430",
   warning: "#8a5300",
   danger: "#b00020",
   goodBg: "#eef7ef",
   warningBg: "#fdf0d5",
   dangerBg: "#fbe6e9",
   neutralBg: "#e3eaee",
-  fresh: "#2e7d32",
+  fresh: "#2a7430",
   recent: "#235f8c",
   stale: "#8a5300",
   unavailable: "#59666f",
@@ -128,6 +128,9 @@ export const TEXT_PAIRS: ReadonlyArray<readonly [keyof Palette, keyof Palette]> 
   ["stale", "surface"],
   ["unavailable", "surface"],
   ["good", "surface"],
+  ["good", "bg"],
+  ["warning", "bg"],
+  ["danger", "bg"],
   ["warning", "surface"],
   ["danger", "surface"],
   ["good", "goodBg"],

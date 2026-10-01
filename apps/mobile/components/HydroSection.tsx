@@ -1,16 +1,16 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { formatObservedAt } from "../app/dashboardTypes";
+import { type LoadState, formatObservedAt } from "../lib/dashboardTypes";
 import {
   HYDRO_FRESHNESS_LABEL,
   HYDRO_STATUS_LABEL,
+  type HydroBlock,
   hydroLevelLine,
   summarizeHydro,
-} from "../app/hydro";
-import { type Theme, space, typo } from "../app/theme";
+} from "../lib/hydro";
+import { type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
 import FreshnessBadge from "./FreshnessBadge";
-import useHydro from "./useHydro";
 import useNow from "./useNow";
 import { LoadingState } from "./EmptyState";
 import { useThemedStyles } from "./useTheme";
@@ -18,12 +18,11 @@ import { useThemedStyles } from "./useTheme";
 const lastSuccess = (at: string | null) =>
   at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
 
-// TASK-7.2 (hydro): own fetch and own states - independent of the dashboard (rule #1).
+// TASK-7.2 (hydro): own request (DashboardProvider) and own states - independent of the dashboard (rule #1).
 // Nationwide until geo matching - hence the "cała Polska" label. Statuses come from the
 // backend (IMGW's own thresholds); nothing here classifies a level (rule #10).
-export default function HydroSection({ refreshTick }: { refreshTick: number }) {
+export default function HydroSection({ state, hydro }: { state: LoadState; hydro: HydroBlock | null }) {
   const styles = useThemedStyles(createStyles);
-  const { state, hydro } = useHydro(refreshTick);
   // Labels age on the device without a refetch.
   const now = useNow();
   const summary = hydro ? summarizeHydro(hydro, now) : null;
