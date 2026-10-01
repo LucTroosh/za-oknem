@@ -28,13 +28,23 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 MIN_YEAR, MAX_YEAR = 2000, 2100  # date arithmetic stays far from date.max/min
 
 
+COVERAGE_WARNING = "Lista nie obejmuje wszystkich alergenów; brak wpisu NIE oznacza braku pylenia."
+EMPTY_ACTIVE_MESSAGE = (
+    "Żaden z ujętych taksonów nie jest w typowym sezonie, ale to NIE znaczy, że nic nie pyli: "
+    "kalendarz nie obejmuje wszystkich alergenów, a rzeczywiste pylenie zależy od pogody."
+)
+
+
 class PollenCalendarOut(BaseModel):
     date: Date
     kind: Literal["seasonal_calendar"]  # NOT a measurement, NOT a forecast
     region: Literal["PL"]
     active: list[ActiveTaxon]
+    active_message: str | None  # set when `active` is empty: that is NOT "nothing pollinates"
     upcoming: list[UpcomingTaxon]
     upcoming_within_days: int
+    coverage_complete: Literal[False]  # the list never covers all allergens
+    coverage_warning: str
     not_covered: list[NotCovered]
     sources: dict[str, Source]
     attribution: str
@@ -58,8 +68,11 @@ def pollen_calendar(
         kind=cal.kind,
         region=cal.valid_for_region,
         active=active,
+        active_message=None if active else EMPTY_ACTIVE_MESSAGE,
         upcoming=upcoming,
         upcoming_within_days=UPCOMING_DAYS,
+        coverage_complete=False,
+        coverage_warning=COVERAGE_WARNING,
         not_covered=cal.not_covered,
         sources=cal.sources,
         attribution=cal.attribution,

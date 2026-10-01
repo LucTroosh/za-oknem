@@ -4,7 +4,7 @@
   "valid_for_region": "PL",
   "reviewed_at": "2026-10-01",
   "attribution": "Typowe okresy sezonów pylenia: własne zestawienie Za Oknem na podstawie publikacji aerobiologicznych z Polski (lista źródeł w polu `sources`; wykorzystano wyłącznie fakty - zakresy dat - bez kopiowania tabel, grafik ani tekstów).",
-  "disclaimer": "Typowy przebieg sezonu, NIE pomiar i NIE prognoza. Rzeczywisty termin zależy od pogody, roku i regionu (początek i szczyt mogą się przesuwać o 2-3 tygodnie, a w pojedynczych latach więcej). Dekady: 1 = dni 1-10, 2 = dni 11-20, 3 = dzień 21 do końca miesiąca.",
+  "disclaimer": "Typowy przebieg sezonu, NIE pomiar i NIE prognoza. Rzeczywisty termin zależy od pogody, roku i regionu (początek i szczyt mogą się przesuwać o 2-3 tygodnie, a w pojedynczych latach więcej). Lista taksonów nie obejmuje wszystkich alergenów - brak wpisu NIE oznacza braku pylenia. Dekady: 1 = dni 1-10, 2 = dni 11-20, 3 = dzień 21 do końca miesiąca.",
   "sources": {
     "corylus_alnus_szczecin_rzeszow": {
       "citation": "The patterns of Corylus and Alnus pollen seasons and pollination periods in two Polish cities located in different climatic regions (Szczecin, Rzeszów 2009-2011), Aerobiologia",
@@ -54,6 +54,12 @@
       "license": "UNVERIFIED (użyto wyłącznie faktu z abstraktu)",
       "checked_at": "2026-10-01"
     },
+    "grass_poland_8cities": {
+      "citation": "Grass pollen seasons in Poland against a background of the meteorological conditions (8 miast, 1992-2014), czasopismo Polskiego Towarzystwa Botanicznego (pbsociety.org.pl), id artykułu aa.2015.038",
+      "url": "https://pbsociety.org.pl/journals/index.php/aa/article/view/aa.2015.038",
+      "license": "Creative Commons Attribution (wg strony czasopisma; komercyjne i niekomercyjne użycie z cytowaniem)",
+      "checked_at": "2026-10-01"
+    },
     "cladosporium_poland": {
       "citation": "Warm and dry weather accelerates and elongates Cladosporium spore seasons in Poland (Lublin, Poznań, Rzeszów 2010-2012), Aerobiologia, doi:10.1007/s10453-016-9425-7",
       "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4773468/",
@@ -66,19 +72,19 @@
       "key": "hazel",
       "name_pl": "leszczyna",
       "category": "tree",
-      "season": {"start": [2, 2], "end": [4, 1]},
+      "season": {"start": [2, 1], "end": [4, 1]},
       "peak": {"start": [3, 1], "end": [3, 3]},
       "source_ids": ["corylus_alnus_szczecin_rzeszow", "alnus_betula_corylus_poland"],
-      "note": "Średni początek ok. 1 marca (±18 dni), czas trwania ok. 30 dni; w obserwowanych latach start od 7 lutego, koniec do 8 kwietnia, szczyty 9-29 marca (Szczecin, Rzeszów 2009-2011)."
+      "note": "Okno szczytu obejmuje cały marzec, bo obserwowane szczyty (9-29 marca) rozchodzą się między latami i miastami. Średni początek ok. 1 marca (±18 dni), czas trwania ok. 30 dni; w obserwowanych latach start od 7 lutego, koniec do 8 kwietnia, szczyty 9-29 marca (Szczecin, Rzeszów 2009-2011)."
     },
     {
       "key": "alder",
       "name_pl": "olsza",
       "category": "tree",
-      "season": {"start": [2, 2], "end": [4, 2]},
+      "season": {"start": [2, 1], "end": [4, 3]},
       "peak": {"start": [3, 1], "end": [3, 3]},
       "source_ids": ["corylus_alnus_szczecin_rzeszow", "alnus_betula_corylus_poland"],
-      "note": "Średni początek ok. 8 marca (±16 dni), czas trwania ok. 26 dni; w obserwowanych latach start od 9 lutego, szczyty 2-29 marca, koniec zwykle do połowy kwietnia (pojedynczy rok: 23 kwietnia)."
+      "note": "Średni początek ok. 8 marca (±16 dni), czas trwania ok. 26 dni; w obserwowanych latach start od 9 lutego, szczyty 2-29 marca, koniec 30 marca - 23 kwietnia (zakres sezonu to suma obserwacji)."
     },
     {
       "key": "birch",
@@ -102,10 +108,19 @@
       "key": "oak",
       "name_pl": "dąb",
       "category": "tree",
-      "season": {"start": [4, 2], "end": [5, 3]},
+      "season": {"start": [4, 2], "end": [6, 1]},
       "peak": {"start": [5, 1], "end": [5, 1]},
       "source_ids": ["quercus_poznan"],
-      "note": "Poznań 1996-2011: średnio start ok. 28 kwietnia, szczyt ok. 6 maja, koniec ok. 27 maja; początek i koniec różnią się między latami o ok. 2 tygodnie (jedna lokalizacja)."
+      "note": "Poznań 1996-2011: średnio start ok. 28 kwietnia, szczyt ok. 6 maja, koniec ok. 27 maja, najpóźniejszy zaobserwowany koniec 8 czerwca; początek i koniec różnią się między latami o ok. 2 tygodnie (jedna lokalizacja)."
+    },
+    {
+      "key": "grass",
+      "name_pl": "trawy",
+      "category": "grass",
+      "season": {"start": [5, 1], "end": [9, 2]},
+      "peak": {"start": [5, 3], "end": [7, 1]},
+      "source_ids": ["grass_poland_8cities"],
+      "note": "8 miast Polski 1992-2014: początek względnie stabilny, ok. 10 maja (na południu nieco wcześniej); maksima dobowe od końca maja do pierwszej dekady lipca; koniec bardzo zmienny - od połowy lipca do połowy września, więc w drugiej połowie sezonu bywa już po sezonie."
     },
     {
       "key": "mugwort",
@@ -123,11 +138,10 @@
       "season": {"start": [4, 2], "end": [9, 3]},
       "peak": {"start": [5, 3], "end": [8, 1]},
       "source_ids": ["cladosporium_poland"],
-      "note": "To zarodniki grzybów, nie pyłek roślin. Lublin, Poznań, Rzeszów 2010-2012: start 14 kwietnia - 7 maja, koniec 13-28 września, szczyt od 21 maja do 4 sierpnia; w ciepłe i suche lata sezon jest wcześniejszy i dłuższy."
+      "note": "To zarodniki grzybów, nie pyłek roślin. Lublin, Poznań, Rzeszów 2010-2012: start 14 kwietnia - 7 maja, koniec 13-28 września, szczyt (bardzo zmienny między latami i miastami: od 21 maja do 4 sierpnia, stąd szerokie okno); w ciepłe i suche lata sezon jest wcześniejszy i dłuższy."
     }
   ],
   "not_covered": [
-    {"key": "grass", "name_pl": "trawy", "reason": "UNVERIFIED: nie udało się potwierdzić zakresu dat sezonu z dostępnych źródeł; dodać po weryfikacji (źródła w source-registry)."},
     {"key": "ragweed", "name_pl": "ambrozja", "reason": "UNVERIFIED: potwierdzono tylko początek (zwykle druga dekada sierpnia, w skrajnych przypadkach od połowy lipca do początku września), brak zweryfikowanego końca sezonu."},
     {"key": "urticaceae", "name_pl": "pokrzywowate", "reason": "UNVERIFIED: potwierdzono tylko okres wysokich stężeń (połowa lipca - koniec sierpnia, Kraków), brak początku i końca sezonu."}
   ]

@@ -7,11 +7,13 @@ jest przemyślana sekwencja zależności (np. Geo Engine przed geo-relevance
 alertów), nie coś wymyślonego na nowo tutaj. W obrębie fazy: najpierw to, co
 odblokowuje kolejne fazy i nie ma zewnętrznych zależności poza naszą kontrolą.
 
-Stan na 2026-09-30 (szczegóły i numery PR: ROADMAP.md): vertical slice i
+Stan na 2026-10-01, main = 225ec08 (szczegóły i numery PR: ROADMAP.md): vertical slice i
 szkielet infra (Docker/Caddy/CI, bez PostGIS/Redis/workerów) są gotowe; pełny
 zestaw parametrów GIOŚ, prognoza, pola pogodowe §5, source transparency,
 typowane `response_model` i dzienny licznik wywołań są w `main`. Pozycje
-oznaczone `[x]` są zmergowane; `(PR #N, w review)` = kod gotowy, czeka na merge.
+oznaczone `[x]` są zmergowane (✅). Statusy częściowe/zablokowane mają `[ ]` i
+emoji jak w ROADMAP.md: 🟡 częściowo (kod w `main`, ale zakres niepełny), ⛔
+zablokowane, ⬜ nie zaczęte (bez emoji = ⬜).
 Odznaczać w tym pliku przy każdym merge'u — plik, który twierdzi, że zrobione
 rzeczy są do zrobienia, jest równie mylący jak odwrotnie.
 
@@ -45,13 +47,15 @@ je pominął; zamiast łatać każdy z osobna, obowiązują globalnie):
 
 ## Blokady wymagające Twojej akcji (nie mojej — flaguję z góry, nie czekam bezczynnie)
 
-- **Phase 8, pyłki (CAMS/Copernicus ADS):** wymaga rejestracji konta na
-  ads.atmosphere.copernicus.eu i klucza API — to musi zrobić człowiek
-  (weryfikacja e-mail/warunki). Gdy dojdę do tej fazy, przygotuję connector
-  pod gotowy kontrakt i poproszę Cię o sam klucz (jako zmienną środowiskową,
-  nigdy w repo — rule #3).
-- **Phase 10, push (Expo/FCM/APNs):** wymaga kont deweloperskich
-  Google/Apple i kluczy — podobnie, przygotuję kod, klucze dostarczysz Ty.
+- **Phase 8, pyłki:** backend zrobiony bez klucza — źródłem jest CAMS Europe
+  przez Open-Meteo Air Quality (ADR-020, PR #71), więc rejestracja w Copernicus
+  ADS nie jest potrzebna (zostaje tylko alternatywą). Po stronie człowieka:
+  potwierdzenie hosta Air Quality i planu komercyjnego Open-Meteo przed
+  monetyzacją (ADR-003, ADR-022); OBAŚ (rzeczywiste pomiary) — kontakt, nic
+  niezweryfikowane.
+- **Phase 10, push (Expo/FCM/APNs):** backend rejestracji urządzeń jest w `main`
+  (TASK-10.1, PR #67, ADR-017); realna wysyłka wymaga kont deweloperskich
+  Google/Apple i kluczy FCM/APNs — dostarczysz Ty (zmienne środowiskowe).
 - **Phase 11, kąpieliska (Sanepid/GIS):** `sk.gis.gov.pl` to HTML
   renderowany serwerowo, bez API i bez licencji/regulaminu — patrz ADR-021.
   Research zrobiony (TASK-11.1 częściowo); źródło statusu bieżącego
@@ -61,6 +65,14 @@ je pominął; zamiast łatać każdy z osobna, obowiązują globalnie):
   nie zwróciło żadnego aktywnego ostrzeżenia (sprawdzone ponownie
   2026-09-29 11:xx, wciąż `{"message": "Brak ostrzeżeń meteorologicznych"}`).
   Nie da się tego przyspieszyć — będę to sprawdzać przy okazji innych tasków.
+- **TASK-6.2, granice gmin PRG:** kod Geo Engine jest w `main` (PR #70), ale
+  licencję PRG musisz zatwierdzić (Source Approval Gate), a plik pobrać i
+  zaimportować Ty — instrukcja w `docs/tasks/TASK-6.2-geo-engine-foundation.md`.
+- **Licencje przed monetyzacją (ADR-003):** IMGW (HVD vs CC BY-NC-ND, umowa
+  biznes@imgw.pl), Open-Meteo (Patronite, ceny planów, host Air Quality,
+  pierwsze żądanie z kluczem → TASK-13.4 ✅).
+- **Higiena repo:** skasować pusty `pr.json` w katalogu głównym, jeśli jest w
+  lokalnej kopii (nie jest śledzony w `main`).
 
 Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
@@ -198,7 +210,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 6 — Geo Engine
 
-- [ ] **TASK-6.2:** TERYT-based geo model (§26-27). **Druga korekta tego
+- [ ] 🟡 **TASK-6.2** (PR #70, ADR-019: punkty (1)–(6) w kodzie — PostGIS, `teryt_code`/`boundary`/`weather_polling_active`, importer `prg_gminy`, `POST /api/v1/geo/resolve`; **brak załadowanych granic gmin** — pobranie/licencja po stronie człowieka; (7) odkrywanie stacji GIOŚ i (8) zawężenie dashboardu NIE zrobione): TERYT-based geo model (§26-27). **Druga korekta tego
       tasku** (Codex, runda 2): pierwsza korekta ograniczyła zakres do
       mapowania TERYT tylko dla 7 zaseedowanych miast — to za mało. ADR-005
       (Accepted) explicité przypisuje do Phase 6: pełny import listy gmin z
@@ -343,21 +355,20 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (rule #10, §52/§53 explicité to zabraniają dla samej klasyfikacji).
       Zależny od Forecast (TASK-5.3, gotowe) i pełnego zestawu parametrów
       GIOŚ (TASK-4.1) dla wejść.
-- [ ] **TASK-7.7:** `outdoor` w payloadzie `dashboard_latest()` (§55) — wynik
+- [x] **TASK-7.7** (PR #68): `outdoor` w payloadzie `dashboard_latest()` (§55) — wynik
       TASK-7.6 per geo_area, zależny od TASK-7.6.
-- [ ] **TASK-7.8:** `OutdoorCard` na mobile dashboard (§56/§58) — bez tego
+- [x] **TASK-7.8** (PR #68): `OutdoorCard` na mobile dashboard (§56/§58) — bez tego
       TASK-7.6/7.7 nic nie pokazują użytkownikowi. Dotyczy też preferencji
       "outdoor" z TASK-12.4 (kiedy pokazywać kartę / dla kogo jest istotna).
 
 ### Phase 8 — Pollen
 
-- [ ] **TASK-8.5:** Source Approval Gate dla `cams` (Copernicus ADS) —
-      **BLOKADA: potrzebny klucz API od Ciebie**, patrz sekcja blokad wyżej.
-      Do tego czasu: przygotować kontrakt connectora (client/parser/normalize)
-      pod znany format CAMS bez możliwości żywej weryfikacji, zaznaczyć
-      jawnie w source-registry jako DISCOVERY→VERIFIED dopiero po realnym
-      dostępie (rule #10/#15 — nie zgadywać kształtu).
-- [ ] **TASK-8.6:** Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
+- [x] **TASK-8.5** (PR #71, ADR-020): Source Approval Gate dla pyłków — wybrane
+      źródło `open_meteo_pollen` (CAMS Europe przez Open-Meteo Air Quality, bez
+      klucza); wpis w source-registry. Bezpośredni CAMS ADS (klucz = akcja
+      człowieka) zostaje alternatywą. Shape odpowiedzi niezweryfikowany na żywo
+      (ADR-020), parser przyjmuje tylko kształt z dokumentacji (rule #10/#15).
+- [x] **TASK-8.6** (PR #71, migracja `0012`, scheduler 24 h): Model `PollenSnapshot` (ADR-001 opcja C — snapshot per
       gmina, jak weather) + migracja Alembic + ingest — dopiero po
       TASK-8.5, wymaga działającego klucza CAMS. **Konkretnie 5 gatunków z
       §6 MVP: olcha, brzoza, trawy, bylica, ambrozja** — nie generyczny
@@ -373,16 +384,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       które jeszcze nie istniały. Ingest musi zapisywać `source_fetch_id`
       (+ surowy payload/wersję parsera/status walidacji z kontraktu TASK-3.1)
       tak samo jak GIOŚ/Open-Meteo — nie zakładać, że to "już zrobione".
-- [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
+- [x] **TASK-8.7** (PR #71): `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
-- [ ] **TASK-8.8:** Karta pyłkowa na mobile dashboard (§Phase 8 Master
+- [ ] ⬜ **TASK-8.8** (w toku w osobnym PR — nie DONE): Karta pyłkowa na mobile dashboard (§Phase 8 Master
       Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
       użytkownikowi mimo działającego backendu. Profil alergika (który
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
       Wzorzec `source`/`attribution` z TASK-7.1 (Copernicus) dotyczy też tej
       karty.
-- [ ] **TASK-8.9:** Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
+- [ ] ⬜ **TASK-8.9** (w toku w osobnym PR — nie DONE): Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
       część głównego agregatu, nie tylko `/pollen/latest`; §55 wymaga też,
       że `pollen` w tej odpowiedzi zawsze pochodzi z lokalnego snapshotu, nie
       z zapytania do CAMS na żądanie). Zależne od TASK-8.7 (endpoint/dane
@@ -392,8 +403,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [x] **TASK-8.10** (PR #76, ADR-023): Kalendarz pylenia — statyczne dane referencyjne
       `app/data/pollen_calendar.json` + `GET /api/v1/pollen/calendar?date=` (typowy sezon
       per takson z fazami start/peak/end i `upcoming` 30 dni; `kind: seasonal_calendar`,
-      NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, bylica,
-      Cladosporium. **Do zrobienia po zweryfikowaniu źródeł:** trawy, ambrozja (potrzebny
+      NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica,
+      Cladosporium. **Do zrobienia po zweryfikowaniu źródeł:** ambrozja (potrzebny
       zweryfikowany koniec sezonu), pokrzywowate; UI (karta „typowy sezon", wyraźnie
       oddzielona od prognozy CAMS i pomiarów) → osobny task mobile.
 
@@ -452,12 +463,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       niego dostał. Wprowadzić tab layout tutaj, jako pierwszy task, który
       faktycznie potrzebuje drugiej zakładki (Settings z TASK-12.1 dokłada
       tylko trzecią do gotowego layoutu).
-- [ ] Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
+- [ ] ⛔ Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
 ### Phase 10 — Push
 
-- [ ] **TASK-10.1:** Device registration + push tokens (Expo) —
+- [ ] 🟡 **TASK-10.1** (backend: PR #67, ADR-017 — `POST/DELETE /api/v1/devices`, rate limit; do ✅ po stronie człowieka klucze FCM/APNs, walidacja end-to-end): Device registration + push tokens (Expo) —
       **BLOKADA: klucze FCM/APNs od Ciebie**, patrz sekcja blokad wyżej.
       Przygotuję backend (model tokenu, endpoint rejestracji) niezależnie od
       blokady, bo to nie wymaga kluczy zewnętrznych. APNs konkretnie wymaga
@@ -504,10 +515,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 11 — Water / Hydrology (dokończenie)
 
-- [ ] **TASK-11.1:** Research + Source Approval Gate dla kąpielisk
+- [ ] 🟡 **TASK-11.1** (PR #72: research + ADR-021 gotowe, Source Approval Gate niezaliczony): Research + Source Approval Gate dla kąpielisk
       (Sanepid/GIS) — zobacz blokadę wyżej i ADR-021: research zrobiony,
       Gate niezaliczony (`docs/tasks/TASK-11-bathing-water.md`).
-- [ ] **TASK-11.2:** Connector `bathing_water` (o ile TASK-11.1 znajdzie
+- [ ] ⛔ **TASK-11.2** (zablokowane na źródle, ADR-021): Connector `bathing_water` (o ile TASK-11.1 znajdzie
       stabilne źródło) — status kąpieliska, przyczyna zamknięcia, sezon,
       E. coli/enterokoki/sinice, daty badań, **oraz nazwa i lokalizacja
       kąpieliska (współrzędne + `geo_area_id`/gmina)** — bez tego przy
@@ -716,7 +727,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 13 — Data Quality / Observability
 
-- [ ] **TASK-13.1:** Source health / stale monitoring — rozszerzenie
+- [ ] 🟡 **TASK-13.1** (PR #69: `GET /api/v1/health/sources` + logi zmian stanu; zostaje historia runów i telemetria §44 — osobny ADR + migracja): Source health / stale monitoring — rozszerzenie
       istniejącego per-wiersz freshness o widoczny status źródła
       (przydatne razem z TASK-7.4). **Pełny zakres §44 Master Planu**: last
       attempted/successful fetch, duration, records fetched/processed,
@@ -734,7 +745,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       (`source_fetch_counters`, `app/rate_budget.py`) + WARNING przy 70%;
       Open-Meteo rezerwuje jednostki przed KAŻDĄ próbą HTTP (`on_attempt`),
       atomowy inkrement. Zrobiony przed Phase 12, bo TASK-12.2 na nim polega.
-- [x] **TASK-13.4** (PR #73, w review): Provider config Free→Paid (ADR-022).
+- [ ] 🟡 **TASK-13.4** (PR #73 zmergowany; kod gotowy, do ✅ po pierwszym żądaniu z prawdziwym kluczem komercyjnym i potwierdzeniu hosta Air Quality): Provider config Free→Paid (ADR-022).
       Endpointy Open-Meteo (`OPEN_METEO_FORECAST_BASE_URL`,
       `OPEN_METEO_AIR_QUALITY_BASE_URL`) i `OPEN_METEO_API_KEY` w `Settings`;
       domyślnie hosty Free; klucz jako `apikey` tylko gdy ustawiony; maskowanie

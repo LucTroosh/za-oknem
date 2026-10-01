@@ -131,22 +131,24 @@ tabel/grafik/tekstów) w `apps/api/app/data/pollen_calendar.json`. Pełna lista 
   - Artemisia 2020 i 2022, Alergoprofil (journalsmededu.pl) — CC BY-NC 4.0 (użyto samych faktów)
   - Artemisia/Ambrosia co-occurrence, Int J Biometeorol (doi:10.1007/s00484-016-1254-4,
     tylko abstrakt) — licencja UNVERIFIED
+  - Trawy, 8 miast Polski 1992–2014, „Grass pollen seasons in Poland against a background of the
+    meteorological conditions” (pbsociety.org.pl, aa.2015.038; abstrakt: start ok. 10 V, maksima
+    dobowe koniec V – I dekada VII, koniec od połowy VII do połowy IX) — CC BY wg strony czasopisma
   - Cladosporium, Lublin/Poznań/Rzeszów 2010–2012, Aerobiologia (PMC4773468) — CC BY 4.0
 - **commercial_use:** fakty (zakresy dat) nie podlegają prawu autorskiemu, ale część
   publikacji ma licencję NC lub nieustaloną — przed monetyzacją (ADR-003) ponowna ocena
   prawna; nie kopiujemy tekstów ani tabel
 - **attribution:** wymieniać źródła z odpowiedzi API (`sources`) na ekranie Źródła
 - **NIEZWERYFIKOWANE (nie ma ich w `taxa`, są w `not_covered`):**
-  - trawy (Poaceae): nie udało się pobrać zakresu dat sezonu (PMC zwracał CAPTCHA, tandfonline
-    403, rate limit); streszczenie abstraktu Kraków 1991–2012 było wewnętrznie sprzeczne
   - ambrozja: potwierdzony tylko początek (zwykle II dekada sierpnia; skrajnie połowa lipca –
     początek września; abstrakt co-occurrence), brak końca sezonu
   - pokrzywowate: potwierdzone tylko okno wysokich stężeń (połowa lipca – koniec sierpnia, Kraków)
   - sosna, topola, wierzba, grab, żyto, babka, Alternaria, oliwka — nie weryfikowano
   - Polskie Towarzystwo Alergologiczne, IMGW, OBAŚ/Alergen — nie znaleziono do pobrania
     zweryfikowanych tabel (strony popularne/apteczne odrzucone jako niewiarygodne)
-- **status:** IMPLEMENTED (statyczne dane + `GET /api/v1/pollen/calendar`); Source Approval
-  Gate (#15) dla licencji NC/UNVERIFIED otwarty przed monetyzacją
+- **rate_limit:** n/a (brak fetchowania)
+- **status:** VERIFIED (conditional) — dane i `GET /api/v1/pollen/calendar` wdrożone, ale ocena
+  prawna licencji NC/UNVERIFIED (Source Approval Gate #15) wymagana przed monetyzacją (ADR-003)
 - **last_verified_at:** 2026-10-01
 
 ## obas (rzeczywiste pomiary pyłków w Polsce — kandydat, NIE używany)

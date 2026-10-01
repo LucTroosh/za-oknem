@@ -44,7 +44,7 @@ Opcja 3. `apps/api/app/data/pollen_calendar.json` (ładowany i walidowany przez
   (opis w `note`); takson bez zweryfikowanego źródła NIE trafia do `taxa`, tylko do
   `not_covered` z powodem. Każdy takson ma ≥1 `source_ids` (walidacja w teście).
 - **Klucze** spójne z `pollen_snapshots` tam, gdzie pokrycie istnieje (`alder`, `birch`,
-  `mugwort`); `grass` i `ragweed` są w `not_covered` (UNVERIFIED), pozostałe taksony mają
+  `mugwort`); `grass` jest pokryty (8 miast, 1992–2014); `ragweed` i `urticaceae` są w `not_covered` (UNVERIFIED), pozostałe taksony mają
   własne klucze (`hazel`, `ash`, `oak`, `cladosporium`).
 
 ## Consequences
@@ -58,5 +58,8 @@ Opcja 3. `apps/api/app/data/pollen_calendar.json` (ładowany i walidowany przez
 - Dodanie/zmiana taksonu = zmiana pliku + źródło w `sources` + wpis w source-registry
   (rule #15); część źródeł ma licencję niekomercyjną (CC BY-NC) — używamy wyłącznie faktów,
   ale przed monetyzacją (ADR-003) trzeba je ponownie ocenić.
-- Dopisanie traw i ambrozji wymaga zweryfikowania pełnych zakresów (source-registry
+- Odpowiedź zawsze niesie `coverage_complete: false` + `coverage_warning` (lista nie obejmuje
+  wszystkich alergenów), a przy pustym `active` — `active_message`: pusta lista ≠ „nic nie pyli”.
+  Plik jest walidowany przy starcie aplikacji (lifespan) — błędne dane = fail fast.
+- Dopisanie ambrozji wymaga zweryfikowania pełnego zakresu (source-registry
   `pollen_calendar`).

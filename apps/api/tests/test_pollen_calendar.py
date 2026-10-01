@@ -118,8 +118,8 @@ def test_new_year_nothing_active_nothing_upcoming():
 
 
 def test_late_january_upcoming_spans_into_february():
-    up = _upcoming(date(2026, 1, 20))  # hazel/alder start 11 Feb = 22 days
-    assert up == {"hazel": 22, "alder": 22}
+    up = _upcoming(date(2026, 1, 20))  # hazel/alder start 1 Feb = 12 days
+    assert up == {"hazel": 12, "alder": 12}
 
 
 def test_year_end_nothing_active_and_next_year_starts_beyond_horizon():
@@ -139,10 +139,10 @@ def test_year_rollover_uses_next_year_start():
 
 
 def test_decade_boundaries():
-    # hazel season 2/2 .. 4/1 (11 Feb .. 10 Apr)
-    assert "hazel" not in _active(date(2026, 2, 10))
-    assert _upcoming(date(2026, 2, 10))["hazel"] == 1
-    assert _active(date(2026, 2, 11))["hazel"] == "start"
+    # hazel season 2/1 .. 4/1 (1 Feb .. 10 Apr)
+    assert "hazel" not in _active(date(2026, 1, 31))
+    assert _upcoming(date(2026, 1, 31))["hazel"] == 1
+    assert _active(date(2026, 2, 1))["hazel"] == "start"
     assert _active(date(2026, 4, 10))["hazel"] == "end"
     assert "hazel" not in _active(date(2026, 4, 11))
 
@@ -159,7 +159,7 @@ def test_leap_day():
     on = select(load_calendar(), date(2028, 2, 29))
     assert {a.key for a in on[0]} == {"hazel", "alder"}
     hazel = next(a for a in on[0] if a.key == "hazel")
-    assert hazel.season_start == date(2028, 2, 11)
+    assert hazel.season_start == date(2028, 2, 1)
     assert {a.key for a in select(load_calendar(), date(2028, 2, 28))[0]} == {"hazel", "alder"}
     assert "mugwort" in _upcoming(date(2028, 6, 25))  # leap year does not shift July starts
 
@@ -171,6 +171,21 @@ def test_active_taxon_not_in_upcoming_and_upcoming_within_horizon():
         assert not {a.key for a in active} & {u.key for u in upcoming}
         assert all(0 < u.days_until <= UPCOMING_DAYS for u in upcoming)
         assert [u.days_until for u in upcoming] == sorted(u.days_until for u in upcoming)
+
+
+def test_grass_season():
+    assert "grass" not in _active(date(2026, 4, 30))
+    assert _upcoming(date(2026, 4, 30))["grass"] == 1
+    assert _active(date(2026, 5, 1))["grass"] == "start"
+    assert _active(date(2026, 6, 15))["grass"] == "peak"
+    assert _active(date(2026, 8, 15))["grass"] == "end"
+    assert _active(date(2026, 9, 20))["grass"] == "end"
+    assert "grass" not in _active(date(2026, 9, 21))
+
+
+def test_late_season_ends_cover_observed_extremes():
+    assert "alder" in _active(date(2026, 4, 23))  # observed end 23 Apr
+    assert "oak" in _active(date(2026, 6, 8))  # latest observed end 8 Jun
 
 
 def test_mid_august_mugwort_peak():
@@ -200,6 +215,41 @@ def test_endpoint_explicit_date():
     assert all(s in body["sources"] for a in body["active"] for s in a["source_ids"])
 
 
+def test_endpoint_coverage_warning_always_present():
+    body = client.get("/api/v1/pollen/calendar", params={"date": "2026-06-15"}).json()
+    assert body["coverage_complete"] is False
+    assert "NIE oznacza braku pylenia" in body["coverage_warning"]
+    assert "NIE oznacza braku pylenia" in body["disclaimer"]
+    assert {n["key"] for n in body["not_covered"]} >= {"ragweed", "urticaceae"}
+    assert body["active_message"] is None  # grass + Cladosporium are active
+    assert {a["key"] for a in body["active"]} == {"grass", "cladosporium"}
+
+
+def test_endpoint_empty_active_is_not_nothing_pollinates():
+    body = client.get("/api/v1/pollen/calendar", params={"date": "2026-12-31"}).json()
+    assert body["active"] == []
+    assert "NIE znaczy" in body["active_message"]
+    assert body["coverage_complete"] is False and body["coverage_warning"]
+    assert body["not_covered"]
+
+
+def test_startup_validates_data_file(monkeypatch, tmp_path):
+    import app.pollen_calendar as pc
+
+    with TestClient(app):  # lifespan runs load_calendar() on the real file
+        pass
+    bad = tmp_path / "bad.json"
+    bad.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(pc, "DATA_FILE", bad)
+    pc.load_calendar.cache_clear()
+    try:
+        with pytest.raises(ValidationError), TestClient(app):
+            pass
+    finally:
+        monkeypatch.undo()
+        pc.load_calendar.cache_clear()
+
+
 def test_endpoint_default_date_is_today_in_warsaw(monkeypatch):
     import app.api.v1.pollen_calendar as mod
 
@@ -224,9 +274,28 @@ def test_endpoint_bad_date_422(bad):
 
 
 def test_endpoint_makes_no_network_calls(monkeypatch):
+    import urllib.request
+
+    import httpx
+
     def boom(*a, **k):
         raise AssertionError("network access attempted")
 
-    monkeypatch.setattr(socket, "create_connection", boom)
-    monkeypatch.setattr(socket.socket, "connect", boom)
-    assert client.get("/api/v1/pollen/calendar", params={"date": "2026-07-20"}).status_code == 200
+    # httpx.Client.send is NOT patched: Starlette's TestClient itself is an httpx.Client.
+    for target, name in [
+        (socket, "create_connection"),
+        (socket, "getaddrinfo"),
+        (socket.socket, "connect"),
+        (urllib.request, "urlopen"),
+        (httpx.AsyncClient, "send"),
+    ]:
+        monkeypatch.setattr(target, name, boom)
+    from app.pollen_calendar import load_calendar
+
+    load_calendar.cache_clear()  # force the file read under the guard
+    try:
+        assert (
+            client.get("/api/v1/pollen/calendar", params={"date": "2026-07-20"}).status_code == 200
+        )
+    finally:
+        load_calendar.cache_clear()
