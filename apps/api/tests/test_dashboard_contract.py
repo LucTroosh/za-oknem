@@ -118,7 +118,15 @@ def test_openapi_documents_every_dashboard_block():
     ]["schema"]["$ref"]
     assert ref == "#/components/schemas/DashboardResponse"
     comps = schema["components"]["schemas"]
-    assert set(comps["DashboardResponse"]["properties"]) == {"areas", "alerts"}
+    assert set(comps["DashboardResponse"]["properties"]) == {
+        "areas",
+        "alerts",
+        "source_status",
+    }
+    # TASK-7.3: per-source status for air/weather, also outside the nullable blocks.
+    assert set(comps["DashboardSourceStatus"]["required"]) == {"air", "weather"}
+    for name in ("DashboardAir", "DashboardWeather"):
+        assert "source_status" in comps[name]["required"]
     area = comps["DashboardArea"]
     expected = {"geo_area_id", "slug", "name", "latitude", "longitude"}
     expected |= {"air", "weather", "forecast", "outdoor", "pollen"}
