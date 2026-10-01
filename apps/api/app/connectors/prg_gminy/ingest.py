@@ -55,15 +55,35 @@ _PREPARE_SQL = text(
     """
 )
 _GEOM = "ST_GeomFromEWKB(decode(CAST(:hex AS text), 'hex'))"
+# Imported rows (slug teryt-*) get their representative point recomputed from the new
+# boundary; seeded cities keep their own coordinates (weather polling / ADR-006 use them).
 _UPDATE_SQL = text(
-    f"UPDATE geo_areas SET boundary = {_GEOM}, name = :name WHERE teryt_code = :code"
+    f"""
+    UPDATE geo_areas SET boundary = {_GEOM}, name = :name,
+        latitude = CASE WHEN left(slug, 6) = 'teryt-'
+                        THEN ST_Y(ST_PointOnSurface({_GEOM})) ELSE latitude END,
+        longitude = CASE WHEN left(slug, 6) = 'teryt-'
+                         THEN ST_X(ST_PointOnSurface({_GEOM})) ELSE longitude END
+    WHERE teryt_code = :code
+    RETURNING id
+    """
+)
+# Seeded cities (slug not teryt-*) inside this polygon that do not hold this code and are
+# unlinked or carry a code absent from the snapshot. Lowest id first = deterministic.
+_SEED_CANDIDATES_SQL = text(
+    f"""
+    SELECT id, slug FROM geo_areas
+    WHERE left(slug, 6) <> 'teryt-'
+      AND teryt_code IS DISTINCT FROM :code
+      AND (teryt_code IS NULL OR teryt_code <> ALL(CAST(:snapshot AS text[])))
+      AND ST_Covers({_GEOM}, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))
+    ORDER BY id
+    """
 )
 _ADOPT_SQL = text(
     f"""
     UPDATE geo_areas SET teryt_code = :code, boundary = {_GEOM}, name = :name
-    WHERE left(slug, 6) <> 'teryt-'
-      AND (teryt_code IS NULL OR teryt_code <> ALL(CAST(:snapshot AS text[])))
-      AND ST_Covers({_GEOM}, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326))
+    WHERE id = :seed_id
     """
 )
 _INSERT_SQL = text(
@@ -140,6 +160,8 @@ class ImportReport:
     updated: int = 0
     adopted_seeds: int = 0
     repaired: int = 0  # boundaries PostGIS had to make valid
+    # seeds NOT merged: code already held by another row, or a second seed in one gmina
+    seed_conflicts: list[str] = field(default_factory=list)
     retired: int = 0  # obsolete gminas whose boundary was cleared (--retire-missing)
     rejected: list[str] = field(default_factory=list)
 
@@ -157,10 +179,16 @@ def import_records(
             if prepared.is_empty:
                 raise ValueError("no polygon left after validation")
             params = {"hex": prepared.hex, "code": rec.teryt_code, "name": rec.name}
-            if db.execute(_UPDATE_SQL, params).rowcount:
+            holder = db.execute(_UPDATE_SQL, params).first()
+            seeds = db.execute(_SEED_CANDIDATES_SQL, {**params, "snapshot": snapshot}).all()
+            conflicts = []
+            if holder is not None:
                 report.updated += 1
-            elif db.execute(_ADOPT_SQL, {**params, "snapshot": snapshot}).rowcount:
+                conflicts = seeds  # the code belongs to another row: never steal it
+            elif seeds:
+                db.execute(_ADOPT_SQL, {**params, "seed_id": seeds[0].id})
                 report.adopted_seeds += 1
+                conflicts = seeds[1:]  # a second seed in the same gmina keeps its own row
             else:
                 db.execute(
                     _INSERT_SQL,
@@ -168,6 +196,11 @@ def import_records(
                 )
                 report.inserted += 1
             db.commit()
+            report.seed_conflicts += [
+                f"seed {c.slug} lies in {rec.teryt_code} ({rec.name}) but was not merged "
+                "(code already held by another row / another seed took it)"
+                for c in conflicts
+            ]
             if not prepared.was_valid:
                 report.repaired += 1
         except Exception as exc:  # one gmina must not abort the rest (rule #1)
@@ -244,6 +277,7 @@ def main() -> None:
             )
             report.inserted, report.updated = db_report.inserted, db_report.updated
             report.adopted_seeds, report.repaired = db_report.adopted_seeds, db_report.repaired
+            report.seed_conflicts = db_report.seed_conflicts
             report.rejected += db_report.rejected
             if args.retire_missing and not report.rejected:
                 report.retired = retire_missing(
@@ -259,8 +293,10 @@ def main() -> None:
         print(
             f"inserted={report.inserted} updated={report.updated} "
             f"adopted_seeds={report.adopted_seeds} repaired={report.repaired} "
-            f"retired={report.retired}"
+            f"retired={report.retired} seed_conflicts={len(report.seed_conflicts)}"
         )
+    for line in report.seed_conflicts:
+        print(f"SEED CONFLICT {line}", file=sys.stderr)
     for line in report.rejected:
         print(f"REJECTED {line}", file=sys.stderr)
     if report.rejected:

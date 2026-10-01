@@ -183,6 +183,55 @@ def test_reimport_refreshes_name(pg):
     assert resolve_gmina(pg, 54.95, 16.25).name == "Synth A renamed"
 
 
+def _seed(pg, slug, lat, lon):
+    pg.execute(
+        text("INSERT INTO geo_areas (slug, name, latitude, longitude) VALUES (:s, :s, :lat, :lon)"),
+        {"s": slug, "lat": lat, "lon": lon},
+    )
+    return pg.execute(text("SELECT id FROM geo_areas WHERE slug=:s"), {"s": slug}).scalar()
+
+
+def test_update_recomputes_representative_point_of_imported_row(pg):
+    _load(pg, A)
+    moved = _feature("9999901", "Synth A", _ring(17.1, 54.9, 17.5, 55.0))
+    _load(pg, moved)
+    inside = pg.execute(
+        text(
+            "SELECT ST_Covers(boundary, ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)), "
+            "longitude FROM geo_areas WHERE teryt_code='9999901'"
+        )
+    ).one()
+    assert inside[0] is True and inside[1] > 17.0
+
+
+def test_update_keeps_seed_coordinates(pg):
+    seed_id = _seed(pg, "synth-seed", 54.95, 16.25)
+    _load(pg, A)
+    _load(pg, _feature("9999901", "Synth A", _ring(16.0, 54.9, 16.6, 55.0)))
+    row = pg.execute(
+        text("SELECT latitude, longitude FROM geo_areas WHERE id=:i"), {"i": seed_id}
+    ).one()
+    assert row == (54.95, 16.25)
+
+
+def test_seed_never_steals_a_code_held_by_another_row(pg):
+    _load(pg, A)  # creates row teryt-9999901
+    seed_id = _seed(pg, "synth-seed", 54.95, 16.25)
+    report = _load(pg, A)
+    assert report.adopted_seeds == 0 and len(report.seed_conflicts) == 1
+    code = pg.execute(text("SELECT teryt_code FROM geo_areas WHERE id=:i"), {"i": seed_id})
+    assert code.scalar() is None
+
+
+def test_two_seeds_in_one_gmina_lowest_id_adopts_other_is_reported(pg):
+    first = _seed(pg, "synth-seed-1", 54.95, 16.25)
+    _seed(pg, "synth-seed-2", 54.96, 16.26)
+    report = _load(pg, A)  # _load asserts no rejected record (no UNIQUE violation)
+    assert (report.adopted_seeds, len(report.seed_conflicts)) == (1, 1)
+    code = pg.execute(text("SELECT teryt_code FROM geo_areas WHERE id=:i"), {"i": first})
+    assert code.scalar() == "9999901"
+
+
 def test_retire_missing_clears_obsolete_boundary_only(pg):
     _load(pg, A, B)
     assert retire_missing(["9999901"], pg, force=True) == 1

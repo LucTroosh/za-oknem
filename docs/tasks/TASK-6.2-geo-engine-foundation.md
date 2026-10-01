@@ -89,6 +89,10 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
       (`hide_parameters=True` w engine); 422 nie odsyła `input` ze współrzędnymi.
 - [ ] CI: `REQUIRE_POSTGIS=1` (zestaw `postgis` failuje zamiast skipować), `set -o pipefail`
       przy `| tee` (wcześniej porażki alembic check/mypy/pytest mogły być maskowane).
+- [ ] Update importowanej gminy (`teryt-*`) przelicza jej punkt reprezentatywny z nowej granicy;
+      seedy zachowują własne współrzędne. Seed nigdy nie przejmuje kodu zajętego przez inny
+      wiersz; drugi seed w tej samej gminie też nie — oba przypadki raportowane
+      (`seed_conflicts`), bez wyjątku UNIQUE (Codex, runda 4).
 - [ ] Nieprawidłowy rekord (zły TERYT, nie-WGS84, niezamknięty pierścień, duplikat) jest
       odrzucany z powodem, reszta importowana; nieprawidłowa geometria naprawiana
       (`ST_MakeValid`) i policzona w raporcie.
