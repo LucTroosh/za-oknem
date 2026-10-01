@@ -112,6 +112,20 @@ def test_impossible_values_raise(value):
         _normalize(bad)
 
 
+def test_missing_utc_offset_raises_not_defaulted_to_utc():
+    bad = deepcopy(PAYLOAD)
+    del bad["utc_offset_seconds"]
+    with pytest.raises(OpenMeteoPollenParseError):
+        _normalize(bad)
+
+
+def test_duplicate_timestamps_raise():
+    bad = deepcopy(PAYLOAD)
+    bad["hourly"]["time"][1] = bad["hourly"]["time"][0]
+    with pytest.raises(OpenMeteoPollenParseError, match="duplicate"):
+        _normalize(bad)
+
+
 def test_differing_units_raise():
     bad = deepcopy(PAYLOAD)
     bad["hourly_units"]["birch_pollen"] = "other"

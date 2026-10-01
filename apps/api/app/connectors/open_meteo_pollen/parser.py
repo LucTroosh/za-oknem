@@ -59,7 +59,9 @@ def normalize(
     """One PollenSnapshot-ready dict per hourly slot, all five species in it.
     Raises OpenMeteoPollenParseError on a malformed payload."""
     try:
-        if payload.get("utc_offset_seconds", 0) != 0:
+        # Required, not defaulted: the naive timestamps below are only UTC if the
+        # source says so (a missing field is a schema change, not "UTC").
+        if payload["utc_offset_seconds"] != 0:
             raise ValueError(
                 f"expected UTC (timezone=UTC requested), got {payload.get('timezone')!r}"
             )
@@ -81,6 +83,9 @@ def normalize(
         valid_times = [
             datetime.fromisoformat(str(t)).replace(tzinfo=UTC) for t in times
         ]  # timezone=UTC requested, so the naive stamps ARE UTC
+        if len(set(valid_times)) != len(valid_times):
+            # Would collide on source_record_id and be silently swallowed as a "race".
+            raise ValueError("hourly.time contains duplicate timestamps")
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
         raise OpenMeteoPollenParseError(f"malformed pollen payload: {exc}") from exc
 
