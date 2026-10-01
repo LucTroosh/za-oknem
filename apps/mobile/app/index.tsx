@@ -25,7 +25,7 @@ import {
 // ADR-004), so one client-side function can't correctly classify both. Trade-off:
 // labels no longer tick forward live while the screen stays open (previously via
 // a 60s timer) - acceptable, since an accurate label needs a refetch anyway.
-type DashboardArea = {
+export type DashboardArea = {
   geo_area_id: number;
   slug: string;
   name: string;

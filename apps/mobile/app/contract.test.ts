@@ -3,11 +3,12 @@ import { describe, expect, it } from "vitest";
 import type {
   AirIndex,
   DashboardAlerts,
-  DashboardArea,
+  DashboardResponse,
 } from "../../../packages/api-contract/schema";
 import type { AlertsBlock } from "./alerts";
 import type { AirIndexBlock } from "./aqi";
 import type { ForecastDay } from "./forecast";
+import type { DashboardArea as ScreenArea } from "./index";
 import type { OutdoorBlock } from "./outdoor";
 import type { PollenBlock } from "./pollen";
 
@@ -16,7 +17,11 @@ import type { PollenBlock } from "./pollen";
 // Checked by `tsc` (npm run typecheck) - a contract change the UI cannot handle fails there.
 const accept = <T>(value: T): T => value;
 
-function uiAcceptsContract(area: DashboardArea, alerts: DashboardAlerts, index: AirIndex) {
+function uiAcceptsContract(response: DashboardResponse, index: AirIndex) {
+  // The exact type index.tsx fetches the dashboard as (air/weather/forecast included).
+  accept<{ areas: ScreenArea[]; alerts: AlertsBlock }>(response);
+  const area = response.areas[0];
+  const alerts: DashboardAlerts = response.alerts;
   accept<PollenBlock>(area.pollen);
   accept<OutdoorBlock>(area.outdoor);
   accept<AlertsBlock>(alerts);
