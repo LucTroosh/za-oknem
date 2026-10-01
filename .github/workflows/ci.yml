@@ -83,6 +83,17 @@ jobs:
       - name: OpenAPI contract is current (TASK-2.1, ADR-024)
         run: uv run python scripts/export_openapi.py --check
 
+      - name: TEMP show regenerated OpenAPI
+        if: failure()
+        run: |
+          [ -f /tmp/openapi.generated.json ] || exit 0
+          gzip -9 -c /tmp/openapi.generated.json | base64 -w0 | fold -w 3500 > /tmp/openapi.b64
+          n=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            n=$((n + 1))
+            echo "::warning title=openapi-gz-$(printf %02d $n)::$line"
+          done < /tmp/openapi.b64
+
   mobile:
     runs-on: ubuntu-latest
     defaults:
