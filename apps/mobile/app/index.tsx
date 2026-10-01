@@ -3,8 +3,10 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import AirParams from "../components/AirParams";
 import OutdoorCard from "../components/OutdoorCard";
+import PollenCalendarCard from "../components/PollenCalendarCard";
 import PollenCard from "../components/PollenCard";
 import WeatherCard from "../components/WeatherCard";
+import usePollenCalendar from "../components/usePollenCalendar";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
@@ -146,6 +148,8 @@ export default function Home() {
   // Device time of the last successful dashboard response (ages the outdoor verdict).
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
+  // Typical pollen season (ADR-023): own fetch, one per screen (nationwide, not per area).
+  const calendar = usePollenCalendar(hydroRefreshTick);
 
   const load = useCallback(() => {
     return apiGet<{
@@ -228,7 +232,7 @@ export default function Home() {
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
             <PollenCard pollen={item.pollen} />
-            {/* Slot for the pollen calendar section (separate PR, /pollen/calendar). */}
+            <PollenCalendarCard calendar={calendar.data} error={calendar.error} />
             {item.forecast && forecastLine(item.forecast.days) && (
               <View>
                 <Text style={styles.metric}>

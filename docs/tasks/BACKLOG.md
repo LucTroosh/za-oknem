@@ -419,8 +419,13 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       per takson z fazami start/peak/end i `upcoming` 30 dni; `kind: seasonal_calendar`,
       NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica,
       Cladosporium. **Do zrobienia po zweryfikowaniu źródeł:** ambrozja (potrzebny
-      zweryfikowany koniec sezonu), pokrzywowate; UI (karta „typowy sezon", wyraźnie
-      oddzielona od prognozy CAMS i pomiarów) → osobny task mobile.
+      zweryfikowany koniec sezonu), pokrzywowate. **UI (karta „Kalendarz pylenia —
+      typowy sezon", mobile): DONE** — `pollenCalendar.ts` + `PollenCalendarCard`
+      (osobny fetch `/pollen/calendar` przez nasz backend, błąd tylko tej sekcji;
+      fazy start/peak/end, nadchodzące „za N dni", pusty `active` = zawsze komunikat
+      z API „to NIE znaczy, że nic nie pyli", `coverage_warning`/`disclaimer`/
+      atrybucja zawsze widoczne, `not_covered` jako „nie obejmuje: …"); wyraźnie
+      oddzielona od prognozy CAMS (`PollenCard`).
 
 ### Phase 9 — Alerts (dokończenie)
 

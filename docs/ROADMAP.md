@@ -51,7 +51,7 @@ Alerts/Settings/push/profilu).
 | Metryka | Status |
 |---|---|
 | olcha, brzoza, trawy, bylica, ambrozja | 🟡 PARTIAL — **backend ✅** (TASK-8.5–8.7, PR #71, ADR-020): connector `open_meteo_pollen` (CAMS Europe przez Open-Meteo Air Quality — **prognoza modelowa, nie pomiar**, `kind=model_forecast`), `PollenSnapshot` (5 gatunków, NULL ≠ 0), scheduler 24 h z `source_status`, provenance, `GET /api/v1/pollen/latest`. **Brak** karty mobile (TASK-8.8) i bloku `pollen` w `dashboard_latest()` (TASK-8.9) — w toku w osobnym PR, nie DONE. Rzeczywiste pomiary (OBAŚ) niezweryfikowane |
-| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica, Cladosporium; ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); brak UI |
+| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, trawy, bylica, Cladosporium; ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); UI: karta „Kalendarz pylenia — typowy sezon” na mobile (osobna od prognozy CAMS) |
 
 ### 2.4. Woda / kąpieliska (§7)
 
