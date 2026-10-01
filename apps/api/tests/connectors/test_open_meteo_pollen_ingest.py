@@ -114,9 +114,9 @@ def test_later_fetch_same_day_drops_hours_the_newer_payload_omits(db_session, mo
     ingest.ingest_geo_area(other, db_session)
 
     shorter = deepcopy(PAYLOAD)
-    shorter["hourly"]["time"] = shorter["hourly"]["time"][:1]
+    shorter["hourly"]["time"] = shorter["hourly"]["time"][1:2]  # only the fetch-hour slot
     for variable in VARS:
-        shorter["hourly"][variable] = shorter["hourly"][variable][:1]
+        shorter["hourly"][variable] = shorter["hourly"][variable][1:2]
     _patch_fetch(monkeypatch, shorter)
     assert ingest.ingest_geo_area(area, db_session) is True
 

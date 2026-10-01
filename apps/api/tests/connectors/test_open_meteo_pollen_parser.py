@@ -165,7 +165,7 @@ def test_missing_utc_offset_raises_not_defaulted_to_utc():
 
 def test_duplicate_timestamps_raise():
     bad = deepcopy(PAYLOAD)
-    bad["hourly"]["time"][1] = bad["hourly"]["time"][0]
+    bad["hourly"]["time"][2] = bad["hourly"]["time"][1]  # slot present twice
     with pytest.raises(OpenMeteoPollenParseError, match="duplicate"):
         _normalize(bad)
 
