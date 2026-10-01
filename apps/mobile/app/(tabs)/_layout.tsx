@@ -31,7 +31,7 @@ export default function TabsLayout() {
         }}
       >
         <Tabs.Screen name="index" options={{ title: "Za Oknem", tabBarLabel: "Home", tabBarIcon: icon("home-outline", "home") }} />
-        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("warning-outline", "warning") }} />
+        <Tabs.Screen name="alerty" options={{ title: "Alerty", tabBarIcon: icon("warning-outline", "warning") }} />
         <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
       </Tabs>
     </DashboardProvider>

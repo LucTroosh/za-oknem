@@ -5,6 +5,8 @@ import HydroSection from "../../components/HydroSection";
 import Notice from "../../components/Notice";
 import Screen from "../../components/Screen";
 
+// (Route is "alerty", not "alerts": app/alerts.ts, the logic module, would otherwise collide
+// with it as a route.)
 // Alerts = IMGW warnings + water levels, both nationwide until the location screen brings
 // geo matching (backend `local_alerts` / `?geo_area_id=` exist but are not used here yet).
 // Alerts come with the dashboard response (same data as /alerts/latest, plus the

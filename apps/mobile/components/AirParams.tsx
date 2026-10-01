@@ -6,8 +6,8 @@ import useNow from "./useNow";
 
 // TASK-7.3: air params of the nearest station, with per-param age/staleness. The AQI
 // badge is derived from the same readings, so it is dropped whenever the source is
-// unavailable/silent (never "dobra" beside "dane niedostępne"). Badge first: it is the
-// summary, the readings below are the detail.
+// unavailable/silent (never "dobra" beside "dane niedostępne"). The badge sits right under the
+// title: it is the summary, the readings below are the detail.
 export default function AirParams({
   air,
   sourceStatus,
@@ -21,12 +21,12 @@ export default function AirParams({
   const index = air && typeof air === "object" ? (air as { index?: unknown }).index : undefined;
   return (
     <Card>
-      {view?.suppressDerived ? null : <AirIndexBadge index={index} receivedAt={receivedAt} />}
       <ReadingsList
         title="Powietrze"
         view={view}
         emptyText="Brak stacji pomiarowej w pobliżu."
         unavailableText="Dane o powietrzu są chwilowo niedostępne."
+        lead={view?.suppressDerived ? null : <AirIndexBadge index={index} receivedAt={receivedAt} />}
       />
     </Card>
   );

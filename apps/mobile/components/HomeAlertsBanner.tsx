@@ -21,7 +21,7 @@ export default function HomeAlertsBanner({ alerts }: { alerts: AlertsBlock }) {
     <Pressable
       accessibilityRole="link"
       accessibilityHint="Otwiera zakładkę Alerty"
-      onPress={() => router.navigate("/alerts")}
+      onPress={() => router.navigate("/alerty")}
       style={[styles.box, { backgroundColor: bg, borderColor: fg }]}
     >
       <Text style={[styles.text, { color: fg }]}>

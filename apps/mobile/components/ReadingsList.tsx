@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { NO_DATA, type ReadingLine, type ReadingsView } from "../app/readings";
@@ -23,11 +24,14 @@ export default function ReadingsList({
   view,
   emptyText,
   unavailableText,
+  lead,
 }: {
   title: string;
   view: ReadingsView | null;
   emptyText: string;
   unavailableText: string;
+  // Summary shown right under the title (e.g. the AQI badge), above the detail lines.
+  lead?: ReactNode;
 }) {
   const styles = useThemedStyles(createStyles);
   return (
@@ -35,6 +39,7 @@ export default function ReadingsList({
       <Text style={styles.title} accessibilityRole="header">
         {title}
       </Text>
+      {lead}
       {view === null && <Text style={[styles.line, styles.dim]}>{emptyText}</Text>}
       {view?.unavailable && <Text style={[styles.line, styles.dim]}>{unavailableText}</Text>}
       {view?.sourceNote && <Text style={styles.warn}>{view.sourceNote}</Text>}
