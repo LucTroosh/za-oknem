@@ -19,6 +19,7 @@ from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_sna
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area
+from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
 from app.models import GeoArea
 from app.provenance import purge_expired_payloads
@@ -30,6 +31,8 @@ logger = logging.getLogger(__name__)
 # data is hourly. IMGW hydro/warnings cadence isn't documented (ADR-008/009) -
 # 1h is a starting assumption, same as GIOŚ, pending real verification.
 OPEN_METEO_INTERVAL_SECONDS = 3 * 60 * 60
+# CAMS Europe (pollen via Open-Meteo) is produced once a day - ADR-004/ADR-020.
+OPEN_METEO_POLLEN_INTERVAL_SECONDS = 24 * 60 * 60
 GIOS_INTERVAL_SECONDS = 60 * 60
 IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
 IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
@@ -50,6 +53,16 @@ def run_open_meteo() -> None:
     try:
         for area in db.query(GeoArea).all():
             ingest_geo_area(area, db)
+    finally:
+        db.close()
+
+
+def run_open_meteo_pollen() -> bool:
+    # Raises when EVERY geo_area failed (ADR-012: no false success); returns False
+    # when there are no geo_areas (nothing fetched - not a success either).
+    db = SessionLocal()
+    try:
+        return ingest_pollen_areas(db.query(GeoArea).all(), db) or False
     finally:
         db.close()
 
@@ -144,7 +157,9 @@ def main(*, iterations: int | None = None) -> None:
     # to work on Linux (monotonic counts from boot, so "now" is usually already
     # hours past either interval) but that's an assumption about the platform, not
     # a guarantee. -inf makes "run on startup" deterministic everywhere.
-    last_open_meteo = last_gios = last_imgw_hydro = last_imgw_warnings = float("-inf")
+    last_open_meteo = last_open_meteo_pollen = last_gios = last_imgw_hydro = last_imgw_warnings = (
+        float("-inf")
+    )
     last_retention = float("-inf")
     count = 0
     while iterations is None or count < iterations:
@@ -152,6 +167,9 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
             _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
+        if now - last_open_meteo_pollen >= OPEN_METEO_POLLEN_INTERVAL_SECONDS:
+            _run_job_safely("open_meteo_pollen", run_open_meteo_pollen)
+            last_open_meteo_pollen = now
         if now - last_gios >= GIOS_INTERVAL_SECONDS:
             _run_job_safely("gios", run_gios)
             last_gios = now
