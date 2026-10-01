@@ -33,8 +33,6 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
    eksport/API, pisemną zgodę na automatyczne pobieranie, warunki licencji i
    `commercial_use`, atrybucję, limit żądań i współrzędne/TERYT kąpielisk.
 2. W przeglądarce potwierdzić licencję wydania 2025 i schemat pliku EEA (Datahub, metadata factsheet), pola usługi `BathingWater_Dyna_WM_2025` i filtr `countryName=Poland`
-   Water Directive - Status of bathing water", metadata factsheet) oraz który
-   serwis ArcGIS (`..._2018` vs `..._2024`/nowszy) jest aktualny.
 3. Ręcznie sprawdzić portal dane.gov.pl pod kątem zbioru o kąpieliskach.
 4. Po 1–3 — zatwierdzić źródło; wtedy zadanie można wznowić jako osobny PR.
 
