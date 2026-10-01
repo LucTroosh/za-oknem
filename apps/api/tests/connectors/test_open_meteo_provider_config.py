@@ -115,3 +115,30 @@ def test_source_health_sanitizer_masks_apikey_in_last_error():
 
     assert KEY not in (sanitize_error(raw) or "")
     assert KEY not in (sanitize_error(f"url {PAID_FORECAST}?apikey={KEY}") or "")
+
+
+@pytest.mark.parametrize("call, client, err, attr, free, paid", CONNECTORS)
+def test_4xx_is_not_retried_but_429_and_5xx_are(monkeypatch, call, client, err, attr, free, paid):
+    def _status(code: int) -> MagicMock:
+        resp = httpx.Response(code, request=httpx.Request("GET", free))
+        return MagicMock(side_effect=lambda *a, **k: resp.raise_for_status())
+
+    for code, calls in ((401, 1), (400, 1), (429, 2), (503, 2)):
+        mock_get = _status(code)
+        monkeypatch.setattr(client.httpx, "get", mock_get)
+        with pytest.raises(err):
+            call()
+        assert mock_get.call_count == calls, code
+
+
+@pytest.mark.parametrize("call, client, err, attr, free, paid", CONNECTORS)
+def test_invalid_url_is_wrapped_and_masked(monkeypatch, call, client, err, attr, free, paid):
+    monkeypatch.setattr(settings, "open_meteo_api_key", KEY)
+    monkeypatch.setattr(
+        client.httpx, "get", MagicMock(side_effect=httpx.InvalidURL(f"bad ?apikey={KEY}"))
+    )
+
+    with pytest.raises(err) as info:
+        call()
+
+    assert KEY not in str(info.value)

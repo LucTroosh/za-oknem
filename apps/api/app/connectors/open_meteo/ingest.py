@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app import provenance
+from app.config import settings, warn_if_open_meteo_host_unusual
 from app.connectors.open_meteo import client
 from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS, HOURLY_PARAMS
 from app.connectors.open_meteo.parser import (
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # ADR-003: 10 000 requests/day on Open-Meteo's free non-commercial tier -
 # "alert przy 70% dziennego limitu" (see app/rate_budget.py).
-DAILY_CALL_LIMIT = 10_000
+DAILY_CALL_LIMIT = settings.open_meteo_daily_call_limit  # env, ADR-022
 
 # ADR-003 (docs/architecture/ADR-003-weather-provider-licensing.md:28-30): our
 # request covers more than 1 "API call" worth of variables per Open-Meteo's own
@@ -213,6 +214,7 @@ def main() -> None:
     parser.add_argument("--slug", action="append", dest="slugs", default=[])
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    warn_if_open_meteo_host_unusual()
 
     db = SessionLocal()
     try:

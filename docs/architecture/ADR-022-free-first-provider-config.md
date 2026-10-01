@@ -82,6 +82,21 @@ jedno żądanie testowe. Ceny planów — poza zakresem, nie sprawdzane.
 - **Testy/snapshoty:** testy używają sztucznego klucza i sprawdzają jego brak; klucz nie trafia do
   repo (`.env.example` ma pustą wartość).
 
+- **Walidacja configu:** przy ustawionym kluczu oba base URL muszą być `https://` (inaczej
+  `ValueError` przy starcie); pusty/whitespace w `OPEN_METEO_*_BASE_URL` = wartość domyślna;
+  pusty klucz = brak klucza; klucz ma `repr=False`. Przy starcie schedulera/CLI jedno
+  `logger.warning` (bez wartości klucza), gdy klucz jest ustawiony, a host nie zaczyna się od
+  `customer-` — miękko, bo nazwa hosta Air Quality jest niezweryfikowana.
+- **Limit dzienny:** `OPEN_METEO_DAILY_CALL_LIMIT` (domyślnie 10 000 = Free) — po przejściu na
+  plan komercyjny podnieść w env, inaczej alert 70% i `check_daily_budget` liczą się od limitu Free.
+- **Znane ograniczenie:** `params` z kluczem (`apikey`) jest zmienną lokalną w `get_json()`.
+  Narzędzia typu Sentry z `include_local_variables` mogłyby ją dołączyć do zdarzenia — przy
+  wdrożeniu TASK-13.2 wyłączyć `include_local_variables` lub dodać scrubbing `apikey`.
+  Szczelność ścieżek (provenance, `last_error`, logi) pokrywa test integracyjny
+  `test_open_meteo_key_leak_integration.py` (httpx `MockTransport`, oba connectory, sukces i porażka).
+- **Retry:** odpowiedź 4xx poza 429 (np. zły klucz) nie jest ponawiana; `httpx.InvalidURL` jest
+  opakowywany i maskowany jak inne błędy.
+
 ### 4. Gdzie leży szew wymiany providera (bez nowej warstwy abstrakcji)
 
 Wystarcza config + istniejący kontrakt connectora (fetch / parse / validate / normalize).

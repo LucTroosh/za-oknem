@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import provenance
+from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.open_meteo import ingest as open_meteo_ingest
 from app.connectors.open_meteo_pollen import client
 from app.connectors.open_meteo_pollen.parser import (
@@ -160,6 +161,7 @@ def main() -> None:
     parser.add_argument("--slug", action="append", dest="slugs", default=[])
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    warn_if_open_meteo_host_unusual()
 
     db = SessionLocal()
     try:

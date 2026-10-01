@@ -1,5 +1,10 @@
 # Source Registry (starter)
 
+> Uwaga o metodzie (audyt licencji 2026-10-01): wpisy zweryfikowane przez WebFetch opierają się
+> na STRESZCZENIACH zwracanymi przez model pobierający stronę, nie na surowym HTML — cytaty i
+> liczby (limity, plany, licencje) do potwierdzenia na stronie źródła przed decyzją prawną/
+> komercyjną.
+
 Format wg §37 Master Planu. Status: DISCOVERY → VERIFIED → APPROVED → IMPLEMENTED →
 PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 (Source Approval Gate, §38) — nie zaczynać implementacji connectora bez wpisu tutaj.

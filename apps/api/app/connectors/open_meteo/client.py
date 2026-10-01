@@ -74,8 +74,13 @@ def get_json(
             response = httpx.get(url, params=params, timeout=TIMEOUT)
             response.raise_for_status()
             return response.json()
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
             last_error = exc
+            # A 4xx other than 429 (bad key, bad request) will not fix itself: no 2nd request.
+            if isinstance(exc, httpx.HTTPStatusError) and (
+                400 <= exc.response.status_code < 500 and exc.response.status_code != 429
+            ):
+                break
     raise error_cls(redact(f"GET {url} ({label}) failed after retry: {last_error}")) from None
 
 
