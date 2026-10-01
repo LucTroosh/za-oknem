@@ -54,9 +54,7 @@ class SourceSpec:
 SOURCES: dict[str, SourceSpec] = {
     "open_meteo": SourceSpec(weather_freshness, OPEN_METEO_DAILY_LIMIT),
     # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
-    "gios": SourceSpec(
-        air_freshness, enabled=lambda: bool(gios_station_ids())
-    ),
+    "gios": SourceSpec(air_freshness, enabled=lambda: bool(gios_station_ids())),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),
 }
@@ -73,7 +71,7 @@ _AUTH = re.compile(r"""(?i)auth[^=:]{0,40}[=:].*""")  # label words may precede 
 _BEARER = re.compile(r"""(?i)\bbearer\s+[^\s"',;&)]+""")
 _SECRET = re.compile(
     r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
-    r"""\s*[=:]?\s*(?:bearer\s+)?(?:"[^"]*"|'[^']*'|[^\s"',;&)]+)"""
+    r"""\s*[=:]?\s*(?:bearer\s+)?(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^\s"',;&)]+)"""
 )
 _MAX_SCAN = 1000
 

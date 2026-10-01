@@ -154,6 +154,8 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
         ("Proxy-Authorization: Token t0k3n9", "t0k3n9"),
         ('password="correct horse battery staple"', "battery"),
+        ('password="correct horse battery staple', "battery"),
+        ("secret='alpha beta gamma", "gamma"),
         ('{"client_secret": "alpha beta gamma"}', "gamma"),
         ("Authorization header: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
         ("Authentication: Bearer secret123", "secret123"),
