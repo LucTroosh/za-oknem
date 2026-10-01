@@ -328,7 +328,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bez właściciela.
 - [x] **TASK-7.3** (PR #78): Stany stale/no-data w UI dla `air` i `weather` —
       §59/§80 Master Planu. Backend: `source_status` (ADR-012, izolowane, guard
-      `MAX_CLOCK_SKEW`) w blokach `air`/`weather` agregatu. Mobile: efektywna świeżość =
+      `MAX_CLOCK_SKEW`) w blokach `air`/`weather` agregatu oraz top-level `source_status.{air,weather}` (bloki bywają null). Mobile: efektywna świeżość =
       najgorsza z `freshness` wartości, `source_status` i wieku na zegarze urządzenia
       (`readings.ts`, wspólne `worstFreshness`/`ageLabel` w `freshness.ts`), etykieta
       wieku, przygaszenie STALE, UNAVAILABLE/`null` → „brak danych” (nie 0).

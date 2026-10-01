@@ -747,3 +747,16 @@ def test_dashboard_source_status_failure_is_isolated_and_logged(monkeypatch, cap
     assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
     assert body["alerts"]["scope"] == "national"
     assert "dashboard: source_status for gios failed" in caplog.text
+
+
+def test_dashboard_top_level_source_status_survives_null_blocks():
+    # No station / no snapshot -> air and weather are null, yet the client can still tell
+    # a source that never succeeded from a healthy one with nothing applicable.
+    rows = _status("gios", 1)  # open_meteo has no row
+    client = _client([GeoArea(**KLODZKO)], [], [], status_rows=rows)
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    assert body["areas"][0]["air"] is None and body["areas"][0]["weather"] is None
+    assert body["source_status"]["air"]["freshness"] == "FRESH"
+    assert body["source_status"]["weather"] == {"freshness": "UNAVAILABLE", "last_success_at": None}

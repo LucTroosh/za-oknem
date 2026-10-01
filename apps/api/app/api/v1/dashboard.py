@@ -225,7 +225,11 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         for out in areas_out:
             out["pollen"] = pollen_block(None, down)
 
-    return {"areas": areas_out, "alerts": alerts}
+    # Outside the nullable per-area blocks too: `air`/`weather` are null when there is no
+    # station nearby / no snapshot, and "source never succeeded" must stay distinguishable
+    # from "healthy source, nothing applicable" there (Codex review).
+    source_status = {"air": air_status, "weather": weather_status}
+    return {"areas": areas_out, "alerts": alerts, "source_status": source_status}
 
 
 def _source_status(db: Session, source_id: str, freshness: Callable[[datetime], str]) -> dict:

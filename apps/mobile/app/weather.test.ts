@@ -96,8 +96,12 @@ describe("weatherView staleness", () => {
     const v = weatherView(block({ temperature_2m: p(10, "°C", 200) }), NOW);
     expect(line(v, "temperature_2m")?.state).toBe("ok");
   });
-  it("no block -> null", () => {
+  it("no block -> null, unless the top-level source status says the source is down", () => {
     expect(weatherView(null, NOW)).toBeNull();
+    expect(weatherView(null, NOW, { freshness: "FRESH", last_success_at: ago(5) })).toBeNull();
+    expect(weatherView(null, NOW, { freshness: "UNAVAILABLE", last_success_at: null })).toMatchObject({
+      unavailable: true,
+    });
   });
 });
 

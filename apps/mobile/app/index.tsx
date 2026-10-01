@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import AirIndexBadge from "../components/AirIndexBadge";
 import AirParams from "../components/AirParams";
 import OutdoorCard from "../components/OutdoorCard";
 import PollenCard from "../components/PollenCard";
@@ -79,6 +78,11 @@ type DashboardArea = {
   pollen?: unknown;
 };
 
+// TASK-7.3: top-level (not per area) because `air`/`weather` are null when there is no
+// station/snapshot - the source status must survive that. Optional on an older backend.
+type SourceStatus = { freshness: FreshnessState; last_success_at: string | null };
+type DashboardSourceStatus = { air?: SourceStatus; weather?: SourceStatus };
+
 type LoadState = "loading" | "ready" | "error";
 
 // Codex review (round 2): toLocaleTimeString() alone made an observation from
@@ -137,16 +141,22 @@ export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
   const [areas, setAreas] = useState<DashboardArea[]>([]);
   const [alerts, setAlerts] = useState<AlertsBlock | null>(null);
+  const [sourceStatus, setSourceStatus] = useState<DashboardSourceStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   // Device time of the last successful dashboard response (ages the outdoor verdict).
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
 
   const load = useCallback(() => {
-    return apiGet<{ areas: DashboardArea[]; alerts: AlertsBlock }>("/api/v1/dashboard/latest")
+    return apiGet<{
+      areas: DashboardArea[];
+      alerts: AlertsBlock;
+      source_status?: DashboardSourceStatus;
+    }>("/api/v1/dashboard/latest")
       .then((body) => {
         setAreas(body.areas);
         setAlerts(body.alerts);
+        setSourceStatus(body.source_status ?? null);
         setLoadedAt(Date.now());
         setState("ready");
       })
@@ -206,11 +216,14 @@ export default function Home() {
             <Text style={styles.stationName}>{item.name}</Text>
             <View style={styles.metricsRow}>
               <View style={styles.metricsColumn}>
-                <AirParams air={item.air} />
-                <AirIndexBadge index={item.air?.index} receivedAt={loadedAt} />
+                <AirParams
+                  air={item.air}
+                  sourceStatus={sourceStatus?.air}
+                  receivedAt={loadedAt}
+                />
               </View>
               <View style={styles.metricsColumn}>
-                <WeatherCard weather={item.weather} />
+                <WeatherCard weather={item.weather} sourceStatus={sourceStatus?.weather} />
               </View>
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />

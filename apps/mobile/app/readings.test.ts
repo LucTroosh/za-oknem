@@ -83,6 +83,31 @@ describe("sourceState", () => {
   });
 });
 
+describe("airView with a null block (top-level source_status)", () => {
+  it("source never succeeded -> unavailable instead of 'brak stacji'", () => {
+    const v = airView(null, NOW, { freshness: "UNAVAILABLE", last_success_at: null });
+    expect(v).toMatchObject({ unavailable: true, suppressDerived: true });
+  });
+  it("silent source -> note, no values", () => {
+    const v = airView(null, NOW, { freshness: "STALE", last_success_at: ago(900) });
+    expect(v).toMatchObject({ unavailable: false, lines: [], suppressDerived: true });
+    expect(v?.sourceNote).toContain("15 godz. temu");
+  });
+});
+
+describe("airView suppressDerived (AQI badge)", () => {
+  const b = (freshness: string) => ({
+    params: { "PM2.5": param(11.5, 10) },
+    source_status: { freshness, last_success_at: freshness === "UNAVAILABLE" ? null : ago(10) },
+  });
+  it("hidden for UNAVAILABLE and STALE source, shown for healthy or unknown", () => {
+    expect(airView(b("UNAVAILABLE"), NOW)?.suppressDerived).toBe(true);
+    expect(airView(b("STALE"), NOW)?.suppressDerived).toBe(true);
+    expect(airView(b("FRESH"), NOW)?.suppressDerived).toBe(false);
+    expect(airView({ params: {} }, NOW)?.suppressDerived).toBe(false);
+  });
+});
+
 describe("airView", () => {
   const block = (extra: object = {}) => ({
     attribution: "GIOŚ",
@@ -108,6 +133,7 @@ describe("airView", () => {
   it("null or garbage block -> null (screen shows 'brak stacji')", () => {
     expect(airView(null, NOW)).toBeNull();
     expect(airView("x", NOW)).toBeNull();
+    expect(airView(null, NOW, { freshness: "FRESH", last_success_at: ago(10) })).toBeNull();
     expect(airView({ params: null }, NOW)?.lines).toEqual([]);
   });
 });

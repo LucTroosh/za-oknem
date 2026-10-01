@@ -84,6 +84,6 @@ const SPECS = [
   { key: "dew_point_2m", label: "Punkt rosy", format: num(1) },
 ];
 
-export function weatherView(block: unknown, now: number): ReadingsView | null {
-  return buildView(block, SPECS, WEATHER_AGE, now);
+export function weatherView(block: unknown, now: number, fallbackStatus?: unknown): ReadingsView | null {
+  return buildView(block, SPECS, WEATHER_AGE, now, fallbackStatus);
 }

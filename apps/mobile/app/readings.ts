@@ -103,6 +103,8 @@ export type ReadingsView = {
   sourceNote: string | null;
   lines: ReadingLine[];
   attribution: string | null;
+  // Derived values (AQI badge) must not be shown beside an unavailable/silent source.
+  suppressDerived: boolean;
 };
 
 export function sourceNote(source: SourceState, now: number): string | null {
@@ -112,30 +114,51 @@ export function sourceNote(source: SourceState, now: number): string | null {
   return age ? `${head} — ostatnia aktualizacja ${age}.` : `${head}.`;
 }
 
+// No block at all: null (plain "no data") unless the source itself is known to be
+// unavailable or silent - then say so instead of implying "nothing applicable here".
+function emptyView(status: unknown, now: number, bounds: AgeBounds): ReadingsView | null {
+  const source = sourceState({ source_status: status }, now, bounds);
+  if (source.state === "UNAVAILABLE") {
+    return { unavailable: true, sourceNote: null, lines: [], attribution: null, suppressDerived: true };
+  }
+  const note = sourceNote(source, now);
+  if (note === null) return null;
+  return { unavailable: false, sourceNote: note, lines: [], attribution: null, suppressDerived: true };
+}
+
 // Shared by air and weather: builds the view from a block + the line specs.
 export function buildView(
   block: unknown,
   specs: { key: string; label: string; format: ReadingFormat }[],
   bounds: AgeBounds,
   now: number,
+  // Top-level dashboard `source_status.<domain>`: the only status available when the
+  // block itself is null (no station nearby / no snapshot).
+  fallbackStatus?: unknown,
 ): ReadingsView | null {
-  if (!isObject(block)) return null;
+  if (!isObject(block)) return emptyView(fallbackStatus, now, bounds);
   const params = isObject(block.params) ? block.params : {};
   const source = sourceState(block, now, bounds);
   const attribution = typeof block.attribution === "string" ? block.attribution : null;
   if (source.state === "UNAVAILABLE") {
-    return { unavailable: true, sourceNote: null, lines: [], attribution };
+    return { unavailable: true, sourceNote: null, lines: [], attribution, suppressDerived: true };
   }
   const lines = specs.map((s) =>
     readingLine(s.key, s.label, params[s.key], source, now, bounds, s.format),
   );
-  return { unavailable: false, sourceNote: sourceNote(source, now), lines, attribution };
+  return {
+    unavailable: false,
+    sourceNote: sourceNote(source, now),
+    lines,
+    attribution,
+    suppressDerived: source.state === "STALE",
+  };
 }
 
 // Air: every param the backend sent (PM2.5, PM10, NO2, ... - open set), same decimals
 // as the raw GIOŚ values (up to 2, trailing zeros dropped).
-export function airView(block: unknown, now: number): ReadingsView | null {
-  if (!isObject(block)) return null;
+export function airView(block: unknown, now: number, fallbackStatus?: unknown): ReadingsView | null {
+  if (!isObject(block)) return emptyView(fallbackStatus, now, AIR_AGE);
   const params = isObject(block.params) ? block.params : {};
   const specs = Object.keys(params).map((code) => ({
     key: code,
