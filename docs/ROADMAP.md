@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-01 (po PR #65 i #63; PR #72 w toku)
+**Ostatnia aktualizacja:** 2026-10-01 (po PR #73; stan main = 225ec08)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -17,8 +17,13 @@ Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 
 Pierwszy cel z CLAUDE.md — **Vertical Slice: GIOŚ → Connector → PostgreSQL →
 FastAPI → React Native → PM2.5 na ekranie** — jest zrobiony i rozszerzony o
-kolejne źródła (pogoda, poziom wody, ostrzeżenia hydrologiczne). Nie jesteśmy
-jeszcze przy pełnym zakresie danych z §4 Master Planu (pyłki nie zaczęte; woda/kąpieliska: tylko research i ADR-021, źródło ZABLOKOWANE — patrz 2.4 i sekcja 6) ani przy pełnym MVP mobile (tylko jeden ekran, bez
+kolejne źródła (pogoda, poziom wody, ostrzeżenia hydrologiczne) i warstwy
+pochodne (EAQI, outdoor). Backend ma też pyłki (CAMS Europe przez Open-Meteo, bez
+karty mobile i bez agregatu), fundament Geo Engine (PostGIS + resolver, **bez
+załadowanych granic gmin**), rejestrację urządzeń pod push (bez kluczy FCM/APNs)
+i `GET /api/v1/health/sources`. Nie jesteśmy jeszcze przy pełnym zakresie danych
+z §4 Master Planu (kąpieliska: tylko research i ADR-021, źródło ZABLOKOWANE — patrz
+2.4 i sekcja 6) ani przy pełnym MVP mobile (tylko jeden ekran, bez
 Alerts/Settings/push/profilu).
 
 ---
@@ -45,13 +50,13 @@ Alerts/Settings/push/profilu).
 
 | Metryka | Status |
 |---|---|
-| olcha, brzoza, trawy, bylica, ambrozja | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| olcha, brzoza, trawy, bylica, ambrozja | 🟡 PARTIAL — **backend ✅** (TASK-8.5–8.7, PR #71, ADR-020): connector `open_meteo_pollen` (CAMS Europe przez Open-Meteo Air Quality — **prognoza modelowa, nie pomiar**, `kind=model_forecast`), `PollenSnapshot` (5 gatunków, NULL ≠ 0), scheduler 24 h z `source_status`, provenance, `GET /api/v1/pollen/latest`. **Brak** karty mobile (TASK-8.8) i bloku `pollen` w `dashboard_latest()` (TASK-8.9) — w toku w osobnym PR, nie DONE. Rzeczywiste pomiary (OBAŚ) niezweryfikowane |
 
 ### 2.4. Woda / kąpieliska (§7)
 
 | Metryka | Status |
 |---|---|
-| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⛔ BLOCKED — research + ADR-021 (Proposed) gotowe (TASK-11.1 częściowo); GIS (`sk.gis.gov.pl`) to HTML bez API/licencji, EEA daje tylko rejestr + klasyfikację roczną (licencja wydania 2025 niepotwierdzona); brak źródła statusu bieżącego |
+| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⛔ BLOCKED — research + ADR-021 (Proposed) gotowe (TASK-11.1 🟡 częściowo, 11.2 ⛔; PR #72, bez kodu); GIS (`sk.gis.gov.pl`) to HTML bez API/licencji, EEA daje tylko rejestr + klasyfikację roczną (licencja wydania 2025 niepotwierdzona); brak źródła statusu bieżącego |
 | E. coli, enterokoki, sinice | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
 | data ostatniego / następnego badania próbki | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
 
@@ -82,22 +87,24 @@ Alerts/Settings/push/profilu).
 |---|---|
 | FastAPI | ✅ DONE |
 | PostgreSQL | ✅ DONE |
-| PostGIS | ⬜ TODO — nie używane; geo-matching robi zwykły haversine w Pythonie (`app/geo.py`, ADR-006), celowo wąski zakres (7 zaseedowanych lokalizacji vs stacje GIOŚ), nie ogólny silnik geo |
+| PostGIS | 🟡 PARTIAL — fundament gotowy (TASK-6.2, PR #70, ADR-019): migracja `0011` (`postgis`, `geo_areas.teryt_code`/`boundary`/`weather_polling_active`), obraz `postgis/postgis:16-3.4` w CI/compose. **Brak danych**: granice gmin PRG nie są załadowane (pobranie + licencja po stronie człowieka, sekcja 6) |
 | Redis (cache/stan krótkotrwały) | ⬜ TODO — nie wdrożone; obecnie wszystko czyta z PostgreSQL bezpośrednio |
-| Connector framework (fetch/parse/validate/normalize) | ✅ DONE — wzorzec ustalony i powtórzony w 5 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`, `imgw_warningsmeteo` częściowo) |
+| Connector framework (fetch/parse/validate/normalize) | ✅ DONE — wzorzec ustalony i powtórzony w 6 connectorach (`gios`, `open_meteo`, `open_meteo_pollen`, `imgw_hydro`, `imgw_warningshydro`, `imgw_warningsmeteo` częściowo); `prg_gminy` to importer jednorazowy z lokalnego pliku, nie connector sieciowy |
 | Scheduler | ✅ DONE — ADR-007, loop-based, per-job interval gating, izolacja awarii (rule #1, `_run_job_safely`) |
 | Workers (oddzielny proces/kolejka) | ⬜ TODO — świadomie NIE zrobione (ADR-007): scheduler w jednym procesie wystarcza przy obecnej skali, przejście na worker/queue dopiero gdy realnie potrzebne |
-| Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 4 connectorach (`gios`, `open_meteo`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
-| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń (#59, #61) i hydrologii (#62): tabela `source_status` zapisywana przez scheduler i ręczne CLI, `source_status` w `/alerts/latest`, `/hydro/latest` i agregacie; mobile nie pokazuje „brak ostrzeżeń/alarmów”, gdy źródło milczy lub status zestarzał się na urządzeniu (>6h); dla `air`/`weather` w agregacie jeszcze nie (TASK-7.3) |
-| Provenance / raw ingestion (§33-34) | ✅ DONE — `source_fetches` (surowy payload, endpoint, wersja parsera, status walidacji) + nullable FK `source_fetch_id` na `Measurement`/`Alert`/`WeatherSnapshot`/`Forecast`; wszystkie 4 connectory; retencja payloadu 7/14/30 dni, metadane zostają; zapis best-effort, awaria nie psuje ingestu (ADR-014, TASK-3.1, PR #65). Rekordy sprzed migracji 0009 mają FK NULL |
-| Outdoor Interpretation Engine (§52) | 🟡 PARTIAL — `app/outdoor.py`: deterministyczny GOOD/MODERATE/POOR/UNKNOWN + `reasons[]`/`missing[]` (ADR-016, PR #64); progi PM/UV/wiatr ze źródłami, temperatura/opady/widoczność oznaczone „do kalibracji”. Niepodłączony do dashboardu ani mobile (TASK-7.7/7.8) |
-| Geo matching | 🟡 PARTIAL — tylko nearest-station GIOŚ↔geo_area (ADR-006, próg 50km); brak dopasowania alertów do województw/lokalizacji |
+| Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 5 connectorach (`gios`, `open_meteo`, `open_meteo_pollen`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
+| Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń (#59, #61) i hydrologii (#62): tabela `source_status` zapisywana przez scheduler i ręczne CLI, `source_status` w `/alerts/latest`, `/hydro/latest` i agregacie; mobile nie pokazuje „brak ostrzeżeń/alarmów”, gdy źródło milczy lub status zestarzał się na urządzeniu (>6h); dla `air`/`weather` w agregacie jeszcze nie (TASK-7.3); pyłki mają `source_status` w `/pollen/latest` (PR #71). Widok operatorski: `GET /api/v1/health/sources` (TASK-13.1, PR #69) |
+| Provenance / raw ingestion (§33-34) | ✅ DONE — `source_fetches` (surowy payload, endpoint, wersja parsera, status walidacji) + nullable FK `source_fetch_id` na `Measurement`/`Alert`/`WeatherSnapshot`/`Forecast`; wszystkie connectory istniejące w PR #65 (4; pyłki dołączyły w PR #71); retencja payloadu 7/14/30 dni, metadane zostają; zapis best-effort, awaria nie psuje ingestu (ADR-014, TASK-3.1, PR #65). Rekordy sprzed migracji 0009 mają FK NULL |
+| Outdoor Interpretation Engine (§52) | 🟡 PARTIAL — `app/outdoor.py`: deterministyczny GOOD/MODERATE/POOR/UNKNOWN + `reasons[]`/`missing[]` (ADR-016, PR #64); progi PM/UV/wiatr ze źródłami, temperatura/opady/widoczność oznaczone „do kalibracji”. Podłączony: blok `outdoor` per obszar w `dashboard_latest()` i `OutdoorCard` na mobile (TASK-7.7/7.8, PR #68); preferencje „outdoor” użytkownika (TASK-12.4) nie istnieją |
+| Geo matching | 🟡 PARTIAL — nearest-station GIOŚ↔geo_area (ADR-006, próg 50 km) oraz **point-in-polygon lat/lon → gmina** (`app/geo.py::resolve_gmina`, `POST /api/v1/geo/resolve`, TASK-6.2 punkty 1–6, PR #70, ADR-019). Resolver bez danych zwraca `None` (granice gmin niezaładowane). Nie zrobione: odkrywanie stacji GIOŚ per gmina (6.2/7), zawężenie dashboardu do lokalizacji (6.2/8), dopasowanie alertów (TASK-9.5) |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
-| REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/dashboard/latest`, `/health`; wersjonowane pod `/api/v1/` |
+| REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/pollen`, `/dashboard/latest`, `/geo/resolve`, `/devices`, `/health`, `/health/sources`; wersjonowane pod `/api/v1/`. Brak `/water` (kąpieliska ⛔) i typowanego `response_model` dla `/dashboard/latest` (TASK-2.1) |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
-| Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
-| Provider config Free→Paid (TASK-13.4, ADR-022) | 🟡 PARTIAL — (kod gotowy; do ✅ po pierwszym żądaniu testowym z prawdziwym kluczem komercyjnym i potwierdzeniu hosta Air Quality) endpointy Open-Meteo i `OPEN_METEO_API_KEY` w env (domyślnie Free), klucz maskowany w wyjątkach/logach/provenance; przejście na plan komercyjny = tylko config. **Przed monetyzacją: checklista w ADR-003** (plan komercyjny Open-Meteo, env produkcyjne, licencje pozostałych źródeł). Host `customer-air-quality-api…` niezweryfikowany wprost |
+| Source health (TASK-13.1) | 🟡 PARTIAL — `GET /api/v1/health/sources` (freshness FRESH/RECENT/STALE/UNAVAILABLE, ostatnia próba/sukces, zsanityzowany `last_error`, budżet dzienny), scheduler loguje raz na zmianę stanu (PR #69; ADR-012). **Brak** historii runów i telemetrii §44 (duration, records processed, validation errors, duplicate/stale rate) — wymaga osobnego ADR i migracji; pyłki w rejestrze dołączone w PR #71 |
+| Device registration (TASK-10.1, ADR-017) | 🟡 PARTIAL — backend: `POST/DELETE /api/v1/devices` bez konta, sekret urządzenia (SHA-256), rate limit in-memory, migracja `0010` (PR #67). Realna wysyłka push wymaga kluczy FCM/APNs (sekcja 6); klient mobilny (10.5), preferencje (10.3a) i Notification Engine (10.2) ⬜ |
+| Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55) i source health (wiersz wyżej); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
+| Provider config Free→Paid (TASK-13.4, ADR-022) | 🟡 PARTIAL — (kod gotowy, PR #73; do ✅ po pierwszym żądaniu testowym z prawdziwym kluczem komercyjnym i potwierdzeniu hosta Air Quality) endpointy Open-Meteo i `OPEN_METEO_API_KEY` w env (domyślnie Free), klucz maskowany w wyjątkach/logach/provenance; przejście na plan komercyjny = tylko config. **Przed monetyzacją: checklista w ADR-003** (plan komercyjny Open-Meteo, env produkcyjne, licencje pozostałych źródeł). Host `customer-air-quality-api…` niezweryfikowany wprost |
 | Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+manifest, walidacja manifestu, limit wieku backupu, hasło poza argv); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
 
 ---
@@ -106,12 +113,12 @@ Alerts/Settings/push/profilu).
 
 | Element | Status |
 |---|---|
-| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu. Brak karty outdoor i pyłków. |
+| Home / Dashboard | 🟡 PARTIAL — jeden ekran (`apps/mobile/app/index.tsx`), lista lokalizacji z pełnym zestawem parametrów GIOŚ + pogodą + prognozą, sekcje „Ostrzeżenia — cała Polska” i „Stany wody — cała Polska” (stacje WARNING/ALARM, osobny fetch `/hydro/latest`; TASK-7.2, PR #58/#62), pull-to-refresh, freshness z backendu, `OutdoorCard` (TASK-7.7/7.8, PR #68), `AirIndexBadge` (PR #63). Brak karty pyłków (TASK-8.8). |
 | Alerts (ekran) | ⬜ TODO |
 | Settings | ⬜ TODO |
 | foreground location | ⬜ TODO — obecnie statyczna lista 7 zaseedowanych miast, brak geolokalizacji urządzenia |
 | ręczny wybór lokalizacji | ⬜ TODO |
-| push notifications | ⬜ TODO |
+| push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
 | source transparency | ✅ DONE — `dashboard_latest()` zwraca `source`+`attribution`+`observed_at` dla air i weather, mobile renderuje atrybucję pod każdą sekcją (TASK-7.1, PR #49) |
@@ -135,7 +142,19 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 |---|---|---|
 | `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
 | Kąpieliska: brak źródła BIEŻĄCEGO statusu | Status BIEŻĄCY wymaga zgody/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji) lub innego zatwierdzonego źródła (dane.gov.pl/WIOŚ — kandydaci, niesprawdzeni). EEA po potwierdzeniu licencji wydania 2025, schematu i filtra PL odblokuje tylko rejestr + klasyfikację roczną, NIE status bieżący. Pełny Gate §38 (APPROVED) dla każdego wybranego źródła | TASK-11.1/11.2, ADR-021 |
-| Geo-matching alertów do lokalizacji | Decyzja o metodzie (statyczna mapa 7 lokalizacji→województwo, czy pełny Geo Engine z TERYT, §27, Phase 6) | brak (non-goal ADR-009) |
+| Geo-matching alertów do lokalizacji | Fundament Geo Engine jest (PR #70); brakuje danych (granice gmin, niżej) i samego dopasowania alertów | TASK-9.5 |
+
+### Blokady po stronie człowieka (kod nie przesunie tego dalej)
+
+| Do zrobienia | Czego dotyczy | Task / źródło |
+|---|---|---|
+| Zatwierdzić licencję PRG (GUGiK) w Source Approval Gate i pobrać `00_jednostki_administracyjne.zip` → GeoJSON gmin → import (`python -m app.connectors.prg_gminy.ingest`) | Bez tego `POST /geo/resolve` zwraca `None`, a 6.2 zostaje 🟡 | TASK-6.2, `docs/tasks/TASK-6.2-geo-engine-foundation.md` |
+| Kontakt z GIS ws. udostępnienia API/danych o kąpieliskach (albo wybór innego zatwierdzonego źródła); potwierdzić licencję EEA 2025, jeśli wystarczy rejestr + klasyfikacja roczna | Odblokowanie 2.4 | TASK-11.1/11.2, ADR-021, `docs/tasks/TASK-11-bathing-water.md` |
+| IMGW: ustalić, czy hydro/ostrzeżenia to dane o wysokiej wartości (HVD, rozp. UE 2023/138) i jak ma się CC BY-NC-ND 4.0 zbioru plikowego do API; w razie potrzeby umowa (biznes@imgw.pl) | Przed monetyzacją (checklista ADR-003) | ADR-003, `source-registry.md` |
+| Open-Meteo: pisemne potwierdzenie dla Patronite (szara strefa), ceny planów komercyjnych (niezweryfikowane), potwierdzenie hosta Air Quality (`customer-air-quality-api…`) i pierwsze żądanie z prawdziwym kluczem | TASK-13.4 🟡 → ✅; przed monetyzacją | ADR-003, ADR-022 |
+| OBAŚ — nawiązać kontakt (rzeczywiste pomiary pyłków; dziś kandydat, nic niezweryfikowane) | Opcjonalne uzupełnienie pyłków pomiarami (osobny byt Measurement) | `source-registry.md` (`obas`), ADR-022 |
+| Klucze FCM/APNs (konta deweloperskie Google/Apple) jako zmienne środowiskowe | Realna wysyłka push; walidacja iOS wymaga konta Apple Developer | TASK-10.1 🟡, 10.2 |
+| Skasować pusty plik `pr.json` w katalogu głównym repo, jeśli jest w lokalnej kopii (nie jest śledzony w `main`) | Higiena repo | — |
 
 ---
 
@@ -171,6 +190,12 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #62 | Hydrologia na mobile: „Stany wody — cała Polska” (WARNING/ALARM), `attribution` + `source_status` w `/hydro/latest`, CLI hydro zapisuje `source_status` (TASK-7.2) |
 | #64 | Outdoor Interpretation Engine (ADR-016, TASK-7.6) — czysty moduł, niepodłączony do API |
 | #65 | Provenance: `source_fetches` + `source_fetch_id`, retencja payloadów (ADR-014, TASK-3.1) |
+| #66 | Sync ROADMAP/BACKLOG po #61 #62 #64 #65 (docs) |
+| #67 | Rejestracja urządzeń pod push bez konta: `POST/DELETE /api/v1/devices`, model `Device`, migracja `0010`, rate limit (ADR-017, TASK-10.1) — 🟡, bez kluczy FCM/APNs |
+| #68 | `outdoor` w `dashboard_latest()` + `OutdoorCard` na mobile (TASK-7.7/7.8) |
+| #69 | Source health: `GET /api/v1/health/sources` + logi zmian stanu w schedulerze (TASK-13.1, ADR-012) — 🟡, bez historii runów/telemetrii §44 |
+| #70 | Geo Engine — fundament (TASK-6.2, ADR-019): PostGIS, migracja `0011`, importer `prg_gminy`, `resolve_gmina`, `POST /api/v1/geo/resolve`, `weather_polling_active`; bez danych gmin — 🟡 |
+| #71 | Pyłki backend (TASK-8.5–8.7, ADR-020): `open_meteo_pollen`, `PollenSnapshot`, scheduler, `GET /api/v1/pollen/latest`; karta mobile i agregat (8.8/8.9) osobno |
 | #63 | Europejski indeks jakości powietrza EAQI/EEA (ADR-015, TASK-4.2): `air_index.py`, `index` w `/air/latest` i dashboardzie, mobile `AirIndexBadge`; indeks GIOŚ odłożony |
 | #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
