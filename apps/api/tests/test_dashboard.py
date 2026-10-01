@@ -1002,3 +1002,20 @@ def test_geo_area_id_is_range_checked_422(path, value):
 def test_dashboard_geo_area_id_not_int_is_422():
     client = _client([], [], [], lookup=[GeoArea(**KLODZKO)])
     assert client.get("/api/v1/dashboard/latest?geo_area_id=abc").status_code == 422
+
+
+def test_dashboard_coverage_follows_the_catalog_even_before_the_first_measurement():
+    # Nearest catalog station (~2 km) has no measurement yet; a measured one sits ~55 km away.
+    # Polling assigned the near one, so: no air block, coverage "exact" - not the far station.
+    far = _station(station_id="40", latitude=50.93)
+    client = _client(
+        [GeoArea(**KLODZKO)],
+        [far],
+        [],
+        catalog=[_cat("41", 50.45, 16.65), _cat("40", 50.93, 16.65)],
+    )
+
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+    assert area["air"] is None
+    assert area["coverage"]["air"] == "exact"

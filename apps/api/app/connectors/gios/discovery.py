@@ -21,7 +21,8 @@ from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
 from app.connectors.open_meteo.ingest import polling_areas
 from app.geo import REGIONAL_MAX_KM, select_stations
-from app.models import GiosStation
+from app.config import settings
+from app.models import GeoArea, GiosStation
 
 logger = logging.getLogger(__name__)
 
@@ -133,11 +134,22 @@ def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
         return False
 
 
+def _air_areas(db: Session) -> list[GeoArea]:
+    cutoff = datetime.now(UTC) - timedelta(days=settings.place_activation_ttl_days)
+    recent = db.query(GeoArea).filter(
+        GeoArea.weather_polling_active.is_(False),
+        GeoArea.place_id.is_not(None),
+        GeoArea.last_requested_at >= cutoff,
+    )
+    return polling_areas(db) + recent.all()
+
+
 def assigned_station_ids(db: Session) -> list[str]:
     """Station ids to poll: nearest catalog station within REGIONAL_MAX_KM (ADR-029: the
     50-100 km "regional" band is polled too, so it has data to disclose) for every actively
     polled area, de-duplicated, sorted. Areas with no station in range contribute nothing
-    ("brak danych dla obszaru")."""
+    ("brak danych dla obszaru"). Air is cheap (<= one request per catalog station), so a place
+    activated recently but refused Open-Meteo polling (capacity/budget) is polled for air too."""
     rows = db.query(GiosStation).options(defer(GiosStation.raw))  # raw JSON not needed here
     points = [(r.station_id, r.latitude, r.longitude) for r in rows]
     if not points:
@@ -145,7 +157,7 @@ def assigned_station_ids(db: Session) -> list[str]:
     return sorted(
         {
             m.station_id
-            for area in polling_areas(db)
+            for area in _air_areas(db)
             for m in select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
         }
     )
@@ -181,6 +193,15 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
         elif sid in catalog:
             points.append((sid, *catalog[sid]))
     return points
+
+
+def catalog_points(db: Session) -> list[tuple[str, float, float]]:
+    """(id, lat, lon) of every catalog station, measured or not: geographic coverage must not
+    depend on whether the nearest station already has a measurement (ADR-029)."""
+    return [
+        (r.station_id, r.latitude, r.longitude)
+        for r in db.execute(select(GiosStation).options(defer(GiosStation.raw))).scalars().all()
+    ]
 
 
 def polling_expected(db: Session) -> bool:

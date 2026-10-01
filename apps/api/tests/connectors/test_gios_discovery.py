@@ -140,6 +140,23 @@ def test_assigned_station_ids_nearest_per_active_area_deduplicated(monkeypatch, 
     assert discovery.assigned_station_ids(db_session) == ["114", "38"]
 
 
+def test_assigned_station_ids_covers_recent_place_refused_weather_polling(monkeypatch, db_session):
+    # Open-Meteo capacity says no, air is still polled; an expired place (old request) is not.
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    now = datetime.now(UTC)
+    for slug, lat, lon, age in [("place-1", 50.433493, 16.65366, 1), ("place-2", 52.23, 21.01, 30)]:
+        db_session.add(
+            GeoArea(
+                slug=slug, name=slug, latitude=lat, longitude=lon, place_id=int(slug[-1]),
+                weather_polling_active=False, last_requested_at=now - timedelta(days=age),
+            )
+        )  # fmt: skip
+    db_session.commit()
+
+    assert discovery.assigned_station_ids(db_session) == ["38"]
+
+
 def test_assigned_station_ids_reaches_the_regional_band(monkeypatch, db_session):
     # ADR-029: a station 50-100 km away is polled (so the regional band has data); one more
     # than 100 km away is not.

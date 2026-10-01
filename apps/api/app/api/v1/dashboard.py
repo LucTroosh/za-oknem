@@ -21,7 +21,7 @@ from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
 from app.api.v1.weather import WeatherParam, forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
-from app.connectors.gios.discovery import assignment_candidates
+from app.connectors.gios.discovery import assignment_candidates, catalog_points
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import REGIONAL_MAX_KM, classify_air_coverage, coverage_radius_km, select_stations
@@ -285,7 +285,14 @@ def dashboard_latest(
             "freshness": air_freshness(row.observed_at),
         }
     # ADR-025: catalog is the authority for who may be assigned and where they are.
-    points = assignment_candidates(db, stations)
+    # Geography (coverage) comes from the whole catalog; the `air` block only from stations
+    # that already have measurements. A nearer station without data is not skipped.
+    points = list(
+        {
+            sid: (sid, lat, lon)
+            for sid, lat, lon in catalog_points(db) + assignment_candidates(db, stations)
+        }.values()
+    )
 
     weather_stmt = select(WeatherSnapshot)
     if geo_area_id is not None:
@@ -326,7 +333,7 @@ def dashboard_latest(
         air_coverage = classify_air_coverage(match.distance_km if match else None)
 
         air = None
-        if match is not None and air_coverage != "none":
+        if match is not None and air_coverage != "none" and match.station_id in stations:
             nearest = stations[match.station_id]
             # source+observed_at+freshness together, not source alone (Principle 2 /
             # TASK-7.1) - observed_at here is the latest across this station's params,
