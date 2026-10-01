@@ -4,6 +4,9 @@ name: GeoNames dump verification
 # Not part of PR CI. Run: Actions -> "GeoNames dump verification" -> Run workflow.
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/any-locality]
+    paths: [.github/workflows/geonames-verify.yml]
 
 jobs:
   verify:
@@ -17,8 +20,8 @@ jobs:
       - run: uv sync --dev
       - name: Raw file shape (independent of our parser)
         run: |
-          set +e
           (
+          set -e
           mkdir -p /tmp/gn && cd /tmp/gn
           for f in PL.zip admin1CodesASCII.txt admin2Codes.txt; do
             curl -fsS --max-time 120 --retry 3 -O "https://download.geonames.org/export/dump/$f"
@@ -28,13 +31,16 @@ jobs:
           echo "lines: $(wc -l < PL.txt)"
           echo "column counts:"; awk -F'\t' '{c[NF]++} END {for (k in c) print k, c[k]}' PL.txt
           echo "--- Gliwice rows"; awk -F'\t' '$2=="Gliwice"' PL.txt
-          echo "--- admin1 sample"; grep -E '^PL\.' admin1CodesASCII.txt | head -20
-          echo "--- admin2 sample"; grep -E '^PL\.' admin2Codes.txt | head -8
-          echo "--- admin2 Gliwice"; grep -E '^PL\..*Gliwice' admin2Codes.txt | head
+          echo "--- admin1 sample"; { grep -E '^PL\.' admin1CodesASCII.txt || true; } | head -20
+          echo "--- admin2 sample"; { grep -E '^PL\.' admin2Codes.txt || true; } | head -8
+          echo "--- admin2 Gliwice"; { grep -E '^PL\..*Gliwice' admin2Codes.txt || true; } | head
           ) 2>&1 | tee /tmp/raw.out
+          rc=${PIPESTATUS[0]}
           echo "::notice title=raw shape::$(head -c 6000 /tmp/raw.out | awk '{printf "%s%%0A", $0}')"
+          exit $rc
       - name: Our parser on the real file (validate only)
         run: |
-          set +e
           uv run python -m app.connectors.geonames_places.ingest --download --validate-only --sample Gliwice --sample "Nowa Wieś" 2>&1 | tee /tmp/parser.out
+          rc=${PIPESTATUS[0]}
           echo "::notice title=parser::$(head -c 6000 /tmp/parser.out | awk '{printf "%s%%0A", $0}')"
+          exit $rc
