@@ -153,8 +153,9 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
     """(id, lat, lon) points the API may assign, from `stations` (id -> row with latitude/
     longitude, i.e. the ones that have measurements). Once a catalog exists it is the
     authority: only catalog stations qualify, at their CATALOG coordinates (the ones polling
-    assignment used), plus stations named in the GIOS_STATION_IDS override at their
-    measured coordinates. A station GIOŚ dropped from the catalog is therefore never
+    assignment used), plus stations named in the GIOS_STATION_IDS override (fetched
+    live, so even if also catalogued) at their measured coordinates.
+    A station GIOŚ dropped from the catalog is therefore never
     assigned on the strength of its old measurements. No catalog yet = legacy setup:
     measured coordinates, no filtering."""
     catalog = {
@@ -164,10 +165,11 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
     override = set(gios_station_ids())
     points: list[tuple[str, float, float]] = []
     for sid, s in stations.items():
-        if sid in catalog:
-            points.append((sid, *catalog[sid]))
-        elif not catalog or sid in override:
+        # Override stations are fetched live each run (catalog row may be stale) -> measured.
+        if sid in override or not catalog:
             points.append((sid, s["latitude"], s["longitude"]))
+        elif sid in catalog:
+            points.append((sid, *catalog[sid]))
     return points
 
 

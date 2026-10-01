@@ -168,13 +168,13 @@ def test_assignment_candidates_use_catalog_coordinates_and_drop_unlisted(monkeyp
 
     _fetch(monkeypatch, CATALOG)
     discovery.discover_stations(db_session)
-    monkeypatch.setenv("GIOS_STATION_IDS", "env")
+    monkeypatch.setenv("GIOS_STATION_IDS", "env,114")
 
     got = discovery.assignment_candidates(db_session, measured)
 
     assert sorted(got) == [
-        ("114", 52.2297, 21.0122),  # catalog coordinates, not the measured 1.0/2.0
-        ("38", 50.433493, 16.65366),
+        ("114", 1.0, 2.0),  # override wins even though catalogued (catalog row may be stale)
+        ("38", 50.433493, 16.65366),  # catalog coordinates, not the measured 1.0/2.0
         ("env", 1.0, 2.0),  # explicit override outside the catalog keeps measured coords
     ]
 
