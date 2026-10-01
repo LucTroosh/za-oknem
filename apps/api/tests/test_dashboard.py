@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
-from app.api.v1.pollen import ATTRIBUTION
+from app.api.v1.pollen import ATTRIBUTION, pollen_block
 from app.db import get_db
 from app.main import app
 from app.models import (
@@ -57,22 +57,29 @@ class _FakeSession:
     def execute(self, _stmt):
         return _FakeResult(self._queue.pop(0))
 
+    def rollback(self):
+        pass
+
     def get(self, _model, key):
         # No source_status rows unless a test supplies one -> UNAVAILABLE (ADR-012).
         return self._status_rows.get(key)
 
 
 def _client(
-    areas, stations, weather_rows, forecast_rows=(), alert_rows=(), pollen=None, status_rows=None
+    areas,
+    stations,
+    weather_rows,
+    forecast_rows=(),
+    alert_rows=(),
+    pollen=([], []),
+    status_rows=None,
 ) -> TestClient:
     # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts, then
-    # (pollen) snapshots + geo_areas. `pollen=None` leaves the queue short on purpose: the
-    # pollen read then raises inside the fake, exercising the isolation (rule #1).
+    # pollen snapshots (+ geo_areas when there are snapshots).
     def _override():
         sets = [areas, stations, weather_rows, list(forecast_rows), list(alert_rows)]
-        if pollen is not None:
-            rows, pollen_areas = pollen
-            sets += [rows, pollen_areas] if rows else [rows]
+        rows, pollen_areas = pollen
+        sets += [rows, pollen_areas] if rows else [rows]
         yield _FakeSession(*sets, status_rows=status_rows)
 
     app.dependency_overrides[get_db] = _override
@@ -624,9 +631,7 @@ def test_dashboard_pollen_old_snapshot_is_stale():
     assert pollen["source_status"]["freshness"] == "STALE"
 
 
-def test_dashboard_pollen_failure_does_not_break_the_rest():
-    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])  # queue too short -> raises
-
+def _assert_pollen_degraded_rest_intact(client, caplog):
     resp = client.get("/api/v1/dashboard/latest")
 
     assert resp.status_code == 200
@@ -635,5 +640,31 @@ def test_dashboard_pollen_failure_does_not_break_the_rest():
     assert area["air"]["station_id"] == "38"
     assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
     assert area["pollen"]["freshness"] == "UNAVAILABLE"
-    assert area["pollen"]["source_status"]["freshness"] == "UNAVAILABLE"
+    assert area["pollen"]["source_status"] == {"freshness": "UNAVAILABLE", "last_success_at": None}
+    assert area["pollen"]["current"] is None
     assert body["alerts"]["scope"] == "national"
+    assert "dashboard: pollen block failed" in caplog.text
+
+
+def test_dashboard_pollen_read_failure_is_isolated_and_logged(monkeypatch, caplog):
+    def boom(_db):
+        raise RuntimeError("pollen read down")
+
+    monkeypatch.setattr("app.api.v1.dashboard.latest_pollen", boom)
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
+    _assert_pollen_degraded_rest_intact(client, caplog)
+
+
+def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch, caplog):
+    real = pollen_block
+    calls = {"n": 0}
+
+    def once(area, status):  # the first call (normal path) breaks; the fallback works
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("block build broke")
+        return real(area, status)
+
+    monkeypatch.setattr("app.api.v1.dashboard.pollen_block", once)
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
+    _assert_pollen_degraded_rest_intact(client, caplog)

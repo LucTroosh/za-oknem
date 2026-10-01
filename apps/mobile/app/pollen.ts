@@ -89,6 +89,7 @@ export type PollenView = {
   status: string | null; // explicit line for recent/stale/unavailable
   lines: PollenLine[]; // empty unless ok/recent
   fetchedAt: string | null; // ISO, for the component to format
+  validAt: string | null; // ISO hour the values are for (block.valid_at)
   note: string;
   attribution: string;
 };
@@ -112,9 +113,14 @@ export function effectiveFreshness(block: Record<string, unknown>): PollenFreshn
   return RANK[Math.max(RANK.indexOf(own), RANK.indexOf(src))];
 }
 
+// The number the user reads: level and text both derive from THIS, so "10" is never
+// shown next to "poniżej progu sezonu" (9,96 displays as 10 -> season).
+export function roundPollen(v: number): number {
+  return v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
+}
+
 export function formatPollenValue(v: number): string {
-  const r = v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
-  return String(r).replace(".", ",");
+  return String(roundPollen(v)).replace(".", ",");
 }
 
 function lineFor(
@@ -127,7 +133,7 @@ function lineFor(
   if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
     return { species, name, text: "brak danych", level: null };
   }
-  const level = pollenLevel(species, raw, unit);
+  const level = pollenLevel(species, roundPollen(raw), unit);
   const u = typeof unit === "string" && unit !== "" ? ` ${unit}` : "";
   const value = `${formatPollenValue(raw)}${u}`;
   return { species, name, text: level ? `${POLLEN_LEVEL_LABEL[level]} (${value})` : value, level };
@@ -139,7 +145,8 @@ export function pollenView(block: unknown): PollenView | null {
     return null;
   }
   const fetchedAt = typeof block.fetched_at === "string" ? block.fetched_at : null;
-  const base = { title: POLLEN_TITLE, fetchedAt, note: POLLEN_NOTE, attribution: block.attribution };
+  const validAt = typeof block.valid_at === "string" ? block.valid_at : null;
+  const base = { title: POLLEN_TITLE, fetchedAt, validAt, note: POLLEN_NOTE, attribution: block.attribution };
   const freshness = effectiveFreshness(block);
   const current = isObject(block.current) ? block.current : null;
 

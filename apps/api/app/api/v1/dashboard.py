@@ -200,17 +200,19 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         "source_status": alerts_source_status(db),
     }
 
-    # TASK-8.9 / ADR-020: computed LAST and isolated (rule #1) - a failing pollen read
-    # must not take the rest of the dashboard down; it degrades to UNAVAILABLE.
+    # TASK-8.9 / ADR-020: computed LAST and isolated (rule #1) - a failing pollen read or
+    # block build must not take the rest of the dashboard down; it degrades to UNAVAILABLE.
     try:
         pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db)}
         pollen_status = source_freshness(db, POLLEN_SOURCE_ID, pollen_freshness)
+        for out in areas_out:
+            out["pollen"] = pollen_block(pollen_by_area.get(out["geo_area_id"]), pollen_status)
     except Exception:
         logger.exception("dashboard: pollen block failed")
-        pollen_by_area = {}
-        pollen_status = {"freshness": "UNAVAILABLE", "last_success_at": None}
-    for out in areas_out:
-        out["pollen"] = pollen_block(pollen_by_area.get(out["geo_area_id"]), pollen_status)
+        db.rollback()  # a failed statement leaves a Postgres transaction aborted
+        down = {"freshness": "UNAVAILABLE", "last_success_at": None}
+        for out in areas_out:
+            out["pollen"] = pollen_block(None, down)
 
     return {"areas": areas_out, "alerts": alerts}
 

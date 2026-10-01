@@ -11,7 +11,7 @@ from app.api.v1.alerts import SourceStatusOut
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID, SPECIES_BY_VARIABLE
 from app.db import get_db
 from app.models import GeoArea, PollenSnapshot
-from app.source_status import source_freshness
+from app.source_status import MAX_CLOCK_SKEW, source_freshness
 
 router = APIRouter()
 
@@ -35,6 +35,8 @@ SPECIES = tuple(SPECIES_BY_VARIABLE.values())  # alder, birch, grass, mugwort, r
 
 def freshness(fetched_at: datetime) -> str:
     age = datetime.now(UTC) - fetched_at
+    if age < -MAX_CLOCK_SKEW:  # fetched "in the future" can't be verified (ADR-012): fail safe
+        return "STALE"
     if age <= FRESH_MAX_AGE:
         return "FRESH"
     if age <= RECENT_MAX_AGE:
@@ -131,10 +133,14 @@ def latest_pollen(db: Session) -> list[dict]:
     if not rows:
         return []
 
-    areas_by_id = {a.id: a for a in db.execute(select(GeoArea)).scalars().all()}
     by_area: dict[int, list[PollenSnapshot]] = defaultdict(list)
     for r in rows:
         by_area[r.geo_area_id].append(r)
+
+    areas_by_id = {
+        a.id: a
+        for a in db.execute(select(GeoArea).where(GeoArea.id.in_(list(by_area)))).scalars().all()
+    }
 
     now = datetime.now(UTC)
     slot = now.replace(minute=0, second=0, microsecond=0)

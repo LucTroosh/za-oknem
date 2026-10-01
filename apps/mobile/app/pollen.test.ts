@@ -75,6 +75,18 @@ describe("pollenView", () => {
     expect(missing?.lines.map((l) => l.level)[0]).toBeNull();
   });
 
+  it("derives the level from the displayed (rounded) value, never a mismatch", () => {
+    const v = pollenView(block({ current: { ...ALL_NULL, birch: 9.96, grass: 2.96, alder: 99.6 } }));
+    expect(v?.lines[0].text).toBe("szczyt pylenia (100 grains/m³)"); // alder 99.6 -> 100
+    expect(v?.lines[1].text).toBe("sezon pylenia (10 grains/m³)"); // birch 9.96 -> 10
+    expect(v?.lines[2].text).toBe("sezon pylenia (3 grains/m³)"); // grass 2.96 -> 3
+  });
+
+  it("exposes valid_at for the card", () => {
+    expect(pollenView(block())?.validAt).toBe("2026-10-01T12:00:00Z");
+    expect(pollenView(block({ valid_at: null }))?.validAt).toBeNull();
+  });
+
   it("shows the raw value with its unit and no level when the unit is not grains/m³", () => {
     const v = pollenView(block({ unit: "pollen/m³" }));
     expect(v?.lines[1].text).toBe("13 pollen/m³");
