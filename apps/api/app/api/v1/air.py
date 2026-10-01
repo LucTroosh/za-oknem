@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -76,7 +76,9 @@ class AirLatestResponse(BaseModel):
 # exclude_unset: the ADR-025 provenance fields appear only for ?geo_area_id= - the plain list
 # keeps its exact old shape (explicit nulls such as index.level stay, they are "set").
 @router.get("/air/latest", response_model=AirLatestResponse, response_model_exclude_unset=True)
-def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+def latest_air_quality(
+    geo_area_id: int | None = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
     """Reads only from our own DB (rule #14) — never calls GIOŚ on request.
     Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).
 

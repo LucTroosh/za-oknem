@@ -1,7 +1,7 @@
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -87,12 +87,19 @@ def _area_out(a: GeoArea) -> AreaOut:
 
 
 @router.get("/areas", response_model=AreasResponse)
-def list_areas(active_only: bool = True, db: Session = Depends(get_db)) -> AreasResponse:
+def list_areas(
+    response: Response,
+    active_only: bool = True,
+    limit: int = Query(3000, ge=1, le=5000),
+    db: Session = Depends(get_db),
+) -> AreasResponse:
     """Areas the app can show, for picking a city from a list (TASK-6.2(8), ADR-026).
     Default = actively polled areas only (what `/dashboard/latest` lists without a
     parameter); `active_only=false` adds imported gminas nobody polls.
-    ponytail: no search/pagination - TASK-12.2 owns the ~2.5k-gmina picker."""
-    stmt = select(GeoArea).order_by(GeoArea.name, GeoArea.id)
+    ponytail: `limit` only bounds the response (~2.5k gminas fit); search/pagination is
+    TASK-12.2's picker. The list changes rarely, so clients/CDN may cache it 5 min."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    stmt = select(GeoArea).order_by(GeoArea.name, GeoArea.id).limit(limit)
     if active_only:
         stmt = stmt.where(GeoArea.weather_polling_active.is_(True))
     return AreasResponse(areas=[_area_out(a) for a in db.execute(stmt).scalars().all()])

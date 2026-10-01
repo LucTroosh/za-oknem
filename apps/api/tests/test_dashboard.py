@@ -7,6 +7,7 @@ weather snapshots.
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.v1.pollen import ATTRIBUTION, pollen_block
@@ -901,16 +902,35 @@ def test_dashboard_without_param_lists_polled_areas_as_before():
 
 
 def test_dashboard_inactive_area_is_explicit_no_data():
-    # An imported gmina nobody polls: still answerable, flagged, every block says "no data".
+    # An imported gmina nobody polls: still answerable and flagged. weather/forecast/pollen
+    # are empty; air comes from a catalog station within 50 km (select_stations works for any
+    # area, honest + useful); outdoor from that air alone must NOT be GOOD (core groups missing).
     gmina = GeoArea(**{**KLODZKO, "id": 7, "slug": "x", "weather_polling_active": False})
-    client = _client([], [], [], lookup=[gmina])
+    client = _client([], _outdoor_air(), [], lookup=[gmina])
 
     area = client.get("/api/v1/dashboard/latest?geo_area_id=7").json()["areas"][0]
 
     assert area["weather_polling_active"] is False
-    assert area["air"] is None and area["weather"] is None and area["forecast"] is None
+    assert area["air"]["station_id"] == "38"
+    assert area["weather"] is None and area["forecast"] is None
     assert area["outdoor"]["level"] == "UNKNOWN"
+    assert {m["group"] for m in area["outdoor"]["missing"] if m["blocking"]} >= {"thermal"}
     assert area["pollen"]["freshness"] == "UNAVAILABLE" and area["pollen"]["current"] is None
+
+
+def test_dashboard_inactive_area_without_station_has_every_block_empty():
+    gmina = GeoArea(**{**KLODZKO, "id": 7, "slug": "x", "weather_polling_active": False})
+    area = (
+        _client([], [], [], lookup=[gmina]).get("/api/v1/dashboard/latest?geo_area_id=7").json()
+    )["areas"][0]
+    assert area["air"] is None and area["weather"] is None and area["outdoor"]["level"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("path", ["dashboard/latest", "alerts/latest", "air/latest"])
+@pytest.mark.parametrize("value", ["0", "-1", "2147483648", "abc"])
+def test_geo_area_id_is_range_checked_422(path, value):
+    client = _client([], [], [], lookup=[GeoArea(**KLODZKO)])
+    assert client.get(f"/api/v1/{path}?geo_area_id={value}").status_code == 422
 
 
 def test_dashboard_geo_area_id_not_int_is_422():

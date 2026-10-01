@@ -4,7 +4,7 @@ from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -205,7 +205,9 @@ class DashboardResponse(BaseModel):
 
 
 @router.get("/dashboard/latest", response_model=DashboardResponse)
-def dashboard_latest(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+def dashboard_latest(
+    geo_area_id: int | None = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
     """Combined per-location view: weather (per geo_area, always) + nearest GIOŚ
     station's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006
     nearest-station join, not a general geo engine). Reads only from our own DB
@@ -275,7 +277,7 @@ def dashboard_latest(geo_area_id: int | None = None, db: Session = Depends(get_d
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.
-    forecasts = forecasts_by_area(db)
+    forecasts = forecasts_by_area(db, geo_area_id)
 
     # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
     # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
@@ -376,7 +378,7 @@ def dashboard_latest(geo_area_id: int | None = None, db: Session = Depends(get_d
     # TASK-8.9 / ADR-020: computed LAST and isolated (rule #1) - a failing pollen read or
     # block build must not take the rest of the dashboard down; it degrades to UNAVAILABLE.
     try:
-        pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db)}
+        pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db, geo_area_id)}
         pollen_status = source_freshness(db, POLLEN_SOURCE_ID, pollen_freshness)
         for out in areas_out:
             area_pollen = pollen_by_area.get(out["geo_area_id"])

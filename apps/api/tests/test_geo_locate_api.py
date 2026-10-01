@@ -13,6 +13,7 @@ from app.geo import NEAREST_AREA_MAX_KM, ResolvedArea, haversine_km, nearest_are
 from app.main import app
 from app.models import GeoArea
 
+CT = {"content-type": "application/json"}
 KLODZKO = GeoArea(
     id=1, slug="klodzko", name="Kłodzko", latitude=50.433493, longitude=16.65366,
     teryt_code="9999901", weather_polling_active=True,
@@ -206,3 +207,30 @@ def test_locate_database_error_is_503_and_leaks_no_coordinates(monkeypatch, capl
         r = client.post("/api/v1/geo/locate", json={"latitude": 50.123456, "longitude": 16.654321})
     assert r.status_code == 503
     assert "50.123456" not in caplog.text and "16.654321" not in caplog.text + r.text
+
+
+@pytest.mark.parametrize(
+    ("kwargs"),
+    [
+        {"json": {"latitude": 91.5, "longitude": 16.654321}},
+        {"json": [91.5, 16.654321]},
+        {"json": "91.5,16.654321"},
+        {"content": b'{"latitude": 91.5, "longitude": 16.654321', "headers": CT},
+        {"content": b"91.5,16.654321", "headers": CT},
+    ],
+)
+@pytest.mark.parametrize("path", ["/api/v1/geo/locate", "/api/v1/geo/resolve"])
+def test_422_bodies_carry_neither_input_nor_coordinates(monkeypatch, path, kwargs):
+    client, calls = _client(monkeypatch, None)
+    r = client.post(path, **kwargs)
+    assert r.status_code == 422 and calls == []
+    assert "input" not in r.text and "ctx" not in r.text
+    assert "91.5" not in r.text and "16.654321" not in r.text
+
+
+def test_areas_response_is_cacheable_and_limit_is_bounded(monkeypatch):
+    client, _ = _client(monkeypatch, None)
+    r = client.get("/api/v1/areas?active_only=false")
+    assert r.headers["cache-control"] == "public, max-age=300"
+    assert client.get("/api/v1/areas?limit=0").status_code == 422
+    assert client.get("/api/v1/areas?limit=5001").status_code == 422
