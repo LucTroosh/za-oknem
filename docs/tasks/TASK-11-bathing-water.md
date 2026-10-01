@@ -38,7 +38,7 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 
 Wystarczy jedna ścieżka; kroki 2–3 dotyczą tylko źródeł wybranych do użycia.
 
-1. Napisać do GIS (właściciel `sk.gis.gov.pl`) z prośbą o: udokumentowany
+1. Jeśli wybrana ma być ścieżka GIS: napisać do GIS (właściciel `sk.gis.gov.pl`) z prośbą o: udokumentowany
    eksport/API, pisemną zgodę na automatyczne pobieranie, warunki licencji i
    `commercial_use`, atrybucję, limit żądań i współrzędne/TERYT kąpielisk.
 2. Jeśli wybrane ma być EEA (tylko rejestr + klasyfikacja roczna): potwierdzić
