@@ -59,10 +59,9 @@ SOURCES: dict[str, SourceSpec] = {
 # `"token": "x"`. Input is capped first so the scan stays linear-ish (no ReDoS).
 _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
-# Authorization carries "<scheme> <credential>" (Basic/Bearer/Token ...): redact both words.
-_AUTH = re.compile(
-    r"""(?i)[\w-]*authorization[\w-]*["']?\s*[=:]\s*(?:[a-z]+\s+)?["']?[^\s"',;&)]+["']?"""
-)
+# Authorization values can be multi-part (Basic x, AWS4-HMAC-SHA256 Credential=..,
+# Signature=..): redact everything after the field name to the end of the message.
+_AUTH = re.compile(r"""(?i)[\w-]*authorization[\w-]*["']?\s*[=:].*""")
 _SECRET = re.compile(
     r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
     r"""\s*[=:]?\s*(?:bearer\s+)?["']?[^\s"',;&)]+["']?"""

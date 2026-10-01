@@ -153,6 +153,11 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("Authorization: Bearer tok.en.val", "tok.en.val"),
         ("Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
         ("Proxy-Authorization: Token t0k3n9", "t0k3n9"),
+        (
+            "Authorization: AWS4-HMAC-SHA256 Credential=AKID123/x, SignedHeaders=host, "
+            "Signature=SIG456",
+            "SIG456",
+        ),
     ],
 )
 def test_sanitize_error_redacts_credential_shapes(raw, secret):
