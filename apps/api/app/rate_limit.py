@@ -8,6 +8,7 @@ limit, and it resets on restart. Shared limiter (Redis) is TASK-15.4's decision;
 extending this to the whole API is TASK-14.2.
 """
 
+import ipaddress
 import threading
 import time
 from collections import deque
@@ -56,6 +57,13 @@ class RateLimiter:
                 )
             hits.append(now)
 
+    def refund(self, key: str) -> None:
+        """Give back the newest hit of `key` (a request that failed before doing the work)."""
+        with self._lock:
+            hits = self._hits.get(key)
+            if hits:
+                hits.pop()
+
     def _sweep(self, now: float) -> None:
         for key in [k for k, h in self._hits.items() if not h or h[-1] <= now - self.window]:
             del self._hits[key]
@@ -66,10 +74,23 @@ class RateLimiter:
 device_writes = RateLimiter(limit=30, window_seconds=60)
 
 
+def client_key(request: Request) -> str:
+    """Rate-limit key: the client IP, IPv6 collapsed to its /64 (one subscriber owns a whole
+    /64, so per-address keys would be free to rotate). Behind Caddy `request.client` is the
+    real client only when uvicorn runs with --proxy-headers and FORWARDED_ALLOW_IPS = the
+    proxy (ADR-029, TASK-15 production checklist); otherwise everyone shares one bucket."""
+    host = request.client.host if request.client else "unknown"
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if isinstance(ip, ipaddress.IPv6Address):
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return host
+
+
 def limit_device_writes(request: Request) -> None:
-    # Behind Caddy, request.client is the proxy unless uvicorn runs with
-    # --proxy-headers and FORWARDED_ALLOW_IPS set to it (deploy follow-up, TASK-15.x).
-    device_writes.check(request.client.host if request.client else "unknown")
+    device_writes.check(client_key(request))
 
 
 # ADR-029: switching polling on for a place costs Open-Meteo budget, and place ids are
@@ -79,4 +100,8 @@ place_activations = RateLimiter(limit=10, window_seconds=3600)
 
 
 def limit_place_activations(request: Request) -> None:
-    place_activations.check(request.client.host if request.client else "unknown")
+    place_activations.check(client_key(request))
+
+
+def refund_place_activation(request: Request) -> None:
+    place_activations.refund(client_key(request))

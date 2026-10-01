@@ -781,6 +781,11 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       uwzględnić allergy/family/outdoor z tego tasku; bez tej integracji
       zmiana ustawień nie ma żadnego efektu w produkcie. Dodać krok
       "zastosuj profil" po TASK-12.4 do dashboardu/kart pyłkowej/outdoor.
+- [ ] **TASK-6.4 (follow-up ADR-029, po review PR #85):** (W4) twardy bezpiecznik budżetu
+      Open-Meteo przy >90% dla obszarów z `place_id` (scheduler przycina ich pobrania, nie
+      tylko odmowa nowych aktywacji; dziś retry klienta HTTP może przekroczyć szacunek);
+      (W5) cache/limit `air_areas()` w GIOŚ (dziś każdy tick czyta wszystkie obszary z
+      `last_requested_at` w TTL, a liczba stacji rośnie z liczbą miejscowości).
 - [ ] **TASK-12.7:** Ekran wyboru dowolnej miejscowości (mobile) — UI na backendzie z
       TASK-6.3 / ADR-029; osobny task po decyzji o designie. **Acceptance criteria:** (1)
       wyszukiwarka z debounce na `GET /api/v1/places` (min. 2 znaki, stan pusty „Nie znaleziono”,
@@ -987,6 +992,12 @@ placeholderze.
       limiting per-device) + walidacja produkcyjna, ALBO — jeśli po
       przeanalizowaniu przy tej skali dalej nie ma uzasadnienia — formalna
       rewizja §103 przez ADR (rule #12), nie ciche pominięcie.
+- [ ] **TASK-15.6 (BLOKER PRODUKCJI, ADR-029):** Rate limit per IP za Caddy. Obraz API startuje
+      `uvicorn --proxy-headers`, ale `FORWARDED_ALLOW_IPS` musi wskazywać dokładnie adres/sieć
+      Caddy w sieci Dockera (nie `*`), a Caddy przekazywać `X-Forwarded-For`. Bez tego
+      `request.client` = proxy i `device_writes` oraz `place_activations` mają jeden bucket dla
+      wszystkich. **Acceptance:** test na stagingu — dwa różne IP mają osobne liczniki;
+      `/dashboard/latest` bez zmian po aktywacji miejscowości.
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**

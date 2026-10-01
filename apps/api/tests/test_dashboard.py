@@ -1019,3 +1019,18 @@ def test_dashboard_coverage_follows_the_catalog_even_before_the_first_measuremen
 
     assert area["air"] is None
     assert area["coverage"]["air"] == "exact"
+
+
+def test_default_area_list_excludes_user_chosen_places(monkeypatch):
+    # ADR-029: one user activating a place must not change everyone's default dashboard.
+    seen = []
+    original = _FakeSession.execute
+
+    def spy(self, stmt):
+        seen.append(str(stmt))
+        return original(self, stmt)
+
+    monkeypatch.setattr(_FakeSession, "execute", spy)
+    _client([GeoArea(**KLODZKO)], [], []).get("/api/v1/dashboard/latest")
+
+    assert "place_id IS NULL" in seen[0] and "weather_polling_active" in seen[0]

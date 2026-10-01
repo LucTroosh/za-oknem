@@ -559,6 +559,16 @@ class TestNewAreaBootstrap:
         assert scheduler.run_new_area_bootstrap({}, 0.0) == 2
         assert rollback.call_count == 2  # after each failed pollen fetch
 
+    def test_a_burst_is_spread_over_ticks(self, monkeypatch, db_session):
+        weather, _ = self._setup(monkeypatch, db_session)
+        for i in range(scheduler.BOOTSTRAP_BATCH + 2):
+            self._area(db_session, f"place-{i}", place_id=i + 1)
+        attempts: dict = {}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 0.0) == scheduler.BOOTSTRAP_BATCH
+        assert weather.call_count == scheduler.BOOTSTRAP_BATCH
+        assert scheduler.run_new_area_bootstrap(attempts, 1.0) == 2  # the rest, next tick
+
     def test_database_failure_never_raises(self, monkeypatch):
         monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
 

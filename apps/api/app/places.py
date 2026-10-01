@@ -126,6 +126,9 @@ def area_for_place(db: Session, place_id: int) -> GeoArea | None:
     return db.execute(select(GeoArea).where(GeoArea.place_id == place_id)).scalar_one_or_none()
 
 
+_ACTIVATION_LOCK_KEY = 2902_0001  # arbitrary app-wide advisory lock id (ADR-029)
+
+
 def activate_place(
     db: Session, place: Place, *, now: datetime | None = None
 ) -> tuple[GeoArea, Polling]:
@@ -133,8 +136,7 @@ def activate_place(
     polling on when capacity and today's budget allow. At capacity / over budget the area
     still exists, inactive: the dashboard shows weather/pollen UNAVAILABLE for it, never an
     error (rule #1). Returns the area and why polling is (not) active.
-    ponytail: the capacity check is not atomic - concurrent activations can overshoot the
-    cap by a few areas; tighten with a row lock if that ever matters."""
+    The capacity check is serialised by a Postgres advisory lock (hard cap)."""
     now = now or datetime.now(UTC)
     area = area_for_place(db, place.id)
     if area is None:
@@ -166,6 +168,10 @@ def activate_place(
     elif _budget_exhausted(db, now.date()):
         polling = "budget_exhausted"
     else:
+        if db.get_bind().dialect.name == "postgresql":
+            # Serialises the count -> activate step across requests (released at commit), so
+            # the cap is hard. SQLite (unit tests) is single-writer anyway.
+            db.execute(select(func.pg_advisory_xact_lock(_ACTIVATION_LOCK_KEY)))
         active = db.execute(
             select(func.count())
             .select_from(GeoArea)

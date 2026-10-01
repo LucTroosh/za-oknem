@@ -193,3 +193,53 @@ def test_switching_polling_on_is_rate_limited_per_ip_but_refreshing_is_not(clien
     assert codes == [200] * 10 + [429]
     # an already active area may be refreshed any number of times (the app does it on open)
     assert all(client.post("/api/v1/places/10/activate").status_code == 200 for _ in range(15))
+
+
+def test_activating_a_place_does_not_change_the_default_lists(client):
+    from app.models import PollenSnapshot
+
+    with client.factory() as db:
+        seed = GeoArea(slug="klodzko", name="Kłodzko", latitude=50.4, longitude=16.6,
+                       weather_polling_active=True)  # fmt: skip
+        db.add(seed)
+        db.commit()
+    client.post("/api/v1/places/1/activate")
+    with client.factory() as db:
+        for area in db.query(GeoArea).all():
+            db.add(
+                PollenSnapshot(
+                    source_id="open_meteo_pollen",
+                    source_record_id=f"p{area.id}",
+                    geo_area_id=area.id,
+                    unit="grains/m3",
+                    model="cams_europe",
+                    forecast_reference_time=NOW,
+                    valid_at=NOW,
+                    fetched_at=NOW,
+                )  # fmt: skip
+            )
+        db.commit()
+
+    areas = client.get("/api/v1/areas").json()["areas"]
+    pollen = client.get("/api/v1/pollen/latest").json()["areas"]
+
+    assert [a["slug"] for a in areas] == ["klodzko"]
+    assert [a["slug"] for a in pollen] == ["klodzko"]
+    with client.factory() as db:
+        place_area = db.query(GeoArea).filter(GeoArea.place_id.is_not(None)).one()
+    from app.api.v1.pollen import latest_pollen
+
+    with client.factory() as db:
+        assert [a["slug"] for a in latest_pollen(db, place_area.id)] == [place_area.slug]
+
+
+def test_failed_activation_gives_the_rate_limit_slot_back(client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    def boom(*a, **k):
+        raise OperationalError("x", {}, Exception("db"))
+
+    monkeypatch.setattr(places, "max_active_areas", lambda: 1000)
+    monkeypatch.setattr("app.api.v1.places.activate_place", boom)
+    for _ in range(12):  # more than the 10/h limit: all 503, none 429
+        assert client.post("/api/v1/places/1/activate").status_code == 503

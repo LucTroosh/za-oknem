@@ -148,6 +148,20 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
   pogody i pobiera pogodę + pyłki od razu — max 3 próby co 15 min na obszar (pamięć procesu,
   ADR-007), potem normalny cykl. Każda próba idzie przez ten sam licznik budżetu (#16: to nie
   „stała na wszelki wypadek”, tylko jednorazowy start nowego obszaru). API nie woła źródła (#14).
+- **Listy domyślne nie zawierają miejscowości użytkowników:** `/dashboard/latest`, `/areas`,
+  `/weather/latest`, `/weather/forecast`, `/pollen/latest` i fallback `/geo/locate` bez
+  `geo_area_id` pokazują wyłącznie obszary z `place_id IS NULL` (seed/PRG). Inaczej wybór jednego
+  użytkownika zmieniałby `areas` u wszystkich (klient woła dashboard bez parametru). Obszar
+  miejscowości jest dostępny tylko jawnie: `?geo_area_id=` (id z `activate`).
+- **Limit aktywnych jest twardy:** zliczenie i włączenie pollingu idą pod
+  `pg_advisory_xact_lock` (Postgres; zwalniany przy commit), więc równoległe aktywacje nie
+  przekroczą `max_active_areas()`.
+- **Bootstrap:** max 5 obszarów na tick (`BOOTSTRAP_BATCH`), reszta w kolejnych tickach.
+- **Klucz limitu per IP:** `client_key()` — IPv6 zwinięty do /64. Za Caddy `request.client` to
+  prawdziwy klient tylko przy `uvicorn --proxy-headers` + `FORWARDED_ALLOW_IPS` = adres Caddy
+  (w obrazie jest `--proxy-headers`; `FORWARDED_ALLOW_IPS` ustawia deployment — **bloker
+  produkcji**, TASK-15.2). Inaczej wszyscy dzielą jeden bucket (limit 10/h dla całego świata).
+  Nieudana aktywacja (503) zwraca zużyty slot.
 - **Nadużycie:** `activate` przełączający polling z wyłączonego na włączony jest limitowany per IP
   (10/h, in-memory jak ADR-017); odświeżenie już aktywnego obszaru nie jest limitowane. To
   ograniczenie, nie zabezpieczenie — wyliczalne `place_id` + botnet mogą zająć limit 411 na TTL.
@@ -203,8 +217,7 @@ kalibracji. `exact` i `nearby` — bez zmian (wchodzą do werdyktu).
   GIOŚ; lista sensorów nadal bez cache (zapisane w ADR-025).
 - **Niezweryfikowane:** brak lokalnego uruchomienia testów/`alembic check` (PyPI niedostępne) — pierwszy dowód to CI;
   `openapi.json` zaktualizowany ręcznie wg konwencji FastAPI (weryfikuje krok CI `--check`).
-- **Limit aktywnych nie jest atomowy** (równoległe aktywacje mogą przekroczyć o kilka); poprawka
-  = blokada wiersza, gdyby miało to znaczenie. Retry w kliencie HTTP mnoży zużycie jednostek
+- Retry w kliencie HTTP mnoży zużycie jednostek
   ponad szacunek 8/dobę (znane z ADR-003/022; próg 90% to bufor).
 - Zastępuje częściowo: ADR-025 (limit 50 km → pasma do 100 km), uzupełnia ADR-026 (mechanizm
   aktywacji, którego ADR-026 nie definiował; `POST /geo/locate` bez zmian).

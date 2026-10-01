@@ -137,10 +137,10 @@ def latest_pollen(db: Session, geo_area_id: int | None = None) -> list[dict]:
     for r in rows:
         by_area[r.geo_area_id].append(r)
 
-    areas_by_id = {
-        a.id: a
-        for a in db.execute(select(GeoArea).where(GeoArea.id.in_(list(by_area)))).scalars().all()
-    }
+    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(by_area)))
+    if geo_area_id is None:  # default list: no user-chosen place areas (ADR-029)
+        area_stmt = area_stmt.where(GeoArea.place_id.is_(None))
+    areas_by_id = {a.id: a for a in db.execute(area_stmt).scalars().all()}
 
     now = datetime.now(UTC)
     slot = now.replace(minute=0, second=0, microsecond=0)

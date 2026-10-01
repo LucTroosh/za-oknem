@@ -114,7 +114,8 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
         grouped[row.geo_area_id].append(row)
 
     # Only the areas that actually have snapshots - never every imported gmina (ADR-019).
-    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(grouped)))
+    # Default lists exclude user-chosen place areas (ADR-029): those only via an explicit id.
+    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(grouped)), GeoArea.place_id.is_(None))
     areas_by_id = {a.id: a for a in db.execute(area_stmt).scalars().all()}
 
     areas = []
@@ -228,7 +229,10 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
     if not forecasts:
         return {"areas": []}
 
-    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(forecasts)))
+    area_stmt = select(GeoArea).where(
+        GeoArea.id.in_(list(forecasts)),
+        GeoArea.place_id.is_(None),  # ADR-029
+    )
     areas_by_id = {a.id: a for a in db.execute(area_stmt).scalars().all()}
     areas = []
     for geo_area_id, forecast in forecasts.items():

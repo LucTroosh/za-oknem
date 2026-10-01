@@ -17,7 +17,7 @@ from app.places import (
     place_label,
     search_places,
 )
-from app.rate_limit import limit_place_activations
+from app.rate_limit import limit_place_activations, refund_place_activation
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -125,13 +125,16 @@ def activate(
     Switching polling on is rate-limited per IP; refreshing an already active area is not."""
     place = _get_place(db, place_id)
     existing = area_for_place(db, place_id)
-    if existing is None or not existing.weather_polling_active:
+    counted = existing is None or not existing.weather_polling_active
+    if counted:
         limit_place_activations(request)
     try:
         area, polling = activate_place(db, place)
     except SQLAlchemyError:
         logger.error("place activation failed: database error (details withheld)")
         db.rollback()
+        if counted:
+            refund_place_activation(request)  # a failed attempt must not burn the user's slot
         raise HTTPException(status_code=503, detail="Places unavailable") from None
     return PlaceAreaResponse(
         place=_place_out(place),

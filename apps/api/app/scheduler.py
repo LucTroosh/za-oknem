@@ -60,6 +60,7 @@ PLACE_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
 # instead of waiting for the 3 h / 24 h cycle. Bounded so a failing area cannot burn budget.
 BOOTSTRAP_MAX_ATTEMPTS = 3
 BOOTSTRAP_RETRY_SECONDS = 15 * 60
+BOOTSTRAP_BATCH = 5  # areas per tick: a burst of activations spreads over ticks, not one stall
 
 
 def _gios_station_ids() -> list[str]:
@@ -144,7 +145,7 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
             if attempts.get(a.id, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
             and now - attempts.get(a.id, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
         ]
-        for area, need_weather, need_pollen in due:
+        for area, need_weather, need_pollen in due[:BOOTSTRAP_BATCH]:
             count = attempts.get(area.id, (0, 0.0))[0]
             attempts[area.id] = (count + 1, now)
             # Each part is retried on its own: a pollen failure after a successful weather
@@ -157,7 +158,7 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
                 except Exception:
                     logger.exception("bootstrap: pollen for %s failed", area.slug)
                     db.rollback()  # a DB error would poison the shared session for the next area
-        return len(due)
+        return min(len(due), BOOTSTRAP_BATCH)
     except Exception:
         logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
         if db is not None:

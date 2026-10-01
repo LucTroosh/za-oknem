@@ -254,7 +254,11 @@ def dashboard_latest(
             raise HTTPException(status_code=404, detail="geo_area not found")
         areas = [chosen]
     else:
-        area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+        # ADR-029: user-chosen places are NOT in the default list (one user's pick must not
+        # change everyone's dashboard) - they are reachable only via ?geo_area_id=.
+        area_stmt = select(GeoArea).where(
+            GeoArea.weather_polling_active.is_(True), GeoArea.place_id.is_(None)
+        )
         areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.

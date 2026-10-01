@@ -63,7 +63,8 @@ def select_stations(
 ) -> list[StationMatch]:
     """Pure, deterministic point -> stations (rule #9, ADR-025). `stations` are
     (station_id, lat, lon). Only stations within `max_km` (inclusive) qualify; result is
-    sorted by distance rounded to 1 m (the limit itself is checked unrounded), ties broken
+    ranked by distance rounded to 1 m (the limit itself is checked unrounded; coverage is then
+    classified at the 0.1 km clients see, ADR-029), ties broken
     by station id (digit ids in numeric order), so input order never changes the outcome.
     Empty list = no data for the area."""
     scored = []
