@@ -18,25 +18,25 @@ Dotąd `BASE_URL` Open-Meteo był zahardkodowany w `connectors/open_meteo/client
 Jeśli funkcję można zbudować na wiarygodnym darmowym / open-data źródle, nie integrujemy
 płatnego odpowiednika w MVP. Kierunek (tabela właściciela):
 
-| Obszar | Źródło w MVP | Pomijamy |
-|---|---|---|
-| pogoda | Open-Meteo Free | — |
-| pyłki | Open-Meteo / CAMS (prognoza modelowa) | Google Pollen API |
-| powietrze (pomiary) | GIOŚ | Airly itp. |
-| model jakości powietrza | CAMS | — |
-| kąpieliska | GIS / Sanepid | — |
-| woda pitna | Sanepid / PSSE / WSSE | — |
-| alerty | RCB + źródła urzędowe | — |
-| hydrologia | darmowe dane IMGW (po weryfikacji konkretnego datasetu) | — |
-| wody powierzchniowe | GIOŚ | — |
-| geo | GUGiK / PRG / TERYT | — |
-| środowisko / awarie | GIOŚ, później EFFIS / Copernicus | — |
+| Obszar | Źródło w MVP | Pomijamy | Monetyzacja |
+|---|---|---|---|
+| pogoda | Open-Meteo Free | — | wymaga planu komercyjnego Open-Meteo |
+| pyłki | Open-Meteo / CAMS (prognoza modelowa) | Google Pollen API | plan komercyjny Open-Meteo (dane CAMS: OK z atrybucją) |
+| powietrze (pomiary) | GIOŚ | Airly itp. | OK z atrybucją (CC BY 4.0) |
+| model jakości powietrza | CAMS | — | OK z atrybucją Copernicus |
+| kąpieliska | GIS / Sanepid — brak API/zgody, patrz ADR-021 | — | nieustalone |
+| woda pitna | Sanepid / PSSE / WSSE — brak API/zgody, patrz ADR-021 | — | nieustalone |
+| alerty | RCB (brak publicznego API) + źródła urzędowe | — | nieustalone |
+| hydrologia | darmowe dane IMGW (po weryfikacji konkretnego datasetu) | — | wymaga umowy IMGW lub potwierdzenia HVD |
+| wody powierzchniowe | GIOŚ | — | OK z atrybucją |
+| geo | GUGiK / PRG / TERYT | — | PRG: OK wg brzmienia strony (brak formalnej licencji) |
+| środowisko / awarie | GIOŚ, później EFFIS / Copernicus | — | OK z atrybucją (EFFIS CC BY 4.0) |
 
 **FREE-FIRST ≠ approved ≠ dostępne.** Tabela to kierunek, nie zgoda. Każde źródło dalej
 przechodzi Source Approval Gate (rule #15) i ma wpis w `docs/data/source-registry.md`.
 Część wierszy ma jawne blokady dostępności lub licencji (kąpieliska — ADR-021; woda pitna;
 `imgw_warningsmeteo` — brak żywego kształtu; PRG/TERYT — licencja UNKNOWN, patrz registry):
-„darmowe” nie znaczy „mamy dane i prawo ich użycia”. Darmowy ≠ komercyjnie wolny: IMGW i
+„darmowe” nie znaczy „mamy dane i prawo ich użycia”, ani „wolno monetyzować”. Rezerwa dostawcy pogody (MET Norway, CC BY 4.0, komercyjnie OK z atrybucją): registry `met_norway`. Darmowy ≠ komercyjnie wolny: IMGW i
 Open-Meteo Free są niekomercyjne.
 
 ### 2. Konfiguracja providera (env), zero hardcode

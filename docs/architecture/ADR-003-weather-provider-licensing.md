@@ -36,7 +36,7 @@ monetyzację (niekoniecznie Open-Meteo jako takie, ale ogólnie produkt)?
   **Zaktualizowane przez ADR-020 (2026-10-01):** bez klucza ADS pyłki MVP idą przez
   Open-Meteo Air Quality API (ten sam model CAMS Europe), więc podlegają TEJ SAMEJ
   zasadzie niekomercyjnego tieru i triggerom rewizji poniżej. Bezpośredni ADS
-  zostaje opcją po rewizji.
+  zostaje opcją po rewizji. Patrz ADR-020.
 
 ## Trigger do rewizji tego ADR
 
@@ -75,5 +75,10 @@ włączana, dopóki wszystkie punkty nie są odhaczone w PR rewizji tego ADR:
       w `source_fetches.endpoint`, logach i `/health/sources` brak klucza.
 - [ ] Pozostałe źródła z `commercial_use: NIE` w `source-registry.md` (m.in. IMGW) mają
       załatwioną licencję komercyjną lub są wyłączone.
+- [ ] IMGW: płatna umowa (biznes@imgw.pl) albo potwierdzenie, że używane zbiory to dane o
+      wysokiej wartości (HVD, rozp. UE 2023/138 — dziś NIEZWERYFIKOWANE); wyjaśnione z IMGW
+      CC BY-NC-ND 4.0 zbioru na dane.gov.pl (rekord 3120) vs API.
+- [ ] Open-Meteo: pisemne potwierdzenie dla Patronite (szara strefa), jeśli to ta forma;
+      ceny planów zweryfikowane u źródła (w registry NIEZWERYFIKOWANE).
 - [ ] Atrybucje (Open-Meteo, CAMS, GIOŚ, IMGW…) nadal widoczne w ekranie Źródła.
 - [ ] ADR-003 zmieniony na Superseded z nową decyzją.

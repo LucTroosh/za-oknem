@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-01 (po PR #65; PR #63 w toku)
+**Ostatnia aktualizacja:** 2026-10-01 (po PR #65 i #63; PR #72 w toku)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -18,8 +18,7 @@ Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 Pierwszy cel z CLAUDE.md — **Vertical Slice: GIOŚ → Connector → PostgreSQL →
 FastAPI → React Native → PM2.5 na ekranie** — jest zrobiony i rozszerzony o
 kolejne źródła (pogoda, poziom wody, ostrzeżenia hydrologiczne). Nie jesteśmy
-jeszcze przy pełnym zakresie danych z §4 Master Planu (pyłki, woda/kąpieliska
-w ogóle nie zaczęte) ani przy pełnym MVP mobile (tylko jeden ekran, bez
+jeszcze przy pełnym zakresie danych z §4 Master Planu (pyłki nie zaczęte; woda/kąpieliska: tylko research i ADR-021, źródło ZABLOKOWANE — patrz 2.4 i sekcja 6) ani przy pełnym MVP mobile (tylko jeden ekran, bez
 Alerts/Settings/push/profilu).
 
 ---
@@ -52,9 +51,9 @@ Alerts/Settings/push/profilu).
 
 | Metryka | Status |
 |---|---|
-| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⬜ TODO — brak connectora, brak Source Approval Gate |
-| E. coli, enterokoki, sinice | ⬜ TODO — brak connectora, brak Source Approval Gate |
-| data ostatniego / następnego badania próbki | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| status kąpieliska (dopuszczone/niedopuszczone), przyczyna zamknięcia, sezon kąpielowy, lokalizacja kąpieliska | ⛔ BLOCKED — research + ADR-021 (Proposed) gotowe (TASK-11.1 częściowo); GIS (`sk.gis.gov.pl`) to HTML bez API/licencji, EEA daje tylko rejestr + klasyfikację roczną (licencja wydania 2025 niepotwierdzona); brak źródła statusu bieżącego |
+| E. coli, enterokoki, sinice | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
+| data ostatniego / następnego badania próbki | ⛔ BLOCKED — brak źródła bieżących pomiarów (ADR-021, TASK-11) |
 
 ### 2.5. Hydrologia (§8)
 
@@ -70,7 +69,7 @@ Alerts/Settings/push/profilu).
 |---|---|
 | ostrzeżenia hydrologiczne | ✅ DONE (patrz 2.5) |
 | ostrzeżenia meteorologiczne | ⛔ BLOCKED — `imgw_warningsmeteo`: `client.py` + dispatch pustego stanu zweryfikowane i gotowe (PR #38), ale `normalize()` (mapowanie pól pojedynczego ostrzeżenia) **czeka na żywy przykład aktywnego ostrzeżenia** — API nie miało żadnego w chwili implementacji, a nieoficjalne źródła sugerują inny schemat pól niż hydro. Nie zgadujemy danych bezpieczeństwa (rule #10/#15). Wznowić: `docs/tasks/TASK-9.2-imgw-warningsmeteo-blocked.md` |
-| zamknięcia kąpielisk | ⬜ TODO — zależne od connectora wody (2.4) |
+| zamknięcia kąpielisk | ⛔ BLOCKED — zależne od źródła statusu bieżącego kąpielisk (2.4, ADR-021) |
 | istotne lokalne zagrożenia / zweryfikowane zdarzenia | ⬜ TODO — model `Event` (§31) nie istnieje |
 | geo-matching alertu → lokalizacja użytkownika | ⬜ TODO — świadomy non-goal ADR-009; `/alerts/latest` zwraca WSZYSTKIE aktywne ostrzeżenia w Polsce, bez filtrowania |
 | Alert Engine (§47) / Notification Engine (§50) | ⬜ TODO — poza scope'em dotychczasowych tasków, świadomie odłożone |
@@ -135,6 +134,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Blokada | Co odblokuje | Task |
 |---|---|---|
 | `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
+| Kąpieliska: brak źródła BIEŻĄCEGO statusu | Status BIEŻĄCY wymaga zgody/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji) lub innego zatwierdzonego źródła (dane.gov.pl/WIOŚ — kandydaci, niesprawdzeni). EEA po potwierdzeniu licencji wydania 2025, schematu i filtra PL odblokuje tylko rejestr + klasyfikację roczną, NIE status bieżący. Pełny Gate §38 (APPROVED) dla każdego wybranego źródła | TASK-11.1/11.2, ADR-021 |
 | Geo-matching alertów do lokalizacji | Decyzja o metodzie (statyczna mapa 7 lokalizacji→województwo, czy pełny Geo Engine z TERYT, §27, Phase 6) | brak (non-goal ADR-009) |
 
 ---
@@ -172,6 +172,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #64 | Outdoor Interpretation Engine (ADR-016, TASK-7.6) — czysty moduł, niepodłączony do API |
 | #65 | Provenance: `source_fetches` + `source_fetch_id`, retencja payloadów (ADR-014, TASK-3.1) |
 | #63 | Europejski indeks jakości powietrza EAQI/EEA (ADR-015, TASK-4.2): `air_index.py`, `index` w `/air/latest` i dashboardzie, mobile `AirIndexBadge`; indeks GIOŚ odłożony |
+| #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
 
 ---

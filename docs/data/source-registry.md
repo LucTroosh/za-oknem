@@ -23,7 +23,14 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   rzuca czytelny błąd zamiast zgadywać, pierwsza żywa weryfikacja to najbliższy
   realny `docker compose exec api python -m app.connectors.open_meteo.ingest`.
 - **coverage:** globalne, w tym Polska
-- **license:** CC BY 4.0 (atrybucja wymagana)
+- **license (DANE):** CC BY 4.0 (atrybucja wymagana)
+- **access_terms (DOSTĘP do API, osobno od licencji danych):** darmowe API wyłącznie
+  niekomercyjnie; „komercyjne” m.in. aplikacje z subskrypcjami lub reklamami; limity 600/min,
+  5000/h, 10000/dzień, 300000/mies.; bez gwarancji uptime. Plany płatne: Standard 1M /
+  Professional 5M / Enterprise 50M+ wywołań/mies. (pricing, audyt 2026-10-01). Ceny planów:
+  NIEZWERYFIKOWANE (blog substack podaje $29/$99 — nie przyjmować jako fakt). Host
+  `customer-air-quality-api…` wywnioskowany z reguły prefiksu. Patronite = szara strefa →
+  pisemne potwierdzenie od Open-Meteo PRZED użyciem.
 - **commercial_use:** NIE na darmowym tierze (Free = wyłącznie niekomercyjny) — patrz ADR-003.
   Przed jakąkolwiek monetyzacją: plan komercyjny (Standard+) + checklista w ADR-003; przejście
   = wyłącznie zmiana env (base URL + klucz), ADR-022.
@@ -71,7 +78,14 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
   NIEZWERYFIKOWANE — parser zachowuje oba wiernie)
 - **nature:** PROGNOZA MODELOWA, nie pomiar (rule #7). ADS: prognozy zmiennych poza
   NO/NO₂/SO₂/O₃/PM2.5/PM10/pyłem „are unvalidated and should be considered experimental”
-- **license:** Open-Meteo: CC BY 4.0; dane CAMS: CC-BY (strona datasetu ADS). Wcześniejszy
+- **license (DANE):** Open-Meteo: CC BY 4.0; dane CAMS: CC-BY (strona datasetu ADS).
+  **access_terms (DOSTĘP do API):** jak w `open_meteo` — darmowe wyłącznie niekomercyjnie
+  („komercyjne” m.in. aplikacje z subskrypcjami lub reklamami), 600/min, 5000/h, 10000/dzień,
+  300000/mies., bez gwarancji uptime; plany Standard 1M / Professional 5M / Enterprise 50M+
+  /mies.; ceny NIEZWERYFIKOWANE; Patronite = szara strefa → pisemne potwierdzenie od
+  Open-Meteo przed użyciem. **Sezonowość (audyt 2026-10-01):** CAMS Regional deklaruje pyłki
+  cały rok od 11.2023, a Open-Meteo pisze „tylko w sezonie” — rozbieżność wpływa na
+  interpretację null vs 0 (NIEROZSTRZYGNIĘTE; parser zachowuje oba wiernie). Wcześniejszy
   wpis `cams_ads` mówił „bez ograniczeń użycia” — strona datasetu podaje CC-BY, więc
   atrybucja jest obowiązkowa
 - **commercial_use:** NIE na darmowym tierze Open-Meteo (Free = wyłącznie niekomercyjny) — ta
@@ -136,15 +150,16 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 - **frequency:** raz dziennie (prognoza pyłków aktualizowana raz/dzień, 4 dni naprzód) —
   zgodne z ADR-004, fetch nie częściej niż ten cykl
 - **coverage:** Europa, w tym Polska (tylko powierzchnia, brak pionowego profilu)
-- **license:** dane opisane przez Copernicus jako dostępne bez ograniczeń użycia,
-  wymagana widoczna atrybucja programu Copernicus (Licence to Use Copernicus Products)
-- **commercial_use:** TAK (bez ograniczeń wg dokumentacji Copernicus) — do potwierdzenia
-  przy pełnym Source Approval Gate przed Phase 8
+- **license:** Licence to Use Copernicus Products rev. 12 (audyt 2026-10-01): darmowa;
+  wymagana atrybucja „Contains modified Copernicus Atmosphere Monitoring Service information
+  [rok]” oraz zastrzeżenie, że Komisja Europejska/ECMWF nie odpowiadają za użycie danych
+  (poprzednie sformułowanie „bez ograniczeń użycia” usunięte — licencja ma warunki)
+- **commercial_use:** TAK (licencja Copernicus rev. 12, z powyższą atrybucją i zastrzeżeniem)
 - **redistribution:** wymaga atrybucji Copernicus przy każdej publikacji danych
 - **caching:** snapshot dzienny w bazie, tak jak weather (ADR-001)
 - **rate_limit:** nieznany dokładnie — UNKNOWN, sprawdzić przy implementacji (Phase 8)
 - **attribution:** "Contains modified Copernicus Atmosphere Monitoring Service
-  information" — wymagane
+  information [rok]" + zastrzeżenie o braku odpowiedzialności KE/ECMWF — wymagane
 - **status:** DISCOVERY (licencja wstępnie sprawdzona, techniczny kształt API nie
   zweryfikowany)
 - **last_verified_at:** 2026-09-28
@@ -165,17 +180,19 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   co godzinę dla danych, raz na dzień/tydzień dla listy stacji — do ostatecznego
   ustalenia w Phase 5.
 - **coverage:** Polska (sieć stacji GIOŚ, liczba i lokalizacje zmienne)
-- **license:** dane publiczne sektora publicznego — wymagane "jasne i wyraźne wskazanie
-  źródła" przy republikacji (cytat z dokumentacji GIOŚ)
-- **commercial_use:** brak jawnego zakazu w znalezionej dokumentacji — do potwierdzenia
-  przy pełnym Source Approval Gate przed produkcją
+- **license:** CC BY 4.0 (dane.gov.pl, zbiór „Jakość powietrza w Polsce - API”, rekord 313;
+  audyt 2026-10-01). Czy ten rekord dotyczy API v1 (`/pjp-api/v1/rest/`): do potwierdzenia
+  (nie rozstrzygnięte w audycie). Dokumentacja GIOŚ: „jasne i wyraźne wskazanie źródła”
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją)
+- **terms_note:** regulamin portalu zaleca nie częściej niż 2×/h
 - **redistribution:** dozwolona z atrybucją źródła
 - **caching:** zgodnie z regułą #14 (CLAUDE.md) — mobile API czyta wyłącznie z naszej
   bazy, nigdy nie woła GIOŚ na żądanie użytkownika
 - **rate_limit:** 2 zapytania/min (endpointy standardowe, np. listy stacji),
   1500 zapytań/min (dane bieżące i indeks jakości powietrza) — wg dokumentacji GIOŚ
-- **attribution:** "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)" — wymagane w
-  ekranie Źródła
+- **attribution:** wg regulaminu portalu: „Źródło danych: GIOŚ - EKOINFONET” + informacja o
+  przetworzeniu danych (poprzednio w UI: "Dane: Główny Inspektorat Ochrony Środowiska
+  (GIOŚ)" — do ujednolicenia z regulaminem) — wymagane w ekranie Źródła
 - **status:** IMPLEMENTED (connector `gios` — client/parser/ingest — oraz
   `GET /api/v1/air/latest` gotowe; VERIFIED na żywo 2026-09-28, użytkownik uruchomił
   connector przeciwko prawdziwemu API). **Realny kształt odpowiedzi różni się istotnie od pierwotnie
@@ -219,6 +236,12 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 
 ## imgw_hydro (stan wody — Measurement)
 
+- **regulamin IMGW (audyt 2026-10-01):** nieodpłatnie do celów prywatnych; użycie komercyjne
+  (działalność gospodarcza, w tym strona z reklamami) wymaga płatnej umowy
+  (biznes@imgw.pl); wyjątek: dane o wysokiej wartości (HVD, rozp. UE 2023/138) —
+  NIEZWERYFIKOWANE, czy hydro/ostrzeżenia to HVD. Zbiór plikowy IMGW na dane.gov.pl ma
+  CC BY-NC-ND 4.0 (rekord 3120); związek z API niewyjaśniony (ND kłóci się z normalizacją
+  danych) → do wyjaśnienia z IMGW przed monetyzacją (checklista ADR-003).
 - **owner:** Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy
   (Polska, instytucja publiczna)
 - **connector:** `imgw_hydro`
@@ -262,6 +285,12 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 
 ## imgw_warningshydro (ostrzeżenia hydrologiczne — Alert)
 
+- **regulamin IMGW (audyt 2026-10-01; ten sam regulamin co `imgw_hydro`):** nieodpłatnie do celów prywatnych; użycie komercyjne
+  (działalność gospodarcza, w tym strona z reklamami) wymaga płatnej umowy
+  (biznes@imgw.pl); wyjątek: dane o wysokiej wartości (HVD, rozp. UE 2023/138) —
+  NIEZWERYFIKOWANE, czy hydro/ostrzeżenia to HVD. Zbiór plikowy IMGW na dane.gov.pl ma
+  CC BY-NC-ND 4.0 (rekord 3120); związek z API niewyjaśniony (ND kłóci się z normalizacją
+  danych) → do wyjaśnienia z IMGW przed monetyzacją (checklista ADR-003).
 - **connector:** `imgw_warningshydro` (client/parser/ingest) — model `Alert`
   (ADR-009), oddzielny od `imgw_hydro`/Measurement (rule #7)
 - **endpoint:** `https://danepubliczne.imgw.pl/api/data/warningshydro` —
@@ -281,8 +310,65 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   `severity_raw` przechowywane bez reinterpretacji (rule #10)
 - **last_verified_at:** 2026-09-29
 
+## gis_bathing_sk (Serwis Kąpieliskowy GIS — bieżący status kąpielisk, BLOCKED)
+
+- **owner:** Główny Inspektorat Sanitarny (Polska, instytucja publiczna)
+- **connector:** brak (nie implementować — patrz ADR-021)
+- **endpoint:** `https://sk.gis.gov.pl/kapieliska` (lista HTML, ok. 718
+  kąpielisk), `https://sk.gis.gov.pl/index.php/kapielisko/{id}` (strona
+  kąpieliska: status wody, E. coli, enterokoki, daty badań, sezon) — sprawdzone
+  WebFetch 2026-10-01; to HTML renderowany serwerowo, nie udokumentowane API.
+- **frequency:** min. 3 badania w sezonie, odstęp maks. miesiąc (gov.pl GIS);
+  cykl odświeżania strony nieznany
+- **license / commercial_use / redistribution / rate_limit:** NIEZNANE — na
+  stronach kąpieliska ani `/informacje` nie znaleziono regulaminu ani licencji
+  (tekst portalu gov.pl jest CC BY-SA 4.0, ale to nie licencja danych serwisu)
+- **attribution:** do ustalenia z GIS
+- **status:** BLOCKED — brak zgody/warunków na automatyczne pobieranie
+  (rule #15); potrzebny kontakt z GIS
+- **last_verified_at:** 2026-10-01
+
+## eea_bathing_water (EEA — Bathing Water Directive, rejestr + klasyfikacja roczna)
+
+- **owner:** European Environment Agency (dane: organy państw członkowskich)
+- **connector:** brak (kandydat, niezaimplementowany)
+- **endpoint:** zbiór „Bathing Water Directive - Status of bathing water"
+  (EEA Datahub, Excel .xls/.xlsx, publikacja 2026-06-02, pokrycie do 2025);
+  usługa `https://marine.discomap.eea.europa.eu/arcgis/rest/services/BathingWater/BathingWater_Dyna_WM_2025/MapServer`
+  (docelowa, ale pola `_2025` NIE sprawdzone; poniższą listę pól zweryfikowano
+  na starszej `..._2018`, warstwa 0: `monitoringSiteIdentifier`, `bathingWaterName`, `countryName`,
+  `bwWaterCategory`, `latitude`, `longitude`, `qualityStatus`,
+  `qualityStatus_minus1..10`, `bwProfileLink`; JSON/geoJSON/PBF;
+  `maxRecordCount` 1000 — wg `_2018`) — sprawdzone WebFetch 2026-10-01
+- **frequency:** roczna (cykl raportowania Dyrektywy); NIE status bieżący
+- **coverage:** Europa, w tym Polska (filtr po kraju niezweryfikowany)
+- **license / commercial_use:** wydanie 2024 (rekord katalogu EEA
+  `30e5d599-6bc1-408d-9e65-a10e433b81ef`): CC BY 4.0, copyright DG ENV/EEA
+  (zweryfikowane 2026-10-01); wydanie 2025 — NIEZWERYFIKOWANE. ArcGIS ma
+  usługę per rok (`..._2015`…`_2025`) — aktualna to `_2025`, nie `_2018`. Copyright usługi: „EEA, Bathing waters
+  data and coordinates: Member states authorities"
+- **rate_limit:** nieznany
+- **attribution:** do ustalenia po potwierdzeniu licencji
+- **nie zawiera:** przydatności bieżącej, przyczyny zamknięcia, E. coli,
+  enterokoków, sinic, dat badań
+- **status:** DISCOVERY (kandydat na rejestr lokalizacji + klasyfikację roczną;
+  Gate niezaliczony — licencja wydania 2025, schemat pliku/pól `_2025` i filtr
+  po kraju niepotwierdzone)
+- **last_verified_at:** 2026-10-01
+
+## dane.gov.pl (kąpieliska) — NIEZWERYFIKOWANE
+
+Próba odczytu `api.dane.gov.pl` nie powiodła się (błąd uprawnień narzędzia),
+wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręcznie.
+
 ## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, ZABLOKOWANE na weryfikacji)
 
+- **regulamin IMGW (audyt 2026-10-01; ten sam regulamin co `imgw_hydro`):** nieodpłatnie do celów prywatnych; użycie komercyjne
+  (działalność gospodarcza, w tym strona z reklamami) wymaga płatnej umowy
+  (biznes@imgw.pl); wyjątek: dane o wysokiej wartości (HVD, rozp. UE 2023/138) —
+  NIEZWERYFIKOWANE, czy hydro/ostrzeżenia to HVD. Zbiór plikowy IMGW na dane.gov.pl ma
+  CC BY-NC-ND 4.0 (rekord 3120); związek z API niewyjaśniony (ND kłóci się z normalizacją
+  danych) → do wyjaśnienia z IMGW przed monetyzacją (checklista ADR-003).
 - **connector:** `imgw_warningsmeteo` — CZĘŚCIOWY: `client.py` (fetch + retry)
   i `parser.py::parse_warnings()` (dispatch listy/pustego stanu) gotowe i
   zweryfikowane. `normalize()` (mapowanie pól pojedynczego ostrzeżenia) i
@@ -307,6 +393,32 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   aktywnego ostrzeżenia meteo
 - **last_verified_at:** 2026-09-29
 
+## rcb (Rządowe Centrum Bezpieczeństwa — alerty RCB)
+
+- **status:** NOT AVAILABLE / BLOCKED — nie znaleziono publicznego API ani feedu (audyt
+  2026-10-01); dane.gov.pl nie sprawdzone. Nic nie implementujemy (rule #10/#15).
+- **license / commercial_use / endpoint / frequency:** UNKNOWN
+
+## effis (European Forest Fire Information System — Copernicus)
+
+- **license:** CC BY 4.0 (audyt 2026-10-01)
+- **endpoint / frequency / rate_limit / coverage:** nie sprawdzano (UNKNOWN)
+- **status:** DISCOVERY (kandydat „później”, ADR-022)
+
+## met_norway (MET Norway Locationforecast — ZAPAS z ADR-003, nieużywany)
+
+- **license:** CC BY 4.0 / NLOD; commercial_use: TAK (z atrybucją)
+- **warunki dostępu:** wymagany identyfikujący User-Agent; wymagane lokalne cache; limit
+  20 req/s; współrzędne maks. 4 miejsca po przecinku (audyt 2026-10-01)
+- **status:** DISCOVERY — rezerwa na wypadek rewizji ADR-003; zestaw zmiennych i pokrycie
+  Polski NIEZWERYFIKOWANE
+
+## sanepid_water (woda pitna — Sanepid / PSSE / WSSE)
+
+- **status:** NIEZWERYFIKOWANE / BLOCKED — nie znaleziono zbioru danych ani API (audyt
+  2026-10-01). Brak zgody/dostępu — patrz ADR-021 (kąpieliska, analogiczny problem).
+- **license / commercial_use / endpoint:** UNKNOWN
+
 ## prg_gminy (GUGiK — Państwowy Rejestr Granic, granice gmin)
 
 - **owner:** Główny Urząd Geodezji i Kartografii (GUGiK, Polska, instytucja publiczna)
@@ -323,8 +435,8 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 - **license:** strona PRG: „Dane PRG są dostępne bezpłatnie i do dowolnego wykorzystania".
   NIE zweryfikowano formalnego tekstu licencji/warunków (np. czy wymagana jest atrybucja)
   — do potwierdzenia przez człowieka przed użyciem produkcyjnym
-- **commercial_use:** UNKNOWN (sformułowanie „do dowolnego wykorzystania" sugeruje TAK, ale
-  to nie jest zweryfikowany tekst licencji) — Source Approval Gate (#15) otwarty
+- **commercial_use:** TAK wg brzmienia strony PRG („bezpłatnie i do dowolnego wykorzystania”);
+  formalnego tekstu licencji brak — Source Approval Gate (#15) otwarty
 - **attribution:** UNKNOWN — do ustalenia razem z licencją
 - **format/rozmiar/układ:** SHP i GML zgodnie ze stroną; rozmiar pliku NIE ustalony; układ
   współrzędnych: strona wspomina PL-1992 (EPSG:2180) w przykładach, nie potwierdzono wprost
@@ -345,8 +457,9 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 - **endpoint:** strona `https://eteryt.stat.gov.pl/eTeryt/rejestr_teryt/udostepnianie_danych/baza_teryt/uzytkownicy_indywidualni/pobieranie/pliki_pelne.aspx`
   udostępnia pliki TERC, SIMC, ULIC, WMRODZ (przyciski „Pobierz"); istnieje też API TERYT
   (`api.stat.gov.pl`, wg wyników wyszukiwania — nie sprawdzano, czy wymaga rejestracji)
-- **license/commercial_use/attribution/rate_limit/format:** UNKNOWN — strona nie podaje
-  licencji ani formatu; nie sprawdzano plików
+- **dostęp:** bezpłatny, wymaga rejestracji (audyt 2026-10-01)
+- **license (dane):** NIEZWERYFIKOWANA; commercial_use/attribution/rate_limit/format: UNKNOWN —
+  nie sprawdzano plików. Niepotrzebny: kody TERYT są w atrybutach PRG
 - **dostępność z tego środowiska:** NIE (egress proxy 403 dla eteryt.stat.gov.pl)
 - **status:** DISCOVERY (nieużywane produkcyjnie)
 - **last_verified_at:** 2026-09-30 (tylko treść strony)
