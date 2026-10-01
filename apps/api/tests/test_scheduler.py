@@ -567,6 +567,17 @@ class TestMain:
         for mock in mocks.values():
             mock.assert_called_once()
 
+    def test_place_expiry_runs_before_any_polling_job(self, monkeypatch):
+        # ADR-029: an area whose TTL elapsed must not be polled one more time first.
+        mocks = self._mock_all_jobs(monkeypatch)
+        order = MagicMock()
+        for name in ("run_place_expiry", "run_open_meteo", "run_open_meteo_pollen", "run_gios"):
+            order.attach_mock(mocks[name], name)
+
+        scheduler.main(iterations=1)
+
+        assert order.mock_calls[0] == ("run_place_expiry", (), {})
+
     def test_second_iteration_skips_jobs_before_interval_elapses(self, monkeypatch):
         mocks = self._mock_all_jobs(monkeypatch)
         # Same monotonic value every call - no interval has elapsed since "last".

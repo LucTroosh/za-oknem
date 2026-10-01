@@ -296,6 +296,10 @@ def main(*, iterations: int | None = None) -> None:
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
+        # First: an area whose TTL elapsed must not be polled once more (ADR-029).
+        if now - last_place_expiry >= PLACE_EXPIRY_INTERVAL_SECONDS:
+            _run_job_safely("place_expiry", run_place_expiry, track_status=False)
+            last_place_expiry = now
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
             _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
@@ -314,9 +318,6 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
-        if now - last_place_expiry >= PLACE_EXPIRY_INTERVAL_SECONDS:
-            _run_job_safely("place_expiry", run_place_expiry, track_status=False)
-            last_place_expiry = now
         run_new_area_bootstrap(bootstrap_attempts, now)
         _check_source_health(health_state)
         count += 1
