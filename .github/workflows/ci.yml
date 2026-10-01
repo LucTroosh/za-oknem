@@ -80,6 +80,16 @@ jobs:
           echo "::error title=pytest::$(grep -E '^(FAILED|ERROR) |passed|failed|skipped|SKIPPED' /tmp/pytest.out | tail -n 40 | awk '{printf "%s%%0A", $0}')"
           exit 1
 
+      - name: OpenAPI contract is current (TASK-2.1, ADR-024)
+        run: uv run python scripts/export_openapi.py --check
+      - name: Upload regenerated OpenAPI (when the committed one is stale)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-generated
+          path: /tmp/openapi.generated.json
+          if-no-files-found: ignore
+
   mobile:
     runs-on: ubuntu-latest
     defaults:
@@ -113,3 +123,5 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: api-contract TS types are current (TASK-2.1, ADR-024)
+        run: node ../../packages/api-contract/generate.mjs --check
