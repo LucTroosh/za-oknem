@@ -31,7 +31,7 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
       zapisany w registry dla KAŻDEGO źródła wybranego do implementacji (nie dla
       kandydatów niewybranych), plus schemat/pola
       potwierdzone na prawdziwej próbce, a status registry =
-      VERIFIED/APPROVED. Samo istnienie zbioru (np. na dane.gov.pl) nie wystarcza.
+      APPROVED (VERIFIED nie wystarcza). Samo istnienie zbioru (np. na dane.gov.pl) nie wystarcza.
 - [ ] Parser testowany na fixture z POTWIERDZONYCH pól (oznaczony jako fixture).
 
 ## Blokada — co musi zrobić człowiek

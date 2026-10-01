@@ -133,7 +133,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Blokada | Co odblokuje | Task |
 |---|---|---|
 | `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
-| Kąpieliska: brak źródła BIEŻĄCEGO statusu | Zgoda/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji); potwierdzenie licencji wydania 2025, schematu i filtra PL w EEA (daje tylko rejestr + klasyfikację roczną); sprawdzenie dane.gov.pl; pełny Source Approval Gate §38 | TASK-11.1/11.2, ADR-021 |
+| Kąpieliska: brak źródła BIEŻĄCEGO statusu | Wystarczy JEDNA ścieżka: zgoda/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji) ALBO — tylko dla rejestru + klasyfikacji rocznej — potwierdzona licencja wydania 2025, schemat i filtr PL w EEA; dane.gov.pl/WIOŚ to opcjonalni kandydaci; w każdym razie pełny Gate §38 dla wybranego źródła (status APPROVED) | TASK-11.1/11.2, ADR-021 |
 | Geo-matching alertów do lokalizacji | Decyzja o metodzie (statyczna mapa 7 lokalizacji→województwo, czy pełny Geo Engine z TERYT, §27, Phase 6) | brak (non-goal ADR-009) |
 
 ---
