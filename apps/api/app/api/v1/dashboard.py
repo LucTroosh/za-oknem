@@ -1,19 +1,24 @@
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.air_index import air_index
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
+from app.api.v1.air import AirIndex, AirParam
 from app.api.v1.air import freshness as air_freshness
-from app.api.v1.alerts import alerts_source_status, current_alerts
+from app.api.v1.alerts import AlertOut, SourceStatusOut, alerts_source_status, current_alerts
+from app.api.v1.pollen import PollenValues, latest_pollen, pollen_block
 from app.api.v1.pollen import freshness as pollen_freshness
-from app.api.v1.pollen import latest_pollen, pollen_block
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
-from app.api.v1.weather import forecasts_by_area
+from app.api.v1.weather import WeatherParam, forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
@@ -30,6 +35,8 @@ router = APIRouter()
 # TASK-7.1: source transparency (Master Plan Principle 2) - attribution text is
 # copied verbatim from docs/data/source-registry.md, not reworded here. Only two
 # sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
+AIR_SOURCE_ID = "gios"  # source_status rows are keyed by the connector's source_id
+WEATHER_SOURCE_ID = "open_meteo"
 GIOS_ATTRIBUTION = "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
 # source-registry.md (imgw_hydro, same terms for imgw_warnings*): verbatim, required.
@@ -54,7 +61,143 @@ _OUTDOOR_WEATHER_UNITS = {
 _OUTDOOR_AIR = {"PM2.5": ("pm25", "µg/m³"), "PM10": ("pm10", "µg/m³")}  # param_code -> field
 
 
-@router.get("/dashboard/latest")
+# TASK-2.1: explicit response contract of /dashboard/latest (OpenAPI -> TS types in
+# packages/api-contract, ADR-024). Mirrors EXACTLY what the endpoint returned as a bare
+# dict: every field is required (a "no data" block is `null`, never an absent key) and
+# timestamps stay ISO strings as built below. Reuses the per-endpoint models where the
+# shape is identical. FastAPI validates every response against it, so a shape drift
+# 500s instead of silently reaching mobile - and pydantic drops unknown keys, so a new
+# field must be added here (tests/test_dashboard_contract.py guards both).
+# Rule #1: a degraded SOURCE is expressed inside the shape (`pollen.freshness`
+# UNAVAILABLE, empty `alerts.items`, `source_status`), it never makes the shape invalid.
+Freshness3 = Literal["FRESH", "RECENT", "STALE"]
+SourceFreshness = Literal["FRESH", "RECENT", "STALE", "UNAVAILABLE"]
+
+
+class DashboardWeatherParam(AirParam):
+    """Same fields as an air param: value/unit + the param's OWN observed_at/freshness."""
+
+
+class DashboardAir(BaseModel):
+    station_id: str
+    station_name: str
+    source: Literal["gios"]
+    attribution: str
+    observed_at: str  # newest of the station's params - a summary, see params[*]
+    params: dict[str, AirParam]
+    index: AirIndex
+    distance_km: float
+    assignment_method: str  # ADR-025: how the station was assigned to the area
+    source_status: SourceStatusOut  # TASK-7.3 / ADR-012: the GIOŚ source, not this station
+
+
+class DashboardWeather(BaseModel):
+    source: Literal["open_meteo"]
+    attribution: str
+    observed_at: str  # newest of any param - a summary, see params[*]
+    freshness: Freshness3
+    params: dict[str, DashboardWeatherParam]
+    source_status: SourceStatusOut  # TASK-7.3 / ADR-012: the Open-Meteo source
+
+
+class DashboardForecastDay(BaseModel):
+    valid_from: str
+    valid_until: str
+    params: dict[str, WeatherParam]
+
+
+class DashboardForecast(BaseModel):
+    source: Literal["open_meteo"]
+    attribution: str
+    fetched_at: str
+    freshness: Freshness3
+    days: list[DashboardForecastDay]
+
+
+class OutdoorReasonOut(BaseModel):
+    code: str
+    param: str
+    value: float
+    threshold: float
+    comparison: Literal["gt", "gte", "lt", "lte"]
+    unit: str
+    level: Literal["MODERATE", "POOR"]
+
+
+class OutdoorMissingOut(BaseModel):
+    group: str
+    params: list[str]
+    status: Literal["MISSING", "STALE", "INVALID"]
+    core: bool
+    blocking: bool
+
+
+class DashboardOutdoor(BaseModel):
+    level: Literal["GOOD", "MODERATE", "POOR", "UNKNOWN"]
+    reasons: list[OutdoorReasonOut]
+    missing: list[OutdoorMissingOut]
+    valid_until: str | None
+
+
+class DashboardPollenDay(BaseModel):
+    date: str  # UTC calendar day, YYYY-MM-DD
+    max: PollenValues
+
+
+class DashboardPollen(BaseModel):
+    """One /pollen/latest area + source fields (TASK-8.9). UNAVAILABLE = no snapshot for
+    the area (or the whole block failed): null values, never 0."""
+
+    source: str
+    attribution: str
+    kind: Literal["model_forecast"]
+    model: str | None
+    unit: str | None
+    forecast_reference_time: str | None
+    fetched_at: str | None
+    freshness: SourceFreshness
+    valid_at: str | None
+    current: PollenValues | None
+    days: list[DashboardPollenDay]
+    source_status: SourceStatusOut
+
+
+class DashboardArea(BaseModel):
+    geo_area_id: int
+    slug: str
+    name: str
+    latitude: float
+    longitude: float
+    air: DashboardAir | None
+    weather: DashboardWeather | None
+    forecast: DashboardForecast | None
+    outdoor: DashboardOutdoor
+    pollen: DashboardPollen
+
+
+class DashboardAlerts(BaseModel):
+    scope: Literal["national"]
+    source: str
+    attribution: str
+    items: list[AlertOut]
+    source_status: dict[str, SourceStatusOut]
+
+
+class DashboardSourceStatus(BaseModel):
+    """Per source, outside the nullable per-area blocks (`air`/`weather` are null without a
+    station/snapshot - "never succeeded" must stay distinguishable there)."""
+
+    air: SourceStatusOut
+    weather: SourceStatusOut
+
+
+class DashboardResponse(BaseModel):
+    areas: list[DashboardArea]
+    alerts: DashboardAlerts
+    source_status: DashboardSourceStatus
+
+
+@router.get("/dashboard/latest", response_model=DashboardResponse)
 def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     """Combined per-location view: weather (per geo_area, always) + nearest GIOŚ
     station's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006
@@ -116,6 +259,12 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     # consumed - the user never saw it. Same helper, so both show one prediction.
     forecasts = forecasts_by_area(db)
 
+    # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
+    # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
+    # failing the dashboard. Computed once per request, shared by every area.
+    air_status = _source_status(db, AIR_SOURCE_ID, air_freshness)
+    weather_status = _source_status(db, WEATHER_SOURCE_ID, weather_freshness)
+
     areas_out = []
     for area in areas:
         # ADR-006/ADR-025: deterministic nearest station within MAX_MATCH_DISTANCE_KM
@@ -143,6 +292,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(match.distance_km, 1),
                 "assignment_method": match.method,
+                "source_status": air_status,
             }
 
         params = weather_by_area.get(area.id, [])
@@ -169,6 +319,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # cycles while `current` keeps refreshing, so the object-level max()
                 # above must not be the only freshness a client sees.
                 "params": weather_params,
+                "source_status": weather_status,
             }
 
         areas_out.append(
@@ -205,15 +356,36 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db)}
         pollen_status = source_freshness(db, POLLEN_SOURCE_ID, pollen_freshness)
         for out in areas_out:
-            out["pollen"] = pollen_block(pollen_by_area.get(out["geo_area_id"]), pollen_status)
+            area_pollen = pollen_by_area.get(out["geo_area_id"])
+            out["pollen"] = _json(pollen_block(area_pollen, pollen_status))
     except Exception:
         logger.exception("dashboard: pollen block failed")
         db.rollback()  # a failed statement leaves a Postgres transaction aborted
         down = {"freshness": "UNAVAILABLE", "last_success_at": None}
         for out in areas_out:
-            out["pollen"] = pollen_block(None, down)
+            out["pollen"] = _json(pollen_block(None, down))
 
-    return {"areas": areas_out, "alerts": alerts}
+    # Outside the nullable per-area blocks too: `air`/`weather` are null when there is no
+    # station nearby / no snapshot, and "source never succeeded" must stay distinguishable
+    # from "healthy source, nothing applicable" there (Codex review).
+    source_status = {"air": air_status, "weather": weather_status}
+    return {"areas": areas_out, "alerts": alerts, "source_status": source_status}
+
+
+def _source_status(db: Session, source_id: str, freshness: Callable[[datetime], str]) -> dict:
+    try:
+        return source_freshness(db, source_id, freshness)
+    except Exception:
+        logger.exception("dashboard: source_status for %s failed", source_id)
+        db.rollback()  # a failed statement leaves a Postgres transaction aborted
+        return {"freshness": "UNAVAILABLE", "last_success_at": None}
+
+
+def _json(block: dict) -> dict:
+    """pollen_block carries datetime/date objects (shared with /pollen/latest); the rest of
+    this payload is ISO strings, so convert exactly like FastAPI did for the bare dict
+    (isoformat) - keeps the JSON byte-identical (a datetime field would emit `Z`)."""
+    return jsonable_encoder(block)
 
 
 def _reading(
