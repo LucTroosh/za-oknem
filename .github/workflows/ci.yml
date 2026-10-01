@@ -46,9 +46,9 @@ jobs:
       - name: Report alembic check failure
         if: steps.alembic_check.outcome == 'failure'
         run: |
-          while IFS= read -r line; do
-            echo "::error::alembic check: $line"
-          done < /tmp/alembic-check.out
+          # ONE annotation with the tail: GitHub caps annotations per step at 10, which
+          # cut the actual error off after the log's INFO lines.
+          echo "::error title=alembic check::$(tail -n 60 /tmp/alembic-check.out | awk '{printf "%s%%0A", $0}')"
           exit 1
       - name: mypy (with error annotations)
         run: |
@@ -59,9 +59,9 @@ jobs:
       - name: Report mypy failure
         if: steps.mypy.outcome == 'failure'
         run: |
-          while IFS= read -r line; do
-            echo "::error::mypy: $line"
-          done < /tmp/mypy.out
+          # ONE annotation with the tail: GitHub caps annotations per step at 10, which
+          # cut the actual error off after the log's INFO lines.
+          echo "::error title=mypy::$(tail -n 60 /tmp/mypy.out | awk '{printf "%s%%0A", $0}')"
           exit 1
       - name: pytest (with error annotations)
         env:
@@ -75,9 +75,9 @@ jobs:
       - name: Report pytest failure
         if: steps.pytest.outcome == 'failure'
         run: |
-          while IFS= read -r line; do
-            echo "::error::pytest: $line"
-          done < /tmp/pytest.out
+          # ONE annotation with the tail: GitHub caps annotations per step at 10, which
+          # cut the actual error off after the log's INFO lines.
+          echo "::error title=pytest::$(tail -n 60 /tmp/pytest.out | awk '{printf "%s%%0A", $0}')"
           exit 1
 
   mobile:
@@ -106,9 +106,9 @@ jobs:
       - name: Report npm install failure
         if: steps.npm_install.outcome == 'failure'
         run: |
-          while IFS= read -r line; do
-            echo "::error::npm install: $line"
-          done < /tmp/npm-install.stderr
+          # ONE annotation with the tail: GitHub caps annotations per step at 10, which
+          # cut the actual error off after the log's INFO lines.
+          echo "::error title=npm install::$(tail -n 60 /tmp/npm-install.stderr | awk '{printf "%s%%0A", $0}')"
           exit 1
       - run: npm run lint
       - run: npm run typecheck
