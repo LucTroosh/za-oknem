@@ -11,7 +11,7 @@ import pytest
 from app import provenance
 from app.connectors.gios import client, ingest
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
-from app.models import Measurement, SourceFetch
+from app.models import Measurement, SourceFetch, SourceStatus
 
 STATION = {
     "Identyfikator stacji": 38,
@@ -94,8 +94,40 @@ def test_ingest_station_isolates_api_failure(monkeypatch, db_session):
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored == 0
+    assert stored is None  # fetch failed: distinct from 0 = nothing new (TASK-13.1)
     assert db_session.query(Measurement).count() == 0
+
+
+def test_ingest_station_without_any_monitored_sensor_returns_none(monkeypatch, db_session):
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=[]))
+    errors: list[str] = []
+
+    assert ingest.ingest_station(STATION, db_session, errors) is None
+    assert "no monitored sensors" in errors[-1]
+
+
+def test_ingest_station_all_params_failing_returns_none(monkeypatch, db_session):
+    """TASK-13.1: 429 on every sensor fetch is an outage, not "0 new readings"."""
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+    monkeypatch.setattr(
+        client, "fetch_sensor_data", MagicMock(side_effect=client.GiosApiError("429"))
+    )
+    errors: list[str] = []
+
+    assert ingest.ingest_station(STATION, db_session, errors) is None
+    assert errors and "429" in errors[-1]
+
+
+def test_ingest_station_partial_param_failure_is_not_a_failed_station(monkeypatch, db_session):
+    two = [*SENSORS, {"Identyfikator stanowiska": 25989, "Wskaźnik - wzór": "PM10"}]
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=two))
+    monkeypatch.setattr(
+        client,
+        "fetch_sensor_data",
+        MagicMock(side_effect=[client.GiosApiError("429"), SENSOR_DATA]),
+    )
+
+    assert ingest.ingest_station(STATION, db_session) is not None
 
 
 def test_ingest_station_isolates_parse_failure_per_param(monkeypatch, db_session):
@@ -108,7 +140,7 @@ def test_ingest_station_isolates_parse_failure_per_param(monkeypatch, db_session
 
     stored = ingest.ingest_station(STATION, db_session)
 
-    assert stored == 0
+    assert stored is None  # the only attempted param failed: failed station
     assert db_session.query(Measurement).count() == 0
 
 
@@ -168,7 +200,7 @@ class TestProvenance:
 
         stored = ingest.ingest_station(STATION, db_session)
 
-        assert stored == 0
+        assert stored is None  # only attempted param failed: failed station (TASK-13.1)
         fetch = db_session.query(SourceFetch).one()
         assert fetch.payload == bad
         assert fetch.validation_status == provenance.INVALID
@@ -240,3 +272,58 @@ class TestMain:
 
         assert ingest_station_mock.call_count == 2
         fake_db.close.assert_called_once()
+
+    def test_cli_subset_run_does_not_record_source_status(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38,42")
+        monkeypatch.setattr(sys, "argv", ["ingest", "--station-id", "38"])
+        monkeypatch.setattr(client, "find_stations", MagicMock(return_value=[STATION]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_station", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "gios") is None
+
+    def test_cli_records_source_status(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38")
+        monkeypatch.setattr(sys, "argv", ["ingest", "--station-id", "38"])
+        monkeypatch.setattr(client, "find_stations", MagicMock(return_value=[STATION]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_station", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "gios").last_success_at is not None
+
+    def test_cli_records_failure_when_station_catalog_is_unavailable(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38")
+        monkeypatch.setattr(sys, "argv", ["ingest", "--station-id", "38"])
+        monkeypatch.setattr(
+            client, "find_stations", MagicMock(side_effect=client.GiosApiError("catalog down"))
+        )
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(client.GiosApiError):
+            ingest.main()
+
+        row = db_session.get(SourceStatus, "gios")
+        assert row.last_success_at is None and "catalog down" in row.last_error
+
+    def test_cli_records_failure_and_raises_when_every_station_failed(
+        self, monkeypatch, db_session
+    ):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38")
+        monkeypatch.setattr(sys, "argv", ["ingest", "--station-id", "38"])
+        monkeypatch.setattr(client, "find_stations", MagicMock(return_value=[STATION]))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        def failing(_station, _db, errors):
+            errors.append("GiosApiError: 429")
+
+        monkeypatch.setattr(ingest, "ingest_station", failing)
+
+        with pytest.raises(RuntimeError):
+            ingest.main()
+
+        row = db_session.get(SourceStatus, "gios")
+        assert row.last_success_at is None and "429" in row.last_error
