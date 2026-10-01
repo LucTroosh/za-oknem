@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "kind": "seasonal_calendar",
+  "valid_for_region": "PL",
+  "reviewed_at": "2026-10-01",
+  "attribution": "Typowe okresy sezonów pylenia: własne zestawienie Za Oknem na podstawie publikacji aerobiologicznych z Polski (lista źródeł w polu `sources`; wykorzystano wyłącznie fakty - zakresy dat - bez kopiowania tabel, grafik ani tekstów).",
+  "disclaimer": "Typowy przebieg sezonu, NIE pomiar i NIE prognoza. Rzeczywisty termin zależy od pogody, roku i regionu (początek i szczyt mogą się przesuwać o 2-3 tygodnie, a w pojedynczych latach więcej). Lista taksonów nie obejmuje wszystkich alergenów - brak wpisu NIE oznacza braku pylenia. Dekady: 1 = dni 1-10, 2 = dni 11-20, 3 = dzień 21 do końca miesiąca.",
+  "sources": {
+    "corylus_alnus_szczecin_rzeszow": {
+      "citation": "The patterns of Corylus and Alnus pollen seasons and pollination periods in two Polish cities located in different climatic regions (Szczecin, Rzeszów 2009-2011), Aerobiologia",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3787801/",
+      "license": "Creative Commons Attribution (wg strony artykułu w PMC)",
+      "checked_at": "2026-10-01"
+    },
+    "alnus_betula_corylus_poland": {
+      "citation": "Temporal and spatiotemporal autocorrelation of daily concentrations of Alnus, Betula, and Corylus pollen in Poland, Aerobiologia 2014, doi:10.1007/s10453-014-9354-2",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4555345/",
+      "license": "UNVERIFIED (strona nie podała licencji; użyto wyłącznie faktów)",
+      "checked_at": "2026-10-01"
+    },
+    "krakow_season_dynamics": {
+      "citation": "The pollen season dynamics and the relationship among some season parameters (start, end, annual total, season phases) in Kraków, Poland, 1991-2008 (abstract: szczyt stężeń Betula i Pinus w pierwszej połowie maja)",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/21892249",
+      "license": "UNVERIFIED (użyto wyłącznie faktu z abstraktu)",
+      "checked_at": "2026-10-01"
+    },
+    "quercus_poznan": {
+      "citation": "Grewling Ł., Jackowiak B., Smith M., Variations in Quercus sp. pollen seasons (1996-2011) in Poznań, Poland, in relation to meteorological parameters, Aerobiologia 30(2):149-159",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4012158/",
+      "license": "Creative Commons Attribution (wg strony artykułu w PMC)",
+      "checked_at": "2026-10-01"
+    },
+    "fraxinus_lublin": {
+      "citation": "Analysis of Fraxinus pollen seasons and forecast models based on meteorological factors (Lublin 2001-2016), Ann Agric Environ Med 2018;25(2):285-291",
+      "url": "https://www.aaem.pl/Analysis-of-Fraxinus-pollen-seasons-and-forecast-models-based-on-meteorological-factors,80909,0,2.html",
+      "license": "UNVERIFIED (strona nie podała licencji; użyto wyłącznie faktów)",
+      "checked_at": "2026-10-01"
+    },
+    "artemisia_poland_2022": {
+      "citation": "Analysis of Artemisia pollen season in selected cities of Poland in 2022, Alergoprofil",
+      "url": "https://www.journalsmededu.pl/index.php/alergoprofil/article/view/2909",
+      "license": "CC BY-NC 4.0 (użyto wyłącznie faktów, bez treści artykułu)",
+      "checked_at": "2026-10-01"
+    },
+    "artemisia_poland_2020": {
+      "citation": "Comparison of Artemisia L. pollen concentrations and risk of development of allergy symptoms in different regions of Poland in 2020, Alergoprofil",
+      "url": "https://journalsmededu.pl/index.php/alergoprofil/article/view/1104",
+      "license": "CC BY-NC 4.0 (użyto wyłącznie faktów, bez treści artykułu)",
+      "checked_at": "2026-10-01"
+    },
+    "artemisia_ambrosia_cooccurrence": {
+      "citation": "Co-occurrence of Artemisia and Ambrosia pollen seasons against the background of the synoptic situations in Poland, Int J Biometeorol, doi:10.1007/s00484-016-1254-4 (abstract: sezon Artemisia zwykle zaczyna się w drugiej połowie lipca)",
+      "url": "https://link.springer.com/article/10.1007/s00484-016-1254-4",
+      "license": "UNVERIFIED (użyto wyłącznie faktu z abstraktu)",
+      "checked_at": "2026-10-01"
+    },
+    "grass_poland_8cities": {
+      "citation": "Grass pollen seasons in Poland against a background of the meteorological conditions (8 miast, 1992-2014), czasopismo Polskiego Towarzystwa Botanicznego (pbsociety.org.pl), id artykułu aa.2015.038",
+      "url": "https://pbsociety.org.pl/journals/index.php/aa/article/view/aa.2015.038",
+      "license": "Creative Commons Attribution (wg strony czasopisma; komercyjne i niekomercyjne użycie z cytowaniem)",
+      "checked_at": "2026-10-01"
+    },
+    "cladosporium_poland": {
+      "citation": "Warm and dry weather accelerates and elongates Cladosporium spore seasons in Poland (Lublin, Poznań, Rzeszów 2010-2012), Aerobiologia, doi:10.1007/s10453-016-9425-7",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4773468/",
+      "license": "Creative Commons Attribution 4.0 (wg strony artykułu w PMC)",
+      "checked_at": "2026-10-01"
+    }
+  },
+  "taxa": [
+    {
+      "key": "hazel",
+      "name_pl": "leszczyna",
+      "category": "tree",
+      "season": {"start": [2, 1], "end": [4, 1]},
+      "peak": {"start": [3, 1], "end": [3, 3]},
+      "source_ids": ["corylus_alnus_szczecin_rzeszow", "alnus_betula_corylus_poland"],
+      "note": "Okno szczytu obejmuje cały marzec, bo obserwowane szczyty (9-29 marca) rozchodzą się między latami i miastami. Średni początek ok. 1 marca (±18 dni), czas trwania ok. 30 dni; w obserwowanych latach start od 7 lutego, koniec do 8 kwietnia, szczyty 9-29 marca (Szczecin, Rzeszów 2009-2011)."
+    },
+    {
+      "key": "alder",
+      "name_pl": "olsza",
+      "category": "tree",
+      "season": {"start": [2, 1], "end": [4, 3]},
+      "peak": {"start": [3, 1], "end": [3, 3]},
+      "source_ids": ["corylus_alnus_szczecin_rzeszow", "alnus_betula_corylus_poland"],
+      "note": "Średni początek ok. 8 marca (±16 dni), czas trwania ok. 26 dni; w obserwowanych latach start od 9 lutego, szczyty 2-29 marca, koniec 30 marca - 23 kwietnia (zakres sezonu to suma obserwacji)."
+    },
+    {
+      "key": "birch",
+      "name_pl": "brzoza",
+      "category": "tree",
+      "season": {"start": [4, 1], "end": [5, 1]},
+      "peak": {"start": [4, 3], "end": [5, 1]},
+      "source_ids": ["alnus_betula_corylus_poland", "krakow_season_dynamics"],
+      "note": "Średni początek ok. 15 kwietnia (±6 dni; Gdańsk ok. 22 kwietnia), czas trwania ok. 17 dni. Okno szczytu to oszacowanie z przebiegu sezonu (środek sezonu) i z obserwacji z Krakowa (maksimum stężeń w pierwszej połowie maja), nie bezpośrednio zmierzona data."
+    },
+    {
+      "key": "ash",
+      "name_pl": "jesion",
+      "category": "tree",
+      "season": {"start": [4, 2], "end": [5, 1]},
+      "peak": {"start": [4, 3], "end": [4, 3]},
+      "source_ids": ["fraxinus_lublin"],
+      "note": "Średnio 13 kwietnia - 3 maja, szczyt ok. 23 kwietnia (Lublin 2001-2016; jedna lokalizacja)."
+    },
+    {
+      "key": "oak",
+      "name_pl": "dąb",
+      "category": "tree",
+      "season": {"start": [4, 2], "end": [6, 1]},
+      "peak": {"start": [5, 1], "end": [5, 1]},
+      "source_ids": ["quercus_poznan"],
+      "note": "Poznań 1996-2011: średnio start ok. 28 kwietnia, szczyt ok. 6 maja, koniec ok. 27 maja, najpóźniejszy zaobserwowany koniec 8 czerwca; początek i koniec różnią się między latami o ok. 2 tygodnie (jedna lokalizacja)."
+    },
+    {
+      "key": "grass",
+      "name_pl": "trawy",
+      "category": "grass",
+      "season": {"start": [5, 1], "end": [9, 2]},
+      "peak": {"start": [5, 3], "end": [7, 1]},
+      "source_ids": ["grass_poland_8cities"],
+      "note": "8 miast Polski 1992-2014: początek względnie stabilny, ok. 10 maja (na południu nieco wcześniej); maksima dobowe od końca maja do pierwszej dekady lipca; koniec bardzo zmienny - od połowy lipca do połowy września, więc w drugiej połowie sezonu bywa już po sezonie."
+    },
+    {
+      "key": "mugwort",
+      "name_pl": "bylica",
+      "category": "weed",
+      "season": {"start": [7, 2], "end": [9, 2]},
+      "peak": {"start": [8, 1], "end": [8, 2]},
+      "source_ids": ["artemisia_poland_2022", "artemisia_poland_2020", "artemisia_ambrosia_cooccurrence"],
+      "note": "Początek w drugiej połowie lipca (12-23 lipca w 2020 r.), szczyt w pierwszej połowie sierpnia, koniec najpóźniej w połowie września (2022); średnio ok. 45 dni."
+    },
+    {
+      "key": "cladosporium",
+      "name_pl": "Cladosporium (zarodniki grzybów)",
+      "category": "fungal_spore",
+      "season": {"start": [4, 2], "end": [9, 3]},
+      "peak": {"start": [5, 3], "end": [8, 1]},
+      "source_ids": ["cladosporium_poland"],
+      "note": "To zarodniki grzybów, nie pyłek roślin. Lublin, Poznań, Rzeszów 2010-2012: start 14 kwietnia - 7 maja, koniec 13-28 września, szczyt (bardzo zmienny między latami i miastami: od 21 maja do 4 sierpnia, stąd szerokie okno); w ciepłe i suche lata sezon jest wcześniejszy i dłuższy."
+    }
+  ],
+  "not_covered": [
+    {"key": "ragweed", "name_pl": "ambrozja", "reason": "UNVERIFIED: potwierdzono tylko początek (zwykle druga dekada sierpnia, w skrajnych przypadkach od połowy lipca do początku września), brak zweryfikowanego końca sezonu."},
+    {"key": "urticaceae", "name_pl": "pokrzywowate", "reason": "UNVERIFIED: potwierdzono tylko okres wysokich stężeń (połowa lipca - koniec sierpnia, Kraków), brak początku i końca sezonu."}
+  ]
+}
