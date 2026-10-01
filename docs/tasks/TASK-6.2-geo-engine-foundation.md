@@ -27,7 +27,7 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
   `run_gios` czyta `GIOS_STATION_IDS`.
 - **(8) Zawężenie dashboardu do wybranej lokalizacji — ✅ zrobione w osobnym PR (ADR-026)**:
   `GET /dashboard/latest?geo_area_id=N` (404 dla nieznanego; obszar bez aktywnego pollingu =
-  `weather_polling_active=false` + puste bloki; bez parametru jak dotąd), `GET /areas`,
+  `weather_polling_active=false`, weather/forecast/pollen puste, air wg stacji z katalogu ≤ 50 km, outdoor UNKNOWN bez rdzenia; bez parametru jak dotąd), `GET /areas`,
   `POST /geo/locate` (point-in-polygon → najbliższy AKTYWNY obszar ≤ 25 km jawnie jako
   `nearest_area` z `distance_km` → `out_of_range`; `/geo/resolve` bez zmian, ADR-019).
   Oryginalny opis: parametr `geo_area_id` / `observed_area_code` w `GET /dashboard/latest`;

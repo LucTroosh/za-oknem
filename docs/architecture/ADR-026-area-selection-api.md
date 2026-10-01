@@ -39,12 +39,18 @@ Opcja **B**.
 - `GET /api/v1/areas[?active_only=true]` — `geo_area_id, slug, name, teryt_code|null, latitude,
   longitude, weather_polling_active`. Domyślnie tylko obszary z aktywnym pollingiem (to samo,
   co dashboard bez parametru); `active_only=false` dodaje zaimportowane gminy bez pollingu.
-  Bez wyszukiwania/paginacji — to zakres TASK-12.2 (picker ~2,5 tys. gmin).
+  `limit` (domyślnie 3000, max 5000) tylko ogranicza odpowiedź; `Cache-Control: public,
+  max-age=300` (lista rzadko się zmienia). Wyszukiwanie/paginacja to zakres TASK-12.2.
+  `/geo/locate` i `/geo/resolve`: 422 bez `input`/`ctx` (zbiór `COORDINATE_PATHS`).
 - `GET /api/v1/dashboard/latest?geo_area_id=N` — `areas` = jeden obszar; nieznany id = 404;
   bez parametru zachowanie jak dotąd (tylko aktywne). Obszar **bez aktywnego pollingu** jest
-  zwracany (nie znika), z nowym polem `weather_polling_active=false` i pustymi blokami
-  (`weather`/`air`/`forecast` null, `outdoor` UNKNOWN, `pollen` UNAVAILABLE): klient odróżnia
-  „nikt nie zbiera danych dla tego obszaru” od „zepsute źródło”. `alerts` (krajowe),
+  zwracany (nie znika), z nowym polem `weather_polling_active=false`: `weather`/`forecast`
+  null, `pollen` UNAVAILABLE; `air` wg stacji z katalogu GIOŚ w limicie 50 km (ADR-025:
+  `select_stations` działa dla każdego obszaru, to uczciwe i użyteczne); `outdoor` liczony z
+  dostępnych danych (silnik: brak rdzenia — temperatura/opad/wiatr — daje UNKNOWN, nie GOOD).
+  Klient odróżnia „nikt nie zbiera danych pogodowych” od „zepsute źródło”. `geo_area_id` ma
+  walidację 1..2147483647 (422), także w `/air/latest` i `/alerts/latest`; prognoza i pyłki
+  są czytane tylko dla wybranego obszaru. `alerts` (krajowe),
   `local_alerts`, `outdoor`, `pollen` mają semantykę bez zmian, tylko dla jednego obszaru.
   Stare pomiary (np. po dezaktywacji) pokazują się ze swoją świeżością (STALE), nie znikają.
 - `POST /api/v1/geo/locate` `{latitude, longitude}` → `{status: resolved|out_of_range, area|null,
@@ -71,7 +77,10 @@ Opcja **B**.
   punktów poza gminami (granice morskie, zagranica).
 - Gmina rozpoznana, ale nieaktywna, daje pusty dashboard z wyjaśnieniem — świadomie nie
   podmieniamy jej na sąsiednie miasto; mechanizm aktywacji pollingu to TASK-12.2.
-- `/areas?active_only=false` zwraca wszystkie gminy bez paginacji (~2,5 tys. wierszy) — do
+- `/areas?active_only=false` zwraca do `limit` gmin bez paginacji (~2,5 tys. wierszy) — do
   czasu TASK-12.2 nieużywane przez klienta.
+- **Znane ograniczenia (świadomie poza tym PR):** brak rate limitu na `/geo/locate` i `/areas`
+  (TASK-14.2); brak `POST` w CORS (`allow_methods=["GET"]`) — klient to aplikacja natywna,
+  web poza MVP.
 - Parametr `geo_area_id` jest publiczny i wyliczalny (id seryjne): sam odczyt nie może
   aktywować pollingu ani liczyć się jako „aktywność” (zob. BACKLOG TASK-12.2).
