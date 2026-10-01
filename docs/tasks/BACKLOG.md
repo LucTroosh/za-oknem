@@ -136,7 +136,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       renderuje tylko PM2.5, więc bez zmiany endpointów/agregatu/UI nowe
       parametry trafią do bazy i nigdzie dalej. Rozszerzyć te trzy miejsca
       o pełną listę (TASK-4.2 dokłada indeks/agregat na tym samym zestawie).
-- [ ] **TASK-4.2** (⛔ ZABLOKOWANE: brak zweryfikowanych progów GIOŚ i kształtu odpowiedzi `aqindex/getIndex`; ADR-015 Proposed w PR #63; odblokowanie: surowy JSON z żywego API albo tabela progów z oficjalnego obrazka GIOŚ): Indeks jakości powietrza (AQI/CAQI wg metodologii GIOŚ) —
+- [x] **TASK-4.2** (DONE, PR #63; Europejski Indeks Jakości Powietrza EAQI wg EEA liczony z pomiarów GIOŚ, ADR-015; natywny indeks GIOŚ odłożony): Indeks jakości powietrza (EAQI/EEA) —
       zależny od TASK-4.1 (part potrzebuje >1 parametru). Do ustalenia: czy
       liczymy indeks sami wg opublikowanej metodologii GIOŚ, czy GIOŚ
       publikuje gotowy indeks per stacja do odczytania wprost (rule #10:
