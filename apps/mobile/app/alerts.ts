@@ -1,31 +1,28 @@
 // TASK-7.2: nationwide IMGW alerts from the dashboard aggregate. Texts are shown
 // verbatim from the source (rule #10) - nothing here classifies or rewrites them.
-import type { Freshness } from "./freshness";
+import type { AlertOut, DashboardAlerts, SourceStatusOut } from "../../../packages/api-contract/schema";
 
-export type AlertItem = {
-  external_id: string;
-  source: string;
-  published_at: string;
-  event_type: string;
-  severity_raw: string;
-  issuing_office: string;
-  description: string;
-  areas: Record<string, unknown>[];
-  valid_until: string;
-  fetched_at: string;
-  freshness: Freshness;
-};
+// Types derive from the generated contract (ADR-024); only the fields this screen reads are
+// required, so a drift in them fails `tsc` while extra server fields are ignored.
+export type AlertItem = Pick<
+  AlertOut,
+  | "external_id"
+  | "source"
+  | "published_at"
+  | "event_type"
+  | "severity_raw"
+  | "issuing_office"
+  | "description"
+  | "areas"
+  | "valid_until"
+  | "fetched_at"
+  | "freshness"
+>;
 
-export type SourceFreshness = Freshness | "UNAVAILABLE";
+export type SourceFreshness = SourceStatusOut["freshness"];
 
-export type AlertsBlock = {
-  scope: "national";
-  source: string;
-  attribution: string;
-  items: AlertItem[];
-  // ADR-012: per alert source - when did we last fetch it successfully.
-  source_status: Record<string, { freshness: SourceFreshness; last_success_at: string | null }>;
-};
+// ADR-012: `source_status` = per alert source, when did we last fetch it successfully.
+export type AlertsBlock = Omit<DashboardAlerts, "items"> & { items: AlertItem[] };
 
 const SOURCE_LABEL: Record<string, string> = {
   imgw_warningshydro: "IMGW – ostrzeżenia hydrologiczne",

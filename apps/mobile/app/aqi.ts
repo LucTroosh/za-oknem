@@ -4,14 +4,11 @@
 // and decides what the badge may CLAIM, so missing/old data never reads as a confident
 // "good" (rule #8).
 
-export type AqiLevel = "GOOD" | "FAIR" | "MODERATE" | "POOR" | "VERY_POOR" | "EXTREMELY_POOR";
+import type { AirIndex } from "../../../packages/api-contract/schema";
 
-export type AirIndexBlock = {
-  level: AqiLevel | null; // null = no index
-  complete: boolean; // EEA minimum set of pollutants present
-  params: Record<string, AqiLevel>;
-  dominant: string[];
-  missing: Record<string, "MISSING" | "STALE" | "UNIT" | "INVALID">;
+// Types come from the generated contract (ADR-024); `valid_until` stays optional (older backend).
+export type AqiLevel = NonNullable<AirIndex["level"]>; // level null = no index
+export type AirIndexBlock = Pick<AirIndex, "level" | "complete" | "params" | "missing" | "dominant"> & {
   // ISO time after which the earliest contributing input turns STALE; null without index.
   valid_until?: string | null;
 };

@@ -113,9 +113,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `packages/api-contract/schema.ts` generowane `generate.mjs` (bez
       zależności), dwa kroki CI `--check` wykrywają rozjazd. Mobile: `forecast.ts`
       i `pollen.ts` używają typów kontraktu, `contract.test.ts` pilnuje w `tsc`,
-      że UI akceptuje każdy blok kontraktu. **Zostaje:** migracja pozostałych
-      ręcznych typów (`index.tsx`, `alerts.ts`, `hydro.ts`, `outdoor.ts`,
-      `aqi.ts`) do `schema.ts` — razem ze zmianami UI, nie osobno.
+      że UI akceptuje każdy blok kontraktu. Follow-up typów DONE: `index.tsx`
+      (`DashboardArea`/`DashboardSourceStatus`), `alerts.ts`, `hydro.ts`,
+      `outdoor.ts`, `aqi.ts` biorą typy z `schema.ts` (UI bez zmian; widokowe
+      pola opcjonalne dla starszego backendu zostają jako `valid_until?`).
 
 ### Phase 3 — Data Architecture (dokończenie)
 
