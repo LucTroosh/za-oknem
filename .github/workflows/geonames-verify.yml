@@ -1,0 +1,33 @@
+name: GeoNames dump verification
+
+# Manual only (ADR-029): checks the importer's parser against the REAL GeoNames PL dump.
+# Not part of PR CI. Run: Actions -> "GeoNames dump verification" -> Run workflow.
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --dev
+      - name: Raw file shape (independent of our parser)
+        run: |
+          mkdir -p /tmp/gn && cd /tmp/gn
+          for f in PL.zip admin1CodesASCII.txt admin2Codes.txt; do
+            curl -fsS --max-time 120 --retry 3 -O "https://download.geonames.org/export/dump/$f"
+          done
+          ls -l
+          unzip -o -q PL.zip PL.txt
+          echo "lines: $(wc -l < PL.txt)"
+          echo "column counts:"; awk -F'\t' '{c[NF]++} END {for (k in c) print k, c[k]}' PL.txt
+          echo "--- Gliwice rows"; awk -F'\t' '$2=="Gliwice"' PL.txt
+          echo "--- admin1 sample"; grep -E '^PL\.' admin1CodesASCII.txt | head -20
+          echo "--- admin2 sample"; grep -E '^PL\.' admin2Codes.txt | head -8
+          echo "--- admin2 Gliwice"; grep -E '^PL\..*Gliwice' admin2Codes.txt | head
+      - name: Our parser on the real file (validate only)
+        run: uv run python -m app.connectors.geonames_places.ingest --download --validate-only --sample Gliwice --sample "Nowa Wieś"

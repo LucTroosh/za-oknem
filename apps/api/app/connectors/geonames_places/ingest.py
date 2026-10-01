@@ -14,12 +14,15 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
+import time
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -121,6 +124,38 @@ def import_records(
     return report
 
 
+DEFAULT_BASE_URL = "https://download.geonames.org/export/dump/"
+DOWNLOAD_FILES = ("PL.zip", "admin1CodesASCII.txt", "admin2Codes.txt")
+DOWNLOAD_TIMEOUT_SECONDS = 120.0
+DOWNLOAD_ATTEMPTS = 3  # bounded retry (rule #5)
+
+
+def download(dest: Path, *, base_url: str | None = None, sleep=time.sleep) -> dict[str, Path]:
+    """Fetch the GeoNames files into `dest` (operator-run, never on a user request, #14).
+    Base URL from GEONAMES_BASE_URL (default: the public dump). Each file: timeout, at most
+    DOWNLOAD_ATTEMPTS tries with growing pauses; 4xx (except 429) is not retried."""
+    base = (base_url or os.environ.get("GEONAMES_BASE_URL") or DEFAULT_BASE_URL).rstrip("/") + "/"
+    out: dict[str, Path] = {}
+    with httpx.Client(timeout=DOWNLOAD_TIMEOUT_SECONDS, follow_redirects=True) as http:
+        for name in DOWNLOAD_FILES:
+            for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+                try:
+                    resp = http.get(base + name)
+                    resp.raise_for_status()
+                    break
+                except httpx.HTTPError as exc:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    fatal = status is not None and 400 <= status < 500 and status != 429
+                    if fatal or attempt == DOWNLOAD_ATTEMPTS:
+                        raise RuntimeError(
+                            f"download of {name} failed: {type(exc).__name__}"
+                        ) from None
+                    sleep(2.0 * attempt)
+            (dest / name).write_bytes(resp.content)
+            out[name] = dest / name
+    return out
+
+
 def load(path: Path) -> ParseResult:
     return parse_lines(read_lines(path))
 
@@ -129,16 +164,40 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Import GeoNames PL places (ADR-029).")
     parser.add_argument("--file", type=Path, default=os.environ.get("GEONAMES_PL_FILE"))
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument(
+        "--download",
+        action="store_true",
+        help="fetch the dump + admin name files first (GEONAMES_BASE_URL), into a temp dir",
+    )
+    parser.add_argument("--sample", action="append", default=[], help="print records by name")
     args = parser.parse_args()
-    if args.file is None:
-        parser.error("--file (or GEONAMES_PL_FILE) is required")
+    if args.download and args.file:
+        parser.error("--download and --file are mutually exclusive")
+    if args.file is None and not args.download:
+        parser.error("--file (or GEONAMES_PL_FILE) or --download is required")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    try:
-        parsed = load(Path(args.file))
-    except (OSError, KeyError, zipfile.BadZipFile, UnicodeDecodeError, PlacesParseError) as exc:
-        print(f"Unusable input file: {exc}", file=sys.stderr)
-        sys.exit(1)
+    with tempfile.TemporaryDirectory(prefix="geonames-") as tmp:
+        try:
+            if args.download:
+                files = download(Path(tmp))
+                parsed = load(files["PL.zip"])
+            else:
+                parsed = load(Path(args.file))
+        except (
+            OSError,
+            KeyError,
+            zipfile.BadZipFile,
+            UnicodeDecodeError,
+            PlacesParseError,
+            RuntimeError,
+        ) as exc:
+            print(f"Unusable input: {exc}", file=sys.stderr)
+            sys.exit(1)
+        _run(args, parsed)
+
+
+def _run(args, parsed: ParseResult) -> None:
     total = len(parsed.records) + len(parsed.rejected)
     print(
         f"parsed: {len(parsed.records)} valid, {len(parsed.rejected)} rejected, "
@@ -146,6 +205,9 @@ def main() -> None:
     )
     for reason in parsed.rejected[:50]:
         print(f"REJECTED {reason}", file=sys.stderr)
+    for wanted in args.sample:
+        for rec in [r for r in parsed.records if r.name == wanted][:5]:
+            print(f"SAMPLE {rec}")
     if args.validate_only:
         return
     db = SessionLocal()
@@ -153,7 +215,7 @@ def main() -> None:
         fetch_id = provenance.record_fetch(
             db,
             source_id=SOURCE_ID,
-            endpoint=f"file:{Path(args.file).name}",
+            endpoint="download" if args.download else f"file:{Path(args.file).name}",
             payload=None,  # large; the operator keeps the source file
             fetched_at=datetime.now(UTC),
             parser_version=PARSER_VERSION,
