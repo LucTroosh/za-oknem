@@ -257,3 +257,13 @@ def test_discover_does_not_prune_when_catalog_suddenly_shrinks_a_lot(monkeypatch
     discovery.discover_stations(db_session)
 
     assert db_session.query(GiosStation).count() == 3
+
+
+def test_malformed_catalog_shape_keeps_the_cache(monkeypatch, db_session):
+    _fetch(monkeypatch, CATALOG)
+    now = datetime(2026, 10, 1, 12, tzinfo=UTC)
+    discovery.ensure_catalog(db_session, now=now)
+    monkeypatch.setattr(client, "fetch_all_stations", MagicMock(side_effect=TypeError("None")))
+
+    assert discovery.ensure_catalog(db_session, now=now + timedelta(days=2)) is False
+    assert db_session.query(GiosStation).count() == 3

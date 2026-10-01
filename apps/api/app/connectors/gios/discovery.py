@@ -55,7 +55,10 @@ def discover_stations(db: Session, *, now: datetime | None = None) -> int:
     Raises GiosApiError / GiosParseError (no valid station at all) - the caller decides
     whether a cached catalog is good enough (rule #1)."""
     fetched_at = now or datetime.now(UTC)
-    stations = client.fetch_all_stations()
+    try:
+        stations = client.fetch_all_stations()
+    except (TypeError, AttributeError) as exc:  # valid JSON of the wrong shape (null pages...)
+        raise client.GiosApiError(f"unexpected findAll response shape: {exc}") from exc
     fetch_id = provenance.record_fetch(
         db,
         source_id="gios",
