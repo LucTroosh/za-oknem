@@ -193,11 +193,12 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **connector:** brak (kandydat, niezaimplementowany)
 - **endpoint:** zbiór „Bathing Water Directive - Status of bathing water"
   (EEA Datahub, Excel .xls/.xlsx, publikacja 2026-06-02, pokrycie do 2025);
-  usługa `https://marine.discomap.eea.europa.eu/arcgis/rest/services/BathingWater/BathingWater_Dyna_WM_2018/MapServer`
-  (warstwa 0: `monitoringSiteIdentifier`, `bathingWaterName`, `countryName`,
+  usługa `https://marine.discomap.eea.europa.eu/arcgis/rest/services/BathingWater/BathingWater_Dyna_WM_2025/MapServer`
+  (docelowa, ale pola `_2025` NIE sprawdzone; poniższą listę pól zweryfikowano
+  na starszej `..._2018`, warstwa 0: `monitoringSiteIdentifier`, `bathingWaterName`, `countryName`,
   `bwWaterCategory`, `latitude`, `longitude`, `qualityStatus`,
   `qualityStatus_minus1..10`, `bwProfileLink`; JSON/geoJSON/PBF;
-  `maxRecordCount` 1000) — sprawdzone WebFetch 2026-10-01
+  `maxRecordCount` 1000 — wg `_2018`) — sprawdzone WebFetch 2026-10-01
 - **frequency:** roczna (cykl raportowania Dyrektywy); NIE status bieżący
 - **coverage:** Europa, w tym Polska (filtr po kraju niezweryfikowany)
 - **license / commercial_use:** wydanie 2024 (rekord katalogu EEA

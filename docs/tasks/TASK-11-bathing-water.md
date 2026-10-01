@@ -23,6 +23,8 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 
 - [x] ADR-021 z opisem każdego rozważonego źródła i decyzją.
 - [x] Registry zawiera wyłącznie fakty zweryfikowane; reszta oznaczona jawnie.
+- [ ] Model `BathingSite` niesie współrzędne ORAZ `geo_area_id`/gmina (wymóg BACKLOG 11.2,
+      potrzebny dla TASK-11.3); mapowanie do gminy przez TASK-6.2, bez własnego geo.
 - [ ] Source Approval Gate zaliczony dla wybranego źródła (licencja,
       `commercial_use`, atrybucja, cykl, schemat na prawdziwej próbce).
 - [ ] Parser testowany na fixture z POTWIERDZONYCH pól (oznaczony jako fixture).
