@@ -376,18 +376,25 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-8.7:** `GET /api/v1/pollen/latest` (freshness, grupowanie per
       geo_area, ten sam wzorzec co `/weather/latest`) — czyta wyłącznie z
       naszej bazy (rule #14).
-- [ ] **TASK-8.8:** Karta pyłkowa na mobile dashboard (§Phase 8 Master
+- [x] **TASK-8.8** (DONE w PR #PRNUM; `pollen.ts` + `PollenCard`, progi EAACI/CAMS wg EEA — ADR-020; poziomy = próg sezonu/szczytu, nie ryzyko objawów): Karta pyłkowa na mobile dashboard (§Phase 8 Master
       Planu: "pollen card") — bez tego Phase 8 nie dostarcza niczego
       użytkownikowi mimo działającego backendu. Profil alergika (który
       pyłki są dla mnie istotne) to już TASK-12.4, nie duplikować tu.
       Wzorzec `source`/`attribution` z TASK-7.1 (Copernicus) dotyczy też tej
       karty.
-- [ ] **TASK-8.9:** Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
+- [x] **TASK-8.9** (DONE w PR #PRNUM; blok per obszar, izolowany, ADR-020): Dodać `pollen` do `dashboard_latest()` (§55 — pollen to
       część głównego agregatu, nie tylko `/pollen/latest`; §55 wymaga też,
       że `pollen` w tej odpowiedzi zawsze pochodzi z lokalnego snapshotu, nie
       z zapytania do CAMS na żądanie). Zależne od TASK-8.7 (endpoint/dane
       muszą istnieć) — **przeniesione tu z Phase 7** (Codex: poprzednia
       wersja umieszczała to przed własną zależnością).
+      **Follow-upy (nie w tym PR):** (1) kalendarz pylenia (`/pollen/calendar`) —
+      osobny PR, w `index.tsx` zostawiony komentarz-slot; (2) `outdoor.evaluate`
+      (ADR-016) NIE uwzględnia pyłków — dodanie reguł wymaga ADR (progi z
+      ADR-020 to progi sezonu, nie ryzyka objawów, więc nie nadają się wprost);
+      (3) profil alergika (TASK-12.4) — wybór gatunków; (4) karta nie starzeje się
+      na urządzeniu (godzina „teraz” = slot z odpowiedzi) — dodać timer jak w
+      OutdoorCard, jeśli ekran bywa otwarty > 1 h.
 
 ### Phase 9 — Alerts (dokończenie)
 

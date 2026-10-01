@@ -1,3 +1,4 @@
+import logging
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
@@ -9,13 +10,19 @@ from app.air_index import air_index
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import alerts_source_status, current_alerts
+from app.api.v1.pollen import freshness as pollen_freshness
+from app.api.v1.pollen import latest_pollen, pollen_block
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
 from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
+from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import haversine_km
 from app.models import GeoArea, Measurement, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
+from app.source_status import source_freshness
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -192,6 +199,18 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         # is FRESH/RECENT - otherwise the source is silent, not confirming zero.
         "source_status": alerts_source_status(db),
     }
+
+    # TASK-8.9 / ADR-020: computed LAST and isolated (rule #1) - a failing pollen read
+    # must not take the rest of the dashboard down; it degrades to UNAVAILABLE.
+    try:
+        pollen_by_area = {p["geo_area_id"]: p for p in latest_pollen(db)}
+        pollen_status = source_freshness(db, POLLEN_SOURCE_ID, pollen_freshness)
+    except Exception:
+        logger.exception("dashboard: pollen block failed")
+        pollen_by_area = {}
+        pollen_status = {"freshness": "UNAVAILABLE", "last_success_at": None}
+    for out in areas_out:
+        out["pollen"] = pollen_block(pollen_by_area.get(out["geo_area_id"]), pollen_status)
 
     return {"areas": areas_out, "alerts": alerts}
 

@@ -171,6 +171,30 @@ def latest_pollen(db: Session) -> list[dict]:
     return result
 
 
+def pollen_block(area: dict | None, source_status: dict) -> dict:
+    """Per-area `pollen` block of /dashboard/latest (TASK-8.9). Same fields as one
+    /pollen/latest area (ADR-020 verbatim: kind/model/unit/forecast_reference_time/
+    fetched_at/freshness) + source/attribution/source_status. No snapshot for the area ->
+    freshness UNAVAILABLE and null values (never 0, never a guess)."""
+    head = {"source": SOURCE, "attribution": ATTRIBUTION, "kind": "model_forecast"}
+    if area is None:
+        return {
+            **head,
+            "model": None,
+            "unit": None,
+            "forecast_reference_time": None,
+            "fetched_at": None,
+            "freshness": "UNAVAILABLE",
+            "valid_at": None,
+            "current": None,
+            "days": [],
+            "source_status": source_status,
+        }
+    drop = {"geo_area_id", "slug", "name", "latitude", "longitude", "kind"}  # per-area id / head
+    rest = {k: v for k, v in area.items() if k not in drop}
+    return {**head, **rest, "source_status": source_status}
+
+
 @router.get("/pollen/latest", response_model=PollenLatestResponse)
 def pollen_latest(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) - never calls Open-Meteo/CAMS on request.
