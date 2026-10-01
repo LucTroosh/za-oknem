@@ -59,20 +59,13 @@ SOURCES: dict[str, SourceSpec] = {
     "imgw_warningshydro": SourceSpec(alerts_freshness),
 }
 
-# Error text comes from exception messages (HTTP libs embed URLs, sometimes with
-# credentials). Redact URL userinfo, query strings and anything key/token/secret/
-# password/authorization-like, including `access_token=x`, `x_api_key: x`, JSON
-# `"token": "x"`. Input is capped first so the scan stays linear-ish (no ReDoS).
+# Error text is free-form (exception messages: URLs, headers, prose). Pattern-matching
+# every credential shape proved endless, so the rule is conservative instead: URL
+# userinfo and query strings are stripped, and if the message mentions anything
+# credential-like at all, only the exception type is kept ("Type: [redacted]").
 _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
-# Authorization values can be multi-part (Basic x, AWS4-HMAC-SHA256 Credential=..,
-# Signature=..): redact everything after the field name to the end of the message.
-_AUTH = re.compile(r"""(?i)auth[^=:]{0,40}[=:].*""")  # label words may precede the delimiter
-_BEARER = re.compile(r"""(?i)\bbearer\s+[^\s"',;&)]+""")
-_SECRET = re.compile(
-    r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
-    r"""\s*[=:]?\s*(?:bearer\s+)?(?:"[^"]*(?:"|$)|'[^']*(?:'|$)|[^\s"',;&)]+)"""
-)
+_SENSITIVE = re.compile(r"(?i)key|token|secret|passw|auth|bearer|credential|signature|cookie")
 _MAX_SCAN = 1000
 
 
@@ -80,9 +73,11 @@ def sanitize_error(error: str | None) -> str | None:
     if not error:
         return None
     text = " ".join(error[:_MAX_SCAN].split())
-    text = _AUTH.sub("[redacted]", _QUERY.sub("", _USERINFO.sub("//[redacted]@", text)))
-    text = _BEARER.sub("[redacted]", _SECRET.sub("[redacted]", text))
-    return text[:MAX_PUBLIC_ERROR_LENGTH]
+    if _SENSITIVE.search(text):
+        head = text.split(":", 1)[0]
+        head = head if len(head) <= 60 and not _SENSITIVE.search(head) else "error"
+        return f"{head}: [redacted]"
+    return _QUERY.sub("", _USERINFO.sub("//[redacted]@", text))[:MAX_PUBLIC_ERROR_LENGTH]
 
 
 def _aware(value: datetime | None) -> datetime | None:

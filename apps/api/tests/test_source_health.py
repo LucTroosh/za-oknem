@@ -137,7 +137,10 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
     out = sanitize_error(raw)
 
     assert "SECRET123" not in out and "abc.def" not in out and "xyz" not in out
-    assert "ConnectionError" in out
+    assert out == "ConnectionError: [redacted]"
+    assert sanitize_error("HTTP 429 from https://u:p@host/x?a=b rate limited") == (
+        "HTTP 429 from https://[redacted]@host/x rate limited"
+    )
     assert len(sanitize_error("x" * 1000)) == 200
 
 
@@ -158,6 +161,8 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("secret='alpha beta gamma", "gamma"),
         ('{"client_secret": "alpha beta gamma"}', "gamma"),
         ("Authorization header: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
+        ("API key value: sk-live-777", "sk-live-777"),
+        ("password is hunter2", "hunter2"),
         ("Authentication: Bearer secret123", "secret123"),
         ("auth_header='Bearer secret456'", "secret456"),
         ("retry with Bearer abc789 failed", "abc789"),

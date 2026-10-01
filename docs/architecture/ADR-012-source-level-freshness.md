@@ -55,7 +55,8 @@ Opcja 3.
 - `last_error` jest tylko do diagnostyki operacyjnej, nie trafia do API mobilnego
   (`/alerts`, `/hydro`, `/dashboard`). Jedyny wyjątek: operatorski
   `GET /api/v1/health/sources` (TASK-13.1) zwraca go zsanityzowanego (bez query
-  stringów i wartości `key/token/secret/password/authorization`, max 200 znaków).
+  stringów i userinfo URL; komunikat z czymkolwiek przypominającym poświadczenia
+  redukowany do typu wyjątku; max 200 znaków).
 
 ## Consequences
 

@@ -93,9 +93,12 @@ ADR-012 (`source_status`), TASK-13.1a (`source_fetch_counters`), ADR-004, ADR-00
 
 ## Security
 
-Tylko nasza baza (rule #14). `last_error` zsanityzowany: query stringi
-wycięte, wartości po `key/token/secret/password/authorization/bearer` zastąpione,
-limit 200 znaków. Brak danych użytkowników.
+Tylko nasza baza (rule #14). `last_error` jest sanityzowany zachowawczo: userinfo
+URL i query stringi wycinane; jeśli komunikat zawiera cokolwiek przypominającego
+poświadczenia (key/token/secret/passw/auth/bearer/credential/signature/cookie),
+zostaje tylko typ wyjątku ("Type: [redacted]"); limit 200 znaków. Wzorce
+per-kształt poświadczeń odrzucone (nieskończony wyścig z wolnym tekstem).
+Skutek uboczny: nadmiarowa redakcja, np. słowo "keyboard".
 
 ## Architecture Impact
 
