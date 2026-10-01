@@ -81,8 +81,7 @@ jobs:
           exit 1
 
       - name: OpenAPI contract is current (TASK-2.1, ADR-024)
-        run: |
-          uv run python scripts/export_openapi.py --check || { echo "::error title=openapi-diff::$(diff ../../packages/api-contract/openapi.json /tmp/openapi.generated.json | head -c 3500 | awk '{printf "%s%%0A", $0}')"; exit 1; }
+        run: uv run python scripts/export_openapi.py --check
 
   mobile:
     runs-on: ubuntu-latest
