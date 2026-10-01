@@ -207,7 +207,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #81 | Alerty ↔ obszar (TASK-9.5 część, ADR-013): `app/alert_geo.py` (województwo → TERYT, fail-safe `unresolved`), `?geo_area_id=` w `/alerts/latest`, `geo_match`, `local_alerts` w dashboardzie, kontrakt zregenerowany; ADR-013 = granica Measurement/Forecast/Event/Alert/Notification (`Event`/`Notification` nie powstały) — 🟡 |
 | #78 | Stany stale/no-data dla air i weather (TASK-7.3): `source_status` w blokach dashboardu, efektywna świeżość + etykieta wieku + przygaszenie w UI; prezentacja pól pogody na mobile (TASK-5.4) |
 | #80 | Mobile: karta „Kalendarz pylenia — typowy sezon” (TASK-8.10 UI, `pollenCalendar.ts`/`PollenCalendarCard`, osobny fetch `/pollen/calendar`, pusty `active` ≠ „nic nie pyli”) + typy `index`/`alerts`/`hydro`/`outdoor`/`aqi` z kontraktu API (follow-up TASK-2.1) |
-| #PR | Wybór lokalizacji w API (TASK-6.2 (8), ADR-026): `/dashboard/latest?geo_area_id=`, `GET /areas`, `POST /geo/locate` (nearest active area ≤ 25 km jawnie, `out_of_range`), `weather_polling_active` w `DashboardArea`, kontrakt zregenerowany; bez klienta mobile — 🟡 |
+| #82 | Wybór lokalizacji w API (TASK-6.2 (8), ADR-026): `/dashboard/latest?geo_area_id=`, `GET /areas`, `POST /geo/locate` (nearest active area ≤ 25 km jawnie, `out_of_range`), `weather_polling_active` w `DashboardArea`, kontrakt zregenerowany; bez klienta mobile — 🟡 |
 
 ---
 
