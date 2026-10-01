@@ -93,6 +93,13 @@ def test_discover_with_no_valid_station_raises_and_changes_nothing(monkeypatch, 
     ).first().validation_status == ("invalid")
 
 
+@pytest.fixture(autouse=True)
+def _reset_backoff():
+    discovery._last_failed_refresh = None
+    yield
+    discovery._last_failed_refresh = None
+
+
 def test_ensure_catalog_refreshes_at_most_daily(monkeypatch, db_session):
     fetch = _fetch(monkeypatch, CATALOG)
     now = datetime(2026, 10, 1, 12, tzinfo=UTC)
@@ -182,3 +189,35 @@ def test_polling_expected_covers_env_assignment_and_empty_catalog_bootstrap(
 
     monkeypatch.setenv("GIOS_STATION_IDS", "1")
     assert discovery.polling_expected(db_session) is True
+
+
+def test_failed_refresh_with_cache_backs_off_for_a_day_then_retries(monkeypatch, db_session):
+    _fetch(monkeypatch, CATALOG)
+    now = datetime(2026, 10, 1, 12, tzinfo=UTC)
+    discovery.ensure_catalog(db_session, now=now)
+    failing = MagicMock(side_effect=client.GiosApiError("403"))
+    monkeypatch.setattr(client, "fetch_all_stations", failing)
+
+    late = now + timedelta(days=2)
+    assert discovery.ensure_catalog(db_session, now=late) is False  # attempt 1 fails
+    assert discovery.ensure_catalog(db_session, now=late + timedelta(hours=1)) is False
+    assert discovery.ensure_catalog(db_session, now=late + timedelta(hours=23)) is False
+    assert failing.call_count == 1  # no hourly re-walk during the outage
+
+    assert discovery.ensure_catalog(db_session, now=late + timedelta(hours=25)) is False
+    assert failing.call_count == 2  # one retry per day
+
+    _fetch(monkeypatch, CATALOG)
+    assert discovery.ensure_catalog(db_session, now=late + timedelta(hours=50)) is True
+
+
+def test_failed_refresh_without_cache_is_retried_every_run(monkeypatch, db_session):
+    failing = MagicMock(side_effect=client.GiosApiError("403"))
+    monkeypatch.setattr(client, "fetch_all_stations", failing)
+    now = datetime(2026, 10, 1, 12, tzinfo=UTC)
+
+    for hours in (0, 1):
+        with pytest.raises(client.GiosApiError):
+            discovery.ensure_catalog(db_session, now=now + timedelta(hours=hours))
+
+    assert failing.call_count == 2

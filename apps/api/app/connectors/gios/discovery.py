@@ -25,6 +25,11 @@ from app.models import GiosStation
 logger = logging.getLogger(__name__)
 
 CATALOG_MAX_AGE = timedelta(hours=24)
+# Last failed refresh while a cached catalog exists: the hourly job must not re-walk the
+# rate-limited catalog every hour during an outage - retry once per CATALOG_MAX_AGE.
+# ponytail: in-process (the scheduler is one process, ADR-007); a restart retries at once.
+# Persist it (e.g. in source_status) if the scheduler ever restarts often or runs replicated.
+_last_failed_refresh: datetime | None = None
 
 
 def _parse(station: dict) -> tuple[str, str, float, float]:
@@ -86,8 +91,9 @@ def discover_stations(db: Session, *, now: datetime | None = None) -> int:
 
 def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
     """Refresh the catalog when it is empty or older than CATALOG_MAX_AGE. Returns True
-    when a refresh happened. A failed refresh falls back to the cached catalog (rule #1);
-    with no cache at all it raises."""
+    when a refresh happened. A failed refresh falls back to the cached catalog (rule #1) and
+    is not retried for CATALOG_MAX_AGE; with no cache at all it raises (and retries each run)."""
+    global _last_failed_refresh
     now = now or datetime.now(UTC)
     newest = db.query(func.max(GiosStation.fetched_at)).scalar()
     if newest is not None:
@@ -95,13 +101,17 @@ def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
             newest = newest.replace(tzinfo=UTC)
         if now - newest < CATALOG_MAX_AGE:
             return False
+        if _last_failed_refresh and now - _last_failed_refresh < CATALOG_MAX_AGE:
+            return False
     try:
         discover_stations(db, now=now)
+        _last_failed_refresh = None
         return True
     except (client.GiosApiError, GiosParseError) as exc:
         db.rollback()
         if newest is None:
             raise
+        _last_failed_refresh = now
         logger.warning(
             "GIOS catalog refresh failed (%s); using cached catalog from %s", exc, newest
         )
