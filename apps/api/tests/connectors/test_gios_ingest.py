@@ -192,7 +192,7 @@ class TestProvenance:
 
         stored = ingest.ingest_station(STATION, db_session)
 
-        assert stored == 0
+        assert stored is None  # only attempted param failed: failed station (TASK-13.1)
         fetch = db_session.query(SourceFetch).one()
         assert fetch.payload == bad
         assert fetch.validation_status == provenance.INVALID
