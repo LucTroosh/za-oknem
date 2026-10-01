@@ -4,7 +4,8 @@ Static reference data from a repo file (rule #14: no external call). Explicitly 
 measurement and NOT a forecast (rule #7) - see `kind` and `disclaimer`.
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
+from datetime import date as Date  # the response field `date` shadows the name in the class
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -28,7 +29,7 @@ MIN_YEAR, MAX_YEAR = 2000, 2100  # date arithmetic stays far from date.max/min
 
 
 class PollenCalendarOut(BaseModel):
-    date: date
+    date: Date
     kind: Literal["seasonal_calendar"]  # NOT a measurement, NOT a forecast
     region: Literal["PL"]
     active: list[ActiveTaxon]
@@ -38,12 +39,12 @@ class PollenCalendarOut(BaseModel):
     sources: dict[str, Source]
     attribution: str
     disclaimer: str
-    reviewed_at: date
+    reviewed_at: Date
 
 
 @router.get("/pollen/calendar", response_model=PollenCalendarOut)
 def pollen_calendar(
-    on: date | None = Query(
+    on: Date | None = Query(
         None, alias="date", description="YYYY-MM-DD; default: today (Europe/Warsaw)"
     ),
 ) -> PollenCalendarOut:
