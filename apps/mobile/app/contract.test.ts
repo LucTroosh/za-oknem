@@ -8,7 +8,7 @@ import type {
 import type { AlertsBlock } from "./alerts";
 import type { AirIndexBlock } from "./aqi";
 import type { ForecastDay } from "./forecast";
-import type { DashboardArea as ScreenArea } from "./index";
+import type { DashboardArea as ScreenArea, DashboardSourceStatus } from "./index";
 import type { OutdoorBlock } from "./outdoor";
 import type { PollenBlock } from "./pollen";
 
@@ -19,7 +19,7 @@ const accept = <T>(value: T): T => value;
 
 function uiAcceptsContract(response: DashboardResponse, index: AirIndex) {
   // The exact type index.tsx fetches the dashboard as (air/weather/forecast included).
-  accept<{ areas: ScreenArea[]; alerts: AlertsBlock }>(response);
+  accept<{ areas: ScreenArea[]; alerts: AlertsBlock; source_status?: DashboardSourceStatus }>(response);
   const area = response.areas[0];
   const alerts: DashboardAlerts = response.alerts;
   accept<PollenBlock>(area.pollen);

@@ -80,6 +80,7 @@ export type DashboardAir = {
   observed_at: string;
   params: Record<string, AirParam>;
   source: "gios";
+  source_status: SourceStatusOut;
   station_id: string;
   station_name: string;
 };
@@ -149,6 +150,12 @@ export type DashboardPollenDay = {
 export type DashboardResponse = {
   alerts: DashboardAlerts;
   areas: Array<DashboardArea>;
+  source_status: DashboardSourceStatus;
+};
+
+export type DashboardSourceStatus = {
+  air: SourceStatusOut;
+  weather: SourceStatusOut;
 };
 
 export type DashboardWeather = {
@@ -157,6 +164,7 @@ export type DashboardWeather = {
   observed_at: string;
   params: Record<string, DashboardWeatherParam>;
   source: "open_meteo";
+  source_status: SourceStatusOut;
 };
 
 export type DashboardWeatherParam = {

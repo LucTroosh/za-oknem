@@ -21,6 +21,7 @@ from app.models import (
     SourceStatus,
     WeatherSnapshot,
 )
+from app.source_status import source_freshness
 
 KLODZKO = {
     "id": 1,
@@ -668,3 +669,94 @@ def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch
     monkeypatch.setattr("app.api.v1.dashboard.pollen_block", once)
     client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
     _assert_pollen_degraded_rest_intact(client, caplog)
+
+
+def _status(source_id: str, hours_old: float | None) -> dict:
+    last = None if hours_old is None else datetime.now(UTC) - timedelta(hours=hours_old)
+    return {source_id: SourceStatus(source_id=source_id, last_success_at=last)}
+
+
+def _air_weather(status_rows=None) -> dict:
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()], status_rows=status_rows)
+    return client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+
+def test_dashboard_air_and_weather_source_status_fresh():
+    rows = _status("gios", 0.5) | _status("open_meteo", 1)
+    area = _air_weather(rows)
+
+    assert area["air"]["source_status"]["freshness"] == "FRESH"
+    assert area["weather"]["source_status"]["freshness"] == "FRESH"
+    assert area["air"]["source_status"]["last_success_at"]
+
+
+def test_dashboard_source_status_unavailable_without_a_run_row():
+    # Data rows exist (e.g. ingested before ADR-012) but the source never recorded a success.
+    area = _air_weather()
+    unavailable = {"freshness": "UNAVAILABLE", "last_success_at": None}
+
+    assert area["air"]["source_status"] == unavailable
+    assert area["weather"]["source_status"] == unavailable
+
+
+def test_dashboard_source_status_stale_uses_each_domains_own_thresholds():
+    # 7h: past air's RECENT bound (6h) but within weather's (8h).
+    area = _air_weather(_status("gios", 7) | _status("open_meteo", 7))
+
+    assert area["air"]["source_status"]["freshness"] == "STALE"
+    assert area["weather"]["source_status"]["freshness"] == "RECENT"
+    # Row labels stay row-based: a fresh row under a stale source is the client's call.
+    assert area["air"]["params"]["PM2.5"]["freshness"] == "FRESH"
+
+
+def test_dashboard_source_status_never_succeeded_row_is_unavailable():
+    area = _air_weather(_status("gios", None) | _status("open_meteo", None))
+
+    assert area["air"]["source_status"]["freshness"] == "UNAVAILABLE"
+    assert area["weather"]["source_status"]["freshness"] == "UNAVAILABLE"
+
+
+def test_dashboard_source_status_success_from_the_future_reads_stale():
+    # MAX_CLOCK_SKEW guard (ADR-012): an unverifiable future success is never FRESH.
+    area = _air_weather(_status("gios", -2) | _status("open_meteo", -2))
+
+    assert area["air"]["source_status"]["freshness"] == "STALE"
+    assert area["weather"]["source_status"]["freshness"] == "STALE"
+
+
+def test_dashboard_source_status_failure_is_isolated_and_logged(monkeypatch, caplog):
+    real = source_freshness
+
+    def flaky(db, source_id, freshness):
+        if source_id in ("gios", "open_meteo"):
+            raise RuntimeError("status table down")
+        return real(db, source_id, freshness)
+
+    monkeypatch.setattr("app.api.v1.dashboard.source_freshness", flaky)
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
+
+    resp = client.get("/api/v1/dashboard/latest")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    area = body["areas"][0]
+    down = {"freshness": "UNAVAILABLE", "last_success_at": None}
+    assert area["air"]["source_status"] == down
+    assert area["weather"]["source_status"] == down
+    assert area["air"]["params"]["PM2.5"]["value"] == 11.5  # data blocks untouched
+    assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
+    assert body["alerts"]["scope"] == "national"
+    assert "dashboard: source_status for gios failed" in caplog.text
+
+
+def test_dashboard_top_level_source_status_survives_null_blocks():
+    # No station / no snapshot -> air and weather are null, yet the client can still tell
+    # a source that never succeeded from a healthy one with nothing applicable.
+    rows = _status("gios", 1)  # open_meteo has no row
+    client = _client([GeoArea(**KLODZKO)], [], [], status_rows=rows)
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    assert body["areas"][0]["air"] is None and body["areas"][0]["weather"] is None
+    assert body["source_status"]["air"]["freshness"] == "FRESH"
+    assert body["source_status"]["weather"] == {"freshness": "UNAVAILABLE", "last_success_at": None}

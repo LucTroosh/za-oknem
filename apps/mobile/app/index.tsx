@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import AirIndexBadge from "../components/AirIndexBadge";
+import AirParams from "../components/AirParams";
 import OutdoorCard from "../components/OutdoorCard";
 import PollenCard from "../components/PollenCard";
+import WeatherCard from "../components/WeatherCard";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
-import { FRESHNESS_LABEL, type Freshness } from "./freshness";
+import { FRESHNESS_LABEL, type Freshness, type FreshnessState } from "./freshness";
 import {
   HYDRO_FRESHNESS_LABEL,
   HYDRO_STATUS_LABEL,
@@ -20,11 +21,9 @@ import {
 // placeholder) — hand-typed here, one endpoint doesn't justify generating an
 // OpenAPI client.
 //
-// Freshness is always the server's own value (app/api/v1/dashboard.py), never
-// recomputed here: air and weather use different thresholds (2h/6h vs 4h/8h,
-// ADR-004), so one client-side function can't correctly classify both. Trade-off:
-// labels no longer tick forward live while the screen stays open (previously via
-// a 60s timer) - acceptable, since an accurate label needs a refetch anyway.
+// Freshness labels are the server's own (app/api/v1/dashboard.py, per-domain thresholds,
+// ADR-004). The client never upgrades one; it only combines it with `source_status`
+// (worst wins, ADR-012) and ages it on the device clock (app/readings.ts, TASK-7.3).
 export type DashboardArea = {
   geo_area_id: number;
   slug: string;
@@ -48,6 +47,8 @@ export type DashboardArea = {
     >;
     // TASK-4.2: optional - absent on an older backend; the badge renders nothing then.
     index?: unknown;
+    // TASK-7.3 / ADR-012: optional - absent on an older backend.
+    source_status?: { freshness: FreshnessState; last_success_at: string | null };
   } | null;
   weather: {
     attribution: string;
@@ -60,6 +61,7 @@ export type DashboardArea = {
       string,
       { value: number; unit: string; observed_at: string; freshness: Freshness }
     >;
+    source_status?: { freshness: FreshnessState; last_success_at: string | null };
   } | null;
   // TASK-5.5: daily forecast from the same dashboard aggregate. Freshness is
   // about when we fetched it (fetched_at), not about the forecast period.
@@ -75,6 +77,11 @@ export type DashboardArea = {
   // optional - absent on an older backend, the card renders nothing then.
   pollen?: unknown;
 };
+
+// TASK-7.3: top-level (not per area) because `air`/`weather` are null when there is no
+// station/snapshot - the source status must survive that. Optional on an older backend.
+type SourceStatus = { freshness: FreshnessState; last_success_at: string | null };
+export type DashboardSourceStatus = { air?: SourceStatus; weather?: SourceStatus };
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -134,16 +141,22 @@ export default function Home() {
   const [state, setState] = useState<LoadState>("loading");
   const [areas, setAreas] = useState<DashboardArea[]>([]);
   const [alerts, setAlerts] = useState<AlertsBlock | null>(null);
+  const [sourceStatus, setSourceStatus] = useState<DashboardSourceStatus | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   // Device time of the last successful dashboard response (ages the outdoor verdict).
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
 
   const load = useCallback(() => {
-    return apiGet<{ areas: DashboardArea[]; alerts: AlertsBlock }>("/api/v1/dashboard/latest")
+    return apiGet<{
+      areas: DashboardArea[];
+      alerts: AlertsBlock;
+      source_status?: DashboardSourceStatus;
+    }>("/api/v1/dashboard/latest")
       .then((body) => {
         setAreas(body.areas);
         setAlerts(body.alerts);
+        setSourceStatus(body.source_status ?? null);
         setLoadedAt(Date.now());
         setState("ready");
       })
@@ -202,37 +215,16 @@ export default function Home() {
           <View style={styles.row}>
             <Text style={styles.stationName}>{item.name}</Text>
             <View style={styles.metricsRow}>
-              {item.air ? (
-                <View style={styles.metricsColumn}>
-                  {Object.entries(item.air.params).map(([code, param]) => (
-                    <Text key={code} style={styles.metric}>
-                      {code}: {param.value} {param.unit}{" "}
-                      <Text style={styles.freshness}>
-                        ({FRESHNESS_LABEL[param.freshness]}, {formatObservedAt(param.observed_at)})
-                      </Text>
-                    </Text>
-                  ))}
-                  <AirIndexBadge index={item.air.index} receivedAt={loadedAt} />
-                  <Text style={styles.attribution}>{item.air.attribution}</Text>
-                </View>
-              ) : (
-                <Text style={styles.metric}>Powietrze: brak stacji w pobliżu</Text>
-              )}
-              {item.weather?.params.temperature_2m ? (
-                <View style={styles.metricsColumn}>
-                  <Text style={styles.metric}>
-                    {item.weather.params.temperature_2m.value}
-                    {item.weather.params.temperature_2m.unit}{" "}
-                    <Text style={styles.freshness}>
-                      ({FRESHNESS_LABEL[item.weather.params.temperature_2m.freshness]},{" "}
-                      {formatObservedAt(item.weather.params.temperature_2m.observed_at)})
-                    </Text>
-                  </Text>
-                  <Text style={styles.attribution}>{item.weather.attribution}</Text>
-                </View>
-              ) : (
-                <Text style={styles.metric}>pogoda: brak danych</Text>
-              )}
+              <View style={styles.metricsColumn}>
+                <AirParams
+                  air={item.air}
+                  sourceStatus={sourceStatus?.air}
+                  receivedAt={loadedAt}
+                />
+              </View>
+              <View style={styles.metricsColumn}>
+                <WeatherCard weather={item.weather} sourceStatus={sourceStatus?.weather} />
+              </View>
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
             <PollenCard pollen={item.pollen} />

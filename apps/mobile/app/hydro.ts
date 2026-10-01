@@ -3,6 +3,7 @@
 // thresholds) - nothing here classifies a level (rule #10). This module only decides
 // WHAT THE SECTION MAY CLAIM, so stale data never reads as "all clear" (rule #8).
 import type { SourceFreshness } from "./alerts";
+import { asFreshness, worstFreshness } from "./freshness";
 
 export type HydroStatus = "NORMAL" | "WARNING" | "ALARM" | "UNKNOWN";
 
@@ -36,8 +37,6 @@ export const HYDRO_LIST_LIMIT = 5;
 const FRESH_MAX_MS = 2 * 60 * 60 * 1000;
 const RECENT_MAX_MS = 6 * 60 * 60 * 1000;
 
-const RANK: Record<SourceFreshness, number> = { FRESH: 0, RECENT: 1, STALE: 2, UNAVAILABLE: 3 };
-
 export const HYDRO_FRESHNESS_LABEL: Record<SourceFreshness, string> = {
   FRESH: "świeże",
   RECENT: "niedawne",
@@ -52,13 +51,8 @@ export const HYDRO_STATUS_LABEL: Record<HydroStatus, string> = {
   UNKNOWN: "brak progów IMGW",
 };
 
-function valid(f: unknown): SourceFreshness {
-  return typeof f === "string" && f in RANK ? (f as SourceFreshness) : "UNAVAILABLE";
-}
-
-function worst(a: SourceFreshness, b: SourceFreshness): SourceFreshness {
-  return RANK[a] >= RANK[b] ? a : b;
-}
+const valid = asFreshness;
+const worst = (a: SourceFreshness, b: SourceFreshness) => worstFreshness(a, b);
 
 const healthy = (f: SourceFreshness) => f === "FRESH" || f === "RECENT";
 

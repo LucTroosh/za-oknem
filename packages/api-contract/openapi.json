@@ -432,6 +432,9 @@
             "title": "Source",
             "type": "string"
           },
+          "source_status": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          },
           "station_id": {
             "title": "Station Id",
             "type": "string"
@@ -449,7 +452,8 @@
           "observed_at",
           "params",
           "index",
-          "distance_km"
+          "distance_km",
+          "source_status"
         ],
         "title": "DashboardAir",
         "type": "object"
@@ -830,13 +834,34 @@
             },
             "title": "Areas",
             "type": "array"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/DashboardSourceStatus"
           }
         },
         "required": [
           "areas",
-          "alerts"
+          "alerts",
+          "source_status"
         ],
         "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DashboardSourceStatus": {
+        "description": "Per source, outside the nullable per-area blocks (`air`/`weather` are null without a\nstation/snapshot - \"never succeeded\" must stay distinguishable there).",
+        "properties": {
+          "air": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          },
+          "weather": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          }
+        },
+        "required": [
+          "air",
+          "weather"
+        ],
+        "title": "DashboardSourceStatus",
         "type": "object"
       },
       "DashboardWeather": {
@@ -869,6 +894,9 @@
             "const": "open_meteo",
             "title": "Source",
             "type": "string"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SourceStatusOut"
           }
         },
         "required": [
@@ -876,7 +904,8 @@
           "attribution",
           "observed_at",
           "freshness",
-          "params"
+          "params",
+          "source_status"
         ],
         "title": "DashboardWeather",
         "type": "object"

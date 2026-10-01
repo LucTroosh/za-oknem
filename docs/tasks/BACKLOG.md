@@ -169,7 +169,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       `open_meteo` connectora o zapytanie `hourly`/`daily` obok `current`,
       `GET /api/v1/weather/forecast`. Wymaga ADR-010 (nowy typ danych w
       modelu, precedens: ADR-008 dla Measurement, ADR-009 dla Alert).
-- [ ] **TASK-5.4** (backend: PR #50; brakuje prezentacji pól na mobile): Rozszerzyć `current`/`daily` o dew point, visibility, UV
+- [x] **TASK-5.4** (backend: PR #50; prezentacja pól na mobile: PR #78 — `weather.ts`/`WeatherCard`, tylko pola faktycznie zwracane przez backend, z jednostkami, brak = „brak danych”; follow-up: `rain`/`snowfall` nie są osobno pokazywane (wchodzą w `precipitation`)): Rozszerzyć `current`/`daily` o dew point, visibility, UV
       index. **Korekta (Codex) — poprzedni opis był błędny:** to NIE jest
       samo rozszerzenie `PARAM_CODES` "w tym samym zapytaniu bez
       dodatkowego round-tripu" — `client.py` (komentarz przy
@@ -327,9 +327,15 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dopasowanie najbliższego wodowskazu per gmina, tym samym wzorcem
       nearest-station/haversine co ADR-006 dla GIOŚ — nie zostawiać tego
       bez właściciela.
-- [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
-      loading/error/ready) — §59/§80 Master Planu.
-- [ ] **TASK-7.4** (zrobione: ostrzeżenia #59/#61 i hydro #62 wg ADR-012; zostaje `air`/`weather` w agregacie + stany UI → TASK-7.3): Source-level freshness (UNAVAILABLE: pusta lista =
+- [x] **TASK-7.3** (PR #78): Stany stale/no-data w UI dla `air` i `weather` —
+      §59/§80 Master Planu. Backend: `source_status` (ADR-012, izolowane, guard
+      `MAX_CLOCK_SKEW`) w blokach `air`/`weather` agregatu oraz top-level `source_status.{air,weather}` (bloki bywają null). Mobile: efektywna świeżość =
+      najgorsza z `freshness` wartości, `source_status` i wieku na zegarze urządzenia
+      (`readings.ts`, wspólne `worstFreshness`/`ageLabel` w `freshness.ts`), etykieta
+      wieku, przygaszenie STALE, UNAVAILABLE/`null` → „brak danych” (nie 0).
+      Follow-up: blok `forecast` nie ma `source_status` ani przygaszania (zostaje etykieta
+      freshness z #55).
+- [ ] **TASK-7.4** (zrobione: ostrzeżenia #59/#61, hydro #62, `air`/`weather` w agregacie + stany UI: TASK-7.3 wg ADR-012): Source-level freshness (UNAVAILABLE: pusta lista =
       potwierdzone zero czy dawno nie było fetcha) — dotyczy `/air`,
       `/hydro`, `/alerts`, `/weather` razem. Wymaga własnego ADR-012
       (świadomy non-goal z ADR-009, teraz adresowany). **Korekta (Codex):**

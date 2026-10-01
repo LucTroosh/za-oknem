@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Literal
@@ -37,6 +38,8 @@ MAX_MATCH_DISTANCE_KM = 50.0
 # TASK-7.1: source transparency (Master Plan Principle 2) - attribution text is
 # copied verbatim from docs/data/source-registry.md, not reworded here. Only two
 # sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
+AIR_SOURCE_ID = "gios"  # source_status rows are keyed by the connector's source_id
+WEATHER_SOURCE_ID = "open_meteo"
 GIOS_ATTRIBUTION = "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
 # source-registry.md (imgw_hydro, same terms for imgw_warnings*): verbatim, required.
@@ -87,6 +90,7 @@ class DashboardAir(BaseModel):
     params: dict[str, AirParam]
     index: AirIndex
     distance_km: float
+    source_status: SourceStatusOut  # TASK-7.3 / ADR-012: the GIOŚ source, not this station
 
 
 class DashboardWeather(BaseModel):
@@ -95,6 +99,7 @@ class DashboardWeather(BaseModel):
     observed_at: str  # newest of any param - a summary, see params[*]
     freshness: Freshness3
     params: dict[str, DashboardWeatherParam]
+    source_status: SourceStatusOut  # TASK-7.3 / ADR-012: the Open-Meteo source
 
 
 class DashboardForecastDay(BaseModel):
@@ -180,9 +185,18 @@ class DashboardAlerts(BaseModel):
     source_status: dict[str, SourceStatusOut]
 
 
+class DashboardSourceStatus(BaseModel):
+    """Per source, outside the nullable per-area blocks (`air`/`weather` are null without a
+    station/snapshot - "never succeeded" must stay distinguishable there)."""
+
+    air: SourceStatusOut
+    weather: SourceStatusOut
+
+
 class DashboardResponse(BaseModel):
     areas: list[DashboardArea]
     alerts: DashboardAlerts
+    source_status: DashboardSourceStatus
 
 
 @router.get("/dashboard/latest", response_model=DashboardResponse)
@@ -246,6 +260,12 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     # consumed - the user never saw it. Same helper, so both show one prediction.
     forecasts = forecasts_by_area(db)
 
+    # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
+    # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
+    # failing the dashboard. Computed once per request, shared by every area.
+    air_status = _source_status(db, AIR_SOURCE_ID, air_freshness)
+    weather_status = _source_status(db, WEATHER_SOURCE_ID, weather_freshness)
+
     areas_out = []
     for area in areas:
         nearest, nearest_km = None, None
@@ -272,6 +292,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # ADR-015: EAQI from the params already loaded (no extra query, rule #14).
                 "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(nearest_km, 1),
+                "source_status": air_status,
             }
 
         params = weather_by_area.get(area.id, [])
@@ -298,6 +319,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # cycles while `current` keeps refreshing, so the object-level max()
                 # above must not be the only freshness a client sees.
                 "params": weather_params,
+                "source_status": weather_status,
             }
 
         areas_out.append(
@@ -343,7 +365,20 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         for out in areas_out:
             out["pollen"] = _json(pollen_block(None, down))
 
-    return {"areas": areas_out, "alerts": alerts}
+    # Outside the nullable per-area blocks too: `air`/`weather` are null when there is no
+    # station nearby / no snapshot, and "source never succeeded" must stay distinguishable
+    # from "healthy source, nothing applicable" there (Codex review).
+    source_status = {"air": air_status, "weather": weather_status}
+    return {"areas": areas_out, "alerts": alerts, "source_status": source_status}
+
+
+def _source_status(db: Session, source_id: str, freshness: Callable[[datetime], str]) -> dict:
+    try:
+        return source_freshness(db, source_id, freshness)
+    except Exception:
+        logger.exception("dashboard: source_status for %s failed", source_id)
+        db.rollback()  # a failed statement leaves a Postgres transaction aborted
+        return {"freshness": "UNAVAILABLE", "last_success_at": None}
 
 
 def _json(block: dict) -> dict:
