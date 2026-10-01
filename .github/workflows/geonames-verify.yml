@@ -4,6 +4,11 @@ name: GeoNames dump verification
 # Not part of PR CI. Run: Actions -> "GeoNames dump verification" -> Run workflow.
 on:
   workflow_dispatch:
+  # TEMP: a workflow_dispatch file is dispatchable only from the default branch, so until
+  # this PR is merged a push touching this file runs it on the branch. Remove after verifying.
+  push:
+    branches: [feat/any-locality]
+    paths: [.github/workflows/geonames-verify.yml]
 
 jobs:
   verify:
