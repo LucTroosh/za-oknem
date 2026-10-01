@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response
 from pydantic import BaseModel, ConfigDict, StringConstraints
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -105,27 +105,28 @@ def register_device(
     elif not _authorized(device, x_device_secret):
         raise HTTPException(status_code=403, detail="Invalid device credentials")
 
-    if body.push_token is not None:
-        # One token = one installation: a reinstall gets a new installation_id with the
-        # same Expo token, which must not be pushed twice.
-        db.execute(
-            update(Device)
-            .where(
-                Device.push_token == body.push_token,
-                Device.installation_id != device.installation_id,
-            )
-            .values(push_token=None)
-        )
-    for field in body.model_fields_set - {"installation_id", "platform"}:
-        setattr(device, field, getattr(body, field))
-    device.platform = body.platform
-    device.active = True
-    device.updated_at = now
-    device.last_seen_at = now
     try:
+        if body.push_token is not None:
+            # One token = one installation: a reinstall gets a new installation_id with the
+            # same Expo token, which must not be pushed twice.
+            db.execute(
+                update(Device)
+                .where(
+                    Device.push_token == body.push_token,
+                    Device.installation_id != device.installation_id,
+                )
+                .values(push_token=None)
+            )
+        for field in body.model_fields_set - {"installation_id", "platform"}:
+            setattr(device, field, getattr(body, field))
+        device.platform = body.platform
+        device.active = True
+        device.updated_at = now
+        device.last_seen_at = now
         db.commit()
-    except IntegrityError:
-        # Concurrent registration of the same installation_id / token.
+    except (IntegrityError, OperationalError):
+        # Concurrent registration of the same installation_id / token (unique violation
+        # at INSERT/UPDATE, or a deadlock when two installations swap tokens).
         db.rollback()
         # If this was a first registration whose twin request won, its secret is gone
         # from our side of the race: a retry would get 403, so say so.

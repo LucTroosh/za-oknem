@@ -72,6 +72,20 @@ rejestracji). Nie dodaje pakietów.
 `DELETE /api/v1/devices/{installation_id}` → 204. Błędy: 403, 404, 409 (równoległa
 rejestracja — ponów; jeśli ponowienie da 403, nowy `installation_id`), 422, 429.
 
+### Reguły dla klientów i konsumentów
+
+- **Klient (10.5/12.5):** 403 na własnym `installation_id` bez ważnego sekretu (np. po
+  utracie odpowiedzi 201) = wygeneruj nowy `installation_id` i zarejestruj się od nowa.
+- **Wysyłka (10.2):** musi filtrować `active AND push_token IS NOT NULL`. Urządzenie,
+  któremu odebrano token (przeniesienie na nową instalację, `push_token: null`), zostaje
+  `active=true` z `push_token=NULL`.
+
+## Follow-up (TASK-15.x)
+
+Uvicorn z `--proxy-headers` i `FORWARDED_ALLOW_IPS` ustawionym wyłącznie na IP proxy
+(Caddy). Bez tego limiter za proxy widzi jeden adres, czyli jeden globalny kubełek.
+Nie implementowane w tym PR.
+
 ## Security
 
 Patrz ADR-017: sekret 256-bit zwracany raz, hash SHA-256 + porównanie stałoczasowe,

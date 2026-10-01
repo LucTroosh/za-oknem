@@ -88,4 +88,6 @@ tych rekordach.
   masowym tworzeniem rekordów; twarde limity per gmina itp. należą do TASK-12.2/6.2.
 - Nieaktywne rekordy (`active=false` lub stare `last_seen_at`) nie są jeszcze
   kasowane — job retencji/usuwania to zakres TASK-14.2; `last_seen_at` daje mu dane.
+- Znane ryzyko: limiter kluczuje po pełnym adresie IP, więc atakujący z IPv6 ma całą pulę /64 i omija limit (agregacja po /64 to ulepszenie na później).
+- Znane ryzyko: ktoś znający cudzy token Expo może go przejąć rejestrując się z nim, a ofiara odzyska go przy starcie appki, więc możliwy jest ping-pong tokenu (ograniczany limiterem).
 - Reakcja na `DeviceNotRegistered` od Expo (dezaktywacja tokenu) — TASK-10.2.

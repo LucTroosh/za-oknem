@@ -257,3 +257,83 @@ def test_expired_keys_are_dropped_without_reaching_the_cap(monkeypatch):
     now[0] += 11
     limiter.check("other")
     assert "one-off-ip" not in limiter._hits
+
+
+def test_flush_integrity_error_is_409_not_500(client, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.orm import Session
+
+    def boom(self, *a, **k):
+        if self.new:  # only the INSERT of the new Device, not the empty autoflush
+            raise IntegrityError("stmt", {}, Exception("dup"))
+
+    monkeypatch.setattr(Session, "flush", boom)
+    _, r = _register(client)
+    assert r.status_code == 409
+
+
+def test_operational_error_is_409(client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import Session
+
+    def boom(self, *a, **k):
+        if self.new:
+            raise OperationalError("stmt", {}, Exception("deadlock"))
+
+    monkeypatch.setattr(Session, "flush", boom)
+    assert _register(client)[1].status_code == 409
+
+
+def test_wrong_secret_does_not_steal_third_devices_token(client):
+    third, _ = _register(client, push_token=TOKEN2)
+    victim, _ = _register(client, push_token=TOKEN)
+    r = client.post(
+        "/api/v1/devices", json={**victim, "push_token": TOKEN2}, headers={"X-Device-Secret": "x"}
+    )
+    assert r.status_code == 403
+    assert _row(client, third["installation_id"]).push_token == TOKEN2
+    assert _row(client, victim["installation_id"]).push_token == TOKEN
+
+
+def test_null_token_keeps_observed_area(client):
+    body, r = _register(client, observed_area_code="0208011")
+    client.post(
+        "/api/v1/devices",
+        json={
+            "installation_id": body["installation_id"],
+            "platform": "android",
+            "push_token": None,
+        },
+        headers={"X-Device-Secret": r.json()["device_secret"]},
+    )
+    row = _row(client, body["installation_id"])
+    assert row.push_token is None
+    assert row.observed_area_code == "0208011"
+
+
+def test_reactivation_after_delete_applies_new_fields(client):
+    body, r = _register(client, observed_area_code="0208011")
+    h = {"X-Device-Secret": r.json()["device_secret"]}
+    client.delete(f"/api/v1/devices/{body['installation_id']}", headers=h)
+    r2 = client.post(
+        "/api/v1/devices",
+        json={**body, "push_token": TOKEN2, "observed_area_code": "1465011", "platform": "ios"},
+        headers=h,
+    )
+    assert r2.status_code == 200
+    row = _row(client, body["installation_id"])
+    assert (row.active, row.push_token, row.observed_area_code, row.platform) == (
+        True,
+        TOKEN2,
+        "1465011",
+        "ios",
+    )
+
+
+def test_delete_rate_limit_has_retry_after(client, monkeypatch):
+    monkeypatch.setattr(device_writes, "limit", 1)
+    r = client.delete(f"/api/v1/devices/{uuid.uuid4()}")
+    assert r.status_code == 404
+    r = client.delete(f"/api/v1/devices/{uuid.uuid4()}")
+    assert r.status_code == 429
+    assert int(r.headers["retry-after"]) >= 1
