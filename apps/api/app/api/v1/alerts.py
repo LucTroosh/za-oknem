@@ -1,13 +1,14 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.alert_geo import filter_alerts_for_area
 from app.db import get_db
-from app.models import Alert
+from app.models import Alert, GeoArea
 from app.source_status import source_freshness
 
 router = APIRouter()
@@ -50,6 +51,10 @@ class AlertOut(BaseModel):
     published_at: str
     fetched_at: str
     freshness: Literal["FRESH", "RECENT", "STALE"]
+    # ADR-013: how the alert relates to the requested area. null = not area-filtered
+    # (national list). "voivodeship" = the alert names the area's voivodeship (the finest
+    # level IMGW hydro gives); "unresolved" = we cannot tell, so it is shown, not hidden.
+    geo_match: Literal["voivodeship", "unresolved"] | None
 
 
 class SourceStatusOut(BaseModel):
@@ -77,7 +82,7 @@ def alerts_source_status(db: Session) -> dict[str, dict]:
 def current_alerts(db: Session) -> list[dict]:
     """Currently-valid alerts (valid_until in the future), newest-ending first.
     Shared by /alerts/latest and /dashboard/latest (TASK-7.2). No geo-filtering
-    to the user's location yet (ADR-009 non-goal, TASK-9.5). Every row carries
+    to the user's location here (see filter_alerts_for_area, ADR-013). Every row carries
     `fetched_at`/`freshness` so a client can tell a genuinely-ongoing alert from
     one we simply haven't been able to refresh (rule #8) - an IMGW outage stops
     updating fetched_at long before any `valid_until` (up to year 9999 for
@@ -100,12 +105,23 @@ def current_alerts(db: Session) -> list[dict]:
             "published_at": row.published_at.isoformat(),
             "fetched_at": row.fetched_at.isoformat(),
             "freshness": freshness(row.fetched_at),
+            "geo_match": None,
         }
         for row in db.execute(stmt).scalars().all()
     ]
 
 
 @router.get("/alerts/latest", response_model=AlertsLatestResponse)
-def latest_alerts(db: Session = Depends(get_db)) -> dict:
-    """Reads only from our own DB (rule #14). See current_alerts()."""
-    return {"alerts": current_alerts(db), "source_status": alerts_source_status(db)}
+def latest_alerts(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
+    """Reads only from our own DB (rule #14). See current_alerts().
+
+    ADR-013: `?geo_area_id=N` keeps only alerts that apply to that area (deterministic
+    TERYT-prefix match, each with `geo_match`); unknown area = 404. Without it the list is
+    national, as before."""
+    alerts = current_alerts(db)
+    if geo_area_id is not None:
+        area = db.get(GeoArea, geo_area_id)
+        if area is None:
+            raise HTTPException(status_code=404, detail="geo_area not found")
+        alerts = filter_alerts_for_area(alerts, area.teryt_code)
+    return {"alerts": alerts, "source_status": alerts_source_status(db)}

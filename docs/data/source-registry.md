@@ -358,6 +358,7 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 - **status:** IMPLEMENTED — connector, model `Alert`, `GET /api/v1/alerts/latest`
   i scheduler (`run_imgw_warningshydro`, co 1h) gotowe 2026-09-29;
   `severity_raw` przechowywane bez reinterpretacji (rule #10)
+- **obszary (dla geo-matchingu, ADR-013):** `obszary[]` niesie `wojewodztwo` (nazwa), `opis`, `kod_zlewni` — bez TERYT/powiatów/gmin; dopasowanie do obszarów wyłącznie po nazwie województwa → TERC
 - **last_verified_at:** 2026-09-29
 
 ## gis_bathing_sk (Serwis Kąpieliskowy GIS — bieżący status kąpielisk, BLOCKED)

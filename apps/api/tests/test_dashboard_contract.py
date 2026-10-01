@@ -135,7 +135,7 @@ def test_openapi_documents_every_dashboard_block():
     assert not {"distance_km", "assignment_method"} & set(comps["AirStation"]["required"])
     area = comps["DashboardArea"]
     expected = {"geo_area_id", "slug", "name", "latitude", "longitude"}
-    expected |= {"air", "weather", "forecast", "outdoor", "pollen"}
+    expected |= {"air", "weather", "forecast", "outdoor", "pollen", "local_alerts"}
     assert set(area["properties"]) == expected
     assert set(area["required"]) == expected  # null = "no data", never an absent key
     assert set(comps["DashboardAlerts"]["properties"]) == {

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.air_index import air_index
+from app.alert_geo import filter_alerts_for_area
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
 from app.api.v1.air import AirIndex, AirParam
 from app.api.v1.air import freshness as air_freshness
@@ -173,6 +174,9 @@ class DashboardArea(BaseModel):
     forecast: DashboardForecast | None
     outdoor: DashboardOutdoor
     pollen: DashboardPollen
+    # ADR-013: the part of the national `alerts.items` that applies to THIS area (TERYT
+    # prefix match, `geo_match` says how). Additive; `alerts` stays the national list.
+    local_alerts: list[AlertOut]
 
 
 class DashboardAlerts(BaseModel):
@@ -265,6 +269,9 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     air_status = _source_status(db, AIR_SOURCE_ID, air_freshness)
     weather_status = _source_status(db, WEATHER_SOURCE_ID, weather_freshness)
 
+    # Read once: the national list feeds both `alerts` and each area's `local_alerts`.
+    national_alerts = current_alerts(db)
+
     areas_out = []
     for area in areas:
         # ADR-006/ADR-025: deterministic nearest station within MAX_MATCH_DISTANCE_KM
@@ -333,6 +340,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "weather": weather,
                 "forecast": _forecast_block(forecasts.get(area.id)),
                 "outdoor": _outdoor_block(air["params"] if air else {}, weather_params),
+                "local_alerts": filter_alerts_for_area(national_alerts, area.teryt_code),
             }
         )
 
@@ -344,7 +352,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         "scope": "national",
         "source": "imgw",
         "attribution": IMGW_ATTRIBUTION,
-        "items": current_alerts(db),
+        "items": national_alerts,
         # ADR-012: an empty `items` only means "no alerts" when every source here
         # is FRESH/RECENT - otherwise the source is silent, not confirming zero.
         "source_status": alerts_source_status(db),

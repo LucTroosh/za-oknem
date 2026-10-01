@@ -55,6 +55,7 @@ export type AlertOut = {
   external_id: string;
   fetched_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  geo_match: "voivodeship" | "unresolved" | null;
   issuing_office: string;
   probability_pct: number | null;
   published_at: string;
@@ -101,6 +102,7 @@ export type DashboardArea = {
   forecast: DashboardForecast | null;
   geo_area_id: number;
   latitude: number;
+  local_alerts: Array<AlertOut>;
   longitude: number;
   name: string;
   outdoor: DashboardOutdoor;
