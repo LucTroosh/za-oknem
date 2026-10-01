@@ -15,13 +15,14 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-# Tables created by extensions (PostGIS' spatial_ref_sys, ...), filled from the catalog on
-# connect. Without skipping them `alembic check` wants to drop tables no model declares.
+# Tables created by extensions: PostGIS' spatial_ref_sys and, in the postgis/postgis image
+# (search_path includes `tiger`), the tiger geocoder tables. Filled from the catalog on
+# connect; without skipping them `alembic check` wants to drop tables no model declares.
 _EXTENSION_TABLES: set[str] = set()
 _EXTENSION_TABLES_SQL = """
 SELECT c.relname FROM pg_class c
 JOIN pg_depend d ON d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e'
-WHERE c.relkind IN ('r', 'p') AND c.relnamespace = current_schema()::regnamespace
+WHERE c.relkind IN ('r', 'p')
 """
 
 
