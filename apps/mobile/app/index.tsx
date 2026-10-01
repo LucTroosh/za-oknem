@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import AirIndexBadge from "../components/AirIndexBadge";
 import OutdoorCard from "../components/OutdoorCard";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
@@ -44,6 +45,8 @@ type DashboardArea = {
       string,
       { value: number; unit: string; observed_at: string; freshness: Freshness }
     >;
+    // TASK-4.2: optional - absent on an older backend; the badge renders nothing then.
+    index?: unknown;
   } | null;
   weather: {
     attribution: string;
@@ -205,6 +208,7 @@ export default function Home() {
                       </Text>
                     </Text>
                   ))}
+                  <AirIndexBadge index={item.air.index} receivedAt={loadedAt} />
                   <Text style={styles.attribution}>{item.air.attribution}</Text>
                 </View>
               ) : (

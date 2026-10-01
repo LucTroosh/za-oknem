@@ -105,6 +105,34 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   przechodzenia całej (rate-limited) listy stron przy szukaniu znanego ID stacji.
 - **last_verified_at:** 2026-09-28
 
+## eea_eaqi (Europejski Indeks Jakości Powietrza — METODOLOGIA, nie feed)
+
+- **owner:** European Environment Agency (EEA); pasma: ETC HE Report 2024/17, v1,
+  3.07.2025, DOI 10.5281/zenodo.15781195
+- **connector:** BRAK — to nie jest źródło danych ani połączenie w runtime. Wagę ma tylko
+  opublikowana tabela progów, którą implementuje `apps/api/app/air_index.py` (ADR-015);
+  dane wejściowe to pomiary `gios`. Dlatego Source Approval Gate (§38/rule #15) dla
+  connectora nie ma tu zastosowania; wymagane jest to, co gate sprawdza dla treści:
+  licencja i atrybucja (niżej) oraz weryfikacja progów z URL i datą.
+- **endpoint:** brak wywołań; źródła treści: <https://airindex.eea.europa.eu/AQI/index.html>
+  i PDF raportu ETC HE 2024/17 (eionet.europa.eu)
+- **frequency:** n/d. Indeks godzinowy (1 h) — liczony przy odczycie z ostatnich
+  pomiarów GIOŚ; świeżość = świeżość wejść (rule #8)
+- **coverage:** nasze liczenie dla stacji GIOŚ; metodologia europejska
+- **license:** CC-BY 4.0 (<https://www.eea.europa.eu/en/legal-notice>, zweryfikowane
+  2026-09-30)
+- **commercial_use:** TAK (wg tej samej strony: „commercial or non-commercial purposes”)
+- **redistribution:** dozwolona z wskazaniem EEA jako źródła i bez zniekształcania sensu
+- **caching:** n/d (brak danych z EEA)
+- **rate_limit:** n/d
+- **attribution:** „Europejski Indeks Jakości Powietrza (EEA), liczony z pomiarów GIOŚ” —
+  wymagane przy wyniku w UI i w ekranie Źródła. To nasze obliczenie wg metodologii EEA,
+  nie oficjalny indeks EEA ani GIOŚ.
+- **status:** VERIFIED (progi, agregacja, minimalny zestaw; 2026-09-30) — IMPLEMENTED w
+  TASK-4.2. NIEzweryfikowane (nasze decyzje w ADR-015): konwencja granic pasm dla wartości
+  ułamkowych, typ stacji, polskie nazwy 6 pasm.
+- **last_verified_at:** 2026-09-30
+
 ## imgw_hydro (stan wody — Measurement)
 
 - **owner:** Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy
@@ -245,3 +273,47 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
   `source_id="imgw_warningsmeteo"`) dopiero po zaobserwowaniu żywego,
   aktywnego ostrzeżenia meteo
 - **last_verified_at:** 2026-09-29
+
+## prg_gminy (GUGiK — Państwowy Rejestr Granic, granice gmin)
+
+- **owner:** Główny Urząd Geodezji i Kartografii (GUGiK, Polska, instytucja publiczna)
+- **connector:** `prg_gminy` (TASK-6.2) — import z LOKALNEGO pliku GeoJSON; connector
+  niczego nie pobiera (`parser` + `ingest`, bez `client`), plik przygotowuje operator
+- **endpoint (źródło, nie wołane przez aplikację):** wg strony
+  `https://www.geoportal.gov.pl/pl/dane/panstwowy-rejestr-granic-prg/` (odczytanej
+  2026-09-30): `https://opendata.geoportal.gov.pl/prg/granice/00_jednostki_administracyjne.zip`
+  (SHP) i `.../00_jednostki_administracyjne_gml.zip` (GML) — jednostki administracyjne;
+  archiwum 2005–2025: `https://opendata.geoportal.gov.pl/prg/granice_archiwalne/`
+- **frequency:** wg tej strony: aktualizacja raz w roku, wg stanu na 1 stycznia (ADR-004:
+  import ręczny, raz w roku — nie ma schedulera)
+- **coverage:** cała Polska
+- **license:** strona PRG: „Dane PRG są dostępne bezpłatnie i do dowolnego wykorzystania".
+  NIE zweryfikowano formalnego tekstu licencji/warunków (np. czy wymagana jest atrybucja)
+  — do potwierdzenia przez człowieka przed użyciem produkcyjnym
+- **commercial_use:** UNKNOWN (sformułowanie „do dowolnego wykorzystania" sugeruje TAK, ale
+  to nie jest zweryfikowany tekst licencji) — Source Approval Gate (#15) otwarty
+- **attribution:** UNKNOWN — do ustalenia razem z licencją
+- **format/rozmiar/układ:** SHP i GML zgodnie ze stroną; rozmiar pliku NIE ustalony; układ
+  współrzędnych: strona wspomina PL-1992 (EPSG:2180) w przykładach, nie potwierdzono wprost
+  — parser odrzuca pliki nie-WGS84 (walidacja bbox), więc błąd układu nie przejdzie cicho.
+  Nazwy atrybutów (`JPT_KOD_JE`, `JPT_NAZWA_`) NIE zweryfikowane na prawdziwym pliku —
+  konfigurowalne flagami CLI
+- **dostępność z tego środowiska:** NIE — próba `curl -I` na powyższy URL z sandboxa dała
+  `CONNECT tunnel failed, response 403` (egress proxy); nic nie pobrano ani nie
+  sprawdzono na próbce danych
+- **status:** DISCOVERY
+- **last_verified_at:** 2026-09-30 (tylko treść strony PRG; nie same dane)
+
+## teryt (GUS — rejestr TERYT, wykaz jednostek TERC)
+
+- **owner:** Główny Urząd Statystyczny (GUS)
+- **connector:** brak — TASK-6.2 bierze kody TERYT z atrybutów granic PRG (jedno źródło,
+  spójne geometria↔kod); osobny import TERC nie jest potrzebny do point-in-polygon
+- **endpoint:** strona `https://eteryt.stat.gov.pl/eTeryt/rejestr_teryt/udostepnianie_danych/baza_teryt/uzytkownicy_indywidualni/pobieranie/pliki_pelne.aspx`
+  udostępnia pliki TERC, SIMC, ULIC, WMRODZ (przyciski „Pobierz"); istnieje też API TERYT
+  (`api.stat.gov.pl`, wg wyników wyszukiwania — nie sprawdzano, czy wymaga rejestracji)
+- **license/commercial_use/attribution/rate_limit/format:** UNKNOWN — strona nie podaje
+  licencji ani formatu; nie sprawdzano plików
+- **dostępność z tego środowiska:** NIE (egress proxy 403 dla eteryt.stat.gov.pl)
+- **status:** DISCOVERY (nieużywane produkcyjnie)
+- **last_verified_at:** 2026-09-30 (tylko treść strony)

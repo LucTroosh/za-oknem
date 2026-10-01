@@ -25,8 +25,12 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 - [x] Registry zawiera wyłącznie fakty zweryfikowane; reszta oznaczona jawnie.
 - [ ] Model `BathingSite` niesie współrzędne ORAZ `geo_area_id`/gmina (wymóg BACKLOG 11.2,
       potrzebny dla TASK-11.3); mapowanie do gminy przez TASK-6.2, bez własnego geo.
-- [ ] Source Approval Gate zaliczony dla wybranego źródła (licencja,
-      `commercial_use`, atrybucja, cykl, schemat na prawdziwej próbce).
+- [ ] Pełny Source Approval Gate (Master Plan §38, 12 punktów: dostępność API,
+      stabilność, regulamin, licencja, `commercial_use`, redystrybucja, caching,
+      limity, atrybucja, niezawodność, użycie mobilne, dane osobowe) zaliczony i
+      zapisany w registry osobno dla każdego źródła (GIS i EEA), plus schemat/pola
+      potwierdzone na prawdziwej próbce, a status registry =
+      VERIFIED/APPROVED. Samo istnienie zbioru (np. na dane.gov.pl) nie wystarcza.
 - [ ] Parser testowany na fixture z POTWIERDZONYCH pól (oznaczony jako fixture).
 - [ ] (TASK-11.4) `/water/latest`: `source` + `attribution` z registry, freshness,
       `source_status`; brak bieżącego statusu => `UNAVAILABLE`, nigdy „dopuszczone".
@@ -38,7 +42,7 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
    `commercial_use`, atrybucję, limit żądań i współrzędne/TERYT kąpielisk.
 2. W przeglądarce potwierdzić licencję wydania 2025 i schemat pliku EEA (Datahub, metadata factsheet), pola usługi `BathingWater_Dyna_WM_2025` i filtr `countryName=Poland` oraz limit żądań EEA
 3. Ręcznie sprawdzić portal dane.gov.pl pod kątem zbioru o kąpieliskach.
-4. Po 1–3 — zatwierdzić źródło; wtedy zadanie można wznowić jako osobny PR.
+4. Po 1–3 — przeprowadzić pełny Gate §38 (AC wyżej) i dopiero wtedy zatwierdzić źródło; wtedy zadanie można wznowić jako osobny PR.
 
 ## Tests
 
@@ -51,6 +55,9 @@ Mobile (11.5), agregat dashboard (11.6), alert zamknięć (11.3), własny geo-ma
 (TASK-6.2), scraping HTML GIS bez zgody.
 
 ## Dependencies
+
+TASK-11.3 (alert zamknięć), 11.4 (`/water/latest`), 11.5, 11.6 zależą od 11.2, więc
+są pośrednio ZABLOKOWANE do czasu zaliczenia Gate.
 
 Zgoda/dane od GIS (EEA samo NIE odblokowuje 11.2 w pełnym zakresie: nie ma statusu
 bieżącego, przyczyny zamknięcia ani pomiarów — może odblokować tylko rejestr

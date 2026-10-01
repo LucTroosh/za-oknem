@@ -18,7 +18,7 @@ uv run alembic upgrade head
 
 python -m app.connectors.gios.ingest --list          # znajdź --station-id blisko siebie
 python -m app.connectors.gios.ingest --station-id 38
-python -m app.connectors.open_meteo.ingest            # wszystkie geo_areas (seed ADR-005)
+python -m app.connectors.open_meteo.ingest            # obszary z weather_polling_active (ADR-019); --slug wymusza wybrane
 python -m app.connectors.imgw_hydro.ingest            # wszystkie stacje hydro, jednym wywołaniem
 python -m app.connectors.imgw_warningshydro.ingest    # ostrzeżenia hydrologiczne (Alert, ADR-009)
 
@@ -77,8 +77,9 @@ docker compose exec api python -m app.connectors.imgw_hydro.ingest
 docker compose exec api python -m app.connectors.imgw_warningshydro.ingest
 ```
 
-`open_meteo.ingest` bez flag ładuje pogodę dla wszystkich wierszy w `geo_areas`
-(seed z ADR-005), `imgw_hydro.ingest` — analogicznie, dla wszystkich stacji
+`open_meteo.ingest` bez flag ładuje pogodę dla wierszy `geo_areas` z
+`weather_polling_active` (seed z ADR-005; zaimportowane gminy — nie, ADR-019;
+`--slug` wybiera konkretny obszar niezależnie od flagi), `imgw_hydro.ingest` — analogicznie, dla wszystkich stacji
 hydrologicznych IMGW (jedno wywołanie API, bez flag do wyboru stacji — ADR-008).
 `imgw_warningshydro.ingest` — ostrzeżenia hydrologiczne, tym samym wzorcem
 jednego wywołania bez flag (Alert, nie Measurement — rule #7, ADR-009).

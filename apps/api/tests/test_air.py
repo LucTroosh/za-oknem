@@ -21,6 +21,16 @@ from app.main import app
 from app.models import Measurement
 
 
+def _yield_dep(session):
+    """A real generator dependency: FastAPI (newer versions) hands a plain callable's
+    iterator to the endpoint instead of iterating it."""
+
+    def _dep():
+        yield session
+
+    return _dep
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
@@ -124,6 +134,20 @@ def test_latest_air_quality_shapes_response_from_rows():
                         "freshness": "FRESH",
                     }
                 },
+                # PM2.5 alone: no NO2/O3 -> Fair is not enough to claim an index.
+                "index": {
+                    "level": None,
+                    "complete": False,
+                    "params": {"PM2.5": "FAIR"},
+                    "dominant": [],
+                    "missing": {
+                        "PM10": "MISSING",
+                        "NO2": "MISSING",
+                        "O3": "MISSING",
+                        "SO2": "MISSING",
+                    },
+                    "valid_until": None,
+                },
                 "source": "gios",
             }
         ]
@@ -187,7 +211,7 @@ def test_latest_air_quality_query_filters_by_gios_source():
             )
             return _FakeResult([])
 
-    app.dependency_overrides[get_db] = lambda: iter([_CapturingSession()])
+    app.dependency_overrides[get_db] = _yield_dep(_CapturingSession())
     try:
         client = TestClient(app)
         client.get("/api/v1/air/latest")
@@ -198,6 +222,16 @@ def test_latest_air_quality_query_filters_by_gios_source():
 
 
 # --- AirLatestResponse (TASK-API-1: response_model actually enforces a shape) --
+
+
+_EMPTY_INDEX = {
+    "level": None,
+    "complete": False,
+    "params": {},
+    "dominant": [],
+    "missing": {},
+    "valid_until": None,
+}
 
 
 def test_air_latest_response_accepts_the_real_shape():
@@ -217,6 +251,7 @@ def test_air_latest_response_accepts_the_real_shape():
                             "freshness": "FRESH",
                         }
                     },
+                    "index": _EMPTY_INDEX,
                     "source": "gios",
                 }
             ]
@@ -238,6 +273,7 @@ def test_air_latest_response_rejects_missing_required_field():
                         "latitude": 50.43,
                         "longitude": 16.65,
                         "params": {},
+                        "index": _EMPTY_INDEX,
                         "source": "gios",
                     }
                 ]
@@ -258,8 +294,55 @@ def test_air_latest_response_rejects_unknown_source():
                         "latitude": 50.43,
                         "longitude": 16.65,
                         "params": {},
+                        "index": _EMPTY_INDEX,
                         "source": "not_gios",
                     }
                 ]
             }
         )
+
+
+# --- TASK-4.2: European AQI block ---------------------------------------------
+
+
+def _full_rows(**values) -> list[Measurement]:
+    base = {"PM2.5": 3.0, "PM10": 10.0, "NO2": 5.0, "O3": 40.0, "SO2": 10.0, "CO": 400.0}
+    base.update(values)
+    return [_measurement(param_code=c, value=v, source_record_id=c) for c, v in base.items()]
+
+
+def test_latest_air_quality_index_is_worst_subindex_with_full_set():
+    client = _client_with_rows(_full_rows(PM10=130.0, NO2=26.0))
+
+    index = client.get("/api/v1/air/latest").json()["stations"][0]["index"]
+
+    assert index["level"] == "POOR" and index["complete"] is True
+    assert index["dominant"] == ["PM10"]
+    assert index["params"]["NO2"] == "MODERATE"
+    assert "CO" not in index["params"]  # not part of the EAQI
+    assert index["valid_until"] is not None
+
+
+def test_latest_air_quality_index_stale_input_gives_no_index():
+    rows = _full_rows()
+    rows[2] = _measurement(  # NO2 is 10 h old -> STALE -> minimum set unmet
+        param_code="NO2",
+        value=5.0,
+        source_record_id="NO2",
+        observed_at=datetime.now(UTC) - timedelta(hours=10),
+    )
+    client = _client_with_rows(rows)
+
+    index = client.get("/api/v1/air/latest").json()["stations"][0]["index"]
+
+    assert index["level"] is None and index["missing"]["NO2"] == "STALE"
+
+
+def test_latest_air_quality_index_non_ug_unit_is_dropped_not_converted():
+    rows = _full_rows()
+    rows[2] = _measurement(param_code="NO2", value=0.005, unit="mg/m³", source_record_id="NO2")
+    client = _client_with_rows(rows)
+
+    index = client.get("/api/v1/air/latest").json()["stations"][0]["index"]
+
+    assert index["level"] is None and index["missing"]["NO2"] == "UNIT"

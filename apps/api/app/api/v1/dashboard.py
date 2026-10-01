@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.air_index import air_index
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import alerts_source_status, current_alerts
@@ -59,7 +60,10 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     TASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/
     SO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest."""
-    areas = db.execute(select(GeoArea)).scalars().all()
+    # ADR-019: imported gminas (geo-matching only) must not fan out here until TASK-6.2(8)
+    # narrows the dashboard to a chosen location - only actively polled areas are listed.
+    area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+    areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.
     # imgw_hydro's water_level_cm) — without it the nearest-station join could
@@ -100,8 +104,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         )
     )
     weather_by_area: dict[int, list[WeatherSnapshot]] = {}
-    for row in db.execute(weather_stmt).scalars().all():
-        weather_by_area.setdefault(row.geo_area_id, []).append(row)
+    for snapshot in db.execute(weather_stmt).scalars().all():
+        weather_by_area.setdefault(snapshot.geo_area_id, []).append(snapshot)
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.
@@ -130,6 +134,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "attribution": GIOS_ATTRIBUTION,
                 "observed_at": air_observed_at,
                 "params": nearest["params"],
+                # ADR-015: EAQI from the params already loaded (no extra query, rule #14).
+                "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(nearest_km, 1),
             }
 
