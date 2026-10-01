@@ -6,7 +6,18 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import air, alerts, dashboard, devices, geo, health, hydro, pollen, weather
+from app.api.v1 import (
+    air,
+    alerts,
+    dashboard,
+    devices,
+    geo,
+    health,
+    hydro,
+    pollen,
+    pollen_calendar,
+    weather,
+)
 from app.config import settings
 from app.middleware import RequestLoggingMiddleware
 
@@ -45,3 +56,4 @@ app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(geo.router, prefix="/api/v1")
 app.include_router(pollen.router, prefix="/api/v1")
+app.include_router(pollen_calendar.router, prefix="/api/v1")

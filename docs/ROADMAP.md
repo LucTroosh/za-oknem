@@ -46,6 +46,7 @@ Alerts/Settings/push/profilu).
 | Metryka | Status |
 |---|---|
 | olcha, brzoza, trawy, bylica, ambrozja | ⬜ TODO — brak connectora, brak Source Approval Gate |
+| kalendarz pylenia (typowy sezon, nie pomiar/prognoza) | 🟡 PARTIAL — statyczne dane + `GET /api/v1/pollen/calendar` (ADR-023, TASK-8.10): leszczyna, olsza, brzoza, jesion, dąb, bylica, Cladosporium; trawy/ambrozja/pokrzywowate NIEZWERYFIKOWANE (`not_covered`); brak UI |
 
 ### 2.4. Woda / kąpieliska (§7)
 

@@ -111,6 +111,44 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
   pierwsza żywa weryfikacja przy pierwszym realnym ingeście
 - **last_verified_at:** 2026-10-01 (dokumentacja; bez żywego przykładu)
 
+## pollen_calendar (kalendarz pylenia — statyczne dane referencyjne, ADR-023)
+
+Nie jest to feed ani API: własne zestawienie typowych zakresów sezonów (fakty, nie kopie
+tabel/grafik/tekstów) w `apps/api/app/data/pollen_calendar.json`. Pełna lista źródeł
+(cytowanie, URL, licencja, data sprawdzenia) jest w polu `sources` tego pliku i w odpowiedzi API.
+
+- **owner:** Za Oknem (zestawienie); źródła: autorzy publikacji poniżej
+- **connector:** brak (nic nie fetchujemy; reguła #14 spełniona z definicji)
+- **valid_for_region:** PL (uśrednione, bez regionalizacji)
+- **nature:** typowy sezon (klimatologia), NIE pomiar, NIE prognoza (rule #7)
+- **źródła użyte (sprawdzone 2026-10-01 przez WebFetch — streszczenia modelu, nie surowy HTML;
+  cyfry do potwierdzenia w publikacji przed decyzją prawną):**
+  - Corylus/Alnus, Szczecin+Rzeszów 2009–2011, Aerobiologia (PMC3787801) — CC BY wg strony PMC
+  - Alnus/Betula/Corylus w Polsce, Aerobiologia 2014 (PMC4555345) — licencja UNVERIFIED
+  - Kraków 1991–2008 (PubMed 21892249, tylko abstrakt: szczyt Betula+Pinus w I poł. maja) — UNVERIFIED
+  - Quercus, Poznań 1996–2011, Grewling i in. (PMC4012158) — CC BY wg strony PMC
+  - Fraxinus, Lublin 2001–2016, Ann Agric Environ Med 2018 — licencja UNVERIFIED
+  - Artemisia 2020 i 2022, Alergoprofil (journalsmededu.pl) — CC BY-NC 4.0 (użyto samych faktów)
+  - Artemisia/Ambrosia co-occurrence, Int J Biometeorol (doi:10.1007/s00484-016-1254-4,
+    tylko abstrakt) — licencja UNVERIFIED
+  - Cladosporium, Lublin/Poznań/Rzeszów 2010–2012, Aerobiologia (PMC4773468) — CC BY 4.0
+- **commercial_use:** fakty (zakresy dat) nie podlegają prawu autorskiemu, ale część
+  publikacji ma licencję NC lub nieustaloną — przed monetyzacją (ADR-003) ponowna ocena
+  prawna; nie kopiujemy tekstów ani tabel
+- **attribution:** wymieniać źródła z odpowiedzi API (`sources`) na ekranie Źródła
+- **NIEZWERYFIKOWANE (nie ma ich w `taxa`, są w `not_covered`):**
+  - trawy (Poaceae): nie udało się pobrać zakresu dat sezonu (PMC zwracał CAPTCHA, tandfonline
+    403, rate limit); streszczenie abstraktu Kraków 1991–2012 było wewnętrznie sprzeczne
+  - ambrozja: potwierdzony tylko początek (zwykle II dekada sierpnia; skrajnie połowa lipca –
+    początek września; abstrakt co-occurrence), brak końca sezonu
+  - pokrzywowate: potwierdzone tylko okno wysokich stężeń (połowa lipca – koniec sierpnia, Kraków)
+  - sosna, topola, wierzba, grab, żyto, babka, Alternaria, oliwka — nie weryfikowano
+  - Polskie Towarzystwo Alergologiczne, IMGW, OBAŚ/Alergen — nie znaleziono do pobrania
+    zweryfikowanych tabel (strony popularne/apteczne odrzucone jako niewiarygodne)
+- **status:** IMPLEMENTED (statyczne dane + `GET /api/v1/pollen/calendar`); Source Approval
+  Gate (#15) dla licencji NC/UNVERIFIED otwarty przed monetyzacją
+- **last_verified_at:** 2026-10-01
+
 ## obas (rzeczywiste pomiary pyłków w Polsce — kandydat, NIE używany)
 
 Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — osobny

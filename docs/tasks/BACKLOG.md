@@ -389,6 +389,14 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       muszą istnieć) — **przeniesione tu z Phase 7** (Codex: poprzednia
       wersja umieszczała to przed własną zależnością).
 
+- [x] **TASK-8.10** (ADR-023): Kalendarz pylenia — statyczne dane referencyjne
+      `app/data/pollen_calendar.json` + `GET /api/v1/pollen/calendar?date=` (typowy sezon
+      per takson z fazami start/peak/end i `upcoming` 30 dni; `kind: seasonal_calendar`,
+      NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, bylica,
+      Cladosporium. **Do zrobienia po zweryfikowaniu źródeł:** trawy, ambrozja (potrzebny
+      zweryfikowany koniec sezonu), pokrzywowate; UI (karta „typowy sezon", wyraźnie
+      oddzielona od prognozy CAMS i pomiarów) → osobny task mobile.
+
 ### Phase 9 — Alerts (dokończenie)
 
 - [ ] **TASK-9.4:** `Event` model (§31) — odrębny od `Alert`/`Measurement`
