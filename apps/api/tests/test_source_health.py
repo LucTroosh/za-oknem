@@ -53,6 +53,8 @@ def test_thresholds_are_per_source_from_their_domain(db_session):
     _set_success(db_session, "gios", timedelta(hours=5))
     _set_success(db_session, "imgw_hydro", timedelta(hours=7))
     _set_success(db_session, "imgw_warningshydro", timedelta(minutes=30))
+    # daily CAMS cycle: 40h is past 32h FRESH, within 64h RECENT (would be STALE hourly)
+    _set_success(db_session, "open_meteo_pollen", timedelta(hours=40))
 
     states = {e["source_id"]: e["freshness"] for e in collect_source_health(db_session)}
 
@@ -61,7 +63,19 @@ def test_thresholds_are_per_source_from_their_domain(db_session):
         "gios": "RECENT",
         "imgw_hydro": "STALE",
         "imgw_warningshydro": "FRESH",
+        "open_meteo_pollen": "RECENT",
     }
+
+
+def test_pollen_is_monitored_only_with_active_polling_areas(db_session):
+    # Same switch as weather (ADR-019/ADR-020): no polling areas = nothing to poll.
+    assert _by_id(collect_source_health(db_session))["open_meteo_pollen"]["monitored"] is False
+
+    db_session.add(GeoArea(slug="klodzko", name="Klodzko", latitude=50.4, longitude=16.6))
+    db_session.commit()
+
+    assert _by_id(collect_source_health(db_session))["open_meteo_pollen"]["monitored"] is True
+    assert _by_id(collect_source_health(db_session))["open_meteo_pollen"]["daily_budget"] is None
 
 
 def test_daily_budget_only_for_sources_with_a_documented_limit(db_session):

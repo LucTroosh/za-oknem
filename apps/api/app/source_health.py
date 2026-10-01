@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import freshness as alerts_freshness
 from app.api.v1.hydro import freshness as hydro_freshness
+from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
@@ -39,6 +40,7 @@ class SourceSpec:
 
 
 # Exactly the source_ids the scheduler records in source_status (ADR-012).
+# - open_meteo_pollen: CAMS Europe daily (ADR-020) -> pollen thresholds 32h/64h.
 # - open_meteo: ICON refreshes every 3h (registry, verified) -> weather thresholds 4h/8h.
 # - gios: hourly measurements (registry, verified) -> air thresholds 2h/6h.
 # - imgw_hydro / imgw_warningshydro: cycle NOT documented by IMGW (registry); the
@@ -49,6 +51,13 @@ SOURCES: dict[str, SourceSpec] = {
     "open_meteo": SourceSpec(
         weather_freshness,
         OPEN_METEO_DAILY_LIMIT,
+        enabled=lambda db: bool(polling_areas(db)),
+    ),
+    # CAMS Europe via Open-Meteo: one run a day (ADR-020) -> pollen thresholds 32h/64h.
+    # Same polling areas as weather; its calls are counted in the shared `open_meteo`
+    # budget above, so no separate daily limit here.
+    "open_meteo_pollen": SourceSpec(
+        pollen_freshness,
         enabled=lambda db: bool(polling_areas(db)),
     ),
     # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
