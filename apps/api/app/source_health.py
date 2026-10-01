@@ -59,6 +59,10 @@ SOURCES: dict[str, SourceSpec] = {
 # `"token": "x"`. Input is capped first so the scan stays linear-ish (no ReDoS).
 _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
+# Authorization carries "<scheme> <credential>" (Basic/Bearer/Token ...): redact both words.
+_AUTH = re.compile(
+    r"""(?i)[\w-]*authorization[\w-]*["']?\s*[=:]\s*(?:[a-z]+\s+)?["']?[^\s"',;&)]+["']?"""
+)
 _SECRET = re.compile(
     r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
     r"""\s*[=:]?\s*(?:bearer\s+)?["']?[^\s"',;&)]+["']?"""
@@ -70,7 +74,8 @@ def sanitize_error(error: str | None) -> str | None:
     if not error:
         return None
     text = " ".join(error[:_MAX_SCAN].split())
-    text = _SECRET.sub("[redacted]", _QUERY.sub("", _USERINFO.sub("//[redacted]@", text)))
+    text = _AUTH.sub("[redacted]", _QUERY.sub("", _USERINFO.sub("//[redacted]@", text)))
+    text = _SECRET.sub("[redacted]", text)
     return text[:MAX_PUBLIC_ERROR_LENGTH]
 
 

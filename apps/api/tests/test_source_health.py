@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db import get_db
 from app.main import app
 from app.models import SourceFetchCounter, SourceStatus
 from app.source_health import (
@@ -152,10 +151,25 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("https://user:pw0rd@host/x unreachable", "pw0rd"),
         ("password is wrong, key=abc777", "abc777"),
         ("Authorization: Bearer tok.en.val", "tok.en.val"),
+        ("Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
+        ("Proxy-Authorization: Token t0k3n9", "t0k3n9"),
     ],
 )
 def test_sanitize_error_redacts_credential_shapes(raw, secret):
     assert secret not in sanitize_error(raw)
+
+
+def test_health_session_close_failure_is_swallowed(monkeypatch):
+    import app.api.v1.health as health_module
+
+    session = MagicMock()
+    session.close.side_effect = RuntimeError("dead conn")
+    monkeypatch.setattr(health_module, "SessionLocal", lambda: session)
+
+    gen = health_module.get_db_guarded()
+    assert next(gen) is session
+    with pytest.raises(StopIteration):
+        next(gen)  # teardown ran, close() failure did not propagate
 
 
 def test_sanitize_error_is_fast_on_pathological_input():
@@ -243,13 +257,13 @@ def test_endpoint_reports_sources_and_leaves_liveness_alone(monkeypatch):
         },
     ]
     monkeypatch.setattr(health_module, "collect_source_health", lambda db: canned)
-    app.dependency_overrides[get_db] = lambda: iter([object()])
+    app.dependency_overrides[health_module.get_db_guarded] = lambda: iter([object()])
     try:
         client = TestClient(app)
         response = client.get("/api/v1/health/sources")
         liveness = client.get("/api/v1/health")
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(health_module.get_db_guarded, None)
 
     assert liveness.json() == {"status": "ok"}
     assert response.status_code == 200
