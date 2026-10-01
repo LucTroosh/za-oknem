@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from app.api.v1.alerts import AlertsLatestResponse
 from app.db import get_db
 from app.main import app
-from app.models import Alert, SourceStatus
+from app.models import Alert, GeoArea, SourceStatus
 
 
 class _FakeResult:
@@ -26,20 +26,23 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, rows, statuses=None):
+    def __init__(self, rows, statuses=None, areas=None):
         self._rows = rows
         self._statuses = statuses or {}
+        self._areas = areas or {}
 
     def execute(self, _stmt):
         return _FakeResult(self._rows)
 
-    def get(self, _model, key):
+    def get(self, model, key):
+        if model is GeoArea:
+            return self._areas.get(key)
         return self._statuses.get(key)
 
 
-def _client_with_rows(rows: list[Alert], statuses=None) -> TestClient:
+def _client_with_rows(rows: list[Alert], statuses=None, areas=None) -> TestClient:
     def _override():
-        yield _FakeSession(rows, statuses)
+        yield _FakeSession(rows, statuses, areas)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -107,6 +110,7 @@ def test_latest_alerts_shapes_response_from_rows():
             "published_at": row.published_at.isoformat(),
             "fetched_at": row.fetched_at.isoformat(),
             "freshness": "FRESH",
+            "geo_match": None,
         }
     ]
 
@@ -139,6 +143,7 @@ _VALID_ALERT_OUT = {
     "published_at": "2026-09-29T11:00:00+00:00",
     "fetched_at": "2026-09-29T12:00:00+00:00",
     "freshness": "FRESH",
+    "geo_match": None,
 }
 
 
@@ -217,3 +222,69 @@ def test_alerts_latest_response_rejects_unknown_source_freshness():
                 },
             }
         )
+
+
+# --- ?geo_area_id= (ADR-013): deterministic TERYT-prefix matching --------------------
+
+_WIELKOPOLSKIE = _alert(external_id="w", areas=[{"wojewodztwo": "wielkopolskie"}])
+_DOLNOSLASKIE = _alert(external_id="d", areas=[{"wojewodztwo": "dolnośląskie"}])
+
+
+def _area(teryt: str | None) -> dict:
+    return {7: GeoArea(id=7, slug="x", name="X", latitude=0.0, longitude=0.0, teryt_code=teryt)}
+
+
+def _matched(teryt: str | None, rows: list[Alert]) -> list[tuple[str, str | None]]:
+    client = _client_with_rows(rows, areas=_area(teryt))
+    body = client.get("/api/v1/alerts/latest?geo_area_id=7").json()
+    return [(a["external_id"], a["geo_match"]) for a in body["alerts"]]
+
+
+def test_area_in_alerted_voivodeship_matches():
+    # gmina 3064011 (Poznań) lies in wielkopolskie (30); 0201011 is under dolnośląskie (02)
+    rows = [_WIELKOPOLSKIE, _DOLNOSLASKIE]
+    assert _matched("3064011", rows) == [("w", "voivodeship")]
+    assert _matched("0201011", rows) == [("d", "voivodeship")]
+
+
+def test_area_outside_every_alerted_voivodeship_gets_nothing():
+    assert _matched("1465011", [_WIELKOPOLSKIE, _DOLNOSLASKIE]) == []  # Warszawa, mazowieckie
+
+
+def test_alert_listing_several_voivodeships_matches_any_of_them():
+    row = _alert(external_id="m", areas=[{"wojewodztwo": "opolskie"}, {"wojewodztwo": "Śląskie "}])
+    assert _matched("2469011", [row]) == [("m", "voivodeship")]  # name case/space-insensitive
+    assert _matched("1465011", [row]) == []
+
+
+def test_unmappable_alert_area_is_shown_as_unresolved_never_hidden():
+    # rule #10: safety data we cannot place stays visible, flagged - not silently dropped
+    row = _alert(external_id="u", areas=[{"wojewodztwo": "Kraina Deszczowców"}])
+    assert _matched("1465011", [row]) == [("u", "unresolved")]
+    assert _matched("1465011", [_alert(external_id="e", areas=[])]) == [("e", "unresolved")]
+
+
+def test_partly_unresolved_alert_still_matches_by_its_resolved_voivodeship():
+    row = _alert(external_id="p", areas=[{"wojewodztwo": "?"}, {"wojewodztwo": "wielkopolskie"}])
+    assert _matched("3064011", [row]) == [("p", "voivodeship")]
+    assert _matched("1465011", [row]) == [("p", "unresolved")]  # the "?" part could be anywhere
+
+
+def test_area_without_teryt_gets_every_alert_flagged_unresolved():
+    # seed city not yet linked to an imported boundary (ADR-019): we cannot decide
+    rows = [_WIELKOPOLSKIE, _DOLNOSLASKIE]
+    assert _matched(None, rows) == [("w", "unresolved"), ("d", "unresolved")]
+
+
+def test_unknown_area_is_404():
+    client = _client_with_rows([_WIELKOPOLSKIE], areas={})
+    assert client.get("/api/v1/alerts/latest?geo_area_id=999").status_code == 404
+
+
+def test_without_geo_area_id_the_list_stays_national_and_unmatched():
+    client = _client_with_rows([_WIELKOPOLSKIE, _DOLNOSLASKIE])
+    body = client.get("/api/v1/alerts/latest").json()
+    assert [(a["external_id"], a["geo_match"]) for a in body["alerts"]] == [
+        ("w", None),
+        ("d", None),
+    ]

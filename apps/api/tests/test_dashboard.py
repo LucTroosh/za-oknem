@@ -367,7 +367,32 @@ def test_dashboard_includes_national_alerts_block():
     assert [a["event_type"] for a in body["alerts"]["items"]] == ["Susza hydrologiczna"]
     assert body["alerts"]["items"][0]["freshness"] == "FRESH"
     assert body["alerts"]["source_status"]["imgw_warningshydro"]["freshness"] == "UNAVAILABLE"
-    assert "alerts" not in body["areas"][0]  # never presented as local
+    # KLODZKO has no TERYT: the alert is flagged "unresolved", never presented as a match
+    assert [a["geo_match"] for a in body["areas"][0]["local_alerts"]] == ["unresolved"]
+
+
+def test_dashboard_local_alerts_are_matched_per_area_by_teryt():
+    # ADR-013: national `alerts` stays unfiltered; each area gets only what applies to it.
+    poznan = GeoArea(id=3, slug="poznan", name="Poznań", latitude=52.4, longitude=16.9)
+    poznan.teryt_code = "3064011"  # wielkopolskie
+    warszawa = GeoArea(**WARSZAWA)
+    warszawa.teryt_code = "1465011"  # mazowieckie
+    unlinked = GeoArea(**KLODZKO)  # no TERYT yet -> cannot be decided
+    client = _client([poznan, warszawa, unlinked], [], [], alert_rows=[_alert_row()])
+
+    body = client.get("/api/v1/dashboard/latest").json()
+
+    local = {
+        a["slug"]: [(x["geo_match"], x["description"]) for x in a["local_alerts"]]
+        for a in body["areas"]
+    }
+    assert local == {
+        "poznan": [("voivodeship", "opis")],
+        "warszawa": [],
+        "klodzko": [("unresolved", "opis")],
+    }
+    assert len(body["alerts"]["items"]) == 1  # national list untouched
+    assert body["alerts"]["items"][0]["geo_match"] is None
 
 
 def test_dashboard_alerts_items_empty_when_no_alerts():

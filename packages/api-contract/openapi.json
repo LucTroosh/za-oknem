@@ -323,6 +323,21 @@
             "title": "Freshness",
             "type": "string"
           },
+          "geo_match": {
+            "anyOf": [
+              {
+                "enum": [
+                  "voivodeship",
+                  "unresolved"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geo Match"
+          },
           "issuing_office": {
             "title": "Issuing Office",
             "type": "string"
@@ -373,7 +388,8 @@
           "valid_until",
           "published_at",
           "fetched_at",
-          "freshness"
+          "freshness",
+          "geo_match"
         ],
         "title": "AlertOut",
         "type": "object"
@@ -555,6 +571,13 @@
             "title": "Latitude",
             "type": "number"
           },
+          "local_alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "title": "Local Alerts",
+            "type": "array"
+          },
           "longitude": {
             "title": "Longitude",
             "type": "number"
@@ -594,7 +617,8 @@
           "weather",
           "forecast",
           "outdoor",
-          "pollen"
+          "pollen",
+          "local_alerts"
         ],
         "title": "DashboardArea",
         "type": "object"
@@ -2306,8 +2330,26 @@
     },
     "/api/v1/alerts/latest": {
       "get": {
-        "description": "Reads only from our own DB (rule #14). See current_alerts().",
+        "description": "Reads only from our own DB (rule #14). See current_alerts().\n\nADR-013: `?geo_area_id=N` keeps only alerts that apply to that area (deterministic\nTERYT-prefix match, each with `geo_match`); unknown area = 404. Without it the list is\nnational, as before.",
         "operationId": "latest_alerts_api_v1_alerts_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geo Area Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2318,6 +2360,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Latest Alerts"
