@@ -155,6 +155,7 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("Proxy-Authorization: Token t0k3n9", "t0k3n9"),
         ('password="correct horse battery staple"', "battery"),
         ('{"client_secret": "alpha beta gamma"}', "gamma"),
+        ("Authorization header: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
         ("Authentication: Bearer secret123", "secret123"),
         ("auth_header='Bearer secret456'", "secret456"),
         ("retry with Bearer abc789 failed", "abc789"),
