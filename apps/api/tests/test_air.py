@@ -21,6 +21,16 @@ from app.main import app
 from app.models import Measurement
 
 
+def _yield_dep(session):
+    """A real generator dependency: FastAPI (newer versions) hands a plain callable's
+    iterator to the endpoint instead of iterating it."""
+
+    def _dep():
+        yield session
+
+    return _dep
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
@@ -187,7 +197,7 @@ def test_latest_air_quality_query_filters_by_gios_source():
             )
             return _FakeResult([])
 
-    app.dependency_overrides[get_db] = lambda: iter([_CapturingSession()])
+    app.dependency_overrides[get_db] = _yield_dep(_CapturingSession())
     try:
         client = TestClient(app)
         client.get("/api/v1/air/latest")

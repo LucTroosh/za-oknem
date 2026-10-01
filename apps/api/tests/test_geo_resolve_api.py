@@ -12,6 +12,16 @@ from app.geo import ResolvedArea
 from app.main import app
 
 
+def _yield_dep(session):
+    """A real generator dependency: FastAPI (newer versions) hands a plain callable's
+    iterator to the endpoint instead of iterating it."""
+
+    def _dep():
+        yield session
+
+    return _dep
+
+
 def _client(monkeypatch, result):
     calls = []
 
@@ -20,7 +30,7 @@ def _client(monkeypatch, result):
         return result
 
     monkeypatch.setattr(geo_api, "resolve_gmina", _fake)
-    app.dependency_overrides[get_db] = lambda: iter([None])
+    app.dependency_overrides[get_db] = _yield_dep(None)
     return TestClient(app), calls
 
 
@@ -84,7 +94,7 @@ def test_database_error_is_503_and_leaks_no_coordinates(monkeypatch, caplog):
         raise OperationalError("SELECT ...", {"lat": lat, "lon": lon}, Exception("db down"))
 
     monkeypatch.setattr(geo_api, "resolve_gmina", _boom)
-    app.dependency_overrides[get_db] = lambda: iter([None])
+    app.dependency_overrides[get_db] = _yield_dep(None)
     client = TestClient(app, raise_server_exceptions=False)
 
     with caplog.at_level(logging.DEBUG):

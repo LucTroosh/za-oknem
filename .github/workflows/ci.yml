@@ -77,7 +77,7 @@ jobs:
         run: |
           # ONE annotation with the tail: GitHub caps annotations per step at 10, which
           # cut the actual error off after the log's INFO lines.
-          echo "::error title=pytest::$(tail -n 60 /tmp/pytest.out | awk '{printf "%s%%0A", $0}')"
+          echo "::error title=pytest::$(grep -E '^(FAILED|ERROR) |passed|failed|skipped|SKIPPED' /tmp/pytest.out | tail -n 40 | awk '{printf "%s%%0A", $0}')"
           exit 1
 
   mobile:
