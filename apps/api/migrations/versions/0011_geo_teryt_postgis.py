@@ -1,11 +1,8 @@
 """PostGIS + TERYT/boundary columns on geo_areas (ADR-019, TASK-6.2)
 
 Revision ID: 0011
-Revises: 0009
+Revises: 0010
 Create Date: 2026-09-30
-
-NOTE: 0010 belongs to another PR. This migration points at 0009 (the head on main at
-PR time); whoever merges second must re-point `down_revision` to "0010".
 
 Needs no data: the new columns are nullable/defaulted, so the 7 seeded cities keep
 working exactly as before (weather_polling_active defaults to true). Boundaries and
@@ -18,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0011"
-down_revision: str | None = "0009"
+down_revision: str | None = "0010"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

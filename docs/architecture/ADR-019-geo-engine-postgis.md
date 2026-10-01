@@ -90,8 +90,6 @@ Opcja **A**.
 - **Downgrade 0011** usuwa kolumny i wiersze `teryt-*` niereferencjonowane przez inne
   tabele (przerywa błędem, jeśli któreś są referencjonowane), ale zostawia rozszerzenie
   (niedestrukcyjnie).
-- **Koordynacja migracji:** 0011 wskazuje `down_revision = "0009"` (head na main w chwili
-  PR); 0010 zajmuje inny PR — drugi z mergowanych przepina `down_revision`.
 - **Dane:** repo nie zawiera granic. Zaimportowanie realnych gmin wymaga pliku od
   człowieka i zatwierdzenia licencji (source-registry: `prg_gminy`, status DISCOVERY).
   Do tego czasu resolver zwraca `None` (nie da się tego odróżnić od „poza Polską" —

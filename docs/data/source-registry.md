@@ -105,6 +105,34 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   przechodzenia całej (rate-limited) listy stron przy szukaniu znanego ID stacji.
 - **last_verified_at:** 2026-09-28
 
+## eea_eaqi (Europejski Indeks Jakości Powietrza — METODOLOGIA, nie feed)
+
+- **owner:** European Environment Agency (EEA); pasma: ETC HE Report 2024/17, v1,
+  3.07.2025, DOI 10.5281/zenodo.15781195
+- **connector:** BRAK — to nie jest źródło danych ani połączenie w runtime. Wagę ma tylko
+  opublikowana tabela progów, którą implementuje `apps/api/app/air_index.py` (ADR-015);
+  dane wejściowe to pomiary `gios`. Dlatego Source Approval Gate (§38/rule #15) dla
+  connectora nie ma tu zastosowania; wymagane jest to, co gate sprawdza dla treści:
+  licencja i atrybucja (niżej) oraz weryfikacja progów z URL i datą.
+- **endpoint:** brak wywołań; źródła treści: <https://airindex.eea.europa.eu/AQI/index.html>
+  i PDF raportu ETC HE 2024/17 (eionet.europa.eu)
+- **frequency:** n/d. Indeks godzinowy (1 h) — liczony przy odczycie z ostatnich
+  pomiarów GIOŚ; świeżość = świeżość wejść (rule #8)
+- **coverage:** nasze liczenie dla stacji GIOŚ; metodologia europejska
+- **license:** CC-BY 4.0 (<https://www.eea.europa.eu/en/legal-notice>, zweryfikowane
+  2026-09-30)
+- **commercial_use:** TAK (wg tej samej strony: „commercial or non-commercial purposes”)
+- **redistribution:** dozwolona z wskazaniem EEA jako źródła i bez zniekształcania sensu
+- **caching:** n/d (brak danych z EEA)
+- **rate_limit:** n/d
+- **attribution:** „Europejski Indeks Jakości Powietrza (EEA), liczony z pomiarów GIOŚ” —
+  wymagane przy wyniku w UI i w ekranie Źródła. To nasze obliczenie wg metodologii EEA,
+  nie oficjalny indeks EEA ani GIOŚ.
+- **status:** VERIFIED (progi, agregacja, minimalny zestaw; 2026-09-30) — IMPLEMENTED w
+  TASK-4.2. NIEzweryfikowane (nasze decyzje w ADR-015): konwencja granic pasm dla wartości
+  ułamkowych, typ stacji, polskie nazwy 6 pasm.
+- **last_verified_at:** 2026-09-30
+
 ## imgw_hydro (stan wody — Measurement)
 
 - **owner:** Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy

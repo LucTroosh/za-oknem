@@ -269,3 +269,31 @@ class SourceFetch(Base):
         JSON().with_variant(JSONB(), "postgresql"),
         nullable=True,
     )
+
+
+class Device(Base):
+    """One app installation registered for push (ADR-017, Master Plan §66). No user
+    account (rule #11): the row is keyed by a client-generated pseudonymous
+    `installation_id`, and every later change is authorized by a server-generated
+    `device_secret` of which only the SHA-256 hash is stored.
+
+    Location is `observed_area_code` (TERYT, ADR-002) only - never GPS coordinates.
+    `push_token` is NULL when the user declined notifications or after unregistering.
+    Not a Notification or a preference (rule #7): sending is TASK-10.2, per-device
+    preferences are TASK-10.3a.
+    """
+
+    __tablename__ = "devices"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    installation_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # sha256 hex of the device secret (high-entropy random token, so no slow KDF needed)
+    secret_hash: Mapped[str] = mapped_column(String(64))
+    platform: Mapped[str] = mapped_column(String(10))
+    push_token: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    observed_area_code: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

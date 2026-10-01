@@ -129,5 +129,4 @@ prawem `CREATE EXTENSION`.
 ## Architecture Impact
 
 ADR-019 (PostGIS jako Geo Engine; doprecyzowuje ADR-005/ADR-006: nearest-distance zostaje
-dla stacji, point-in-polygon dla przynależności administracyjnej). Migracja 0011
-wskazuje 0009 — przy merge po PR z 0010 przepiąć `down_revision` na `"0010"`.
+dla stacji, point-in-polygon dla przynależności administracyjnej). Migracja 0011 (po 0010_devices).
