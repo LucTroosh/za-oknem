@@ -9,9 +9,9 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 import logging
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, select
+from sqlalchemy import func, or_, select
 
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
@@ -108,8 +108,22 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
     db = None
     try:
         db = SessionLocal()
-        no_weather = ~exists().where(WeatherSnapshot.geo_area_id == GeoArea.id)
-        no_pollen = ~exists().where(PollenSnapshot.geo_area_id == GeoArea.id)
+        # "Needs data" = none yet, or older than one regular cycle: an area re-activated
+        # after expiry keeps its old rows, which must not count as "done".
+        cutoff_w = datetime.now(UTC) - timedelta(seconds=OPEN_METEO_INTERVAL_SECONDS)
+        cutoff_p = datetime.now(UTC) - timedelta(seconds=OPEN_METEO_POLLEN_INTERVAL_SECONDS)
+        last_w = (
+            select(func.max(WeatherSnapshot.fetched_at))
+            .where(WeatherSnapshot.geo_area_id == GeoArea.id)
+            .scalar_subquery()
+        )
+        last_p = (
+            select(func.max(PollenSnapshot.fetched_at))
+            .where(PollenSnapshot.geo_area_id == GeoArea.id)
+            .scalar_subquery()
+        )
+        no_weather = or_(last_w.is_(None), last_w < cutoff_w)
+        no_pollen = or_(last_p.is_(None), last_p < cutoff_p)
         rows = db.execute(
             select(GeoArea, no_weather, no_pollen).where(
                 GeoArea.weather_polling_active.is_(True),
@@ -117,6 +131,8 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
                 no_weather | no_pollen,
             )
         ).all()
+        for stale in set(attempts) - {a.id for a, _, _ in rows}:
+            del attempts[stale]  # fresh data landed: a later re-activation may retry
         due = [
             (a, need_weather, need_pollen)
             for a, need_weather, need_pollen in rows

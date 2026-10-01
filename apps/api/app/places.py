@@ -154,7 +154,10 @@ def activate_place(
             area = area_for_place(db, place.id)
             if area is None:
                 raise
-    area.last_requested_at = now
+    # Atomic touch first: it row-locks the area, so a concurrent expiry either ran before
+    # (the refresh below sees it inactive) or re-evaluates its WHERE and skips the area.
+    db.execute(update(GeoArea).where(GeoArea.id == area.id).values(last_requested_at=now))
+    db.refresh(area)
     # A later GeoNames import may have corrected the place: keep the copied fields in step,
     # or polling / station assignment would keep using the stale coordinates.
     area.name, area.latitude, area.longitude = place.name, place.latitude, place.longitude

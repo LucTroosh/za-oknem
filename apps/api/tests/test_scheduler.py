@@ -460,6 +460,32 @@ class TestNewAreaBootstrap:
         weather.assert_not_called()
         assert [x.id for x in pollen.call_args.args[0]] == [a.id]
 
+    def test_reactivated_area_with_retained_old_data_is_refetched(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        old = datetime.now(UTC) - timedelta(days=30)
+        w, p = self._weather_row(a.id), self._pollen_row(a.id)
+        w.fetched_at = p.fetched_at = old  # kept from before the expiry
+        db_session.add_all([w, p])
+        db_session.commit()
+        attempts = {a.id: (3, 0.0)}  # stale entry from the previous activation
+
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 0  # cap still holds
+        attempts.clear()
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 1
+        assert weather.call_args.args[0].id == a.id
+        assert [x.id for x in pollen.call_args.args[0]] == [a.id]
+
+    def test_attempts_of_areas_with_fresh_data_are_forgotten(self, monkeypatch, db_session):
+        self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        db_session.add_all([self._weather_row(a.id), self._pollen_row(a.id)])
+        db_session.commit()
+        attempts = {a.id: (3, 0.0)}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 0
+        assert attempts == {}
+
     def test_fetches_only_active_place_areas_without_weather(self, monkeypatch, db_session):
         weather, pollen = self._setup(monkeypatch, db_session)
         new = self._area(db_session, "place-1", place_id=1)
