@@ -31,6 +31,7 @@ assert list(SPECIES_BY_VARIABLE) == HOURLY_PARAMS.split(",")
 # time (same documented approximation as ADR-010).
 MODEL = DOMAIN
 REFERENCE_CYCLE_HOURS = 24
+MAX_UNIT_LENGTH = 20  # width of pollen_snapshots.unit
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested variables).
@@ -110,6 +111,8 @@ def normalize(
         if len(unit_values) != 1:
             raise ValueError(f"species units differ: {sorted(unit_values)}")
         unit = unit_values.pop()
+        if len(unit) > MAX_UNIT_LENGTH:  # PollenSnapshot.unit is String(20); Postgres rejects more
+            raise ValueError(f"unit longer than {MAX_UNIT_LENGTH} characters: {unit!r}")
         valid_times = [_parse_hour(t) for t in times]
         if len(set(valid_times)) != len(valid_times):
             # Would collide on source_record_id and be silently swallowed as a "race".

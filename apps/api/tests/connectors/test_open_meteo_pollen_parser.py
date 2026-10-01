@@ -166,6 +166,14 @@ def test_non_string_or_empty_units_raise(unit):
         _normalize(bad)
 
 
+def test_unit_wider_than_the_column_raises_instead_of_failing_in_postgres():
+    bad = deepcopy(PAYLOAD)
+    for variable in VARS:
+        bad["hourly_units"][variable] = "x" * 21
+    with pytest.raises(OpenMeteoPollenParseError, match="longer"):
+        _normalize(bad)
+
+
 def test_differing_units_raise():
     bad = deepcopy(PAYLOAD)
     bad["hourly_units"]["birch_pollen"] = "other"
