@@ -2,104 +2,129 @@
 // Regenerate: uv run python scripts/export_openapi.py (apps/api), then node generate.mjs.
 
 export type AirIndex = {
-  level: "GOOD" | "FAIR" | "MODERATE" | "POOR" | "VERY_POOR" | "EXTREMELY_POOR" | null;
   complete: boolean;
-  params: Record<string, "GOOD" | "FAIR" | "MODERATE" | "POOR" | "VERY_POOR" | "EXTREMELY_POOR">;
   dominant: Array<string>;
+  level: "GOOD" | "FAIR" | "MODERATE" | "POOR" | "VERY_POOR" | "EXTREMELY_POOR" | null;
   missing: Record<string, "MISSING" | "STALE" | "UNIT" | "INVALID">;
+  params: Record<string, "GOOD" | "FAIR" | "MODERATE" | "POOR" | "VERY_POOR" | "EXTREMELY_POOR">;
   valid_until: string | null;
 };
 
+export type AirLatestResponse = {
+  stations: Array<AirStation>;
+};
+
 export type AirParam = {
-  value: number;
-  unit: string;
-  observed_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  observed_at: string;
+  unit: string;
+  value: number;
+};
+
+export type AirStation = {
+  index: AirIndex;
+  latitude: number;
+  longitude: number;
+  params: Record<string, AirParam>;
+  source: "gios";
+  station_id: string;
+  station_name: string;
 };
 
 export type AlertOut = {
-  external_id: string;
-  source: string;
-  event_type: string;
-  severity_raw: string;
-  probability_pct: number | null;
-  issuing_office: string;
-  description: string;
-  comment: string | null;
   areas: Array<Record<string, unknown>>;
-  valid_from: string;
-  valid_until: string;
-  published_at: string;
+  comment: string | null;
+  description: string;
+  event_type: string;
+  external_id: string;
   fetched_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  issuing_office: string;
+  probability_pct: number | null;
+  published_at: string;
+  severity_raw: string;
+  source: string;
+  valid_from: string;
+  valid_until: string;
+};
+
+export type AlertsLatestResponse = {
+  alerts: Array<AlertOut>;
+  source_status: Record<string, SourceStatusOut>;
+};
+
+export type DailyBudgetOut = {
+  limit: number;
+  used: number;
+  used_pct: number;
 };
 
 export type DashboardAir = {
-  station_id: string;
-  station_name: string;
-  source: "gios";
   attribution: string;
+  distance_km: number;
+  index: AirIndex;
   observed_at: string;
   params: Record<string, AirParam>;
-  index: AirIndex;
-  distance_km: number;
+  source: "gios";
+  station_id: string;
+  station_name: string;
 };
 
 export type DashboardAlerts = {
-  scope: "national";
-  source: string;
   attribution: string;
   items: Array<AlertOut>;
+  scope: "national";
+  source: string;
   source_status: Record<string, SourceStatusOut>;
 };
 
 export type DashboardArea = {
+  air: DashboardAir | null;
+  forecast: DashboardForecast | null;
   geo_area_id: number;
-  slug: string;
-  name: string;
   latitude: number;
   longitude: number;
-  air: DashboardAir | null;
-  weather: DashboardWeather | null;
-  forecast: DashboardForecast | null;
+  name: string;
   outdoor: DashboardOutdoor;
   pollen: DashboardPollen;
+  slug: string;
+  weather: DashboardWeather | null;
 };
 
 export type DashboardForecast = {
-  source: "open_meteo";
   attribution: string;
+  days: Array<DashboardForecastDay>;
   fetched_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
-  days: Array<DashboardForecastDay>;
+  source: "open_meteo";
 };
 
 export type DashboardForecastDay = {
+  params: Record<string, WeatherParam>;
   valid_from: string;
   valid_until: string;
-  params: Record<string, WeatherParam>;
 };
 
 export type DashboardOutdoor = {
   level: "GOOD" | "MODERATE" | "POOR" | "UNKNOWN";
-  reasons: Array<OutdoorReasonOut>;
   missing: Array<OutdoorMissingOut>;
+  reasons: Array<OutdoorReasonOut>;
   valid_until: string | null;
 };
 
 export type DashboardPollen = {
-  source: string;
   attribution: string;
-  kind: "model_forecast";
-  model: string | null;
-  unit: string | null;
-  forecast_reference_time: string | null;
-  fetched_at: string | null;
-  freshness: "FRESH" | "RECENT" | "STALE" | "UNAVAILABLE";
-  valid_at: string | null;
   current: PollenValues | null;
   days: Array<DashboardPollenDay>;
+  fetched_at: string | null;
+  forecast_reference_time: string | null;
+  freshness: "FRESH" | "RECENT" | "STALE" | "UNAVAILABLE";
+  kind: "model_forecast";
+  model: string | null;
+  source: string;
   source_status: SourceStatusOut;
+  unit: string | null;
+  valid_at: string | null;
 };
 
 export type DashboardPollenDay = {
@@ -108,41 +133,143 @@ export type DashboardPollenDay = {
 };
 
 export type DashboardResponse = {
-  areas: Array<DashboardArea>;
   alerts: DashboardAlerts;
+  areas: Array<DashboardArea>;
 };
 
 export type DashboardWeather = {
-  source: "open_meteo";
   attribution: string;
-  observed_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  observed_at: string;
   params: Record<string, DashboardWeatherParam>;
+  source: "open_meteo";
 };
 
 export type DashboardWeatherParam = {
-  value: number;
-  unit: string;
-  observed_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  observed_at: string;
+  unit: string;
+  value: number;
+};
+
+export type DeviceIn = {
+  app_version?: string | null;
+  installation_id: string;
+  observed_area_code?: string | null;
+  platform: "android" | "ios";
+  push_token?: string | null;
+};
+
+export type DeviceOut = {
+  active: boolean;
+  app_version: string | null;
+  device_secret: string | null;
+  installation_id: string;
+  last_seen_at: string;
+  observed_area_code: string | null;
+  platform: "android" | "ios";
+  push_registered: boolean;
+};
+
+export type ForecastArea = {
+  days: Array<ForecastDay>;
+  fetched_at: string;
+  freshness: "FRESH" | "RECENT" | "STALE";
+  geo_area_id: number;
+  latitude: number;
+  longitude: number;
+  model: string;
+  name: string;
+  slug: string;
+  source: string;
+};
+
+export type ForecastDay = {
+  forecast_reference_time: string;
+  params: Record<string, WeatherParam>;
+  valid_from: string;
+  valid_until: string;
+};
+
+export type GeoResolveRequest = {
+  latitude: number;
+  longitude: number;
+};
+
+export type GeoResolveResponse = {
+  area: ResolvedGeoArea | null;
+};
+
+export type HTTPValidationError = {
+  detail?: Array<ValidationError>;
+};
+
+export type HydroLatestResponse = {
+  attribution: string;
+  source_status: SourceStatusOut;
+  stations: Array<HydroStation>;
+};
+
+export type HydroStation = {
+  alarm_level_cm: number | null;
+  freshness: "FRESH" | "RECENT" | "STALE";
+  latitude: number;
+  longitude: number;
+  observed_at: string;
+  source: "imgw_hydro";
+  station_id: string;
+  station_name: string;
+  status: "NORMAL" | "WARNING" | "ALARM" | "UNKNOWN";
+  unit: string;
+  warning_level_cm: number | null;
+  water_level_cm: number;
 };
 
 export type OutdoorMissingOut = {
+  blocking: boolean;
+  core: boolean;
   group: string;
   params: Array<string>;
   status: "MISSING" | "STALE" | "INVALID";
-  core: boolean;
-  blocking: boolean;
 };
 
 export type OutdoorReasonOut = {
   code: string;
-  param: string;
-  value: number;
-  threshold: number;
   comparison: "gt" | "gte" | "lt" | "lte";
-  unit: string;
   level: "MODERATE" | "POOR";
+  param: string;
+  threshold: number;
+  unit: string;
+  value: number;
+};
+
+export type PollenArea = {
+  current: PollenValues | null;
+  days: Array<PollenDay>;
+  fetched_at: string;
+  forecast_reference_time: string;
+  freshness: "FRESH" | "RECENT" | "STALE";
+  geo_area_id: number;
+  kind: "model_forecast";
+  latitude: number;
+  longitude: number;
+  model: string;
+  name: string;
+  slug: string;
+  unit: string;
+  valid_at: string | null;
+};
+
+export type PollenDay = {
+  date: string;
+  max: PollenValues;
+};
+
+export type PollenLatestResponse = {
+  areas: Array<PollenArea>;
+  attribution: string;
+  source: string;
+  source_status: SourceStatusOut;
 };
 
 export type PollenValues = {
@@ -153,12 +280,69 @@ export type PollenValues = {
   ragweed: number | null;
 };
 
+export type ResolvedGeoArea = {
+  geo_area_id: number;
+  name: string;
+  slug: string;
+  teryt_code: string;
+};
+
+export type SourceHealthOut = {
+  daily_budget: DailyBudgetOut | null;
+  freshness: "FRESH" | "RECENT" | "STALE" | "UNAVAILABLE";
+  last_attempt_at: string | null;
+  last_error: string | null;
+  last_success_at: string | null;
+  monitored: boolean;
+  source_id: string;
+};
+
 export type SourceStatusOut = {
   freshness: "FRESH" | "RECENT" | "STALE" | "UNAVAILABLE";
   last_success_at: string | null;
 };
 
-export type WeatherParam = {
-  value: number;
+export type SourcesHealthResponse = {
+  generated_at: string;
+  sources: Array<SourceHealthOut>;
+};
+
+export type ValidationError = {
+  ctx?: Record<string, unknown>;
+  input?: unknown;
+  loc: Array<string | number>;
+  msg: string;
+  type: string;
+};
+
+export type WeatherArea = {
+  freshness: "FRESH" | "RECENT" | "STALE";
+  geo_area_id: number;
+  latitude: number;
+  longitude: number;
+  name: string;
+  observed_at: string;
+  params: Record<string, WeatherLatestParam>;
+  slug: string;
+  source: string;
+};
+
+export type WeatherForecastResponse = {
+  areas: Array<ForecastArea>;
+};
+
+export type WeatherLatestParam = {
+  freshness: "FRESH" | "RECENT" | "STALE";
+  observed_at: string;
   unit: string;
+  value: number;
+};
+
+export type WeatherLatestResponse = {
+  areas: Array<WeatherArea>;
+};
+
+export type WeatherParam = {
+  unit: string;
+  value: number;
 };

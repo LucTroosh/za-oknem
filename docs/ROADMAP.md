@@ -200,6 +200,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #72 | Kąpieliska: research źródeł + ADR-021 (Proposed), registry; TASK-11.1 częściowo, 11.2 ZABLOKOWANE — bez kodu |
 | #73 | Provider config Free→Paid (ADR-022, TASK-13.4): endpointy/klucz Open-Meteo w env, maskowanie klucza, FREE-FIRST (reguła #17), checklista przed monetyzacją (ADR-003) |
 | #75 | Pyłki w dashboardzie: blok `pollen` w `dashboard_latest()` (TASK-8.9, izolowany, freshness + `source_status`) + karta mobile `PollenCard`/`pollen.ts` (TASK-8.8); progi sezon/szczyt EAACI wg CAMS/EEA (ADR-020) |
+| #77 | Kontrakt API (TASK-2.1, ADR-024): `response_model` `DashboardResponse` dla `/dashboard/latest` (1:1 z dotychczasowym JSON-em), `openapi.json` + typy TS generowane bez zależności w `packages/api-contract`, kroki CI `--check`, `contract.test.ts` w mobile |
 
 ---
 
