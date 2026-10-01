@@ -126,6 +126,14 @@ def test_duplicate_timestamps_raise():
         _normalize(bad)
 
 
+@pytest.mark.parametrize("stamp", ["2026-05-04T01:00+02:00", "2026-05-04T01:00Z"])
+def test_timestamps_with_an_offset_raise_instead_of_being_relabelled(stamp):
+    bad = deepcopy(PAYLOAD)
+    bad["hourly"]["time"][1] = stamp
+    with pytest.raises(OpenMeteoPollenParseError, match="offset"):
+        _normalize(bad)
+
+
 def test_differing_units_raise():
     bad = deepcopy(PAYLOAD)
     bad["hourly_units"]["birch_pollen"] = "other"

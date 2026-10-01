@@ -80,9 +80,12 @@ def normalize(
         if len(unit_values) != 1:
             raise ValueError(f"species units differ: {sorted(unit_values)}")
         unit = unit_values.pop()
-        valid_times = [
-            datetime.fromisoformat(str(t)).replace(tzinfo=UTC) for t in times
-        ]  # timezone=UTC requested, so the naive stamps ARE UTC
+        parsed = [datetime.fromisoformat(str(t)) for t in times]
+        if any(p.tzinfo is not None for p in parsed):
+            # Contract: naive wall-clock stamps in the requested timezone (UTC). An
+            # explicit offset would be relabelled, not converted - reject instead.
+            raise ValueError("hourly.time must be naive UTC timestamps, got an offset")
+        valid_times = [p.replace(tzinfo=UTC) for p in parsed]
         if len(set(valid_times)) != len(valid_times):
             # Would collide on source_record_id and be silently swallowed as a "race".
             raise ValueError("hourly.time contains duplicate timestamps")
