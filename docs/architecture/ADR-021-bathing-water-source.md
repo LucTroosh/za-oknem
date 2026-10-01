@@ -75,7 +75,9 @@ cokolwiek z tego jest programowo dostępne.
 2. EEA jako rejestr + klasyfikacja roczna — kandydat, ale Gate niezaliczony
    (licencja i schemat niezweryfikowane) — nie implementujemy na domysłach.
 3. dane.gov.pl — niezweryfikowane.
-4. Zgoda/kontakt z GIS na eksport lub API — jedyna droga do statusu bieżącego.
+4. Zgoda/kontakt z GIS na eksport lub API — jedyna dotąd zidentyfikowana droga do
+   statusu bieżącego (ograniczony research; dane.gov.pl i WIOŚ/wojewódzkie
+   niesprawdzone, mogą istnieć inne).
 
 ## Decision
 

@@ -11,11 +11,13 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 
 ## Scope
 
-- **11.1 (zrobione):** research źródeł, ADR-021, wpisy w registry.
+- **11.1 (CZĘŚCIOWE/ZABLOKOWANE):** research źródeł, ADR-021 i wpisy w registry
+  zrobione; Source Approval Gate NIEZALICZONY dla żadnego źródła (patrz AC).
 - **11.2 (ZABLOKOWANE):** connector `app/connectors/<nazwa>/` (fetch/parse/
   validate/normalize), modele `BathingSite` + klasyfikacja/status (rule #7),
   migracja Alembic (nowy head po PR-ach w toku), scheduler z `source_status`
-  (ADR-012), provenance `source_fetch_id` (ADR-014), `GET /api/v1/water/latest`.
+  (ADR-012), provenance `source_fetch_id` (ADR-014). Endpoint
+  `GET /api/v1/water/latest` (freshness, nearest-site) należy do TASK-11.4.
 
 ## Acceptance Criteria
 
@@ -24,7 +26,7 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 - [ ] Source Approval Gate zaliczony dla wybranego źródła (licencja,
       `commercial_use`, atrybucja, cykl, schemat na prawdziwej próbce).
 - [ ] Parser testowany na fixture z POTWIERDZONYCH pól (oznaczony jako fixture).
-- [ ] `/water/latest`: `source` + `attribution` z registry, freshness,
+- [ ] (TASK-11.4) `/water/latest`: `source` + `attribution` z registry, freshness,
       `source_status`; brak bieżącego statusu => `UNAVAILABLE`, nigdy „dopuszczone".
 
 ## Blokada — co musi zrobić człowiek
