@@ -523,6 +523,17 @@ class TestNewAreaBootstrap:
         assert scheduler.run_new_area_bootstrap({}, 0.0) == 1
         weather.assert_called_once()
 
+    def test_pollen_db_error_is_rolled_back_before_the_next_area(self, monkeypatch, db_session):
+        _, pollen = self._setup(monkeypatch, db_session)
+        pollen.side_effect = RuntimeError("pollen db")
+        rollback = MagicMock(wraps=db_session.rollback)
+        monkeypatch.setattr(db_session, "rollback", rollback)
+        self._area(db_session, "place-1", place_id=1)
+        self._area(db_session, "place-2", place_id=2)
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 2
+        assert rollback.call_count == 2  # after each failed pollen fetch
+
     def test_database_failure_never_raises(self, monkeypatch):
         monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
 

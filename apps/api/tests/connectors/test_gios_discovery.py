@@ -297,3 +297,16 @@ def test_malformed_catalog_shape_keeps_the_cache(monkeypatch, db_session):
 
     assert discovery.ensure_catalog(db_session, now=now + timedelta(days=2)) is False
     assert db_session.query(GiosStation).count() == 3
+
+
+def test_unmeasured_catalog_stations_are_not_candidates_under_an_env_override(
+    monkeypatch, db_session
+):
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+    measured = {"38": {"latitude": 50.433493, "longitude": 16.65366}}
+
+    ids = [p[0] for p in discovery.assignment_candidates(db_session, measured, unmeasured=True)]
+
+    assert ids == ["38"]

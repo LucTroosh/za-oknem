@@ -151,6 +151,7 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
                     ingest_pollen_areas([area], db)
                 except Exception:
                     logger.exception("bootstrap: pollen for %s failed", area.slug)
+                    db.rollback()  # a DB error would poison the shared session for the next area
         return len(due)
     except Exception:
         logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")

@@ -196,7 +196,7 @@ def assignment_candidates(
             points.append((sid, s["latitude"], s["longitude"]))
         elif sid in catalog:
             points.append((sid, *catalog[sid]))
-    if unmeasured:
+    if unmeasured and not override:  # with an override only those ids are fetched
         points += [(sid, *c) for sid, c in catalog.items() if sid not in stations]
     return points
 
