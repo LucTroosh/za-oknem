@@ -15,11 +15,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.pollen import ATTRIBUTION, FRESH_MAX_AGE, RECENT_MAX_AGE, SOURCE, freshness
+from app.api.v1.pollen import (
+    ATTRIBUTION,
+    FRESH_MAX_AGE,
+    RECENT_MAX_AGE,
+    SOURCE,
+    freshness,
+    latest_pollen,
+    pollen_block,
+)
 from app.db import Base, get_db
 from app.main import app
 from app.models import GeoArea, PollenSnapshot
-from app.source_status import record_source_run
+from app.source_status import record_source_run, source_freshness
 
 NOW = datetime.now(UTC)
 SLOT = NOW.replace(minute=0, second=0, microsecond=0)
@@ -191,7 +199,32 @@ def test_failed_only_source_stays_unavailable(db):
     assert _get()["source_status"]["freshness"] == "UNAVAILABLE"
 
 
+def test_dashboard_block_end_to_end_on_a_real_db(db):
+    """TASK-8.9: pollen_block(latest_pollen, source_freshness) - the exact composition the
+    dashboard uses - on SQLite (the dashboard's own DISTINCT ON queries are Postgres-only)."""
+    _area(db)
+    _area(db, id=2, slug="bez-pylkow")  # no snapshots -> not in latest_pollen
+    _row(db, birch=12.5)
+    record_source_run(db, "open_meteo_pollen", success=True)
+    by_area = {a["geo_area_id"]: a for a in latest_pollen(db)}
+    status = source_freshness(db, "open_meteo_pollen", freshness)
+
+    block = pollen_block(by_area[1], status)
+    assert block["kind"] == "model_forecast" and block["attribution"] == ATTRIBUTION
+    assert block["freshness"] == "FRESH" and block["source_status"]["freshness"] == "FRESH"
+    assert block["current"]["birch"] == 12.5 and block["current"]["grass"] is None
+    assert "slug" not in block and "geo_area_id" not in block
+
+    empty = pollen_block(by_area.get(2), status)
+    assert empty["freshness"] == "UNAVAILABLE" and empty["current"] is None
+    assert empty["days"] == [] and empty["kind"] == "model_forecast"
+
+
 class TestFreshness:
+    def test_fetched_at_in_the_future_beyond_clock_skew_is_stale(self):
+        assert freshness(datetime.now(UTC) + timedelta(hours=1)) == "STALE"
+        assert freshness(datetime.now(UTC) + timedelta(minutes=1)) == "FRESH"
+
     def test_thresholds_follow_the_24h_model_cycle(self):
         assert timedelta(hours=32) == FRESH_MAX_AGE
         assert timedelta(hours=64) == RECENT_MAX_AGE

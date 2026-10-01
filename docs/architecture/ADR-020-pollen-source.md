@@ -179,3 +179,28 @@ równoległy fetch nie nadpisuje nowszego), z jednym retry po wyścigu pierwszeg
 - Wspólny licznik `open_meteo` podnosi szybciej alert 70% (konserwatywnie).
 - Nie dotyczy: karta mobile (TASK-8.8), agregat `dashboard_latest()` (TASK-8.9),
   profil alergika (TASK-12.4).
+
+
+## Addendum 2026-10-01: dashboard i karta mobile (TASK-8.8/8.9)
+
+- **Kontrakt `/dashboard/latest`:** każdy obszar ma blok `pollen` = pola jednego obszaru
+  z `/pollen/latest` (`kind: "model_forecast"`, `model`, `unit`, `forecast_reference_time`,
+  `fetched_at`, `freshness`, `valid_at`, `current`, `days`) + `source`, `attribution`
+  (dosłownie jak wyżej) + `source_status` (ADR-012). Brak snapshotu dla obszaru:
+  `freshness: "UNAVAILABLE"`, wartości `null`, `days: []` (nigdy 0). Czyta tylko z bazy
+  (rule #14). Blok liczony na końcu i izolowany: wyjątek → wszystkie bloki `pollen` są
+  `UNAVAILABLE`, reszta dashboardu działa (rule #1).
+- **Mobile:** efektywna świeżość = gorsza z `freshness` obszaru i `source_status`. STALE/
+  UNAVAILABLE nie pokazują poziomów (rule #8), null = „brak danych”. Karta zawsze nazywa dane
+  „prognozą modelu CAMS (nie pomiar)” i pokazuje atrybucję.
+- **Progi (zweryfikowane 2026-10-01):** EEA Climate-ADAPT, „CAMS pollen viewer”
+  (climate-adapt.eea.europa.eu/…/cams-ground-level-pollen-forecast/cams-pollen-viewer):
+  „For alder, birch, olive and mugwort, concentrations ≥ 10 pollen/m3 demarcate the pollen
+  season and concentrations ≥ 100 pollen/m3 demarcate the peak pollen period (Pfaar et al.,
+  2017). For grass and ragweed, ≥ 3 … season and ≥ 50 … peak (Pfaar et al., 2017, 2020)” —
+  progi EAACI. To **granice sezonu i szczytu pylenia, nie klasy ryzyka objawów** — UI mówi:
+  „poniżej progu sezonu / sezon pylenia / szczyt pylenia”, nie „niskie/wysokie”. Open-Meteo
+  nie podaje własnych progów (sprawdzone na stronie docs). NIEZWERYFIKOWANE: że „pollen/m³”
+  w źródle EEA = `grains/m³` Open-Meteo (przyjęte jako ta sama jednostka; progi stosowane
+  wyłącznie przy jednostce dokładnie `grains/m³`, inaczej surowa wartość bez poziomu).
+- **Poza zakresem:** `outdoor.evaluate` (ADR-016) bez pyłków — dodanie reguł wymaga ADR.

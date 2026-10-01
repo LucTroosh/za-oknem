@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import AirIndexBadge from "../components/AirIndexBadge";
 import OutdoorCard from "../components/OutdoorCard";
+import PollenCard from "../components/PollenCard";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
@@ -70,6 +71,9 @@ type DashboardArea = {
   } | null;
   // TASK-7.8: optional — absent on an older backend; the card renders nothing then.
   outdoor?: unknown;
+  // TASK-8.8/8.9: CAMS model forecast (ADR-020), typed in pollen.ts (PollenBlock);
+  // optional - absent on an older backend, the card renders nothing then.
+  pollen?: unknown;
 };
 
 type LoadState = "loading" | "ready" | "error";
@@ -231,6 +235,8 @@ export default function Home() {
               )}
             </View>
             <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
+            <PollenCard pollen={item.pollen} />
+            {/* Slot for the pollen calendar section (separate PR, /pollen/calendar). */}
             {item.forecast && forecastLine(item.forecast.days) && (
               <View>
                 <Text style={styles.metric}>
