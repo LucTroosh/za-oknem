@@ -95,3 +95,9 @@ def test_duplicate_teryt_code_rejected():
 def test_unusable_document_raises(doc):
     with pytest.raises(PrgParseError):
         parse_feature_collection(doc)
+
+
+def test_rejection_remembers_the_teryt_code():
+    bad_geometry = _feature(code="9999903", geometry={"type": "Point", "coordinates": [16, 50]})
+    _, rejected = parse_feature_collection(_fc(bad_geometry, _feature(code=None)))
+    assert [r.code for r in rejected] == ["9999903", None]

@@ -60,7 +60,8 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
 3. Sprawdzić: `python -m app.connectors.prg_gminy.ingest --file gminy.geojson --validate-only`
    (flagi `--teryt-field`/`--name-field`, jeśli atrybuty nazywają się inaczej), potem import
    bez `--validate-only`. Oczekiwane: ~2,5 tys. rekordów, 7-cyfrowy kod TERYT jako tekst.
-4. Zweryfikować resolver na kilku znanych punktach (np. rynek w Kłodzku → `0208023`).
+4. Zweryfikować resolver na kilku znanych punktach (np. centrum Kłodzka; oczekiwany kod gminy sprawdzić w TERC/PRG — nie podaję go tu,
+   bo nie został zweryfikowany).
 
 ## Acceptance Criteria
 
@@ -75,6 +76,19 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
       więc resolver nie zwróci przestarzałej gminy (Codex, runda 1).
 - [ ] Reimport odświeża nazwę; seed z kodem nieobecnym w nowym snapshocie (przenumerowana
       gmina) adoptuje nowy kod, zachowując `id`/polling (Codex, runda 2).
+- [ ] `--retire-missing` ma bezpieczniki: odmowa (przed importem), gdy plik ma < 2000
+      rekordów albo wycofałby > 20% gmin z granicą; `--force-retire` świadomie je omija;
+      `--dry-run` tylko raportuje liczbę gmin do wycofania. Kody odrzuconych rekordów liczą
+      się jako obecne w pliku (nie powodują re-adopcji seedów).
+- [ ] CLI `open_meteo.ingest` i scheduler używają tej samej `polling_areas()`: bez `--slug`
+      tylko `weather_polling_active`; jawny `--slug` działa dla dowolnego obszaru.
+- [ ] Downgrade 0011 kasuje wiersze `teryt-*` niereferencjonowane przez żadną tabelę (FK z
+      katalogu), a przy referencjach przerywa głośnym błędem — po ponownym upgrade nie
+      wracają jako pollowane.
+- [ ] Błąd bazy w `/geo/resolve` = 503 ze stałym komunikatem, bez współrzędnych w logu
+      (`hide_parameters=True` w engine); 422 nie odsyła `input` ze współrzędnymi.
+- [ ] CI: `REQUIRE_POSTGIS=1` (zestaw `postgis` failuje zamiast skipować), `set -o pipefail`
+      przy `| tee` (wcześniej porażki alembic check/mypy/pytest mogły być maskowane).
 - [ ] Nieprawidłowy rekord (zły TERYT, nie-WGS84, niezamknięty pierścień, duplikat) jest
       odrzucany z powodem, reszta importowana; nieprawidłowa geometria naprawiana
       (`ST_MakeValid`) i policzona w raporcie.

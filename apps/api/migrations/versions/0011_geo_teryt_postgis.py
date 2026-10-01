@@ -43,7 +43,38 @@ def upgrade() -> None:
     )
 
 
+def _drop_imported_gminas() -> None:
+    """Imported gminas (slug teryt-*) default to weather_polling_active=true once that
+    column is re-added by a later upgrade, which would put ~2.5k rows into polling.
+    So delete them on downgrade - but never a row some table still references (FK
+    targets are read from the catalog, so tables added by later migrations, e.g.
+    devices, are covered too) - and fail loudly if any remain."""
+    conn = op.get_bind()
+    quote = conn.dialect.identifier_preparer.quote
+    refs = conn.execute(
+        sa.text(
+            "SELECT c.conrelid::regclass::text, a.attname FROM pg_constraint c "
+            "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1] "
+            "WHERE c.contype = 'f' AND c.confrelid = 'geo_areas'::regclass"
+        )
+    ).all()
+    unreferenced = "".join(
+        f" AND NOT EXISTS (SELECT 1 FROM {table} r WHERE r.{quote(col)} = g.id)"
+        for table, col in refs
+    )
+    conn.execute(sa.text(f"DELETE FROM geo_areas g WHERE left(g.slug, 6) = 'teryt-'{unreferenced}"))
+    left = conn.execute(
+        sa.text("SELECT count(*) FROM geo_areas WHERE left(slug, 6) = 'teryt-'")
+    ).scalar()
+    if left:
+        raise RuntimeError(
+            f"downgrade 0011 aborted: {left} imported gmina row(s) (slug 'teryt-*') are still "
+            "referenced by other tables; remove those references first"
+        )
+
+
 def downgrade() -> None:
+    _drop_imported_gminas()
     op.drop_column("geo_areas", "weather_polling_active")
     op.drop_index("ix_geo_areas_boundary", table_name="geo_areas")
     op.drop_column("geo_areas", "boundary")

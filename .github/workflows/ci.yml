@@ -39,6 +39,7 @@ jobs:
         run: uv run alembic upgrade head
       - name: alembic check (fails if models drifted from migrations - rule #4)
         run: |
+          set -o pipefail
           uv run alembic check 2>&1 | tee /tmp/alembic-check.out
         continue-on-error: true
         id: alembic_check
@@ -51,6 +52,7 @@ jobs:
           exit 1
       - name: mypy (with error annotations)
         run: |
+          set -o pipefail
           uv run mypy app 2>&1 | tee /tmp/mypy.out
         continue-on-error: true
         id: mypy
@@ -62,8 +64,12 @@ jobs:
           done < /tmp/mypy.out
           exit 1
       - name: pytest (with error annotations)
+        env:
+          # ADR-019: the PostGIS suite must RUN in CI - fail, never silently skip.
+          REQUIRE_POSTGIS: "1"
         run: |
-          uv run pytest 2>&1 | tee /tmp/pytest.out
+          set -o pipefail
+          uv run pytest -rs 2>&1 | tee /tmp/pytest.out
         continue-on-error: true
         id: pytest
       - name: Report pytest failure

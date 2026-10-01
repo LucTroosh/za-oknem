@@ -28,6 +28,13 @@ _TERYT_RE = re.compile(r"^\d{7}$")
 MAX_NAME_LENGTH = 200
 
 
+class Rejection(str):
+    """Human-readable rejection reason that also remembers the feature's TERYT code (if it
+    had a string one), so a rejected record's code still counts as 'present in the file'."""
+
+    code: str | None = None
+
+
 class PrgParseError(ValueError):
     """The whole document is unusable (not a FeatureCollection, no features)."""
 
@@ -87,7 +94,7 @@ def parse_feature_collection(
     *,
     teryt_field: str = DEFAULT_TERYT_FIELD,
     name_field: str = DEFAULT_NAME_FIELD,
-) -> tuple[list[GminaRecord], list[str]]:
+) -> tuple[list[GminaRecord], list[Rejection]]:
     """Returns (valid records, human-readable rejection reasons). One bad feature never
     sinks the rest (rule #1); an unusable document raises PrgParseError."""
     if not isinstance(doc, dict) or doc.get("type") != "FeatureCollection":
@@ -97,7 +104,7 @@ def parse_feature_collection(
         raise PrgParseError("FeatureCollection has no features")
 
     records: list[GminaRecord] = []
-    rejected: list[str] = []
+    rejected: list[Rejection] = []
     seen: set[str] = set()
     for index, feature in enumerate(features):
         props = feature.get("properties") if isinstance(feature, dict) else None
@@ -115,7 +122,9 @@ def parse_feature_collection(
                 raise ValueError("duplicate TERYT code")
             geometry = _to_multipolygon(feature.get("geometry"))
         except ValueError as exc:
-            rejected.append(f"{label}: {exc}")
+            reason = Rejection(f"{label}: {exc}")
+            reason.code = code if isinstance(code, str) else None
+            rejected.append(reason)
             continue
         seen.add(code)
         records.append(GminaRecord(code, name.strip(), json.dumps(geometry)))

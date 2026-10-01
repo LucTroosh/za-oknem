@@ -89,11 +89,46 @@ _RETIRE_SQL = text(
 )
 
 
-def retire_missing(codes: list[str], db) -> int:
-    """Clears the boundary of every gmina absent from `codes` (a COMPLETE snapshot).
-    Returns the number of retired rows. Seed rows without TERYT are untouched."""
+# Safety net against retiring from a partial file (a full PRG gmina snapshot has ~2.5k).
+MIN_SNAPSHOT_RECORDS = 2000
+MAX_RETIRE_FRACTION = 0.2
+_COUNT_SQL = text("SELECT count(*) FROM geo_areas WHERE boundary IS NOT NULL")
+_COUNT_RETIRE_SQL = text(
+    """
+    SELECT count(*) FROM geo_areas
+    WHERE boundary IS NOT NULL AND teryt_code IS NOT NULL
+      AND teryt_code <> ALL(CAST(:codes AS text[]))
+    """
+)
+
+
+def plan_retire(codes: list[str], db, *, force: bool = False) -> int:
+    """Number of rows `retire_missing` would clear. Raises ValueError when the snapshot
+    looks partial (< MIN_SNAPSHOT_RECORDS records, or it would retire more than
+    MAX_RETIRE_FRACTION of rows with a boundary) unless `force`."""
     if not codes:
         raise ValueError("refusing to retire everything: empty snapshot")
+    to_retire = db.execute(_COUNT_RETIRE_SQL, {"codes": codes}).scalar()
+    total = db.execute(_COUNT_SQL).scalar()
+    if not force:
+        if len(codes) < MIN_SNAPSHOT_RECORDS:
+            raise ValueError(
+                f"snapshot has {len(codes)} records (< {MIN_SNAPSHOT_RECORDS}): looks partial; "
+                "use --force-retire to override"
+            )
+        if total and to_retire > MAX_RETIRE_FRACTION * total:
+            raise ValueError(
+                f"would retire {to_retire} of {total} gminas (> {MAX_RETIRE_FRACTION:.0%}); "
+                "use --force-retire to override"
+            )
+    return to_retire
+
+
+def retire_missing(codes: list[str], db, *, force: bool = False) -> int:
+    """Clears the boundary of every gmina absent from `codes` (a COMPLETE snapshot), after
+    the plan_retire safety checks. Returns the number of retired rows. Seed rows without
+    TERYT are untouched."""
+    plan_retire(codes, db, force=force)
     result = db.execute(_RETIRE_SQL, {"codes": codes})
     db.commit()
     return result.rowcount
@@ -109,9 +144,13 @@ class ImportReport:
     rejected: list[str] = field(default_factory=list)
 
 
-def import_records(records: list[GminaRecord], db) -> ImportReport:
+def import_records(
+    records: list[GminaRecord], db, *, extra_codes: list[str] | None = None
+) -> ImportReport:
+    """`extra_codes`: TERYT codes present in the file but rejected - they still count as
+    'in the snapshot' for seed re-adoption (a code with a bad geometry is not gone)."""
     report = ImportReport()
-    snapshot = [r.teryt_code for r in records]
+    snapshot = [r.teryt_code for r in records] + list(extra_codes or [])
     for rec in records:
         try:
             prepared = db.execute(_PREPARE_SQL, {"geojson": rec.geometry_json}).one()
@@ -144,6 +183,16 @@ def main() -> None:
     parser.add_argument("--name-field", default=DEFAULT_NAME_FIELD)
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="with --retire-missing: report how many gminas would be retired, change nothing",
+    )
+    parser.add_argument(
+        "--force-retire",
+        action="store_true",
+        help="skip the partial-snapshot safety checks of --retire-missing",
+    )
+    parser.add_argument(
         "--retire-missing",
         action="store_true",
         help="file is a COMPLETE snapshot: clear the boundary of gminas absent from it "
@@ -164,9 +213,24 @@ def main() -> None:
     total = len(records) + len(rejected)
     print(f"parsed: {len(records)} valid, {len(rejected)} rejected of {total} features")
     report = ImportReport(rejected=list(rejected))
+    if args.dry_run and not args.retire_missing:
+        print("--dry-run only applies together with --retire-missing", file=sys.stderr)
+        sys.exit(1)
     if not args.validate_only:
         db = SessionLocal()
         try:
+            if args.retire_missing:
+                # Checked BEFORE importing so a refused (partial) file changes nothing.
+                try:
+                    would = plan_retire(
+                        [r.teryt_code for r in records], db, force=args.force_retire
+                    )
+                except ValueError as exc:
+                    print(f"--retire-missing refused: {exc}", file=sys.stderr)
+                    sys.exit(1)
+                print(f"retire plan: {would} gmina(s) would lose their boundary")
+                if args.dry_run:
+                    return
             fetch_id = provenance.record_fetch(
                 db,
                 source_id=SOURCE_ID,
@@ -175,12 +239,16 @@ def main() -> None:
                 fetched_at=datetime.now(UTC),
                 parser_version=PARSER_VERSION,
             )
-            db_report = import_records(records, db)
+            db_report = import_records(
+                records, db, extra_codes=[r.code for r in rejected if r.code]
+            )
             report.inserted, report.updated = db_report.inserted, db_report.updated
             report.adopted_seeds, report.repaired = db_report.adopted_seeds, db_report.repaired
             report.rejected += db_report.rejected
             if args.retire_missing and not report.rejected:
-                report.retired = retire_missing([r.teryt_code for r in records], db)
+                report.retired = retire_missing(
+                    [r.teryt_code for r in records], db, force=args.force_retire
+                )
             elif args.retire_missing:
                 print("--retire-missing skipped: snapshot had rejected records", file=sys.stderr)
             provenance.set_validation_status(

@@ -18,9 +18,8 @@ from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
-from app.connectors.open_meteo.ingest import ingest_geo_area
+from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.db import SessionLocal
-from app.models import GeoArea
 from app.provenance import purge_expired_payloads
 from app.source_status import record_source_run
 
@@ -48,9 +47,8 @@ def _gios_station_ids() -> list[str]:
 def run_open_meteo() -> None:
     db = SessionLocal()
     try:
-        # ADR-019: only areas with active weather polling - imported gminas exist for
-        # geo-matching and would blow the Open-Meteo daily budget.
-        for area in db.query(GeoArea).filter(GeoArea.weather_polling_active.is_(True)):
+        # ADR-019: only areas with active weather polling (see polling_areas).
+        for area in polling_areas(db):
             ingest_geo_area(area, db)
     finally:
         db.close()

@@ -328,6 +328,45 @@ class TestMain:
 
         assert ingest_mock.call_count == 1
 
+    def test_skips_inactive_areas_when_no_slug_given(self, monkeypatch, db_session):
+        _make_area(db_session)
+        inactive = GeoArea(
+            slug="teryt-9999901",
+            name="Imported",
+            latitude=54.9,
+            longitude=16.2,
+            weather_polling_active=False,
+        )
+        db_session.add(inactive)
+        db_session.commit()
+        monkeypatch.setattr(sys, "argv", ["ingest"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        ingest_mock = MagicMock()
+        monkeypatch.setattr(ingest, "ingest_geo_area", ingest_mock)
+
+        ingest.main()
+
+        assert [c[0][0].slug for c in ingest_mock.call_args_list] == ["klodzko"]
+
+    def test_explicit_slug_overrides_polling_flag(self, monkeypatch, db_session):
+        inactive = GeoArea(
+            slug="teryt-9999901",
+            name="Imported",
+            latitude=54.9,
+            longitude=16.2,
+            weather_polling_active=False,
+        )
+        db_session.add(inactive)
+        db_session.commit()
+        monkeypatch.setattr(sys, "argv", ["ingest", "--slug", "teryt-9999901"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        ingest_mock = MagicMock()
+        monkeypatch.setattr(ingest, "ingest_geo_area", ingest_mock)
+
+        ingest.main()
+
+        assert ingest_mock.call_count == 1
+
     def test_slug_filters_to_matching_areas_only(self, monkeypatch, db_session):
         _make_area(db_session)  # slug="klodzko"
         other = GeoArea(slug="warszawa", name="Warszawa", latitude=52.23, longitude=21.01)

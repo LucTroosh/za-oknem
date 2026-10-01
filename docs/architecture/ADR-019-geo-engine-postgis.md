@@ -73,7 +73,8 @@ Opcja **A**.
   degraduje tam do TEXT). Endpoint jest testowany z podstawionym resolverem.
 - **Prywatność (ADR-002):** `POST /api/v1/geo/resolve` przyjmuje współrzędne w body
   (nie w query stringu, więc nie trafiają do access logów), nie loguje ich, nie zapisuje
-  i nie odsyła w odpowiedzi; zwraca tylko gminę.
+  i nie odsyła w odpowiedzi; zwraca tylko gminę. Błąd bazy daje 503 ze stałym komunikatem
+  (bez parametrów zapytania; `hide_parameters=True` w engine), a 422 nie zawiera pola `input`.
 
 ## Consequences
 
@@ -86,7 +87,9 @@ Opcja **A**.
 - **Backup:** `pg_dump` zapisze `CREATE EXTENSION postgis`; instancja `restore_test.sh`
   musi mieć PostGIS (opisane w `infrastructure/scripts/README.md`). Manifest już liczy
   `geo_areas`. Niezweryfikowane na realnym dumpie.
-- **Downgrade 0011** usuwa kolumny, ale zostawia rozszerzenie (niedestrukcyjnie).
+- **Downgrade 0011** usuwa kolumny i wiersze `teryt-*` niereferencjonowane przez inne
+  tabele (przerywa błędem, jeśli któreś są referencjonowane), ale zostawia rozszerzenie
+  (niedestrukcyjnie).
 - **Koordynacja migracji:** 0011 wskazuje `down_revision = "0009"` (head na main w chwili
   PR); 0010 zajmuje inny PR — drugi z mergowanych przepina `down_revision`.
 - **Dane:** repo nie zawiera granic. Zaimportowanie realnych gmin wymaga pliku od

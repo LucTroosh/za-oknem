@@ -32,7 +32,7 @@ class TestRunOpenMeteo:
         # ADR-019: imported gminas exist for geo-matching only; polling them all would
         # exceed the Open-Meteo daily budget.
         _make_area(db_session, "klodzko")
-        inactive = _make_area(db_session, "teryt-0208023")
+        inactive = _make_area(db_session, "teryt-9999901")
         inactive.weather_polling_active = False
         db_session.commit()
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)

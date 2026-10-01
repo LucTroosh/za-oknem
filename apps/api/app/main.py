@@ -1,7 +1,10 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1 import air, alerts, dashboard, geo, health, hydro, weather
 from app.config import settings
@@ -13,6 +16,17 @@ from app.middleware import RequestLoggingMiddleware
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(title="Za Oknem API")
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """FastAPI's default 422 echoes the rejected `input`. For /geo/resolve that is the
+    user's coordinates, so strip it there (ADR-002); other routes keep the default shape."""
+    errors = exc.errors()
+    if request.url.path == "/api/v1/geo/resolve":
+        errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")} for e in errors]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(

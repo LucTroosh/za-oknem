@@ -4,18 +4,20 @@ Geometry can't run on the SQLite unit-test engine, so these tests use DATABASE_U
 CI service is postgis/postgis:16-3.4, migrated to head before pytest) and SKIP when no
 PostGIS database with the 0011 schema is reachable. The importer commits per record, so
 the session runs on a SAVEPOINT inside an outer transaction that is always rolled back:
-synthetic squares under fake TERYT codes 99999xx, in an area with no seeded city, and
-nothing left behind.
+synthetic squares under fake TERYT codes 99999xx, placed in the Baltic Sea (no real
+gmina or seeded city there, so they can't collide with a real import), nothing left
+behind. CI sets REQUIRE_POSTGIS=1: unavailable PostGIS then FAILS instead of skipping.
 """
 
 import json
+import os
 
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.connectors.prg_gminy.ingest import import_records, retire_missing
+from app.connectors.prg_gminy.ingest import import_records, plan_retire, retire_missing
 from app.connectors.prg_gminy.parser import parse_feature_collection
 from app.geo import resolve_gmina
 
@@ -30,6 +32,8 @@ def pg():
             conn.execute(text("SELECT postgis_version()"))
             conn.execute(text("SELECT teryt_code, boundary FROM geo_areas LIMIT 0"))
     except Exception as exc:
+        if os.environ.get("REQUIRE_POSTGIS") == "1":  # CI: a skip would hide the suite
+            pytest.fail(f"PostGIS database required but unavailable: {type(exc).__name__}")
         pytest.skip(f"no PostGIS database with migration 0011 available: {type(exc).__name__}")
     conn = engine.connect()
     outer = conn.begin()
@@ -55,12 +59,12 @@ def _feature(code, name, *rings):
     }
 
 
-# SYNTHETIC, south-east Poland, clear of every seeded city. A and B share the border
-# lon=22.5; C has a hole that is filled by D (an enclave gmina).
-A = _feature("9999901", "Synth A", _ring(22.0, 49.6, 22.5, 49.9))
-B = _feature("9999902", "Synth B", _ring(22.5, 49.6, 23.0, 49.9))
-C = _feature("9999903", "Synth C", _ring(23.1, 49.5, 23.9, 50.3), _ring(23.4, 49.8, 23.6, 50.0))
-D = _feature("9999904", "Synth D", _ring(23.4, 49.8, 23.6, 50.0))
+# SYNTHETIC, open Baltic Sea (lat ~55, lon 16-18). A and B share the border lon=16.5;
+# C has a hole that is filled by D (an enclave gmina).
+A = _feature("9999901", "Synth A", _ring(16.0, 54.9, 16.5, 55.0))
+B = _feature("9999902", "Synth B", _ring(16.5, 54.9, 17.0, 55.0))
+C = _feature("9999903", "Synth C", _ring(17.1, 54.9, 17.9, 55.1), _ring(17.4, 54.98, 17.6, 55.02))
+D = _feature("9999904", "Synth D", _ring(17.4, 54.98, 17.6, 55.02))
 
 
 def _load(pg, *features):
@@ -80,30 +84,30 @@ def _code(pg, lat, lon):
 
 def test_point_inside_resolves(pg):
     _load(pg, A, B)
-    assert _code(pg, 49.75, 22.25) == "9999901"
-    assert _code(pg, 49.75, 22.75) == "9999902"
+    assert _code(pg, 54.95, 16.25) == "9999901"
+    assert _code(pg, 54.95, 16.75) == "9999902"
 
 
 def test_point_on_shared_border_is_deterministic_lowest_teryt(pg):
     _load(pg, A, B)
-    assert {_code(pg, 49.75, 22.5) for _ in range(5)} == {"9999901"}
+    assert {_code(pg, 54.95, 16.5) for _ in range(5)} == {"9999901"}
 
 
 def test_point_in_hole_belongs_to_enclave_not_surrounding_gmina(pg):
     _load(pg, C, D)
-    assert _code(pg, 49.9, 23.5) == "9999904"
-    assert _code(pg, 49.6, 23.2) == "9999903"
+    assert _code(pg, 55.0, 17.5) == "9999904"
+    assert _code(pg, 54.92, 17.2) == "9999903"
 
 
 def test_hole_without_enclave_has_no_match(pg):
     _load(pg, C)
-    assert _code(pg, 49.9, 23.5) is None
+    assert _code(pg, 55.0, 17.5) is None
 
 
 def test_outside_polygons_is_no_match_not_nearest(pg):
     _load(pg, A)
     # 0.001 deg outside A's west border: a "nearest" method would return A; we must not.
-    assert _code(pg, 49.75, 21.999) is None
+    assert _code(pg, 54.95, 15.999) is None
     assert _code(pg, 52.52, 13.405) is None
 
 
@@ -131,7 +135,7 @@ def test_seeded_city_inside_polygon_adopts_teryt_and_keeps_id_and_polling(pg):
     pg.execute(
         text(
             "INSERT INTO geo_areas (slug, name, latitude, longitude) "
-            "VALUES ('synth-seed', 'Synth Seed', 49.75, 22.25)"
+            "VALUES ('synth-seed', 'Synth Seed', 54.95, 16.25)"
         )
     )
     seed_id = pg.execute(text("SELECT id FROM geo_areas WHERE slug='synth-seed'")).scalar()
@@ -142,24 +146,24 @@ def test_seeded_city_inside_polygon_adopts_teryt_and_keeps_id_and_polling(pg):
         {"i": seed_id},
     ).one()
     assert row == ("9999901", True)
-    assert resolve_gmina(pg, 49.75, 22.25).geo_area_id == seed_id
+    assert resolve_gmina(pg, 54.95, 16.25).geo_area_id == seed_id
 
 
 def test_invalid_self_intersecting_polygon_is_repaired(pg):
-    bowtie = [[22.0, 49.6], [22.2, 49.8], [22.2, 49.6], [22.0, 49.8], [22.0, 49.6]]
+    bowtie = [[16.0, 54.9], [16.2, 55.0], [16.2, 54.9], [16.0, 55.0], [16.0, 54.9]]
     records, _ = parse_feature_collection(
         {"type": "FeatureCollection", "features": [_feature("9999905", "Synth bowtie", bowtie)]}
     )
     report = import_records(records, pg)
     assert report.repaired == 1 and report.rejected == []
-    assert _code(pg, 49.7, 22.05) == "9999905"
+    assert _code(pg, 54.95, 16.05) == "9999905"
 
 
 def test_seed_with_obsolete_code_is_readopted_by_new_code(pg):
     pg.execute(
         text(
             "INSERT INTO geo_areas (slug, name, latitude, longitude, teryt_code) "
-            "VALUES ('synth-seed', 'Synth Seed', 49.75, 22.25, '9999950')"
+            "VALUES ('synth-seed', 'Synth Seed', 54.95, 16.25, '9999950')"
         )
     )
     seed_id = pg.execute(text("SELECT id FROM geo_areas WHERE slug='synth-seed'")).scalar()
@@ -174,18 +178,46 @@ def test_seed_with_obsolete_code_is_readopted_by_new_code(pg):
 
 def test_reimport_refreshes_name(pg):
     _load(pg, A)
-    renamed = _feature("9999901", "Synth A renamed", _ring(22.0, 49.6, 22.5, 49.9))
+    renamed = _feature("9999901", "Synth A renamed", _ring(16.0, 54.9, 16.5, 55.0))
     _load(pg, renamed)
-    assert resolve_gmina(pg, 49.75, 22.25).name == "Synth A renamed"
+    assert resolve_gmina(pg, 54.95, 16.25).name == "Synth A renamed"
 
 
 def test_retire_missing_clears_obsolete_boundary_only(pg):
     _load(pg, A, B)
-    assert retire_missing(["9999901"], pg) == 1
-    assert _code(pg, 49.75, 22.75) is None  # B retired: resolver must not return it
-    assert _code(pg, 49.75, 22.25) == "9999901"
+    assert retire_missing(["9999901"], pg, force=True) == 1
+    assert _code(pg, 54.95, 16.75) is None  # B retired: resolver must not return it
+    assert _code(pg, 54.95, 16.25) == "9999901"
     with pytest.raises(ValueError):
-        retire_missing([], pg)
+        retire_missing([], pg, force=True)
+
+
+def test_retire_refuses_partial_snapshot_without_force(pg):
+    _load(pg, A, B)
+    with pytest.raises(ValueError, match="looks partial"):
+        retire_missing(["9999901"], pg)
+    assert plan_retire(["9999901"], pg, force=True) == 1  # dry-run count, nothing changed
+    assert _code(pg, 54.95, 16.75) == "9999902"
+
+
+def test_retire_refuses_large_fraction_even_for_big_snapshot(pg):
+    _load(pg, A, B)
+    big = [f"{9000000 + i}" for i in range(2000)]  # complete-looking but shares no code
+    with pytest.raises(ValueError, match="would retire"):
+        retire_missing(big, pg)
+
+
+def test_rejected_code_still_protects_seed_from_readoption(pg):
+    pg.execute(
+        text(
+            "INSERT INTO geo_areas (slug, name, latitude, longitude, teryt_code) "
+            "VALUES ('synth-seed', 'Synth Seed', 54.95, 16.25, '9999950')"
+        )
+    )
+    records, _ = parse_feature_collection({"type": "FeatureCollection", "features": [A]})
+    # 9999950 was in the file but rejected (bad geometry): it must not look "gone".
+    report = import_records(records, pg, extra_codes=["9999950"])
+    assert report.adopted_seeds == 0 and report.inserted == 1
 
 
 def test_geojson_roundtrip_sanity():

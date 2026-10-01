@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.geo import resolve_gmina
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class GeoResolveRequest(BaseModel):
@@ -34,7 +38,12 @@ def geo_resolve(body: GeoResolveRequest, db: Session = Depends(get_db)) -> GeoRe
     POST body, not query string, so coordinates never appear in access logs (ADR-002).
     Nothing here logs or stores the point; the response carries the gmina only and does
     not echo the coordinates back."""
-    resolved = resolve_gmina(db, body.latitude, body.longitude)
+    try:
+        resolved = resolve_gmina(db, body.latitude, body.longitude)
+    except SQLAlchemyError:
+        # Constant message, no exc_info: the driver error would carry the coordinates (ADR-002).
+        logger.error("geo resolve failed: database error (details withheld, ADR-002)")
+        raise HTTPException(status_code=503, detail="Geo resolver unavailable") from None
     if resolved is None:
         return GeoResolveResponse(area=None)
     return GeoResolveResponse(

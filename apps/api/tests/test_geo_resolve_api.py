@@ -29,14 +29,14 @@ def teardown_function() -> None:
 
 
 def test_match_returns_area_without_echoing_coordinates(monkeypatch):
-    area = ResolvedArea(geo_area_id=3, teryt_code="0208023", slug="klodzko", name="Kłodzko")
+    area = ResolvedArea(geo_area_id=3, teryt_code="9999901", slug="klodzko", name="Kłodzko")
     client, calls = _client(monkeypatch, area)
 
     r = client.post("/api/v1/geo/resolve", json={"latitude": 50.4335, "longitude": 16.6537})
 
     assert r.status_code == 200
     assert r.json() == {
-        "area": {"geo_area_id": 3, "teryt_code": "0208023", "slug": "klodzko", "name": "Kłodzko"}
+        "area": {"geo_area_id": 3, "teryt_code": "9999901", "slug": "klodzko", "name": "Kłodzko"}
     }
     assert calls == [(50.4335, 16.6537)]
     assert "50.4335" not in r.text and "16.6537" not in r.text
@@ -75,3 +75,28 @@ def test_coordinates_are_not_logged(monkeypatch, caplog):
     with caplog.at_level(logging.DEBUG):
         client.post("/api/v1/geo/resolve", json={"latitude": 50.123456, "longitude": 16.654321})
     assert "50.123456" not in caplog.text and "16.654321" not in caplog.text
+
+
+def test_database_error_is_503_and_leaks_no_coordinates(monkeypatch, caplog):
+    from sqlalchemy.exc import OperationalError
+
+    def _boom(_db, lat, lon):
+        raise OperationalError("SELECT ...", {"lat": lat, "lon": lon}, Exception("db down"))
+
+    monkeypatch.setattr(geo_api, "resolve_gmina", _boom)
+    app.dependency_overrides[get_db] = lambda: iter([None])
+    client = TestClient(app, raise_server_exceptions=False)
+
+    with caplog.at_level(logging.DEBUG):
+        r = client.post("/api/v1/geo/resolve", json={"latitude": 50.123456, "longitude": 16.654321})
+
+    assert r.status_code == 503
+    assert "50.123456" not in caplog.text and "16.654321" not in caplog.text
+    assert "50.123456" not in r.text
+
+
+def test_422_does_not_echo_coordinates(monkeypatch):
+    client, _ = _client(monkeypatch, None)
+    r = client.post("/api/v1/geo/resolve", json={"latitude": 91.234567, "longitude": 16})
+    assert r.status_code == 422
+    assert "91.234567" not in r.text
