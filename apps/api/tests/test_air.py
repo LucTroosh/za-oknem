@@ -435,3 +435,13 @@ def test_air_latest_for_area_skips_station_dropped_from_catalog():
     stations = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
 
     assert [s["station_id"] for s in stations] == ["40"]
+
+
+def test_air_latest_for_area_reports_the_catalog_coordinates_used_for_assignment():
+    row = _measurement(station_id="38", latitude=50.43, longitude=16.65)  # old position
+    client = _client_for_area([row], {1: _area()}, catalog=[_cat("38", 50.5, 16.7)])
+
+    [station] = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
+
+    assert (station["latitude"], station["longitude"]) == (50.5, 16.7)
+    assert station["distance_km"] > 5  # measured position would have said ~0 km

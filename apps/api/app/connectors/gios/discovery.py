@@ -12,7 +12,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app import provenance
 from app.connectors.gios import client
@@ -125,7 +125,8 @@ def assigned_station_ids(db: Session) -> list[str]:
     """Station ids to poll: nearest catalog station within the limit for every actively
     polled area, de-duplicated, sorted. Areas with no station in range contribute nothing
     ("brak danych dla obszaru")."""
-    points = [(r.station_id, r.latitude, r.longitude) for r in db.query(GiosStation)]
+    rows = db.query(GiosStation).options(defer(GiosStation.raw))  # raw JSON not needed here
+    points = [(r.station_id, r.latitude, r.longitude) for r in rows]
     if not points:
         return []
     return sorted(
@@ -155,7 +156,7 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
     measured coordinates, no filtering."""
     catalog = {
         r.station_id: (r.latitude, r.longitude)
-        for r in db.execute(select(GiosStation)).scalars().all()
+        for r in db.execute(select(GiosStation).options(defer(GiosStation.raw))).scalars().all()
     }
     override = set(gios_station_ids())
     points: list[tuple[str, float, float]] = []

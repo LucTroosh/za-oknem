@@ -142,11 +142,16 @@ def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get
     if area is None:
         return {"stations": list(stations.values())}
     # ADR-024: catalog = authority for who may be assigned and at which coordinates.
-    matches = select_stations(area.latitude, area.longitude, assignment_candidates(db, stations))
+    points = assignment_candidates(db, stations)
+    coords = {sid: (lat, lon) for sid, lat, lon in points}
+    matches = select_stations(area.latitude, area.longitude, points)
     return {
         "stations": [
             {
                 **stations[m.station_id],
+                # the position the distance was computed from (catalog), not the measured one
+                "latitude": coords[m.station_id][0],
+                "longitude": coords[m.station_id][1],
                 "distance_km": round(m.distance_km, 1),
                 "assignment_method": m.method,
             }
