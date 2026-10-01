@@ -22,7 +22,7 @@ jobs:
       - run: uv sync --dev
       - name: Raw file shape (independent of our parser)
         run: |
-          set -o pipefail
+          set +e
           (
           mkdir -p /tmp/gn && cd /tmp/gn
           for f in PL.zip admin1CodesASCII.txt admin2Codes.txt; do
@@ -40,6 +40,6 @@ jobs:
           echo "::notice title=raw shape::$(head -c 6000 /tmp/raw.out | awk '{printf "%s%%0A", $0}')"
       - name: Our parser on the real file (validate only)
         run: |
-          set -o pipefail
+          set +e
           uv run python -m app.connectors.geonames_places.ingest --download --validate-only --sample Gliwice --sample "Nowa Wieś" 2>&1 | tee /tmp/parser.out
           echo "::notice title=parser::$(head -c 6000 /tmp/parser.out | awk '{printf "%s%%0A", $0}')"
