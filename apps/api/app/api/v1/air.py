@@ -148,7 +148,7 @@ def latest_air_quality(
     if area is None:
         return {"stations": list(stations.values())}
     # ADR-025: catalog = authority for who may be assigned and at which coordinates.
-    points = assignment_candidates(db, stations)
+    points = assignment_candidates(db, stations, unmeasured=True)
     coords = {sid: (lat, lon) for sid, lat, lon in points}
     matches = select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
     return {
@@ -164,5 +164,6 @@ def latest_air_quality(
                 "assignment_method": m.method,
             }
             for m in matches
+            if m.station_id in stations  # nearest catalog station may not have data yet
         ]
     }
