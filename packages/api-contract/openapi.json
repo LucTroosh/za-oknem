@@ -1,6 +1,81 @@
 {
   "components": {
     "schemas": {
+      "ActiveTaxon": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "peak": {
+            "title": "Peak",
+            "type": "boolean"
+          },
+          "peak_end": {
+            "format": "date",
+            "title": "Peak End",
+            "type": "string"
+          },
+          "peak_start": {
+            "format": "date",
+            "title": "Peak Start",
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "start",
+              "peak",
+              "end"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "season_end": {
+            "format": "date",
+            "title": "Season End",
+            "type": "string"
+          },
+          "season_start": {
+            "format": "date",
+            "title": "Season Start",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "category",
+          "phase",
+          "peak",
+          "season_start",
+          "season_end",
+          "peak_start",
+          "peak_end",
+          "note",
+          "source_ids"
+        ],
+        "title": "ActiveTaxon",
+        "type": "object"
+      },
       "AirIndex": {
         "description": "European AQI (app/air_index.py, ADR-015). `level` None = \"no index\" (never a\ndefault GOOD); DERIVED, not a Measurement (rule #7).",
         "properties": {
@@ -1250,6 +1325,30 @@
         "title": "HydroStation",
         "type": "object"
       },
+      "NotCovered": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "reason"
+        ],
+        "title": "NotCovered",
+        "type": "object"
+      },
       "OutdoorMissingOut": {
         "properties": {
           "blocking": {
@@ -1447,6 +1546,108 @@
         "title": "PollenArea",
         "type": "object"
       },
+      "PollenCalendarOut": {
+        "properties": {
+          "active": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveTaxon"
+            },
+            "title": "Active",
+            "type": "array"
+          },
+          "active_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Message"
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "coverage_complete": {
+            "const": false,
+            "title": "Coverage Complete",
+            "type": "boolean"
+          },
+          "coverage_warning": {
+            "title": "Coverage Warning",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "seasonal_calendar",
+            "title": "Kind",
+            "type": "string"
+          },
+          "not_covered": {
+            "items": {
+              "$ref": "#/components/schemas/NotCovered"
+            },
+            "title": "Not Covered",
+            "type": "array"
+          },
+          "region": {
+            "const": "PL",
+            "title": "Region",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "format": "date",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/UpcomingTaxon"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          },
+          "upcoming_within_days": {
+            "title": "Upcoming Within Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "region",
+          "active",
+          "active_message",
+          "upcoming",
+          "upcoming_within_days",
+          "coverage_complete",
+          "coverage_warning",
+          "not_covered",
+          "sources",
+          "attribution",
+          "disclaimer",
+          "reviewed_at"
+        ],
+        "title": "PollenCalendarOut",
+        "type": "object"
+      },
       "PollenDay": {
         "properties": {
           "date": {
@@ -1592,6 +1793,39 @@
         "title": "ResolvedGeoArea",
         "type": "object"
       },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "citation": {
+            "minLength": 1,
+            "title": "Citation",
+            "type": "string"
+          },
+          "license": {
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "url": {
+            "pattern": "^https://",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citation",
+          "url",
+          "license",
+          "checked_at"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
       "SourceHealthOut": {
         "properties": {
           "daily_budget": {
@@ -1718,6 +1952,59 @@
           "sources"
         ],
         "title": "SourcesHealthResponse",
+        "type": "object"
+      },
+      "UpcomingTaxon": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "days_until": {
+            "title": "Days Until",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "season_end": {
+            "format": "date",
+            "title": "Season End",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "category",
+          "starts_on",
+          "days_until",
+          "season_end",
+          "note",
+          "source_ids"
+        ],
+        "title": "UpcomingTaxon",
         "type": "object"
       },
       "ValidationError": {
@@ -2211,6 +2498,55 @@
           }
         },
         "summary": "Latest Hydro"
+      }
+    },
+    "/api/v1/pollen/calendar": {
+      "get": {
+        "operationId": "pollen_calendar_api_v1_pollen_calendar_get",
+        "parameters": [
+          {
+            "description": "YYYY-MM-DD; default: today (Europe/Warsaw)",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM-DD; default: today (Europe/Warsaw)",
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollenCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pollen Calendar"
       }
     },
     "/api/v1/pollen/latest": {
