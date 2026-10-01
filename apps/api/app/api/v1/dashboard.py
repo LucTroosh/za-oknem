@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.air_index import air_index
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import alerts_source_status, current_alerts
@@ -130,6 +131,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "attribution": GIOS_ATTRIBUTION,
                 "observed_at": air_observed_at,
                 "params": nearest["params"],
+                # ADR-015: EAQI from the params already loaded (no extra query, rule #14).
+                "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(nearest_km, 1),
             }
 
