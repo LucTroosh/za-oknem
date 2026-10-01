@@ -9,9 +9,18 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from app.api.v1.pollen import ATTRIBUTION, pollen_block
 from app.db import get_db
 from app.main import app
-from app.models import Alert, Forecast, GeoArea, Measurement, WeatherSnapshot
+from app.models import (
+    Alert,
+    Forecast,
+    GeoArea,
+    Measurement,
+    PollenSnapshot,
+    SourceStatus,
+    WeatherSnapshot,
+)
 
 KLODZKO = {
     "id": 1,
@@ -41,20 +50,37 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, *result_sets):
+    def __init__(self, *result_sets, status_rows=None):
         self._queue = list(result_sets)
+        self._status_rows = status_rows or {}
 
     def execute(self, _stmt):
         return _FakeResult(self._queue.pop(0))
 
-    def get(self, _model, _key):
-        return None  # no source_status rows -> UNAVAILABLE (ADR-012)
+    def rollback(self):
+        pass
+
+    def get(self, _model, key):
+        # No source_status rows unless a test supplies one -> UNAVAILABLE (ADR-012).
+        return self._status_rows.get(key)
 
 
-def _client(areas, stations, weather_rows, forecast_rows=(), alert_rows=()) -> TestClient:
-    # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts.
+def _client(
+    areas,
+    stations,
+    weather_rows,
+    forecast_rows=(),
+    alert_rows=(),
+    pollen=([], []),
+    status_rows=None,
+) -> TestClient:
+    # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts, then
+    # pollen snapshots (+ geo_areas when there are snapshots).
     def _override():
-        yield _FakeSession(areas, stations, weather_rows, list(forecast_rows), list(alert_rows))
+        sets = [areas, stations, weather_rows, list(forecast_rows), list(alert_rows)]
+        rows, pollen_areas = pollen
+        sets += [rows, pollen_areas] if rows else [rows]
+        yield _FakeSession(*sets, status_rows=status_rows)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -536,3 +562,109 @@ def test_dashboard_lists_only_actively_polled_areas():
 
     area_sql = str(statements[0].compile())
     assert "geo_areas.weather_polling_active IS" in area_sql
+
+
+def _pollen_row(hours_old: float = 1, **species) -> PollenSnapshot:
+    now = datetime.now(UTC)
+    slot = now.replace(minute=0, second=0, microsecond=0)
+    fetched = now - timedelta(hours=hours_old)
+    return PollenSnapshot(
+        source_id="open_meteo_pollen",
+        source_record_id="1:x",
+        geo_area_id=1,
+        unit="grains/m³",
+        model="cams_europe",
+        forecast_reference_time=fetched.replace(hour=0, minute=0, second=0, microsecond=0),
+        valid_at=slot,
+        fetched_at=fetched,
+        **species,
+    )
+
+
+def _pollen_ok_status(hours_old: float = 1) -> dict:
+    last = datetime.now(UTC) - timedelta(hours=hours_old)
+    return {"open_meteo_pollen": SourceStatus(source_id="open_meteo_pollen", last_success_at=last)}
+
+
+def _pollen_body(**kw) -> dict:
+    client = _client([GeoArea(**KLODZKO)], [], [], **kw)
+    return client.get("/api/v1/dashboard/latest").json()["areas"][0]["pollen"]
+
+
+def test_dashboard_pollen_is_model_forecast_with_adr020_fields_and_nulls_kept():
+    row = _pollen_row(birch=12.5, alder=0.0)  # grass/mugwort/ragweed: no model value
+    pollen = _pollen_body(pollen=([row], [GeoArea(**KLODZKO)]), status_rows=_pollen_ok_status())
+
+    assert pollen["kind"] == "model_forecast"
+    assert pollen["source"] == "open_meteo_pollen"
+    assert pollen["model"] == "cams_europe" and pollen["unit"] == "grains/m³"
+    assert pollen["freshness"] == "FRESH"
+    assert pollen["source_status"]["freshness"] == "FRESH"
+    assert pollen["forecast_reference_time"] and pollen["fetched_at"] and pollen["valid_at"]
+    assert pollen["current"] == {
+        "alder": 0.0,  # modelled zero stays 0
+        "birch": 12.5,
+        "grass": None,  # missing stays null, never 0
+        "mugwort": None,
+        "ragweed": None,
+    }
+    assert pollen["days"][0]["max"]["birch"] == 12.5
+    assert pollen["attribution"] == ATTRIBUTION
+
+
+def test_dashboard_pollen_unavailable_without_snapshot():
+    pollen = _pollen_body(pollen=([], []))
+
+    assert pollen["freshness"] == "UNAVAILABLE"
+    assert pollen["source_status"] == {"freshness": "UNAVAILABLE", "last_success_at": None}
+    assert pollen["current"] is None and pollen["days"] == []
+    assert pollen["kind"] == "model_forecast"
+
+
+def test_dashboard_pollen_old_snapshot_is_stale():
+    row = _pollen_row(hours_old=100, birch=5.0)
+    pollen = _pollen_body(
+        pollen=([row], [GeoArea(**KLODZKO)]), status_rows=_pollen_ok_status(hours_old=100)
+    )
+
+    assert pollen["freshness"] == "STALE"
+    assert pollen["source_status"]["freshness"] == "STALE"
+
+
+def _assert_pollen_degraded_rest_intact(client, caplog):
+    resp = client.get("/api/v1/dashboard/latest")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    area = body["areas"][0]
+    assert area["air"]["station_id"] == "38"
+    assert area["weather"]["params"]["temperature_2m"]["value"] == 12.3
+    assert area["pollen"]["freshness"] == "UNAVAILABLE"
+    assert area["pollen"]["source_status"] == {"freshness": "UNAVAILABLE", "last_success_at": None}
+    assert area["pollen"]["current"] is None
+    assert body["alerts"]["scope"] == "national"
+    assert "dashboard: pollen block failed" in caplog.text
+
+
+def test_dashboard_pollen_read_failure_is_isolated_and_logged(monkeypatch, caplog):
+    def boom(_db):
+        raise RuntimeError("pollen read down")
+
+    monkeypatch.setattr("app.api.v1.dashboard.latest_pollen", boom)
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
+    _assert_pollen_degraded_rest_intact(client, caplog)
+
+
+def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch, caplog):
+    real = pollen_block
+    calls = {"n": 0}
+
+    def once(area, status):  # the first call (normal path) breaks; the fallback works
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("block build broke")
+        return real(area, status)
+
+    monkeypatch.setattr("app.api.v1.dashboard.pollen_block", once)
+    client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
+    _assert_pollen_degraded_rest_intact(client, caplog)
