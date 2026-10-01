@@ -17,8 +17,17 @@ from typing import Any
 
 import httpx
 
-BASE_URL = "https://api.open-meteo.com/v1/forecast"
+from app.config import settings
+from app.redact import redact
+
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+
+def base_url() -> str:
+    """Forecast endpoint from config (ADR-022): Free host by default, commercial host via
+    env. Read per call so a config change needs no code change. Never carries the key."""
+    return settings.open_meteo_forecast_base_url
+
 
 # Fields for "current conditions" — matches WeatherSnapshot.param_code values.
 # Master Plan §5 MVP scope.
@@ -40,6 +49,34 @@ HOURLY_PARAMS = "dew_point_2m,visibility,uv_index"
 
 class OpenMeteoApiError(Exception):
     """Raised when Open-Meteo returns an unexpected status or unparseable body."""
+
+
+def get_json(
+    url: str,
+    params: dict[str, Any],
+    *,
+    label: str,
+    error_cls: type[Exception],
+    on_attempt: Callable[[], None] | None = None,
+) -> Any:
+    """Shared Open-Meteo GET (also used by open_meteo_pollen - same provider, same key):
+    optional `apikey` param from config (ADR-022), timeout, one retry (rule #5), and an
+    error message with the key masked. `raise ... from None` on purpose: the original
+    httpx exception carries the full URL (with `apikey=`) and would resurface in any
+    traceback logged via `__cause__`."""
+    if settings.open_meteo_api_key:
+        params = {**params, "apikey": settings.open_meteo_api_key}
+    last_error: Exception | None = None
+    for _attempt in range(2):
+        if on_attempt is not None:
+            on_attempt()
+        try:
+            response = httpx.get(url, params=params, timeout=TIMEOUT)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            last_error = exc
+    raise error_cls(redact(f"GET {url} ({label}) failed after retry: {last_error}")) from None
 
 
 def fetch_weather(
@@ -73,16 +110,10 @@ def fetch_weather(
         "daily": DAILY_PARAMS,
         "timezone": "UTC",
     }
-    last_error: Exception | None = None
-    for _attempt in range(2):
-        if on_attempt is not None:
-            on_attempt()
-        try:
-            response = httpx.get(BASE_URL, params=params, timeout=TIMEOUT)
-            response.raise_for_status()
-            return response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            last_error = exc
-    raise OpenMeteoApiError(
-        f"GET {BASE_URL} ({latitude}, {longitude}) failed after retry: {last_error}"
-    ) from last_error
+    return get_json(
+        base_url(),
+        params,
+        label=f"{latitude}, {longitude}",
+        error_cls=OpenMeteoApiError,
+        on_attempt=on_attempt,
+    )

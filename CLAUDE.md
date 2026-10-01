@@ -35,6 +35,7 @@ hydrologia, alerty — dla Polski, na start Android, MVP bez mapy i bez obowiąz
 16. Częstotliwość fetchowania per connector = rzeczywisty, zweryfikowany cykl aktualizacji
     danego źródła (patrz ADR-004), nigdy zgadywana stała "na wszelki wypadek". Wyjątek tylko
     dla źródeł safety-critical (ostrzeżenia) i tylko z jawnym uzasadnieniem w Source Registry.
+17. FREE-FIRST: jeśli funkcję da się zbudować na wiarygodnym darmowym/open-data źródle, nie integrujemy płatnego odpowiednika w MVP (free-first ≠ approved — gate #15 dalej obowiązuje; endpointy i klucze providerów tylko w env) — patrz ADR-022.
 
 ## Stack (nie zmieniać bez ADR)
 

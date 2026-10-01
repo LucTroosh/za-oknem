@@ -138,7 +138,7 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
         db,
         source_id="open_meteo",
         # Query params (variable lists) are fixed by client.py - tracked by PARSER_VERSION.
-        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
+        endpoint=f"{client.base_url()}?latitude={area.latitude}&longitude={area.longitude}",
         payload=payload,
         fetched_at=fetched_at,
         parser_version=PARSER_VERSION,

@@ -98,6 +98,7 @@ Alerts/Settings/push/profilu).
 | REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/dashboard/latest`, `/health`; wersjonowane pod `/api/v1/` |
 | Logging | ✅ DONE — `logging` per connector/scheduler, ustandaryzowane |
 | Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
+| Provider config Free→Paid (TASK-13.4, ADR-022) | ✅ DONE — endpointy Open-Meteo i `OPEN_METEO_API_KEY` w env (domyślnie Free), klucz maskowany w wyjątkach/logach/provenance; przejście na plan komercyjny = tylko config. **Przed monetyzacją: checklista w ADR-003** (plan komercyjny Open-Meteo, env produkcyjne, licencje pozostałych źródeł). Host `customer-air-quality-api…` niezweryfikowany wprost |
 | Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+manifest, walidacja manifestu, limit wieku backupu, hasło poza argv); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
 
 ---

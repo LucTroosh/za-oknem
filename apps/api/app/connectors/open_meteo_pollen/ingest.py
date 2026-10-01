@@ -122,7 +122,7 @@ def ingest_geo_area(area: GeoArea, db: Session) -> bool:
         source_id=SOURCE_ID,
         # Query params are fixed by client.py (tracked by PARSER_VERSION); the point is
         # a public geo_area centroid, not user data.
-        endpoint=f"{client.BASE_URL}?latitude={area.latitude}&longitude={area.longitude}",
+        endpoint=f"{client.base_url()}?latitude={area.latitude}&longitude={area.longitude}",
         payload=payload,
         fetched_at=fetched_at,
         parser_version=PARSER_VERSION,

@@ -27,7 +27,11 @@ UNAVAILABLE.
 2. **Open-Meteo Air Quality API (`cams_europe`)** — ten sam model CAMS, JSON
    per punkt, bez klucza w tierze niekomercyjnym.
 3. **Inny dostawca pyłków** (np. Google Pollen API, Ambee) — płatne/inne
-   licencje, poza zakresem bez decyzji właściciela.
+   licencje, poza zakresem bez decyzji właściciela. **Google Pollen API:
+   REJECTED-for-MVP** (2026-10-01, ADR-022 pkt 6): polityki zabraniają
+   pre-fetchingu/cache'owania/storage odpowiedzi („generally prohibited”), co
+   wyklucza snapshoty w bazie (ADR-001, rule #14). Powrót tylko jako źródło
+   on-demand/premium — osobny ADR.
 
 ## Decision
 
@@ -59,7 +63,8 @@ wspólne rozszerzenie zmieszałoby dwa cykle w jednym jobie i jednym wierszu
   (subskrypcja/reklamy = komercyjne; Patronite nieopisane — jak w ADR-003).
   Dane CAMS: CC-BY (ADS). Atrybucja: „clear attribution to CAMS ENSEMBLE data
   provider … as well as a reference to Open-Meteo” + link do open-meteo.com.
-  Komercyjnie: płatny plan z kluczem (`customer-api.open-meteo.com`).
+  Komercyjnie: płatny plan z kluczem (`customer-api.open-meteo.com`); endpointy i
+  klucz są konfiguracją (env), nie kodem — ADR-022.
 - **Limity:** 600/min, 5000/h, 10000/dzień, 300000/mies.; pricing page wymienia
   Air Quality API w tym samym tierze.
 - **Jakość:** ADS: prognozy poza NO/NO₂/SO₂/O₃/PM2.5/PM10/pył „are unvalidated

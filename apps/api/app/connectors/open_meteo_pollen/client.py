@@ -11,10 +11,18 @@ The request carries a geo_area centroid (ADR-001/ADR-005), never a user's positi
 
 from collections.abc import Callable
 
-import httpx
+import httpx  # noqa: F401  (tests patch client.httpx.get)
 
-BASE_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+from app.config import settings
+from app.connectors.open_meteo.client import TIMEOUT, get_json
+
+__all__ = ["TIMEOUT"]
+
+
+def base_url() -> str:
+    """Air Quality endpoint from config (ADR-022); Free host by default. Never carries the key."""
+    return settings.open_meteo_air_quality_base_url
+
 
 # Master Plan §6 MVP species: olcha, brzoza, trawy, bylica, ambrozja. Olive is also
 # offered by the source but is not an MVP species for Poland - deliberately not asked.
@@ -49,16 +57,10 @@ def fetch_pollen(
         "forecast_days": FORECAST_DAYS,
         "timezone": "UTC",
     }
-    last_error: Exception | None = None
-    for _attempt in range(2):
-        if on_attempt is not None:
-            on_attempt()
-        try:
-            response = httpx.get(BASE_URL, params=params, timeout=TIMEOUT)
-            response.raise_for_status()
-            return response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            last_error = exc
-    raise OpenMeteoPollenApiError(
-        f"GET {BASE_URL} ({latitude}, {longitude}) failed after retry: {last_error}"
-    ) from last_error
+    return get_json(
+        base_url(),
+        params,
+        label=f"{latitude}, {longitude}",
+        error_cls=OpenMeteoPollenApiError,
+        on_attempt=on_attempt,
+    )

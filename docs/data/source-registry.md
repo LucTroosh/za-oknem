@@ -8,7 +8,10 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 
 - **owner:** OpenMeteo GmbH (Szwajcaria)
 - **connector:** `open_meteo`
-- **endpoint:** api.open-meteo.com (forecast + air-quality)
+- **endpoint:** domyślnie `https://api.open-meteo.com/v1/forecast` (Free) — z configu
+  `OPEN_METEO_FORECAST_BASE_URL` (ADR-022); plan komercyjny: `customer-api.open-meteo.com` +
+  `OPEN_METEO_API_KEY` (parametr `apikey`, zweryfikowane w docs 2026-10-01). Klucz tylko w env,
+  nigdy w `source_fetches.endpoint`/logach/`last_error`.
 - **frequency:** ZWERYFIKOWANE wg dokumentacji Open-Meteo (open-meteo.com/en/docs,
   sekcja "Update frequency" per model): ICON (DWD, domyślny model dla Europy/Polski)
   odświeża się co 3h; GFS/HRRR (NOAA) co godzinę; ECMWF co 6h. Ponieważ domyślnie
@@ -21,8 +24,9 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   realny `docker compose exec api python -m app.connectors.open_meteo.ingest`.
 - **coverage:** globalne, w tym Polska
 - **license:** CC BY 4.0 (atrybucja wymagana)
-- **commercial_use:** NIE na darmowym tierze — patrz ADR-003. Rewizja wymagana przed
-  jakąkolwiek monetyzacją.
+- **commercial_use:** NIE na darmowym tierze (Free = wyłącznie niekomercyjny) — patrz ADR-003.
+  Przed jakąkolwiek monetyzacją: plan komercyjny (Standard+) + checklista w ADR-003; przejście
+  = wyłącznie zmiana env (base URL + klucz), ADR-022.
 - **redistribution:** dozwolona pod CC BY 4.0 z atrybucją
 - **caching:** wymagany snapshot w bazie (ADR-001), zero zapytań on-demand per użytkownik
 - **rate_limit:** 600/min, 5000/h, 10000/dzień, 300000/miesiąc (darmowy tier)
@@ -49,9 +53,13 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
 
 - **owner:** OpenMeteo GmbH (relay) / ECMWF-Copernicus CAMS (model)
 - **connector:** `open_meteo_pollen` (`app/connectors/open_meteo_pollen/`)
-- **endpoint:** `https://air-quality-api.open-meteo.com/v1/air-quality`,
+- **endpoint:** domyślnie `https://air-quality-api.open-meteo.com/v1/air-quality` (Free, bez
+  klucza) — z configu `OPEN_METEO_AIR_QUALITY_BASE_URL` (ADR-022); plan komercyjny: host
+  `customer-` + `OPEN_METEO_API_KEY` (`apikey`; dokładna nazwa hosta
+  `customer-air-quality-api.open-meteo.com` wywnioskowana z reguły prefiksu `customer-`,
+  NIEZWERYFIKOWANA wprost). Zapytanie:
   `hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,ragweed_pollen`,
-  `domains=cams_europe`, `forecast_days=4`, `timezone=UTC` — bez klucza
+  `domains=cams_europe`, `forecast_days=4`, `timezone=UTC`. Klucz nigdy w provenance/logach
 - **species:** dokładnie 5 gatunków MVP (Master Plan §6): olcha=alder, brzoza=birch,
   trawy=grass, bylica=mugwort, ambrozja=ragweed; jednostka grains/m³. Open-Meteo
   oferuje też `olive_pollen` — poza MVP, nie pobieramy.
@@ -66,9 +74,10 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
 - **license:** Open-Meteo: CC BY 4.0; dane CAMS: CC-BY (strona datasetu ADS). Wcześniejszy
   wpis `cams_ads` mówił „bez ograniczeń użycia” — strona datasetu podaje CC-BY, więc
   atrybucja jest obowiązkowa
-- **commercial_use:** NIE na darmowym tierze Open-Meteo — ta sama zasada co ADR-003
-  (subskrypcja/reklamy = komercyjne; Patronite nieopisane). Rewizja wymagana przed
-  jakąkolwiek monetyzacją; alternatywa: płatny plan Open-Meteo albo CAMS ADS
+- **commercial_use:** NIE na darmowym tierze Open-Meteo (Free = wyłącznie niekomercyjny) — ta
+  sama zasada co ADR-003 (subskrypcja/reklamy = komercyjne; Patronite nieopisane). Przed
+  jakąkolwiek monetyzacją: plan komercyjny (Air Quality API jest w „Basic APIs” każdego planu,
+  pricing 2026-10-01) + checklista ADR-003, zmiana tylko env (ADR-022); alternatywa: płatny plan Open-Meteo albo CAMS ADS
   bezpośrednio (klucz — blokada człowieka)
 - **redistribution:** dozwolona pod CC BY 4.0 z atrybucją
 - **caching:** snapshot w bazie (ADR-001, `pollen_snapshots`), zero zapytań on-demand
@@ -82,6 +91,37 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
   ŻYWO (egress zablokowany) — parser używa tylko pól z dokumentacji i odrzuca resztę;
   pierwsza żywa weryfikacja przy pierwszym realnym ingeście
 - **last_verified_at:** 2026-10-01 (dokumentacja; bez żywego przykładu)
+
+## obas (rzeczywiste pomiary pyłków w Polsce — kandydat, NIE używany)
+
+Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — osobny
+`source_id`, osobny blok w API, nie nadpisuje `open_meteo_pollen` (ADR-022 pkt 5).
+
+- **owner:** UNKNOWN — wyniki wyszukiwania wskazują „OBAS – Ośrodek Badania Alergenów
+  Środowiskowych” (obas.pl); nie zweryfikowano treści strony (WebFetch zapętlił się na
+  przekierowaniu 302 http↔https), więc nie wiadomo, kto jest właścicielem danych
+- **connector:** brak (nie implementujemy)
+- **endpoint / API / format:** UNKNOWN — nie znaleziono ani nie sprawdzono publicznego API
+- **frequency / coverage:** UNKNOWN
+- **license / commercial_use / redistribution / attribution / rate_limit:** UNKNOWN
+- **status:** CANDIDATE / BLOCKED — do czasu uzyskania API i licencji (i kontaktu z
+  właścicielem danych) nic nie robimy; wymaga pełnego Source Approval Gate (rule #15)
+- **last_verified_at:** 2026-10-01 (tylko wyniki wyszukiwania, bez treści źródła)
+
+## google_pollen (Google Maps Platform — Pollen API)
+
+- **owner:** Google
+- **connector:** brak — nie implementujemy
+- **endpoint:** Pollen API (Google Maps Platform)
+- **license / caching:** polityki Pollen API (developers.google.com/maps/documentation/pollen/policies,
+  sprawdzone 2026-10-01): „Content pre-fetching, caching, or storage is generally prohibited,
+  with the exception of place IDs”; atrybucja „Source: Includes pollen data from Google”; przy
+  wizualizacji na mapie wymagana mapa Google
+- **commercial_use / rate_limit / cennik:** nie sprawdzano
+- **status:** REJECTED-for-MVP — zakaz cache/storage koliduje z snapshotami w bazie (ADR-001,
+  rule #14); powrót tylko jako źródło on-demand/premium wymagałoby osobnego ADR (rule #14).
+  Decyzja: ADR-020, ADR-022 (FREE-FIRST)
+- **last_verified_at:** 2026-10-01
 
 ## cams_ads (Copernicus Atmosphere Data Store — pyłki, CAMS Air)
 

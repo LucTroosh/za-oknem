@@ -62,3 +62,18 @@ bogatym zestawem zmiennych — wymaga osobnej weryfikacji przed wyborem).
 - Connector `open_meteo` musi być zaimplementowany za kontraktem `DataConnector` (§35),
   żeby zmiana dostawcy przy rewizji tego ADR nie wymagała zmian w Geo Engine, API ani
   w modelu danych — tylko w connectorze i w mapowaniu pól w Data Dictionary.
+
+## Checklista „przed monetyzacją” (dodane 2026-10-01, ADR-022)
+
+Żadna z pozycji monetyzacji (reklamy, subskrypcja/premium, Patronite/stałe wsparcie) nie jest
+włączana, dopóki wszystkie punkty nie są odhaczone w PR rewizji tego ADR:
+
+- [ ] Aktywny komercyjny plan Open-Meteo (Standard+; licencja komercyjna) — albo pisemne
+      potwierdzenie Open-Meteo dla danego modelu finansowania, albo inny dostawca (patrz Trigger).
+- [ ] Produkcyjne env ustawione: `OPEN_METEO_FORECAST_BASE_URL`, `OPEN_METEO_AIR_QUALITY_BASE_URL`
+      (hosty `customer-*`), `OPEN_METEO_API_KEY` (sekret poza repo); jedno żądanie testowe OK,
+      w `source_fetches.endpoint`, logach i `/health/sources` brak klucza.
+- [ ] Pozostałe źródła z `commercial_use: NIE` w `source-registry.md` (m.in. IMGW) mają
+      załatwioną licencję komercyjną lub są wyłączone.
+- [ ] Atrybucje (Open-Meteo, CAMS, GIOŚ, IMGW…) nadal widoczne w ekranie Źródła.
+- [ ] ADR-003 zmieniony na Superseded z nową decyzją.
