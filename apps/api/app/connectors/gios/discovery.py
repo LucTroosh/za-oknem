@@ -9,6 +9,7 @@ override (ADR-007) and bypasses all of this.
 """
 
 import logging
+import math
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
@@ -42,6 +43,8 @@ def _parse(station: dict) -> tuple[str, str, float, float]:
         lat, lon = float(station["WGS84 φ N"]), float(station["WGS84 λ E"])
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise GiosParseError(f"malformed catalog station {station!r}: {exc}") from exc
+    if not (math.isfinite(lat) and math.isfinite(lon)):
+        raise GiosParseError(f"catalog station {sid} has non-finite coordinates")
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise GiosParseError(f"catalog station {sid} has out-of-range coordinates")
     return sid, name, lat, lon

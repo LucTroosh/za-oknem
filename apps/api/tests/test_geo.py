@@ -46,10 +46,10 @@ def test_select_stations_none_in_range_is_empty_not_nearest_fallback():
 
 def test_select_stations_limit_is_inclusive_and_exact():
     station = ("38", 50.60, 16.65366)
-    exact = round(haversine_km(*KLODZKO, station[1], station[2]), 3)
+    exact = haversine_km(*KLODZKO, station[1], station[2])
 
     assert select_stations(*KLODZKO, [station], max_km=exact) != []
-    assert select_stations(*KLODZKO, [station], max_km=exact - 0.01) == []
+    assert select_stations(*KLODZKO, [station], max_km=exact - 0.0004) == []  # not rounded in
     assert MAX_MATCH_DISTANCE_KM == 50.0
 
 

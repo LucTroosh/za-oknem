@@ -240,3 +240,10 @@ def test_failed_refresh_without_cache_is_retried_every_run(monkeypatch, db_sessi
             discovery.ensure_catalog(db_session, now=now + timedelta(hours=hours))
 
     assert failing.call_count == 2
+
+
+@pytest.mark.parametrize("bad", ["NaN", "inf", "-inf"])
+def test_discover_rejects_non_finite_coordinates(monkeypatch, db_session, bad):
+    _fetch(monkeypatch, [{**_st(1, 50.0, 16.0), "WGS84 φ N": bad}, _st(38, 50.4, 16.6)])
+
+    assert discovery.discover_stations(db_session) == 1

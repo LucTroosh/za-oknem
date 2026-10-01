@@ -46,12 +46,14 @@ def select_stations(
 ) -> list[StationMatch]:
     """Pure, deterministic point -> stations (rule #9, ADR-025). `stations` are
     (station_id, lat, lon). Only stations within `max_km` (inclusive) qualify; result is
-    sorted by distance rounded to 1 m, ties broken by station id (digit ids in numeric
-    order), so input order never changes the outcome. Empty list = no data for the area."""
-    scored = [
-        (round(haversine_km(latitude, longitude, lat, lon), 3), sid) for sid, lat, lon in stations
-    ]
-    scored = [(km, sid) for km, sid in scored if km <= max_km]
+    sorted by distance rounded to 1 m (the limit itself is checked unrounded), ties broken
+    by station id (digit ids in numeric order), so input order never changes the outcome.
+    Empty list = no data for the area."""
+    scored = []
+    for sid, lat, lon in stations:
+        km = haversine_km(latitude, longitude, lat, lon)
+        if km <= max_km:  # cutoff on the exact distance; rounding is only for ranking/output
+            scored.append((round(km, 3), sid))
     scored.sort(key=lambda t: (t[0], not t[1].isdigit(), len(t[1]), t[1]))
     return [StationMatch(sid, km) for km, sid in scored[:limit]]
 
