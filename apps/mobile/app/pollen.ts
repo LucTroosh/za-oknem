@@ -3,6 +3,7 @@
 // measurement (rule #7) - every string here says so. Freshness is the server's own
 // value (rule #8), never recomputed from the clock; missing is "brak danych", never 0.
 
+import type { DashboardPollen } from "../../../packages/api-contract/schema";
 import type { Freshness } from "./freshness";
 
 export type PollenSpecies = "alder" | "birch" | "grass" | "mugwort" | "ragweed";
@@ -10,21 +11,8 @@ export type PollenValues = Record<PollenSpecies, number | null>;
 // UNAVAILABLE = no snapshot for the area / source never succeeded (ADR-012).
 export type PollenFreshness = Freshness | "UNAVAILABLE";
 
-// Contract of dashboard.py `pollen` (= one /pollen/latest area + source fields).
-export type PollenBlock = {
-  source: string;
-  attribution: string;
-  kind: "model_forecast";
-  model: string | null;
-  unit: string | null;
-  forecast_reference_time: string | null;
-  fetched_at: string | null;
-  freshness: PollenFreshness;
-  valid_at: string | null;
-  current: PollenValues | null;
-  days: { date: string; max: PollenValues }[];
-  source_status: { freshness: PollenFreshness; last_success_at: string | null };
-};
+// Contract of dashboard.py `pollen` (= one /pollen/latest area + source fields); generated.
+export type PollenBlock = DashboardPollen;
 
 export const POLLEN_SPECIES: PollenSpecies[] = ["alder", "birch", "grass", "mugwort", "ragweed"];
 

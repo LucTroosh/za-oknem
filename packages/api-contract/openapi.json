@@ -1,0 +1,2610 @@
+{
+  "components": {
+    "schemas": {
+      "ActiveTaxon": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "peak": {
+            "title": "Peak",
+            "type": "boolean"
+          },
+          "peak_end": {
+            "format": "date",
+            "title": "Peak End",
+            "type": "string"
+          },
+          "peak_start": {
+            "format": "date",
+            "title": "Peak Start",
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "start",
+              "peak",
+              "end"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "season_end": {
+            "format": "date",
+            "title": "Season End",
+            "type": "string"
+          },
+          "season_start": {
+            "format": "date",
+            "title": "Season Start",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "category",
+          "phase",
+          "peak",
+          "season_start",
+          "season_end",
+          "peak_start",
+          "peak_end",
+          "note",
+          "source_ids"
+        ],
+        "title": "ActiveTaxon",
+        "type": "object"
+      },
+      "AirIndex": {
+        "description": "European AQI (app/air_index.py, ADR-015). `level` None = \"no index\" (never a\ndefault GOOD); DERIVED, not a Measurement (rule #7).",
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "dominant": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dominant",
+            "type": "array"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "GOOD",
+                  "FAIR",
+                  "MODERATE",
+                  "POOR",
+                  "VERY_POOR",
+                  "EXTREMELY_POOR"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "missing": {
+            "additionalProperties": {
+              "enum": [
+                "MISSING",
+                "STALE",
+                "UNIT",
+                "INVALID"
+              ],
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "object"
+          },
+          "params": {
+            "additionalProperties": {
+              "enum": [
+                "GOOD",
+                "FAIR",
+                "MODERATE",
+                "POOR",
+                "VERY_POOR",
+                "EXTREMELY_POOR"
+              ],
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "level",
+          "complete",
+          "params",
+          "dominant",
+          "missing",
+          "valid_until"
+        ],
+        "title": "AirIndex",
+        "type": "object"
+      },
+      "AirLatestResponse": {
+        "properties": {
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/AirStation"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stations"
+        ],
+        "title": "AirLatestResponse",
+        "type": "object"
+      },
+      "AirParam": {
+        "properties": {
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "observed_at",
+          "freshness"
+        ],
+        "title": "AirParam",
+        "type": "object"
+      },
+      "AirStation": {
+        "properties": {
+          "index": {
+            "$ref": "#/components/schemas/AirIndex"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AirParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "source": {
+            "const": "gios",
+            "title": "Source",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "station_name": {
+            "title": "Station Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "station_id",
+          "station_name",
+          "latitude",
+          "longitude",
+          "params",
+          "index",
+          "source"
+        ],
+        "title": "AirStation",
+        "type": "object"
+      },
+      "AlertOut": {
+        "properties": {
+          "areas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "external_id": {
+            "title": "External Id",
+            "type": "string"
+          },
+          "fetched_at": {
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "issuing_office": {
+            "title": "Issuing Office",
+            "type": "string"
+          },
+          "probability_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability Pct"
+          },
+          "published_at": {
+            "title": "Published At",
+            "type": "string"
+          },
+          "severity_raw": {
+            "title": "Severity Raw",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_until": {
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_id",
+          "source",
+          "event_type",
+          "severity_raw",
+          "probability_pct",
+          "issuing_office",
+          "description",
+          "comment",
+          "areas",
+          "valid_from",
+          "valid_until",
+          "published_at",
+          "fetched_at",
+          "freshness"
+        ],
+        "title": "AlertOut",
+        "type": "object"
+      },
+      "AlertsLatestResponse": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "source_status": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SourceStatusOut"
+            },
+            "title": "Source Status",
+            "type": "object"
+          }
+        },
+        "required": [
+          "alerts",
+          "source_status"
+        ],
+        "title": "AlertsLatestResponse",
+        "type": "object"
+      },
+      "DailyBudgetOut": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "used_pct": {
+            "title": "Used Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "used",
+          "limit",
+          "used_pct"
+        ],
+        "title": "DailyBudgetOut",
+        "type": "object"
+      },
+      "DashboardAir": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "index": {
+            "$ref": "#/components/schemas/AirIndex"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AirParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "source": {
+            "const": "gios",
+            "title": "Source",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "station_name": {
+            "title": "Station Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "station_id",
+          "station_name",
+          "source",
+          "attribution",
+          "observed_at",
+          "params",
+          "index",
+          "distance_km"
+        ],
+        "title": "DashboardAir",
+        "type": "object"
+      },
+      "DashboardAlerts": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "scope": {
+            "const": "national",
+            "title": "Scope",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_status": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SourceStatusOut"
+            },
+            "title": "Source Status",
+            "type": "object"
+          }
+        },
+        "required": [
+          "scope",
+          "source",
+          "attribution",
+          "items",
+          "source_status"
+        ],
+        "title": "DashboardAlerts",
+        "type": "object"
+      },
+      "DashboardArea": {
+        "properties": {
+          "air": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardAir"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "forecast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardForecast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outdoor": {
+            "$ref": "#/components/schemas/DashboardOutdoor"
+          },
+          "pollen": {
+            "$ref": "#/components/schemas/DashboardPollen"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardWeather"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "slug",
+          "name",
+          "latitude",
+          "longitude",
+          "air",
+          "weather",
+          "forecast",
+          "outdoor",
+          "pollen"
+        ],
+        "title": "DashboardArea",
+        "type": "object"
+      },
+      "DashboardForecast": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardForecastDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "fetched_at": {
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "source": {
+            "const": "open_meteo",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "attribution",
+          "fetched_at",
+          "freshness",
+          "days"
+        ],
+        "title": "DashboardForecast",
+        "type": "object"
+      },
+      "DashboardForecastDay": {
+        "properties": {
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_until": {
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid_from",
+          "valid_until",
+          "params"
+        ],
+        "title": "DashboardForecastDay",
+        "type": "object"
+      },
+      "DashboardOutdoor": {
+        "properties": {
+          "level": {
+            "enum": [
+              "GOOD",
+              "MODERATE",
+              "POOR",
+              "UNKNOWN"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "missing": {
+            "items": {
+              "$ref": "#/components/schemas/OutdoorMissingOut"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/OutdoorReasonOut"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "level",
+          "reasons",
+          "missing",
+          "valid_until"
+        ],
+        "title": "DashboardOutdoor",
+        "type": "object"
+      },
+      "DashboardPollen": {
+        "description": "One /pollen/latest area + source fields (TASK-8.9). UNAVAILABLE = no snapshot for\nthe area (or the whole block failed): null values, never 0.",
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollenValues"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardPollenDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "forecast_reference_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Reference Time"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE",
+              "UNAVAILABLE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "kind": {
+            "const": "model_forecast",
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "valid_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid At"
+          }
+        },
+        "required": [
+          "source",
+          "attribution",
+          "kind",
+          "model",
+          "unit",
+          "forecast_reference_time",
+          "fetched_at",
+          "freshness",
+          "valid_at",
+          "current",
+          "days",
+          "source_status"
+        ],
+        "title": "DashboardPollen",
+        "type": "object"
+      },
+      "DashboardPollenDay": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "max": {
+            "$ref": "#/components/schemas/PollenValues"
+          }
+        },
+        "required": [
+          "date",
+          "max"
+        ],
+        "title": "DashboardPollenDay",
+        "type": "object"
+      },
+      "DashboardResponse": {
+        "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/DashboardAlerts"
+          },
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardArea"
+            },
+            "title": "Areas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "areas",
+          "alerts"
+        ],
+        "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DashboardWeather": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DashboardWeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "source": {
+            "const": "open_meteo",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "attribution",
+          "observed_at",
+          "freshness",
+          "params"
+        ],
+        "title": "DashboardWeather",
+        "type": "object"
+      },
+      "DashboardWeatherParam": {
+        "description": "Same fields as an air param: value/unit + the param's OWN observed_at/freshness.",
+        "properties": {
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "observed_at",
+          "freshness"
+        ],
+        "title": "DashboardWeatherParam",
+        "type": "object"
+      },
+      "DeviceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "app_version": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^[0-9A-Za-z.+_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          },
+          "installation_id": {
+            "pattern": "^[A-Za-z0-9_-]{32,64}$",
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "observed_area_code": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4,7}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Area Code"
+          },
+          "platform": {
+            "enum": [
+              "android",
+              "ios"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "push_token": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "pattern": "^Expo(nent)?PushToken\\[[A-Za-z0-9_-]{1,200}\\]$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Token"
+          }
+        },
+        "required": [
+          "installation_id",
+          "platform"
+        ],
+        "title": "DeviceIn",
+        "type": "object"
+      },
+      "DeviceOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "app_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Version"
+          },
+          "device_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Secret"
+          },
+          "installation_id": {
+            "title": "Installation Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "observed_area_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Area Code"
+          },
+          "platform": {
+            "enum": [
+              "android",
+              "ios"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "push_registered": {
+            "title": "Push Registered",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "installation_id",
+          "platform",
+          "push_registered",
+          "observed_area_code",
+          "app_version",
+          "active",
+          "last_seen_at",
+          "device_secret"
+        ],
+        "title": "DeviceOut",
+        "type": "object"
+      },
+      "ForecastArea": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "slug",
+          "name",
+          "latitude",
+          "longitude",
+          "model",
+          "fetched_at",
+          "freshness",
+          "days",
+          "source"
+        ],
+        "title": "ForecastArea",
+        "type": "object"
+      },
+      "ForecastDay": {
+        "properties": {
+          "forecast_reference_time": {
+            "format": "date-time",
+            "title": "Forecast Reference Time",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid_from",
+          "valid_until",
+          "forecast_reference_time",
+          "params"
+        ],
+        "title": "ForecastDay",
+        "type": "object"
+      },
+      "GeoResolveRequest": {
+        "properties": {
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "GeoResolveRequest",
+        "type": "object"
+      },
+      "GeoResolveResponse": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolvedGeoArea"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "area"
+        ],
+        "title": "GeoResolveResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HydroLatestResponse": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/HydroStation"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stations",
+          "attribution",
+          "source_status"
+        ],
+        "title": "HydroLatestResponse",
+        "type": "object"
+      },
+      "HydroStation": {
+        "properties": {
+          "alarm_level_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alarm Level Cm"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "source": {
+            "const": "imgw_hydro",
+            "title": "Source",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "station_name": {
+            "title": "Station Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "NORMAL",
+              "WARNING",
+              "ALARM",
+              "UNKNOWN"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "warning_level_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Level Cm"
+          },
+          "water_level_cm": {
+            "title": "Water Level Cm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "station_id",
+          "station_name",
+          "latitude",
+          "longitude",
+          "water_level_cm",
+          "warning_level_cm",
+          "alarm_level_cm",
+          "status",
+          "unit",
+          "observed_at",
+          "freshness",
+          "source"
+        ],
+        "title": "HydroStation",
+        "type": "object"
+      },
+      "NotCovered": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "reason"
+        ],
+        "title": "NotCovered",
+        "type": "object"
+      },
+      "OutdoorMissingOut": {
+        "properties": {
+          "blocking": {
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "core": {
+            "title": "Core",
+            "type": "boolean"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "MISSING",
+              "STALE",
+              "INVALID"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "params",
+          "status",
+          "core",
+          "blocking"
+        ],
+        "title": "OutdoorMissingOut",
+        "type": "object"
+      },
+      "OutdoorReasonOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "comparison": {
+            "enum": [
+              "gt",
+              "gte",
+              "lt",
+              "lte"
+            ],
+            "title": "Comparison",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "MODERATE",
+              "POOR"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "param": {
+            "title": "Param",
+            "type": "string"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "param",
+          "value",
+          "threshold",
+          "comparison",
+          "unit",
+          "level"
+        ],
+        "title": "OutdoorReasonOut",
+        "type": "object"
+      },
+      "PollenArea": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PollenValues"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PollenDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "forecast_reference_time": {
+            "format": "date-time",
+            "title": "Forecast Reference Time",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "model_forecast",
+            "title": "Kind",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "valid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid At"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "slug",
+          "name",
+          "latitude",
+          "longitude",
+          "kind",
+          "model",
+          "unit",
+          "forecast_reference_time",
+          "fetched_at",
+          "freshness",
+          "valid_at",
+          "current",
+          "days"
+        ],
+        "title": "PollenArea",
+        "type": "object"
+      },
+      "PollenCalendarOut": {
+        "properties": {
+          "active": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveTaxon"
+            },
+            "title": "Active",
+            "type": "array"
+          },
+          "active_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Message"
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "coverage_complete": {
+            "const": false,
+            "title": "Coverage Complete",
+            "type": "boolean"
+          },
+          "coverage_warning": {
+            "title": "Coverage Warning",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "kind": {
+            "const": "seasonal_calendar",
+            "title": "Kind",
+            "type": "string"
+          },
+          "not_covered": {
+            "items": {
+              "$ref": "#/components/schemas/NotCovered"
+            },
+            "title": "Not Covered",
+            "type": "array"
+          },
+          "region": {
+            "const": "PL",
+            "title": "Region",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "format": "date",
+            "title": "Reviewed At",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "upcoming": {
+            "items": {
+              "$ref": "#/components/schemas/UpcomingTaxon"
+            },
+            "title": "Upcoming",
+            "type": "array"
+          },
+          "upcoming_within_days": {
+            "title": "Upcoming Within Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "region",
+          "active",
+          "active_message",
+          "upcoming",
+          "upcoming_within_days",
+          "coverage_complete",
+          "coverage_warning",
+          "not_covered",
+          "sources",
+          "attribution",
+          "disclaimer",
+          "reviewed_at"
+        ],
+        "title": "PollenCalendarOut",
+        "type": "object"
+      },
+      "PollenDay": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "max": {
+            "$ref": "#/components/schemas/PollenValues"
+          }
+        },
+        "required": [
+          "date",
+          "max"
+        ],
+        "title": "PollenDay",
+        "type": "object"
+      },
+      "PollenLatestResponse": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/PollenArea"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_status": {
+            "$ref": "#/components/schemas/SourceStatusOut"
+          }
+        },
+        "required": [
+          "areas",
+          "source",
+          "attribution",
+          "source_status"
+        ],
+        "title": "PollenLatestResponse",
+        "type": "object"
+      },
+      "PollenValues": {
+        "description": "grains/m3 per MVP species (Master Plan §6). null = the model gave no value\n(typically outside the pollen season) - NEVER 0 standing in for \"no data\".",
+        "properties": {
+          "alder": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alder"
+          },
+          "birch": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birch"
+          },
+          "grass": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grass"
+          },
+          "mugwort": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mugwort"
+          },
+          "ragweed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ragweed"
+          }
+        },
+        "required": [
+          "alder",
+          "birch",
+          "grass",
+          "mugwort",
+          "ragweed"
+        ],
+        "title": "PollenValues",
+        "type": "object"
+      },
+      "ResolvedGeoArea": {
+        "properties": {
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "teryt_code": {
+            "title": "Teryt Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "teryt_code",
+          "slug",
+          "name"
+        ],
+        "title": "ResolvedGeoArea",
+        "type": "object"
+      },
+      "Source": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "citation": {
+            "minLength": 1,
+            "title": "Citation",
+            "type": "string"
+          },
+          "license": {
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "url": {
+            "pattern": "^https://",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "citation",
+          "url",
+          "license",
+          "checked_at"
+        ],
+        "title": "Source",
+        "type": "object"
+      },
+      "SourceHealthOut": {
+        "properties": {
+          "daily_budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DailyBudgetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE",
+              "UNAVAILABLE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "monitored": {
+            "title": "Monitored",
+            "type": "boolean"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "freshness",
+          "last_attempt_at",
+          "last_success_at",
+          "last_error",
+          "daily_budget",
+          "monitored"
+        ],
+        "title": "SourceHealthOut",
+        "type": "object"
+      },
+      "SourceStatusOut": {
+        "properties": {
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE",
+              "UNAVAILABLE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "freshness",
+          "last_success_at"
+        ],
+        "title": "SourceStatusOut",
+        "type": "object"
+      },
+      "SourcesHealthResponse": {
+        "properties": {
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceHealthOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "sources"
+        ],
+        "title": "SourcesHealthResponse",
+        "type": "object"
+      },
+      "UpcomingTaxon": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "days_until": {
+            "title": "Days Until",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name_pl": {
+            "title": "Name Pl",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "season_end": {
+            "format": "date",
+            "title": "Season End",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name_pl",
+          "category",
+          "starts_on",
+          "days_until",
+          "season_end",
+          "note",
+          "source_ids"
+        ],
+        "title": "UpcomingTaxon",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WeatherArea": {
+        "properties": {
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WeatherLatestParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "slug",
+          "name",
+          "latitude",
+          "longitude",
+          "observed_at",
+          "freshness",
+          "params",
+          "source"
+        ],
+        "title": "WeatherArea",
+        "type": "object"
+      },
+      "WeatherForecastResponse": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastArea"
+            },
+            "title": "Areas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "areas"
+        ],
+        "title": "WeatherForecastResponse",
+        "type": "object"
+      },
+      "WeatherLatestParam": {
+        "properties": {
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "observed_at",
+          "freshness"
+        ],
+        "title": "WeatherLatestParam",
+        "type": "object"
+      },
+      "WeatherLatestResponse": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherArea"
+            },
+            "title": "Areas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "areas"
+        ],
+        "title": "WeatherLatestResponse",
+        "type": "object"
+      },
+      "WeatherParam": {
+        "properties": {
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "title": "WeatherParam",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Za Oknem API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/air/latest": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.",
+        "operationId": "latest_air_quality_api_v1_air_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Latest Air Quality"
+      }
+    },
+    "/api/v1/alerts/latest": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14). See current_alerts().",
+        "operationId": "latest_alerts_api_v1_alerts_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Latest Alerts"
+      }
+    },
+    "/api/v1/dashboard/latest": {
+      "get": {
+        "description": "Combined per-location view: weather (per geo_area, always) + nearest GIOŚ\nstation's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006\nnearest-station join, not a general geo engine). Reads only from our own DB\n(rule #14); the join happens in Python - three small independent result sets,\nnot worth a cross-table SQL join.\n\nTASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/\nSO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.",
+        "operationId": "dashboard_latest_api_v1_dashboard_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dashboard Latest"
+      }
+    },
+    "/api/v1/devices": {
+      "post": {
+        "description": "Idempotent upsert by `installation_id` (ADR-017). New -> 201 + `device_secret`\n(shown once). Existing -> 200, requires the `X-Device-Secret` header (403 otherwise);\nonly fields present in the body are changed (`push_token: null` clears it).",
+        "operationId": "register_device_api_v1_devices_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Device-Secret",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceOut"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Device"
+      }
+    },
+    "/api/v1/devices/{installation_id}": {
+      "delete": {
+        "description": "Deactivate: drops the push token and observed area, keeps the row (hashed secret,\ntimestamps) so a repeated DELETE stays idempotent. Unknown id and wrong secret are\nindistinguishable (404). Row purging is the retention task (TASK-14.2).",
+        "operationId": "unregister_device_api_v1_devices__installation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{32,64}$",
+              "title": "Installation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Secret",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Device-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unregister Device"
+      }
+    },
+    "/api/v1/geo/resolve": {
+      "post": {
+        "description": "lat/lon -> gmina by point-in-polygon (TASK-6.2, ADR-019).\n\nPOST body, not query string, so coordinates never appear in access logs (ADR-002).\nNothing here logs or stores the point; the response carries the gmina only and does\nnot echo the coordinates back.",
+        "operationId": "geo_resolve_api_v1_geo_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeoResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoResolveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geo Resolve"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Data contract per TASK-0.1: {\"status\": \"ok\"}. Liveness only — is the\nprocess up, not \"is it ready to serve traffic\" (that's /health/ready).",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api V1 Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "description": "Readiness: can we actually reach Postgres? For orchestration (don't route\ntraffic here until this is true) — additive, doesn't change /health's contract.",
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Ready Api V1 Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/api/v1/health/sources": {
+      "get": {
+        "description": "Operator view (TASK-13.1): per-source freshness, last attempt/success/error\nand daily call budget. Reads only our DB (rule #14). Always 200 - it reports\nproblems, it must not itself look like an unhealthy service (/health is the\nliveness probe and is untouched).",
+        "operationId": "sources_health_api_v1_health_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesHealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sources Health"
+      }
+    },
+    "/api/v1/hydro/latest": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14) - never calls IMGW on request.\nData arrives via `python -m app.connectors.imgw_hydro.ingest` or the scheduler.",
+        "operationId": "latest_hydro_api_v1_hydro_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HydroLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Latest Hydro"
+      }
+    },
+    "/api/v1/pollen/calendar": {
+      "get": {
+        "operationId": "pollen_calendar_api_v1_pollen_calendar_get",
+        "parameters": [
+          {
+            "description": "YYYY-MM-DD; default: today (Europe/Warsaw)",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "YYYY-MM-DD; default: today (Europe/Warsaw)",
+              "title": "Date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollenCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pollen Calendar"
+      }
+    },
+    "/api/v1/pollen/latest": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14) - never calls Open-Meteo/CAMS on request.\nData arrives via the scheduler (once a day) or\n`python -m app.connectors.open_meteo_pollen.ingest`. No geo-filtering to the\nuser's location yet - same as /weather/latest (Geo Engine, TASK-6.x).",
+        "operationId": "pollen_latest_api_v1_pollen_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollenLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Pollen Latest"
+      }
+    },
+    "/api/v1/weather/forecast": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14). See forecasts_by_area().",
+        "operationId": "weather_forecast_api_v1_weather_forecast_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherForecastResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Weather Forecast"
+      }
+    },
+    "/api/v1/weather/latest": {
+      "get": {
+        "description": "Reads only from our own DB (rule #14) — never calls Open-Meteo on request.\nData arrives via `python -m app.connectors.open_meteo.ingest` (manual for now).",
+        "operationId": "latest_weather_api_v1_weather_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherLatestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Latest Weather"
+      }
+    }
+  }
+}

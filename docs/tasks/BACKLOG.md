@@ -105,16 +105,17 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 2 — Backend Core (dokończenie)
 
-- [ ] **TASK-2.1:** Generowany klient TypeScript z OpenAPI (§17 Master Planu).
+- [x] **TASK-2.1** (ADR-024): Kontrakt API i typy TS z OpenAPI (§17 Master Planu).
       `response_model` mają już `/air`, `/hydro`, `/alerts` (PR #51/#53/#54)
-      i `/weather/*` (PR #52) — ta część jest zrobiona. Pozostały zakres:
-      (1) `response_model` dla `/dashboard/latest` (dziś `-> dict`, więc jego
-      schemat OpenAPI jest generycznym obiektem), (2) generowanie klienta TS
-      do `packages/api-contract/` (dziś placeholder) i zastąpienie nim
-      ręcznych typów w `apps/mobile/app/index.tsx`/`alerts.ts`/`forecast.ts`,
-      (3) krok CI wykrywający rozjazd wygenerowanego klienta ze schematem.
-      Zrobić przed kolejnymi rozszerzeniami agregatu (pollen/water), żeby nie
-      przepisywać ręcznych typów kolejny raz.
+      i `/weather/*` (PR #52); `/dashboard/latest` ma teraz `DashboardResponse`
+      (1:1 z dotychczasowym JSON-em, test kontraktowy), `openapi.json`
+      eksportowany skryptem `apps/api/scripts/export_openapi.py`, typy TS w
+      `packages/api-contract/schema.ts` generowane `generate.mjs` (bez
+      zależności), dwa kroki CI `--check` wykrywają rozjazd. Mobile: `forecast.ts`
+      i `pollen.ts` używają typów kontraktu, `contract.test.ts` pilnuje w `tsc`,
+      że UI akceptuje każdy blok kontraktu. **Zostaje:** migracja pozostałych
+      ręcznych typów (`index.tsx`, `alerts.ts`, `hydro.ts`, `outdoor.ts`,
+      `aqi.ts`) do `schema.ts` — razem ze zmianami UI, nie osobno.
 
 ### Phase 3 — Data Architecture (dokończenie)
 
