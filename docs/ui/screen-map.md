@@ -77,8 +77,8 @@ Uwagi do drzewa (decyzje otwarte są w sekcji 5):
   Żadnego hamburgera, zakładki „Więcej”, „Profil”, „Mapa”.
 - **Jedna aktywna lokalizacja** (spec §3). Zmiana: Ustawienia → Lokalizacja albo tap w nagłówku Start. Brak listy zapisanych.
   Dziś Home pokazuje wszystkie 7 obszarów pod rząd — to zniknie (Start = jeden obszar, `/dashboard/latest?geo_area_id=`, ADR-026).
-- **Nie nazywamy tego „profilem”** i nie pytamy o wiek, płeć, zdrowie, rodzinę (spec §2.3). Gatunki pyłków do śledzenia
-  nie są w specyfikacji — nie rysujemy ich (decyzja w sekcji 5).
+- **Nie nazywamy tego „profilem”** i nie pytamy o wiek, płeć, zdrowie, rodzinę (spec §2.3). Wcześniejszy profil
+  alergika (gatunki pyłków, „rodzina”) jest wycofany (superseded) — zostają tylko tematy.
 - Trasy to propozycja struktury Expo Router (np. `app/welcome.tsx`, `app/onboarding.tsx`, `app/location.tsx`,
   `app/details/air.tsx`, `app/alerts/[id].tsx`, `app/settings/*.tsx`).
 - **Kąpieliska i woda pitna nie istnieją w UI** — ani jako sekcja, ani „wkrótce”, ani nieaktywny kafelek, ani wzmianka w
@@ -136,7 +136,7 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Karty statusu dla pozostałych modułów (np. woda) | — | ⬜ renderowane tylko, gdy dane dostępne i włączona flaga (spec §50); **woda nie jest renderowana** | TASK-12.18 | layout dostosowany do liczby kart |
 | „Co możesz dziś robić?” — karty aktywności (spacer, bieganie/rower, wietrzenie, wieczorny wysiłek) | **brak**: `outdoor` daje jeden werdykt + powody, nie rekomendacje per aktywność; brak przedziałów czasu (brak prognozy godzinowej powietrza i pogody) | ⬜ wymaga backendu — **bez mocka** (rekomendacja to interpretacja zbliżona do werdyktu; zakaz mockowania) | **TASK-7.9** (backend), TASK-12.18 (UI) | GOOD ✓ / CAUTION ! / AVOID × / UNKNOWN ? (glif + słowo, nie sam kolor); powód po tapnięciu; przedział czasu opcjonalny, dziś nieobecny |
 | Kalendarz pylenia | `GET /pollen/calendar` | 🟡 (8 taksonów; ambrozja/pokrzywowate `not_covered`) | TASK-8.10 ✅ | pusty `active` ≠ „nic nie pyli” |
-| Prognoza dobowa | `areas[].forecast` · `days[].params`, `freshness`, `fetched_at` | 🟡 (brak `source_status` w bloku — follow-up 7.3; spec §46) | follow-up TASK-7.3 | ustalić obsługę dostępności zanim trafi na Start |
+| Prognoza dobowa | `areas[].forecast` · `days[].params`, `freshness`, `fetched_at` | ✅ dane; blok `forecast` nie ma własnego `source_status`, ale pochodzi z tego samego pobrania Open-Meteo co pogoda (źródło `open_meteo`, ADR-010), więc **używamy `source_status.weather`**: efektywna świeżość = najgorsza z `forecast.freshness` i `source_status.weather.freshness` (`worstFreshness`, ADR-012), `fetched_at` jako wiek | TASK-12.18 | S/U ⇒ „Prognoza mogła się zmienić / niedostępna”, bez max/min w nagłówku; brak bloku `forecast` ⇒ pomijamy |
 | Obszar bez pollingu / miejscowość bez pokrycia | `areas[].weather_polling_active=false`; (PR #85: `coverage` exact/nearby/regional/none) | 🟡 backend ✅ (#85 niezmergowany) | TASK-12.11, 12.7 | „dane pogodowe nie są jeszcze zbierane dla tej lokalizacji”; `regional`/`none` opisane jawnie, `none` ≠ „dobre” |
 | Stan ekranu: ładowanie / błąd / pusty / częściowa awaria | stan `DashboardProvider` | 🟡 (globalny spinner; każdy moduł ma własny stan, ekran nie blokuje się przy awarii jednego — spec §42) | TASK-12.18 | skeleton per moduł; „Nie udało się pobrać aktualnych danych. Spróbuj ponownie” bez błędów technicznych |
 | Sekcja Woda / Kąpieliska | — | **poza UI** (nie rysujemy, nie „wkrótce”) | — | — |
@@ -254,7 +254,7 @@ i **nie może ukryć alertów/danych bezpieczeństwa** poza wyborem „Alerty”
 | Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ⬜ (zapis w pamięci lokalnej) | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
 | Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ⬜ | TASK-12.18 | „Aktywność” pojawia się dopiero po TASK-7.9 |
 | Skutek na Start | lokalne | ⬜ | TASK-12.18 | wyłączony temat = brak karty, nie „0” |
-| Gatunki pyłków do śledzenia, „rodzina”, „outdoor” jako profil | **nie ma w spec UI v1** | usunięte z zakresu | — | decyzja w sekcji 5 |
+| Dawny zakres „profil alergika” (gatunki pyłków, „rodzina”, „outdoor” jako profil; TASK-12.4 v1) | **SUPERSEDED** przez spec UI v1: zostają wyłącznie tematy | wycofane | — | brak decyzji do podjęcia |
 
 ### S11. Powiadomienia — ukryte w produkcji
 
@@ -373,7 +373,6 @@ Mock nie wyprzedza rzeczywistości: każde pole, które fixture albo UI zakłada
 | treść „Co to oznacza?” per rodzaj ostrzeżenia | S3 | brak | decyzja właściciela | statyczne, redagowane przez ludzi |
 | trend powietrza (spec §2.2) | S5 | brak endpointu historii | **brak taska** — decyzja (Master Plan §11: pełna historia poza MVP) | nie rysujemy |
 | `GET /water/latest`, ostrzeżenia meteo w `alerts`, preferencje powiadomień | — | ⛔ | TASK-11.4, 9.2, 10.3a | **poza UI** / bez mocka |
-| `source_status` w bloku `forecast` | S1 prognoza | brak | follow-up TASK-7.3 | wymagane przed pokazaniem prognozy na Start |
 | lokalne ustawienia (aktywna lokalizacja, tematy, motyw, flaga onboardingu) | S0, S4, S9, S10 | n/d — wyłącznie urządzenie | TASK-12.17 | bez backendu, bez konta |
 
 Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają backendu ani mocka):
@@ -389,7 +388,7 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 |---|---|---|---|
 | Powietrze: parametry GIOŚ + EAQI | ✅ | ✅ (bez nazwy stacji/odległości) | ⬜ szczegóły S5 (live) |
 | Pogoda bieżąca (15 pól MVP) | ✅ | ✅ | ⬜ szczegóły S6 (live) |
-| Prognoza dobowa (3 dni) | ✅ | 🟡 (bez `source_status`) | max/min w nagłówku Start |
+| Prognoza dobowa (3 dni) | ✅ (dostępność z `source_status.weather`) | 🟡 (tylko etykieta freshness) | max/min w nagłówku Start |
 | Prognoza godzinowa pogody / powietrza | ⬜ | ⬜ | decyzja właściciela |
 | Werdykt „Na dwór” | ✅ (progi do kalibracji) | ✅ | tap → powody |
 | **Rekomendacje aktywności** | ⬜ nie istnieje | ⬜ | TASK-7.9 → 12.18 (bez mocka) |

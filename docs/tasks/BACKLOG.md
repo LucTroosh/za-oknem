@@ -411,7 +411,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       osobny PR, w `index.tsx` zostawiony komentarz-slot; (2) `outdoor.evaluate`
       (ADR-016) NIE uwzględnia pyłków — dodanie reguł wymaga ADR (progi z
       ADR-020 to progi sezonu, nie ryzyka objawów, więc nie nadają się wprost);
-      (3) profil alergika (TASK-12.4) — wybór gatunków; (4) karta nie starzeje się
+      (3) wybór gatunków — wycofany (spec UI v1: tylko temat „Pyłki”, TASK-12.13); (4) karta nie starzeje się
       na urządzeniu (godzina „teraz” = slot z odpowiedzi) — dodać timer jak w
       OutdoorCard, jeśli ekran bywa otwarty > 1 h.
 
@@ -790,7 +790,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Zależne od TASK-10.1 (endpoint musi istnieć), TASK-12.2/12.3 (skąd
       wziąć lokalizację) i resolvera TERYT z TASK-6.2 punkt (5) (GPS →
       `observed_area_code` po stronie serwera).
-- [ ] **TASK-12.4:** Profil użytkownika + podstawowe preferencje (allergy,
+- [ ] **TASK-12.4 (SUPERSEDED przez spec UI v1: bez profilu, gatunków, „rodziny”; zakres przejmują TASK-12.13 tematy i TASK-12.17 magazyn lokalny):** Profil użytkownika + podstawowe preferencje (allergy,
       family, outdoor — §12 Master Planu). Bez obowiązkowego konta (rule #11)
       — do przemyślenia jak to pogodzić z "profilem" w MVP bez logowania
       (prawdopodobnie: lokalny profil per-urządzenie, nie serwerowe konto).
@@ -856,12 +856,13 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Goal:** wybór tematów widocznych na Start; NIE „profil”. **Scope:** wspólny
       komponent kafelków multi-select dla onboardingu i Ustawień: Powietrze, Pogoda,
       Pyłki, Alerty, Aktywność (kafelek Aktywność tylko gdy moduł dostępny po TASK-7.9);
-      zapis przez magazyn z TASK-12.17; wyłączony temat ukrywa kartę. **Acceptance
+      zapis przez magazyn z TASK-12.17; dokłada krok „Co chcesz śledzić?” do
+      onboardingu z TASK-12.17; wyłączony temat ukrywa kartę. **Acceptance
       Criteria:** brak kafelków Woda/Kąpieliska; pusty wybór = wszystkie dostępne;
       wybór nigdy nie zmienia wartości źródłowych ani nie ukrywa banera istotnego
       ostrzeżenia (decyzja w screen-map 5.2); test czystej funkcji „które moduły
       pokazać”. **Non-goals:** wybór gatunków pyłków, wiek/płeć/zdrowie/rodzina,
-      konto, wpływ na silnik „Na dwór”. **Dependencies:** TASK-12.17.
+      konto, wpływ na silnik „Na dwór”. **Dependencies:** TASK-12.17 (magazyn i onboarding).
 - [ ] **TASK-12.14 (UI-MOCK-3):** Szczegóły pyłków z wykresem godzinowym (S7; poza P0, spec UI §56).
       **Goal:** struktura ekranu pyłków z przebiegiem godzinowym, zawsze jako prognoza
       modelu. **Scope:** `current` i `days[]` **live**; szereg godzinowy z fixture'a
@@ -898,15 +899,15 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       magazyn ustawień (spec UI §5–8, P0 #1–3). **Goal:** pierwsze uruchomienie
       Welcome → Lokalizacja + tematy → Start, kolejne od razu Start. **Scope:** ekran
       Welcome (copy ze spec UI §6, **bez wzmianki o wodzie**); ekran onboardingu
-      składający TASK-12.11 i TASK-12.13; magazyn lokalny `{aktywna lokalizacja (geo_area_id
+      z lokalizacją (TASK-12.11); krok tematów dokłada TASK-12.13; magazyn lokalny `{aktywna lokalizacja (geo_area_id
       lub place_id), tematy, onboardingZakończony, trybMotywu}` (biblioteka do pamięci
       lokalnej — nowa zależność, uzasadnić w PR). **Acceptance Criteria:** Welcome nie
       wraca po zakończeniu; jedna aktywna lokalizacja (brak listy zapisanych); błąd
       odczytu/zapisu ⇒ wartości domyślne i działająca aplikacja; brak konta, brak
       współrzędnych w magazynie; onboarding pomijalny tylko przez wybór lokalizacji z
       dostępnej listy; testy czystej logiki stanu. **Non-goals:** konto, synchronizacja,
-      zapisane lokalizacje, grafika hero (właściciel). **Dependencies:** TASK-12.11,
-      TASK-12.13.
+      zapisane lokalizacje, grafika hero (właściciel). **Dependencies:** TASK-12.11
+      (kolejność: 12.11 → 12.17 → 12.13, bez cyklu).
 - [ ] **TASK-12.18:** Przebudowa ekranu Start (spec UI §10–17, §40–44, §50; P0 #4–10, #15).
       **Goal:** Start odpowiada na „co dzieje się wokół mnie i co mogę robić” w kilka
       sekund. **Scope:** zakładki Start | Alerty | Ustawienia (ikony Home/Bell/Settings);
@@ -921,8 +922,9 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       sprawdzić ostrzeżeń”; pyłki zawsze jako prognoza modelu; dane stale/UNAVAILABLE bez
       poziomów; zero mocków na tym ekranie w jakimkolwiek buildzie; testy czystych modułów.
       **Non-goals:** wykres pyłków godzinowych, prognoza godzinowa, wiele lokalizacji.
-      **Dependencies:** TASK-12.17; karty aktywności: TASK-7.9; prognoza w nagłówku
-      wymaga ustalenia obsługi `source_status` (follow-up TASK-7.3).
+      **Dependencies:** TASK-12.17, 12.13; karty aktywności: TASK-7.9. Prognoza (nagłówek, max/min):
+      dostępność z istniejącego `source_status.weather` (to samo pobranie Open-Meteo, ADR-010)
+      połączona z `forecast.freshness` przez `worstFreshness` — bez zmian backendu.
 - [ ] **TASK-12.19:** Wygląd i dostępność (spec UI §26–27, §34–39; P0 #13–14). **Goal:**
       wybór motywu Systemowy | Jasny | Ciemny (domyślnie Systemowy) i respektowanie
       ustawień dostępności systemu. **Scope:** wiersz „Wygląd” w Ustawieniach zapisany w
