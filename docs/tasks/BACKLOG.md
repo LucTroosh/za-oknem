@@ -600,6 +600,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zakładkę do istniejącego tab layoutu, nie tworzyć nawigacji od nowa.
       **Stan (PR „fundament UI”):** placeholder jest (wersja, źródła z
       `attribution` backendu, zdanie o prywatności); brak realnych preferencji.
+      **Start (PR „struktura Start”):** zakładki Start/Alerty/Ustawienia, nagłówek, Hero
+      Verdict, karty statusu, status ostrzeżeń, skeletony — wg Frontend UX/UI Spec v1;
+      czeka na: wybór lokalizacji (`TODO(TASK-12.7)`), sekcję aktywności (brak backendu),
+      ekrany szczegółów (dziś rozwijane karty).
 - [ ] **TASK-12.6:** Pozostałe sekcje Settings z §60 Master Planu — location/
       profile/allergies/outdoor/notifications pokrywają TASK-12.2/12.3/
       12.4/10.3, ale §60 wymienia też **data & privacy, sources, about**, dla

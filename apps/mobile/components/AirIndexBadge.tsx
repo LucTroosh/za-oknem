@@ -15,7 +15,7 @@ export default function AirIndexBadge({
   receivedAt,
 }: {
   index: unknown;
-  // Device time of the response, owned by the screen (see OutdoorCard).
+  // Device time of the response, owned by the screen (see HeroVerdict).
   receivedAt: number;
 }) {
   const { colors } = useTheme();

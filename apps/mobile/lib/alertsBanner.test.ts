@@ -10,12 +10,12 @@ describe("homeAlertsBanner", () => {
   it("a missing block is a neutral 'niedostępne', never silence", () => {
     const b = homeAlertsBanner(null, 0);
     expect(b?.tone).toBe("neutral");
-    expect(b?.text).toContain("niedostępne");
+    expect(b?.text).toContain("sprawdzić");
   });
   it("never claims an all-clear when the source is silent", () => {
     const b = homeAlertsBanner({ kind: "unavailable", lastSuccessAt: null }, 0);
     expect(b?.tone).toBe("neutral");
-    expect(b?.text).toContain("niedostępne");
+    expect(b?.text).toContain("sprawdzić");
   });
   it("counts a healthy list and caveats an old one", () => {
     expect(homeAlertsBanner({ kind: "list" }, 3)?.text).toContain("3");

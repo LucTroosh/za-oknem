@@ -11,10 +11,13 @@ export default function Screen({
   children,
   refreshing,
   onRefresh,
+  padTop,
 }: {
   children: ReactNode;
   refreshing?: boolean;
   onRefresh?: () => void;
+  // The screen has no navigator header (Start draws its own): add the status-bar inset.
+  padTop?: boolean;
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -23,6 +26,7 @@ export default function Screen({
       style={[styles.flex, { backgroundColor: colors.bg }]}
       contentContainerStyle={[
         styles.content,
+        padTop && { paddingTop: insets.top + space.lg },
         { paddingLeft: Math.max(space.lg, insets.left), paddingRight: Math.max(space.lg, insets.right) },
       ]}
       refreshControl={
