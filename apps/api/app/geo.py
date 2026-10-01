@@ -8,6 +8,7 @@ Two distinct methods, deliberately not mixed (BACKLOG TASK-6.2, ADR-019):
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,8 +23,8 @@ METHOD_NEAREST_STATION = "nearest_station"
 # ADR-026: GPS/manual point -> app area. `point_in_polygon` = the gmina itself (ADR-019);
 # `nearest_area` = fallback to the closest ACTIVE area within this distance (inclusive),
 # always disclosed with its distance - it never replaces the administrative answer.
-METHOD_POINT_IN_POLYGON = "point_in_polygon"
-METHOD_NEAREST_AREA = "nearest_area"
+METHOD_POINT_IN_POLYGON: Literal["point_in_polygon"] = "point_in_polygon"
+METHOD_NEAREST_AREA: Literal["nearest_area"] = "nearest_area"
 NEAREST_AREA_MAX_KM = 25.0
 
 

@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Literal
@@ -219,6 +219,7 @@ def dashboard_latest(geo_area_id: int | None = None, db: Session = Depends(get_d
     area, also one without active polling - it then carries `weather_polling_active=false`
     and empty blocks instead of vanishing); unknown id = 404. Without it: the actively
     polled areas, as before (imported gminas must not fan out into ~2.5k areas)."""
+    areas: Sequence[GeoArea]
     if geo_area_id is not None:
         chosen = db.get(GeoArea, geo_area_id)
         if chosen is None:
