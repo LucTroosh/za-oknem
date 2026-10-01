@@ -4,9 +4,6 @@ name: GeoNames dump verification
 # Not part of PR CI. Run: Actions -> "GeoNames dump verification" -> Run workflow.
 on:
   workflow_dispatch:
-  push:
-    branches: [feat/any-locality]
-    paths: [.github/workflows/geonames-verify.yml]
 
 jobs:
   verify:
