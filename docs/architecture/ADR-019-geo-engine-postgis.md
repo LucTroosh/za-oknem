@@ -69,7 +69,8 @@ Opcja **A**.
 - **Testy:** logika algorytmu jest w SQL, więc testy brzegu/dziury/„poza Polską"/importera
   to zestaw `tests/test_postgis_geo.py` (marker `postgis`), uruchamiany na prawdziwej bazie
   z `DATABASE_URL` (w CI: service `postgis/postgis:16-3.4`, już po `alembic upgrade head`)
-  i SKIPowany, gdy PostGIS nie jest osiągalny — testy na SQLite nie są ruszane (kolumna
+  lokalnie SKIPowany, gdy PostGIS nie jest osiągalny, a w CI wymuszony (`REQUIRE_POSTGIS=1`: brak
+  PostGIS = fail, nie skip) — testy na SQLite nie są ruszane (kolumna
   degraduje tam do TEXT). Endpoint jest testowany z podstawionym resolverem.
 - **Prywatność (ADR-002):** `POST /api/v1/geo/resolve` przyjmuje współrzędne w body
   (nie w query stringu, więc nie trafiają do access logów), nie loguje ich, nie zapisuje
@@ -78,7 +79,9 @@ Opcja **A**.
 
 ## Consequences
 
-- **CI:** bez zmian w `ci.yml` (obraz PostGIS już jest); `alembic upgrade head` i
+- **CI:** obraz PostGIS już był w `ci.yml`; PR dodaje `REQUIRE_POSTGIS=1`, `-rfEs`, `set -o pipefail`
+  przy `| tee` (wcześniej porażki alembic check/mypy/pytest były maskowane) i jedną pełną
+  adnotację błędu; `alembic upgrade head` i
   `alembic check` obejmują teraz rozszerzenie. Nie zweryfikowano lokalnie (brak
   PyPI/Dockera w środowisku autora) — pierwszy realny dowód to CI tego PR.
 - **Dev / prod:** `docker-compose.yml` już na PostGIS. Produkcja (Ubuntu + Docker na VPS)
@@ -96,3 +99,11 @@ Opcja **A**.
   akceptowalne, bo nic nie jest jeszcze produkcyjnie zależne od resolvera).
 - **Poza tym ADR:** odkrywanie stacji GIOŚ per gmina (BACKLOG (7)) i zawężenie dashboardu
   do wybranej lokalizacji (8) — osobne zadania (patrz `docs/tasks/TASK-6.2-geo-engine-foundation.md`).
+- **Niespójność (świadoma, tymczasowa):** `GET /dashboard/latest` filtruje obszary po
+  `weather_polling_active`, a `GET /weather/latest` i `/weather/forecast` nie — te ostatnie
+  zwracają tylko obszary mające snapshoty/prognozy (zapytanie o obszary ograniczone do ich
+  id, nie ładuje wszystkich gmin), więc po imporcie nie rosną. Wiersz wygaszony po fakcie
+  nadal pokaże historyczne dane w `/weather/*`, ale zniknie z dashboardu. Zamyka to
+  TASK-6.2 (8) (kontrakt „wybrana lokalizacja").
+- **Imiona i współrzędne:** import nigdy nie zmienia `name` ani współrzędnych zaseedowanych
+  miast (tylko wierszy `teryt-*`); odrzuca rekord, gdy `ST_MakeValid` zmienia pole o > 1%.

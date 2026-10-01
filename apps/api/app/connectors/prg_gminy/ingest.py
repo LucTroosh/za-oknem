@@ -2,17 +2,20 @@
 
 Operator-run, from a LOCAL GeoJSON file in EPSG:4326 (see the task doc for how to make
 one from the official PRG download; the repo contains no data). Idempotent: re-running
-the same file changes nothing but `boundary` of existing rows.
+the same file yields the same rows (boundary, and for imported `teryt-*` rows name and
+representative point, are refreshed; seeded cities keep their own name and coordinates).
 
     docker compose exec api python -m app.connectors.prg_gminy.ingest --file /data/gminy.geojson
     ... --validate-only   # parse + report, no database access
     ... --retire-missing  # the file is a full snapshot: drop boundaries of gminas not in it
+    ... --retire-missing --dry-run   # only report how many would be retired
 
 Per record, in this order:
-1. row with this TERYT code exists      -> update its boundary and name;
+1. row with this TERYT code exists      -> update its boundary (+ name and representative
+   point for imported `teryt-*` rows only, never for seeded cities);
 2. a seeded city (slug not `teryt-*`) with no TERYT yet, or one whose old code is absent
    from this snapshot (renumbered gmina), lies inside the polygon (point-in-polygon, never
-   by name) -> that row adopts the TERYT code + boundary + name, keeping its id/slug so
+   by name) -> that row adopts the TERYT code + boundary, keeping its id/slug/name so
    weather history and polling stay attached;
 3. otherwise                             -> insert a new row with weather_polling_active
    = false (geo-matching only; polling is opt-in, BACKLOG TASK-6.2 (4)).
@@ -48,18 +51,35 @@ SOURCE_ID = "prg_gminy"
 # as hex EWKB so the three statements below share one exact geometry.
 _PREPARE_SQL = text(
     """
-    SELECT ST_AsHEXEWKB(ST_Multi(ST_CollectionExtract(ST_MakeValid(g), 3))) AS hex,
-           ST_IsEmpty(ST_CollectionExtract(ST_MakeValid(g), 3)) AS is_empty,
-           ST_IsValid(g) AS was_valid
-    FROM (SELECT ST_SetSRID(ST_GeomFromGeoJSON(CAST(:geojson AS text)), 4326) AS g) t
+    WITH raw AS (
+        SELECT ST_SetSRID(ST_GeomFromGeoJSON(CAST(:geojson AS text)), 4326) AS g
+    ), fixed AS (
+        SELECT g, ST_CollectionExtract(ST_MakeValid(g), 3) AS v FROM raw
+    )
+    SELECT ST_AsHEXEWKB(ST_Multi(v)) AS hex,
+           ST_IsEmpty(v) AS is_empty,
+           ST_IsValid(g) AS was_valid,
+           ST_Area(v) / NULLIF(ST_Area(g), 0) AS area_ratio
+    FROM fixed
     """
 )
+# A repair that changes the area by more than this is not a repair but a different shape
+# (area_ratio is NULL when the original has no area, e.g. a perfect bow-tie: not comparable).
+MAX_REPAIR_AREA_DRIFT = 0.01
+
+
+def check_repair_drift(area_ratio: float | None) -> None:
+    if area_ratio is not None and abs(float(area_ratio) - 1) > MAX_REPAIR_AREA_DRIFT:
+        raise ValueError(f"ST_MakeValid changed the area by {abs(float(area_ratio) - 1):.1%}")
+
+
 _GEOM = "ST_GeomFromEWKB(decode(CAST(:hex AS text), 'hex'))"
 # Imported rows (slug teryt-*) get their representative point recomputed from the new
 # boundary; seeded cities keep their own coordinates (weather polling / ADR-006 use them).
 _UPDATE_SQL = text(
     f"""
-    UPDATE geo_areas SET boundary = {_GEOM}, name = :name,
+    UPDATE geo_areas SET boundary = {_GEOM},
+        name = CASE WHEN left(slug, 6) = 'teryt-' THEN :name ELSE name END,
         latitude = CASE WHEN left(slug, 6) = 'teryt-'
                         THEN ST_Y(ST_PointOnSurface({_GEOM})) ELSE latitude END,
         longitude = CASE WHEN left(slug, 6) = 'teryt-'
@@ -82,7 +102,7 @@ _SEED_CANDIDATES_SQL = text(
 )
 _ADOPT_SQL = text(
     f"""
-    UPDATE geo_areas SET teryt_code = :code, boundary = {_GEOM}, name = :name
+    UPDATE geo_areas SET teryt_code = :code, boundary = {_GEOM}
     WHERE id = :seed_id
     """
 )
@@ -111,7 +131,7 @@ _RETIRE_SQL = text(
 
 # Safety net against retiring from a partial file (a full PRG gmina snapshot has ~2.5k).
 MIN_SNAPSHOT_RECORDS = 2000
-MAX_RETIRE_FRACTION = 0.2
+MAX_RETIRE_FRACTION = 0.03
 _COUNT_SQL = text("SELECT count(*) FROM geo_areas WHERE boundary IS NOT NULL")
 _COUNT_RETIRE_SQL = text(
     """
@@ -178,24 +198,27 @@ def import_records(
             prepared = db.execute(_PREPARE_SQL, {"geojson": rec.geometry_json}).one()
             if prepared.is_empty:
                 raise ValueError("no polygon left after validation")
+            check_repair_drift(prepared.area_ratio)
             params = {"hex": prepared.hex, "code": rec.teryt_code, "name": rec.name}
             holder = db.execute(_UPDATE_SQL, params).first()
             seeds = db.execute(_SEED_CANDIDATES_SQL, {**params, "snapshot": snapshot}).all()
             conflicts = []
             if holder is not None:
-                report.updated += 1
+                outcome = "updated"
                 conflicts = seeds  # the code belongs to another row: never steal it
             elif seeds:
                 db.execute(_ADOPT_SQL, {**params, "seed_id": seeds[0].id})
-                report.adopted_seeds += 1
+                outcome = "adopted_seeds"
                 conflicts = seeds[1:]  # a second seed in the same gmina keeps its own row
             else:
                 db.execute(
                     _INSERT_SQL,
                     {**params, "slug": f"teryt-{rec.teryt_code}"},
                 )
-                report.inserted += 1
+                outcome = "inserted"
             db.commit()
+            # Counters only after a successful commit (a failed one is a rejection).
+            setattr(report, outcome, getattr(report, outcome) + 1)
             report.seed_conflicts += [
                 f"seed {c.slug} lies in {rec.teryt_code} ({rec.name}) but was not merged "
                 "(code already held by another row / another seed took it)"
@@ -232,6 +255,11 @@ def main() -> None:
         "(only applied when nothing was rejected)",
     )
     args = parser.parse_args()
+    # Conflicting/meaningless flag combinations are errors (exit 2), never silently ignored.
+    if (args.dry_run or args.force_retire) and not args.retire_missing:
+        parser.error("--dry-run and --force-retire only apply together with --retire-missing")
+    if args.validate_only and args.retire_missing:
+        parser.error("--validate-only cannot be combined with --retire-missing")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
     try:
@@ -246,9 +274,6 @@ def main() -> None:
     total = len(records) + len(rejected)
     print(f"parsed: {len(records)} valid, {len(rejected)} rejected of {total} features")
     report = ImportReport(rejected=list(rejected))
-    if args.dry_run and not args.retire_missing:
-        print("--dry-run only applies together with --retire-missing", file=sys.stderr)
-        sys.exit(1)
     if not args.validate_only:
         db = SessionLocal()
         try:

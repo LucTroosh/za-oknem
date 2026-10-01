@@ -77,7 +77,7 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
 - [ ] Reimport odświeża nazwę; seed z kodem nieobecnym w nowym snapshocie (przenumerowana
       gmina) adoptuje nowy kod, zachowując `id`/polling (Codex, runda 2).
 - [ ] `--retire-missing` ma bezpieczniki: odmowa (przed importem), gdy plik ma < 2000
-      rekordów albo wycofałby > 20% gmin z granicą; `--force-retire` świadomie je omija;
+      rekordów albo wycofałby > 3% gmin z granicą; `--force-retire` świadomie je omija;
       `--dry-run` tylko raportuje liczbę gmin do wycofania. Kody odrzuconych rekordów liczą
       się jako obecne w pliku (nie powodują re-adopcji seedów).
 - [ ] CLI `open_meteo.ingest` i scheduler używają tej samej `polling_areas()`: bez `--slug`
@@ -93,6 +93,10 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
       seedy zachowują własne współrzędne. Seed nigdy nie przejmuje kodu zajętego przez inny
       wiersz; drugi seed w tej samej gminie też nie — oba przypadki raportowane
       (`seed_conflicts`), bez wyjątku UNIQUE (Codex, runda 4).
+- [ ] Import nie zmienia nazwy ani współrzędnych zaseedowanych miast; rekord, którego
+      naprawa `ST_MakeValid` zmienia pole o > 1%, jest odrzucany. Sprzeczne flagi CLI
+      (`--force-retire`/`--dry-run` bez `--retire-missing`, `--validate-only` z nim) = błąd
+      argumentów (kod 2).
 - [ ] Nieprawidłowy rekord (zły TERYT, nie-WGS84, niezamknięty pierścień, duplikat) jest
       odrzucany z powodem, reszta importowana; nieprawidłowa geometria naprawiana
       (`ST_MakeValid`) i policzona w raporcie.

@@ -109,11 +109,13 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
     if not rows:
         return {"areas": []}
 
-    areas_by_id = {a.id: a for a in db.execute(select(GeoArea)).scalars().all()}
-
     grouped: dict[int, list[WeatherSnapshot]] = defaultdict(list)
     for row in rows:
         grouped[row.geo_area_id].append(row)
+
+    # Only the areas that actually have snapshots - never every imported gmina (ADR-019).
+    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(grouped)))
+    areas_by_id = {a.id: a for a in db.execute(area_stmt).scalars().all()}
 
     areas = []
     for geo_area_id, params in grouped.items():
@@ -204,7 +206,8 @@ def forecasts_by_area(db: Session) -> dict[int, dict]:
         # at :59 as up to 3h older than it really is. Not to be confused with
         # valid_until, which only says the forecast period hasn't ended yet — a
         # stalled scheduler still serves old-but-not-expired rows.
-        assert latest_fetched_at is not None  # days is non-empty, so a fetch time was seen
+        if latest_fetched_at is None:
+            continue  # no day rows (cannot happen: days_map entries are non-empty)
         result[geo_area_id] = {
             "model": model,
             "fetched_at": latest_fetched_at,
@@ -221,7 +224,8 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
     if not forecasts:
         return {"areas": []}
 
-    areas_by_id = {a.id: a for a in db.execute(select(GeoArea)).scalars().all()}
+    area_stmt = select(GeoArea).where(GeoArea.id.in_(list(forecasts)))
+    areas_by_id = {a.id: a for a in db.execute(area_stmt).scalars().all()}
     areas = []
     for geo_area_id, forecast in forecasts.items():
         area = areas_by_id.get(geo_area_id)

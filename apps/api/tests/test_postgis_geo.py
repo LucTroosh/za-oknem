@@ -191,6 +191,29 @@ def _seed(pg, slug, lat, lon):
     return pg.execute(text("SELECT id FROM geo_areas WHERE slug=:s"), {"s": slug}).scalar()
 
 
+def _would_retire(pg, keep):
+    return pg.execute(
+        text(
+            "SELECT count(*) FROM geo_areas WHERE boundary IS NOT NULL "
+            "AND teryt_code IS NOT NULL AND teryt_code <> ALL(CAST(:k AS text[]))"
+        ),
+        {"k": keep},
+    ).scalar()
+
+
+def test_seed_keeps_its_own_name_on_adoption_and_reimport(pg):
+    seed_id = pg.execute(
+        text(
+            "INSERT INTO geo_areas (slug, name, latitude, longitude) "
+            "VALUES ('synth-seed', 'Synth Seed', 54.95, 16.25) RETURNING id"
+        )
+    ).scalar()
+    _load(pg, A)  # adoption: PRG name is "Synth A"
+    _load(pg, A)  # update path
+    name = pg.execute(text("SELECT name FROM geo_areas WHERE id=:i"), {"i": seed_id}).scalar()
+    assert name == "Synth Seed"
+
+
 def test_update_recomputes_representative_point_of_imported_row(pg):
     _load(pg, A)
     moved = _feature("9999901", "Synth A", _ring(17.1, 54.9, 17.5, 55.0))
@@ -234,7 +257,9 @@ def test_two_seeds_in_one_gmina_lowest_id_adopts_other_is_reported(pg):
 
 def test_retire_missing_clears_obsolete_boundary_only(pg):
     _load(pg, A, B)
-    assert retire_missing(["9999901"], pg, force=True) == 1
+    expected = _would_retire(pg, ["9999901"])  # does not assume an empty database
+    assert expected >= 1
+    assert retire_missing(["9999901"], pg, force=True) == expected
     assert _code(pg, 54.95, 16.75) is None  # B retired: resolver must not return it
     assert _code(pg, 54.95, 16.25) == "9999901"
     with pytest.raises(ValueError):
@@ -245,7 +270,8 @@ def test_retire_refuses_partial_snapshot_without_force(pg):
     _load(pg, A, B)
     with pytest.raises(ValueError, match="looks partial"):
         retire_missing(["9999901"], pg)
-    assert plan_retire(["9999901"], pg, force=True) == 1  # dry-run count, nothing changed
+    # dry-run count, nothing changed
+    assert plan_retire(["9999901"], pg, force=True) == _would_retire(pg, ["9999901"])
     assert _code(pg, 54.95, 16.75) == "9999902"
 
 
