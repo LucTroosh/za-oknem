@@ -72,7 +72,8 @@ class TestIngestBatch:
         ingest.ingest_batch([], db_session, fetched_at=second_fetch)  # IMGW withdrew it
 
         alert = db_session.query(Alert).filter_by(external_id="31").one()
-        assert alert.valid_until == second_fetch
+        # SQLite hands datetimes back naive (UTC stored)
+        assert alert.valid_until.replace(tzinfo=UTC) == second_fetch
 
     def test_keeps_alert_still_in_the_latest_snapshot(self, db_session):
         first_fetch = datetime.now(UTC)
@@ -98,7 +99,7 @@ class TestIngestBatch:
 
         alert = db_session.query(Alert).filter_by(external_id="31").one()
         assert alert.valid_until.year == 9999  # back to the source's real value
-        assert alert.fetched_at == third_fetch
+        assert alert.fetched_at.replace(tzinfo=UTC) == third_fetch
 
     def test_skips_reconciliation_when_snapshot_is_partially_malformed(self, db_session):
         # Codex review (PR #37): a batch that failed to parse in part can't be

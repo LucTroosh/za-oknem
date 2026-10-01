@@ -516,3 +516,23 @@ def test_dashboard_air_index_is_no_index_without_minimum_set():
 
     assert index["level"] is None and index["complete"] is False
     assert {"NO2", "O3"} <= set(index["missing"])
+
+
+def test_dashboard_lists_only_actively_polled_areas():
+    """ADR-019: imported gminas (weather_polling_active=false) must not fan out into the
+    dashboard. FakeSession ignores statements, so assert on the compiled area query."""
+    statements = []
+
+    class _Recording(_FakeSession):
+        def execute(self, stmt):
+            statements.append(stmt)
+            return super().execute(stmt)
+
+    def _override():
+        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [])
+
+    app.dependency_overrides[get_db] = _override
+    assert TestClient(app).get("/api/v1/dashboard/latest").status_code == 200
+
+    area_sql = str(statements[0].compile())
+    assert "geo_areas.weather_polling_active IS" in area_sql

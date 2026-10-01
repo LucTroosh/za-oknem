@@ -13,6 +13,7 @@ geo_areas every 3h per ADR-004) — no throttling required, unlike GIOŚ.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 
@@ -64,7 +65,7 @@ def fetch_weather(
     err on for a budget guard (Codex review [P1] on the units-per-call estimate:
     "never later" applies here too), unlike undercounting a request the provider
     already billed."""
-    params = {
+    params: dict[str, Any] = {
         "latitude": latitude,
         "longitude": longitude,
         "current": CURRENT_PARAMS,
