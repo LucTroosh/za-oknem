@@ -49,17 +49,24 @@ def _store_batch(records: list[dict], db: Session) -> int:
     source_fetch_id of the overlapping hours instead of keeping the older run's numbers
     (ADR-014: a refreshed row points at the payload that produced it). Returns the
     number of rows inserted (not updated)."""
-    ids = [r["source_record_id"] for r in records]
+    # The whole bucket (one geo_area + one forecast_reference_time) is replaced: hours the
+    # earlier same-day payload had but this one omits are deleted, otherwise superseded
+    # future values would be served as part of the "newer" run.
+    area_id, reference = records[0]["geo_area_id"], records[0]["forecast_reference_time"]
     existing = {
         row.source_record_id: row
         for row in db.execute(
             select(PollenSnapshot).where(
-                PollenSnapshot.source_id == SOURCE_ID, PollenSnapshot.source_record_id.in_(ids)
+                PollenSnapshot.source_id == SOURCE_ID,
+                PollenSnapshot.geo_area_id == area_id,
+                PollenSnapshot.forecast_reference_time == reference,
             )
         ).scalars()
     }
     inserted = 0
+    incoming = set()
     for r in records:
+        incoming.add(r["source_record_id"])
         row = existing.get(r["source_record_id"])
         if row is None:
             db.add(PollenSnapshot(**r))
@@ -67,6 +74,9 @@ def _store_batch(records: list[dict], db: Session) -> int:
         else:
             for column, value in r.items():
                 setattr(row, column, value)
+    for record_id, row in existing.items():
+        if record_id not in incoming:
+            db.delete(row)
     try:
         db.commit()
     except IntegrityError:

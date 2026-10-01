@@ -96,6 +96,25 @@ def test_later_fetch_same_day_replaces_values_and_adds_new_hours(db_session, mon
     assert {r.fetched_at for r in rows[:HOURS]} == {rows[HOURS].fetched_at}
 
 
+def test_later_fetch_same_day_drops_hours_the_newer_payload_omits(db_session, monkeypatch):
+    area = _area(db_session)
+    other = _area(db_session, "warszawa")
+    _patch_fetch(monkeypatch, PAYLOAD)
+    ingest.ingest_geo_area(area, db_session)
+    ingest.ingest_geo_area(other, db_session)
+
+    shorter = deepcopy(PAYLOAD)
+    shorter["hourly"]["time"] = shorter["hourly"]["time"][:1]
+    for variable in VARS:
+        shorter["hourly"][variable] = shorter["hourly"][variable][:1]
+    _patch_fetch(monkeypatch, shorter)
+    assert ingest.ingest_geo_area(area, db_session) is True
+
+    mine = db_session.query(PollenSnapshot).filter_by(geo_area_id=area.id).count()
+    theirs = db_session.query(PollenSnapshot).filter_by(geo_area_id=other.id).count()
+    assert (mine, theirs) == (1, HOURS)  # other areas' rows untouched
+
+
 def test_fetch_failure_is_isolated(db_session, monkeypatch):
     area = _area(db_session)
     _patch_fetch(monkeypatch, client.OpenMeteoPollenApiError("boom"))
