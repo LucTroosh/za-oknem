@@ -157,9 +157,9 @@ def main() -> None:
             stations = client.fetch_stations()
             fetched_at = datetime.now(UTC)
             stored, rejected = ingest_snapshot(stations, db, fetched_at=fetched_at)
-            if not stations or rejected >= len(stations):  # same rule as the scheduler
+            if not stations or rejected:  # ADR-012, same rule as the scheduler
                 raise RuntimeError(
-                    f"IMGW hydro: no usable stations ({len(stations)}, {rejected} rejected)"
+                    f"IMGW hydro: incomplete snapshot ({rejected}/{len(stations)} rejected)"
                 )
         except Exception as exc:
             db.rollback()

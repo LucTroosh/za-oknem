@@ -101,10 +101,10 @@ def run_imgw_hydro() -> None:
         _stored, rejected = ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
-    # TASK-13.1: an empty answer or one where EVERY station failed to parse is a source
-    # outage (schema change), not a successful run; a few rejected stations still are.
-    if not stations or rejected >= len(stations):
-        raise RuntimeError(f"IMGW hydro: no usable stations ({len(stations)}, {rejected} rejected)")
+    # ADR-012: an empty answer or ANY rejected station is an incomplete snapshot - valid
+    # rows are stored, but the run is a failure, not a success (same as warnings).
+    if not stations or rejected:
+        raise RuntimeError(f"IMGW hydro: incomplete snapshot ({rejected}/{len(stations)} rejected)")
 
 
 def run_imgw_warningshydro() -> None:

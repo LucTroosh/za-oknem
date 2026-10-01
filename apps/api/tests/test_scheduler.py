@@ -145,7 +145,9 @@ class TestRunGios:
 
 
 class TestRunImgwHydro:
-    @pytest.mark.parametrize("stations,rejected", [([{"a": 1}, {"a": 2}], 2), ([], 0)])
+    @pytest.mark.parametrize(
+        "stations,rejected", [([{"a": 1}, {"a": 2}], 2), ([{"a": 1}, {"a": 2}], 1), ([], 0)]
+    )
     def test_no_usable_stations_raises(self, monkeypatch, db_session, stations, rejected):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setattr(
@@ -155,17 +157,8 @@ class TestRunImgwHydro:
             scheduler, "ingest_hydro_snapshot", MagicMock(return_value=(0, rejected))
         )
 
-        with pytest.raises(RuntimeError, match="no usable stations"):
+        with pytest.raises(RuntimeError, match="incomplete snapshot"):
             scheduler.run_imgw_hydro()
-
-    def test_some_rejected_stations_still_a_run(self, monkeypatch, db_session):
-        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
-        monkeypatch.setattr(
-            scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=[{}, {}])
-        )
-        monkeypatch.setattr(scheduler, "ingest_hydro_snapshot", MagicMock(return_value=(1, 1)))
-
-        scheduler.run_imgw_hydro()
 
     def test_ingests_whole_response_as_one_snapshot_no_gating(self, monkeypatch, db_session):
         # Unlike GIOS, no env var gate - one call already returns every station,
