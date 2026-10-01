@@ -103,8 +103,9 @@ wspólne rozszerzenie zmieszałoby dwa cykle w jednym jobie i jednym wierszu
   zero. API nigdy nie podstawia 0 za brak danych.
 - `unit` jak w payloadzie; `source_fetch_id` FK do `source_fetches` (ADR-014);
   unikalność `(source_id, source_record_id)`, gdzie id =
-  `geo_area:valid_at:forecast_reference_time` (idempotentny re-ingest w tej samej
-  dobie). Tabela append-only; przebiegi z kolejnych dni się nawarstwiają.
+  `geo_area:valid_at:forecast_reference_time` (re-ingest w tej samej dobie to
+  UPSERT: nowsze wartości, `fetched_at` i `source_fetch_id` zastępują starsze, więc
+  fetch po porannej aktualizacji CAMS poprawia wcześniejszy). Tabela append-only; przebiegi z kolejnych dni się nawarstwiają.
 - **Rozkład pobierania:** jedno żądanie na `geo_area` (współrzędne centroidu
   gminy, nigdy użytkownika) — ADR-001. 4 dni × 24 h = 96 wierszy na obszar na dobę.
   `# ponytail:` retencja starych przebiegów `pollen_snapshots` (kasowanie wierszy

@@ -42,26 +42,37 @@ UNITS_PER_CALL = 1
 
 
 def _store_batch(records: list[dict], db: Session) -> int:
-    """All-or-nothing insert of one geo_area's new hourly rows in a single commit, so
-    /pollen/latest never sees half of a forecast run. Deduped by source_record_id."""
+    """All-or-nothing upsert of one geo_area's hourly rows in a single commit, so
+    /pollen/latest never sees half of a forecast run. Keyed by source_record_id, whose
+    forecast_reference_time is bucketed to the UTC day: a second fetch the same day (e.g.
+    after the morning CAMS update, ADR-020) REPLACES the values, fetched_at and
+    source_fetch_id of the overlapping hours instead of keeping the older run's numbers
+    (ADR-014: a refreshed row points at the payload that produced it). Returns the
+    number of rows inserted (not updated)."""
     ids = [r["source_record_id"] for r in records]
-    existing = set(
-        db.execute(
-            select(PollenSnapshot.source_record_id).where(
+    existing = {
+        row.source_record_id: row
+        for row in db.execute(
+            select(PollenSnapshot).where(
                 PollenSnapshot.source_id == SOURCE_ID, PollenSnapshot.source_record_id.in_(ids)
             )
         ).scalars()
-    )
-    new = [PollenSnapshot(**r) for r in records if r["source_record_id"] not in existing]
-    if not new:
-        return 0
-    db.add_all(new)
+    }
+    inserted = 0
+    for r in records:
+        row = existing.get(r["source_record_id"])
+        if row is None:
+            db.add(PollenSnapshot(**r))
+            inserted += 1
+        else:
+            for column, value in r.items():
+                setattr(row, column, value)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()  # race with another run - the next cycle retries
         return 0
-    return len(new)
+    return inserted
 
 
 def ingest_geo_area(area: GeoArea, db: Session) -> bool:

@@ -3,6 +3,7 @@ budget counter, total-failure signalling, CLI. Payload is the docs-derived fixtu
 from the parser tests."""
 
 import sys
+from copy import deepcopy
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
@@ -73,6 +74,28 @@ def test_rerun_same_cycle_is_idempotent(db_session, monkeypatch):
     assert db_session.query(PollenSnapshot).count() == HOURS
 
 
+def test_later_fetch_same_day_replaces_values_and_adds_new_hours(db_session, monkeypatch):
+    """Codex: a fetch before the morning CAMS update followed by one after it lands on
+    the same UTC-day bucket - the newer numbers must win, not be discarded."""
+    area = _area(db_session)
+    _patch_fetch(monkeypatch, PAYLOAD)
+    ingest.ingest_geo_area(area, db_session)
+
+    updated = deepcopy(PAYLOAD)
+    updated["hourly"]["time"].append("2026-05-04T03:00")
+    for variable in VARS:
+        updated["hourly"][variable] = [*updated["hourly"][variable], 1.0]
+    updated["hourly"]["birch_pollen"][0] = 99.0
+    updated["hourly"]["grass_pollen"][0] = 7.0  # was null
+    _patch_fetch(monkeypatch, updated)
+    assert ingest.ingest_geo_area(area, db_session) is True
+
+    rows = db_session.query(PollenSnapshot).order_by(PollenSnapshot.valid_at).all()
+    assert len(rows) == HOURS + 1
+    assert rows[0].birch == 99.0 and rows[0].grass == 7.0
+    assert {r.fetched_at for r in rows[:HOURS]} == {rows[HOURS].fetched_at}
+
+
 def test_fetch_failure_is_isolated(db_session, monkeypatch):
     area = _area(db_session)
     _patch_fetch(monkeypatch, client.OpenMeteoPollenApiError("boom"))
@@ -111,15 +134,15 @@ class TestProvenance:
         assert fetch.validation_status == provenance.VALID
         assert {r.source_fetch_id for r in db_session.query(PollenSnapshot)} == {fetch.id}
 
-    def test_duplicate_run_keeps_the_original_link(self, db_session, monkeypatch):
+    def test_refetch_in_the_same_bucket_relinks_to_the_newer_payload(self, db_session, monkeypatch):
         area = _area(db_session)
         _patch_fetch(monkeypatch, PAYLOAD)
 
         ingest.ingest_geo_area(area, db_session)
         ingest.ingest_geo_area(area, db_session)
 
-        first = db_session.query(SourceFetch).order_by(SourceFetch.id).first()
-        assert {r.source_fetch_id for r in db_session.query(PollenSnapshot)} == {first.id}
+        newest = db_session.query(SourceFetch).order_by(SourceFetch.id.desc()).first()
+        assert {r.source_fetch_id for r in db_session.query(PollenSnapshot)} == {newest.id}
 
     def test_payload_survives_a_parser_crash_as_pending(self, db_session, monkeypatch):
         area = _area(db_session)
