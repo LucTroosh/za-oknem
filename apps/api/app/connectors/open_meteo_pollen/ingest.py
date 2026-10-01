@@ -45,7 +45,7 @@ def _utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)  # SQLite returns naive datetimes
 
 
-def _store_batch(records: list[dict], db: Session) -> int:
+def _store_batch(records: list[dict], db: Session, *, retry: bool = True) -> int:
     """All-or-nothing upsert of one geo_area's hourly rows in a single commit, so
     /pollen/latest never sees half of a forecast run. Keyed by source_record_id, whose
     forecast_reference_time is bucketed to the UTC day: a second fetch the same day (e.g.
@@ -93,8 +93,10 @@ def _store_batch(records: list[dict], db: Session) -> int:
     try:
         db.commit()
     except IntegrityError:
-        db.rollback()  # race with another run - the next cycle retries
-        return 0
+        db.rollback()  # first-insert race with another run (nothing was there to lock)
+        # One retry: now the other run's rows exist, so the lock + fetched_at guard decide
+        # which payload wins (the older one is dropped, the newer one replaces).
+        return _store_batch(records, db, retry=False) if retry else 0
     return inserted
 
 

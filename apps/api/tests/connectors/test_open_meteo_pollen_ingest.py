@@ -136,6 +136,40 @@ def test_older_fetch_does_not_overwrite_a_newer_one(db_session, monkeypatch):
     assert after == before
 
 
+def test_first_insert_race_is_retried_so_the_newer_payload_still_wins(db_session, monkeypatch):
+    """Both runs saw an empty bucket; the older one inserted first. The newer run hits
+    the unique constraint and must retry (and then replace), not silently drop."""
+    area = _area(db_session)
+    now = datetime.now(UTC)
+    older = ingest.normalize(
+        geo_area_id=area.id, payload=PAYLOAD, fetched_at=now - timedelta(minutes=5)
+    )
+    newer_payload = deepcopy(PAYLOAD)
+    newer_payload["hourly"]["birch_pollen"] = [50.0, 50.0, 50.0]
+    newer = ingest.normalize(geo_area_id=area.id, payload=newer_payload, fetched_at=now)
+
+    real_commit = db_session.commit
+    state = {"raced": False}
+
+    def _racing_commit():
+        if not state["raced"]:
+            state["raced"] = True
+            # the "other" run commits its rows just before ours
+            db_session.rollback()
+            db_session.add_all([PollenSnapshot(**r) for r in older])
+            real_commit()
+            real_commit_error = ingest.IntegrityError("race", None, Exception("unique"))
+            raise real_commit_error
+        real_commit()
+
+    monkeypatch.setattr(db_session, "commit", _racing_commit)
+    ingest._store_batch(newer, db_session)
+
+    rows = db_session.query(PollenSnapshot).all()
+    assert {r.birch for r in rows} == {50.0}
+    assert len(rows) == HOURS
+
+
 def test_fetch_failure_is_isolated(db_session, monkeypatch):
     area = _area(db_session)
     _patch_fetch(monkeypatch, client.OpenMeteoPollenApiError("boom"))
