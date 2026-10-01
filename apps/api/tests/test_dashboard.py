@@ -344,3 +344,147 @@ def test_dashboard_alerts_items_empty_when_no_alerts():
     client = _client([GeoArea(**KLODZKO)], [], [])
 
     assert client.get("/api/v1/dashboard/latest").json()["alerts"]["items"] == []
+
+
+# TASK-7.7 / ADR-016: `outdoor` per area, computed from the rows already loaded
+# (no extra query - the fake session queue would run dry otherwise).
+_GOOD_WEATHER = {
+    "temperature_2m": (15.0, "°C"),
+    "apparent_temperature": (14.0, "°C"),
+    "precipitation": (0.0, "mm"),
+    "wind_speed_10m": (10.0, "km/h"),
+    "wind_gusts_10m": (20.0, "km/h"),
+    "uv_index": (2.0, ""),
+    "visibility": (20000.0, "m"),
+}
+
+
+def _outdoor_weather(age_hours: dict | None = None, **overrides) -> list[WeatherSnapshot]:
+    now = datetime.now(UTC)
+    values = {**_GOOD_WEATHER, **overrides}
+    return [
+        _weather(
+            param_code=code,
+            value=value,
+            unit=unit,
+            observed_at=now - timedelta(hours=(age_hours or {}).get(code, 0)),
+            source_record_id=code,
+        )
+        for code, (value, unit) in values.items()
+    ]
+
+
+def _outdoor_air(**units) -> list[Measurement]:
+    return [
+        _station(param_code="PM2.5", value=8.0, unit=units.get("PM2.5", "µg/m³")),
+        _station(
+            param_code="PM10",
+            value=20.0,
+            unit=units.get("PM10", "µg/m³"),
+            source_record_id="rec-2",
+        ),
+    ]
+
+
+def _outdoor(stations, weather) -> dict:
+    client = _client([GeoArea(**KLODZKO)], stations, weather)
+    return client.get("/api/v1/dashboard/latest").json()["areas"][0]["outdoor"]
+
+
+def test_dashboard_outdoor_good_with_full_fresh_inputs():
+    outdoor = _outdoor(_outdoor_air(), _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
+    assert outdoor["reasons"] == []
+    assert outdoor["missing"] == []
+
+
+def test_dashboard_outdoor_valid_until_is_earliest_input_expiry():
+    # Codex (PR #68): a verdict judged from a 5h-old (RECENT, air bound 6h) reading is
+    # valid for about one more hour, not for a fixed hour after the response arrives.
+    now = datetime.now(UTC)
+    air = _outdoor_air()
+    for row in air:
+        row.observed_at = now - timedelta(hours=5)
+
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
+    valid_until = datetime.fromisoformat(outdoor["valid_until"])
+    assert now + timedelta(hours=1) <= valid_until <= datetime.now(UTC) + timedelta(hours=1)
+
+
+def test_dashboard_outdoor_valid_until_ignores_stale_inputs_and_is_null_without_any():
+    # A STALE input doesn't feed the verdict, so it can't set its expiry either.
+    outdoor = _outdoor([], _outdoor_weather(age_hours={"wind_speed_10m": 10}))
+    assert datetime.fromisoformat(outdoor["valid_until"]) > datetime.now(UTC)
+
+    assert _outdoor([], [])["valid_until"] is None
+
+
+def test_dashboard_outdoor_reason_payload_comes_verbatim_from_engine():
+    outdoor = _outdoor(_outdoor_air(), _outdoor_weather(precipitation=(3.0, "mm")))
+
+    assert outdoor["level"] == "POOR"
+    assert outdoor["reasons"] == [
+        {
+            "code": "PRECIPITATION",
+            "param": "precipitation",
+            "value": 3.0,
+            "threshold": 2.5,
+            "comparison": "gte",
+            "unit": "mm",
+            "level": "POOR",
+        }
+    ]
+
+
+def test_dashboard_outdoor_unit_mismatch_is_dropped_not_converted():
+    # A PM2.5 of 80 in a different unit must neither count as 80 ug/m3 (-> POOR) nor
+    # be converted by us: dropped, and with PM10 also off-unit the air group is
+    # unusable -> UNKNOWN + missing[].
+    air = _outdoor_air(**{"PM2.5": "mg/m³", "PM10": "mg/m³"})
+    air[0].value = 80.0
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "UNKNOWN"
+    assert outdoor["reasons"] == []
+    assert [m["group"] for m in outdoor["missing"]] == ["air"]
+    assert outdoor["missing"][0]["params"] == ["pm10", "pm25"]
+    assert outdoor["missing"][0]["blocking"] is True
+
+
+def test_dashboard_outdoor_one_pm_param_is_enough_but_absence_reported():
+    air = _outdoor_air(**{"PM10": "mg/m³"})
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
+    assert outdoor["missing"] == [
+        {"group": "air", "params": ["pm10"], "status": "MISSING", "core": True, "blocking": False}
+    ]
+
+
+def test_dashboard_outdoor_stale_input_is_not_used_and_blocks_good():
+    # Wind is 10h old -> STALE (8h weather bound): a calm-looking value must not
+    # produce a confident GOOD (rule #8).
+    outdoor = _outdoor(_outdoor_air(), _outdoor_weather(age_hours={"wind_speed_10m": 10}))
+
+    assert outdoor["level"] == "UNKNOWN"
+    wind = [m for m in outdoor["missing"] if m["group"] == "wind"]
+    assert wind == [
+        {
+            "group": "wind",
+            "params": ["wind_speed_10m"],
+            "status": "STALE",
+            "core": True,
+            "blocking": True,
+        }
+    ]
+
+
+def test_dashboard_outdoor_unknown_without_any_data():
+    outdoor = _outdoor([], [])
+
+    assert outdoor["level"] == "UNKNOWN"
+    assert outdoor["reasons"] == []
+    assert {m["group"] for m in outdoor["missing"]} >= {"air", "thermal", "wind", "precipitation"}

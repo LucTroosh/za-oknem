@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import OutdoorCard from "../components/OutdoorCard";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "./alerts";
 import { apiGet } from "./api";
 import { type ForecastDay, forecastLine } from "./forecast";
@@ -64,6 +65,8 @@ type DashboardArea = {
     freshness: Freshness;
     days: ForecastDay[];
   } | null;
+  // TASK-7.8: optional — absent on an older backend; the card renders nothing then.
+  outdoor?: unknown;
 };
 
 type LoadState = "loading" | "ready" | "error";
@@ -125,6 +128,8 @@ export default function Home() {
   const [areas, setAreas] = useState<DashboardArea[]>([]);
   const [alerts, setAlerts] = useState<AlertsBlock | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Device time of the last successful dashboard response (ages the outdoor verdict).
+  const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [hydroRefreshTick, setHydroRefreshTick] = useState(0);
 
   const load = useCallback(() => {
@@ -132,6 +137,7 @@ export default function Home() {
       .then((body) => {
         setAreas(body.areas);
         setAlerts(body.alerts);
+        setLoadedAt(Date.now());
         setState("ready");
       })
       .catch(() => setState("error"));
@@ -220,6 +226,7 @@ export default function Home() {
                 <Text style={styles.metric}>pogoda: brak danych</Text>
               )}
             </View>
+            <OutdoorCard outdoor={item.outdoor} receivedAt={loadedAt} />
             {item.forecast && forecastLine(item.forecast.days) && (
               <View>
                 <Text style={styles.metric}>

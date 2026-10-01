@@ -105,7 +105,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 3 — Data Architecture (dokończenie)
 
-- [ ] **TASK-3.1:** Raw ingestion / provenance (§33-34 Master Planu) — dziś
+- [x] **TASK-3.1** (PR #65, ADR-014; wszystkie 4 connectory, retencja 7/14/30 dni): Raw ingestion / provenance (§33-34 Master Planu) — dziś
       connectory zapisują tylko znormalizowane rekordy (`Measurement`/
       `WeatherSnapshot`/`Forecast`), nie ma modelu `source_fetches` ani
       przechowania surowego payloadu (potwierdzone: brak `source_fetch`/
@@ -136,7 +136,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       renderuje tylko PM2.5, więc bez zmiany endpointów/agregatu/UI nowe
       parametry trafią do bazy i nigdzie dalej. Rozszerzyć te trzy miejsca
       o pełną listę (TASK-4.2 dokłada indeks/agregat na tym samym zestawie).
-- [ ] **TASK-4.2:** Indeks jakości powietrza (AQI/CAQI wg metodologii GIOŚ) —
+- [ ] **TASK-4.2** (⛔ ZABLOKOWANE: brak zweryfikowanych progów GIOŚ i kształtu odpowiedzi `aqindex/getIndex`; ADR-015 Proposed w PR #63; odblokowanie: surowy JSON z żywego API albo tabela progów z oficjalnego obrazka GIOŚ): Indeks jakości powietrza (AQI/CAQI wg metodologii GIOŚ) —
       zależny od TASK-4.1 (part potrzebuje >1 parametru). Do ustalenia: czy
       liczymy indeks sami wg opublikowanej metodologii GIOŚ, czy GIOŚ
       publikuje gotowy indeks per stacja do odczytania wprost (rule #10:
@@ -283,7 +283,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bloków tym samym wzorcem, nie tylko `air`/`weather`; source-registry.md
       już wymaga widocznej atrybucji IMGW i Copernicus, więc to nie jest
       opcjonalne rozszerzenie.
-- [ ] **TASK-7.2** (część alertowa: PR #58 ✅; hydrologia na mobile — do zrobienia): **Korekta: `alerts` musi wejść do `dashboard_latest()`**
+- [x] **TASK-7.2** (alerty: PR #58; hydrologia na mobile: PR #62 — ogólnokrajowe WARNING/ALARM; geo-matching hydro zostaje w TASK-9.5): **Korekta: `alerts` musi wejść do `dashboard_latest()`**
       (§55 Master Planu wymienia `alerts` wprost w agregacie: location,
       alerts, air, weather, pollen, outdoor, water) — dziś `dashboard_latest()`
       ma tylko `air`+`weather`, poprzednia wersja tego tasku kazała mobile
@@ -315,7 +315,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       bez właściciela.
 - [ ] **TASK-7.3:** Stany stale/no-data w UI (obecnie tylko
       loading/error/ready) — §59/§80 Master Planu.
-- [ ] **TASK-7.4** (ostrzeżenia: PR #59 + ADR-012, w review): Source-level freshness (UNAVAILABLE: pusta lista =
+- [ ] **TASK-7.4** (zrobione: ostrzeżenia #59/#61 i hydro #62 wg ADR-012; zostaje `air`/`weather` w agregacie + stany UI → TASK-7.3): Source-level freshness (UNAVAILABLE: pusta lista =
       potwierdzone zero czy dawno nie było fetcha) — dotyczy `/air`,
       `/hydro`, `/alerts`, `/weather` razem. Wymaga własnego ADR-012
       (świadomy non-goal z ADR-009, teraz adresowany). **Korekta (Codex):**
@@ -336,7 +336,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       FRESH/RECENT/STALE/UNAVAILABLE), nie definiować freshness dla
       water/pollen od nowa ani po cichu pomijać rozróżnienia
       "potwierdzone zero".
-- [ ] **TASK-7.6:** Outdoor Interpretation Engine (§52 Master Planu) —
+- [x] **TASK-7.6** (PR #64, ADR-016; sam silnik — `outdoor` w agregacie to TASK-7.7, karta to TASK-7.8): Outdoor Interpretation Engine (§52 Master Planu) —
       deterministyczny, testowalny algorytm (temperatura + opady + wiatr +
       jakość powietrza + UV → GOOD/MODERATE/POOR + `reasons[]`); **nie LLM**
       (rule #10, §52/§53 explicité to zabraniają dla samej klasyfikacji).
