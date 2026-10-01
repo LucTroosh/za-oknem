@@ -241,6 +241,57 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
   `severity_raw` przechowywane bez reinterpretacji (rule #10)
 - **last_verified_at:** 2026-09-29
 
+## gis_bathing_sk (Serwis Kąpieliskowy GIS — bieżący status kąpielisk, BLOCKED)
+
+- **owner:** Główny Inspektorat Sanitarny (Polska, instytucja publiczna)
+- **connector:** brak (nie implementować — patrz ADR-021)
+- **endpoint:** `https://sk.gis.gov.pl/kapieliska` (lista HTML, ok. 718
+  kąpielisk), `https://sk.gis.gov.pl/index.php/kapielisko/{id}` (strona
+  kąpieliska: status wody, E. coli, enterokoki, daty badań, sezon) — sprawdzone
+  WebFetch 2026-10-01; to HTML renderowany serwerowo, nie udokumentowane API.
+- **frequency:** min. 3 badania w sezonie, odstęp maks. miesiąc (gov.pl GIS);
+  cykl odświeżania strony nieznany
+- **license / commercial_use / redistribution / rate_limit:** NIEZNANE — na
+  stronach kąpieliska ani `/informacje` nie znaleziono regulaminu ani licencji
+  (tekst portalu gov.pl jest CC BY-SA 4.0, ale to nie licencja danych serwisu)
+- **attribution:** do ustalenia z GIS
+- **status:** BLOCKED — brak zgody/warunków na automatyczne pobieranie
+  (rule #15); potrzebny kontakt z GIS
+- **last_verified_at:** 2026-10-01
+
+## eea_bathing_water (EEA — Bathing Water Directive, rejestr + klasyfikacja roczna)
+
+- **owner:** European Environment Agency (dane: organy państw członkowskich)
+- **connector:** brak (kandydat, niezaimplementowany)
+- **endpoint:** zbiór „Bathing Water Directive - Status of bathing water"
+  (EEA Datahub, Excel .xls/.xlsx, publikacja 2026-06-02, pokrycie do 2025);
+  usługa `https://marine.discomap.eea.europa.eu/arcgis/rest/services/BathingWater/BathingWater_Dyna_WM_2025/MapServer`
+  (docelowa, ale pola `_2025` NIE sprawdzone; poniższą listę pól zweryfikowano
+  na starszej `..._2018`, warstwa 0: `monitoringSiteIdentifier`, `bathingWaterName`, `countryName`,
+  `bwWaterCategory`, `latitude`, `longitude`, `qualityStatus`,
+  `qualityStatus_minus1..10`, `bwProfileLink`; JSON/geoJSON/PBF;
+  `maxRecordCount` 1000 — wg `_2018`) — sprawdzone WebFetch 2026-10-01
+- **frequency:** roczna (cykl raportowania Dyrektywy); NIE status bieżący
+- **coverage:** Europa, w tym Polska (filtr po kraju niezweryfikowany)
+- **license / commercial_use:** wydanie 2024 (rekord katalogu EEA
+  `30e5d599-6bc1-408d-9e65-a10e433b81ef`): CC BY 4.0, copyright DG ENV/EEA
+  (zweryfikowane 2026-10-01); wydanie 2025 — NIEZWERYFIKOWANE. ArcGIS ma
+  usługę per rok (`..._2015`…`_2025`) — aktualna to `_2025`, nie `_2018`. Copyright usługi: „EEA, Bathing waters
+  data and coordinates: Member states authorities"
+- **rate_limit:** nieznany
+- **attribution:** do ustalenia po potwierdzeniu licencji
+- **nie zawiera:** przydatności bieżącej, przyczyny zamknięcia, E. coli,
+  enterokoków, sinic, dat badań
+- **status:** DISCOVERY (kandydat na rejestr lokalizacji + klasyfikację roczną;
+  Gate niezaliczony — licencja wydania 2025, schemat pliku/pól `_2025` i filtr
+  po kraju niepotwierdzone)
+- **last_verified_at:** 2026-10-01
+
+## dane.gov.pl (kąpieliska) — NIEZWERYFIKOWANE
+
+Próba odczytu `api.dane.gov.pl` nie powiodła się (błąd uprawnień narzędzia),
+wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręcznie.
+
 ## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, ZABLOKOWANE na weryfikacji)
 
 - **connector:** `imgw_warningsmeteo` — CZĘŚCIOWY: `client.py` (fetch + retry)
