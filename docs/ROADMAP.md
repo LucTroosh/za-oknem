@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-09-30 (po PR #65)
+**Ostatnia aktualizacja:** 2026-10-01 (po PR #65; PR #63 w toku)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -31,7 +31,7 @@ Alerts/Settings/push/profilu).
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
 | PM2.5, PM10, NO2, SO2, O3, CO, C6H6 | ✅ DONE — GIOŚ, pełny zestaw parametrów MVP (TASK-4.1, PR #48), `GET /api/v1/air/latest`, w dashboardzie |
-| indeks jakości powietrza + indeksy cząstkowe | ⛔ BLOCKED — TASK-4.2: nie da się zweryfikować u źródła progów GIOŚ (na oficjalnych stronach tylko obrazek) ani kształtu `aqindex/getIndex` (żywe API niedostępne z tego środowiska). ADR-015 (Proposed, PR #63) rekomenduje odczyt gotowego indeksu GIOŚ; nie zgadujemy progów (rule #10/#15) |
+| indeks jakości powietrza + indeksy cząstkowe | ✅ DONE — **Europejski Indeks Jakości Powietrza (EAQI, EEA)**, nie natywny indeks GIOŚ: `app/air_index.py` (progi EEA zweryfikowane 2026-09-30, najgorszy z cząstkowych, minimalny zestaw, STALE/inna jednostka = brak), pole `index` w `/air/latest` i w bloku `air` dashboardu, mobile `AirIndexBadge` (TASK-4.2, ADR-015, PR #63). Opcja A (gotowy indeks GIOŚ `aqindex/getIndex`) pozostaje odłożona. Nasze decyzje poza specyfikacją EEA (granice dla wartości ułamkowych, typ stacji, polskie nazwy pasm) w ADR-015 |
 | Sensor.Community, CAMS Air (MVP+) | ⬜ TODO (poza MVP na razie) |
 
 ### 2.2. Pogoda (§5)
@@ -134,7 +134,6 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Blokada | Co odblokuje | Task |
 |---|---|---|
 | `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
-| Indeks jakości powietrza (AQI) | Surowy JSON z `https://api.gios.gov.pl/pjp-api/v1/rest/aqindex/getIndex/<id>` (opcja A) albo tabela progów GIOŚ przepisana z oficjalnego obrazka (opcja B) — API GIOŚ jest blokowane przez proxy środowiska agenta | TASK-4.2 (ADR-015, PR #63) |
 | Geo-matching alertów do lokalizacji | Decyzja o metodzie (statyczna mapa 7 lokalizacji→województwo, czy pełny Geo Engine z TERYT, §27, Phase 6) | brak (non-goal ADR-009) |
 
 ---
@@ -171,6 +170,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #62 | Hydrologia na mobile: „Stany wody — cała Polska” (WARNING/ALARM), `attribution` + `source_status` w `/hydro/latest`, CLI hydro zapisuje `source_status` (TASK-7.2) |
 | #64 | Outdoor Interpretation Engine (ADR-016, TASK-7.6) — czysty moduł, niepodłączony do API |
 | #65 | Provenance: `source_fetches` + `source_fetch_id`, retencja payloadów (ADR-014, TASK-3.1) |
+| #63 | Europejski indeks jakości powietrza EAQI/EEA (ADR-015, TASK-4.2): `air_index.py`, `index` w `/air/latest` i dashboardzie, mobile `AirIndexBadge`; indeks GIOŚ odłożony |
 
 ---
 

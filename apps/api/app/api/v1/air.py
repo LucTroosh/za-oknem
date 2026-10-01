@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.air_index import air_index
 from app.db import get_db
 from app.models import Measurement
 
@@ -37,12 +38,29 @@ class AirParam(BaseModel):
     freshness: Literal["FRESH", "RECENT", "STALE"]
 
 
+IndexLevel = Literal["GOOD", "FAIR", "MODERATE", "POOR", "VERY_POOR", "EXTREMELY_POOR"]
+
+
+class AirIndex(BaseModel):
+    """European AQI (app/air_index.py, ADR-015). `level` None = "no index" (never a
+    default GOOD); DERIVED, not a Measurement (rule #7)."""
+
+    level: IndexLevel | None
+    complete: bool
+    params: dict[str, IndexLevel]
+    dominant: list[str]
+    missing: dict[str, Literal["MISSING", "STALE", "UNIT", "INVALID"]]
+    valid_until: str | None
+
+
 class AirStation(BaseModel):
     station_id: str
     station_name: str
     latitude: float
     longitude: float
     params: dict[str, AirParam]
+    # Additive field: a client that ignores it keeps working.
+    index: AirIndex
     source: Literal["gios"]
 
 
@@ -103,4 +121,6 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
             "freshness": freshness(row.observed_at),
         }
 
+    for station in stations.values():
+        station["index"] = air_index(station["params"], RECENT_MAX_AGE)
     return {"stations": list(stations.values())}
