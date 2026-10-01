@@ -85,9 +85,15 @@ jobs:
       - name: Show regenerated OpenAPI (when the committed one is stale)
         if: failure()
         run: |
-          # Artifacts/logs are not always reachable - one annotation with the new file,
-          # gzip+base64 (decode: echo <text> | base64 -d | gunzip > openapi.json).
-          [ -f /tmp/openapi.generated.json ] && echo "::warning title=openapi-gz::$(gzip -9 -c /tmp/openapi.generated.json | base64 -w0)" || true
+          # Artifacts/logs are not always reachable - annotations are (4 KB each, so chunked):
+          # gzip+base64, reassemble in order: cat chunks | base64 -d | gunzip > openapi.json
+          [ -f /tmp/openapi.generated.json ] || exit 0
+          gzip -9 -c /tmp/openapi.generated.json | base64 -w0 | fold -w 3500 > /tmp/openapi.b64
+          n=0
+          while IFS= read -r line; do
+            n=$((n + 1))
+            echo "::warning title=openapi-gz-$(printf %02d $n)::$line"
+          done < /tmp/openapi.b64
 
   mobile:
     runs-on: ubuntu-latest
