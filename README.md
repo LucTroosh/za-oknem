@@ -35,8 +35,10 @@ ingestu dla stacji w pobliżu.
 `GIOS_STATION_IDS=38,42` (Twoje stacje, przecinkami) w `.env`, potem
 `docker compose up scheduler` — pętla sama woła `open_meteo` co 3h, `gios` co 1h,
 `imgw_hydro` co 1h i `imgw_warningshydro` co 1h (wszystkie stacje/ostrzeżenia, bez
-konfiguracji), bez ręcznego CLI. Puste `GIOS_STATION_IDS` = scheduler pomija GIOŚ
-(jawnie loguje, nie zgaduje stacji).
+konfiguracji), bez ręcznego CLI. Ustawione `GIOS_STATION_IDS` = override: dokładnie te
+stacje. Puste = scheduler sam wybiera dla każdego aktywnego obszaru najbliższą stację
+GIOŚ w promieniu 50 km z katalogu zapisanego w bazie (odświeżanego raz na dobę, ADR-024);
+brak obszarów albo stacji w zasięgu = GIOŚ pominięty (jawnie loguje).
 
 ```bash
 cd apps/mobile

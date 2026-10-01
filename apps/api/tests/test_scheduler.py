@@ -157,14 +157,78 @@ class TestRunOpenMeteoPollen:
 
 
 class TestRunGios:
-    def test_skips_when_no_station_ids_configured(self, monkeypatch):
+    def test_skips_when_no_station_ids_and_no_assignment(self, monkeypatch, db_session):
         monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        _make_area(db_session)
         find_stations_mock = MagicMock()
         monkeypatch.setattr(scheduler.gios_client, "find_stations", find_stations_mock)
+        monkeypatch.setattr(scheduler, "ensure_catalog", MagicMock())  # catalog stays empty
 
-        scheduler.run_gios()
+        assert scheduler.run_gios() is False
 
         find_stations_mock.assert_not_called()
+
+    def test_without_env_polls_stations_assigned_to_active_areas(self, monkeypatch, db_session):
+        from app.models import GiosStation
+
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        _make_area(db_session, "klodzko")  # 50.43, 16.65
+        now = datetime.now(UTC)
+        for sid, lat, lon in (("38", 50.433, 16.654), ("114", 52.23, 21.01)):
+            raw = {"Identyfikator stacji": int(sid)}
+            db_session.add(
+                GiosStation(
+                    station_id=sid,
+                    station_name="s",
+                    latitude=lat,
+                    longitude=lon,
+                    raw=raw,
+                    fetched_at=now,
+                )
+            )
+        db_session.commit()
+        find = MagicMock()
+        monkeypatch.setattr(scheduler.gios_client, "find_stations", find)
+        ingest_mock = MagicMock(return_value=1)
+        monkeypatch.setattr(scheduler, "ingest_station", ingest_mock)
+
+        assert scheduler.run_gios() is True
+
+        find.assert_not_called()  # no catalog walk: the cached catalog is used
+        ingest_mock.assert_called_once()
+        assert ingest_mock.call_args.args[0] == {"Identyfikator stacji": 38}
+
+    def test_env_override_beats_assignment_and_skips_catalog(self, monkeypatch, db_session):
+        monkeypatch.setenv("GIOS_STATION_IDS", "38")
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        _make_area(db_session)
+        ensure = MagicMock()
+        monkeypatch.setattr(scheduler, "ensure_catalog", ensure)
+        monkeypatch.setattr(
+            scheduler.gios_client,
+            "find_stations",
+            MagicMock(return_value=[{"Identyfikator stacji": 38}]),
+        )
+        monkeypatch.setattr(scheduler, "ingest_station", MagicMock(return_value=1))
+
+        assert scheduler.run_gios() is True
+
+        ensure.assert_not_called()
+
+    def test_catalog_failure_without_cache_raises(self, monkeypatch, db_session):
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        _make_area(db_session)
+        monkeypatch.setattr(
+            scheduler,
+            "ensure_catalog",
+            MagicMock(side_effect=scheduler.gios_client.GiosApiError("403")),
+        )
+
+        with pytest.raises(scheduler.gios_client.GiosApiError):
+            scheduler.run_gios()  # _run_job_safely records it as a failed run
 
     def test_no_matching_station_raises_so_it_is_not_recorded_as_success(
         self, monkeypatch, db_session
@@ -478,10 +542,11 @@ class TestSourceStatusRecording:
             "imgw_warningshydro", success=False, error="RuntimeError: IMGW down"
         )
 
-    def test_skipped_job_records_nothing(self, monkeypatch):
+    def test_skipped_job_records_nothing(self, monkeypatch, db_session):
         record = MagicMock()
         monkeypatch.setattr(scheduler, "_record_run", record)
         monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
 
         scheduler._run_job_safely("gios", scheduler.run_gios)
 

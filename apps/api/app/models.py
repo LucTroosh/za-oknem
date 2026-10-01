@@ -131,6 +131,27 @@ class GeoArea(Base):
     )
 
 
+class GiosStation(Base):
+    """Cached GIOŚ station catalog (`/station/findAll`, ADR-024): the station as an
+    entity, so area -> station assignment and polling never need a catalog walk on the
+    hot path. `raw` is the station dict exactly as GIOŚ returned it (what
+    `ingest_station` consumes); `fetched_at` + `source_fetch_id` are its provenance."""
+
+    __tablename__ = "gios_stations"
+    __table_args__ = (UniqueConstraint("station_id", name="uq_gios_station_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    station_id: Mapped[str] = mapped_column(String(50))
+    station_name: Mapped[str] = mapped_column(String(200))
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
+
+
 class WeatherSnapshot(Base):
     """One normalized weather reading for a geo_area (ADR-001 option C).
 

@@ -209,6 +209,11 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   domyślnie 20 pozycji/strona. Connector przepisany pod realny kształt (`client.py`,
   `parser.py`) po tej weryfikacji; `find_stations()` w kliencie celowo unika
   przechodzenia całej (rate-limited) listy stron przy szukaniu znanego ID stacji.
+- **adnotacja 2026-10-01 (ADR-024):** katalog stacji (`/station/findAll`) jest cache'owany w
+  tabeli `gios_stations` i odświeżany najwyżej raz na dobę (tabela pusta lub starsza niż 24 h);
+  polling godzinowy dotyczy stacji przypisanych do aktywnych obszarów (nearest ≤ 50 km) albo
+  `GIOS_STATION_IDS` (override). Pola rejestru bez zmian; kształt `findAll` niezweryfikowany
+  ponownie na żywo (403 ze środowiska budowy).
 - **last_verified_at:** 2026-09-28
 
 ## eea_eaqi (Europejski Indeks Jakości Powietrza — METODOLOGIA, nie feed)

@@ -17,7 +17,7 @@ from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
-from app.geo import haversine_km
+from app.geo import select_stations
 from app.models import GeoArea, Measurement, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
 from app.source_status import source_freshness
@@ -25,10 +25,6 @@ from app.source_status import source_freshness
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# ADR-006: nearest-station join threshold - deliberately conservative so we never
-# fake a match between locations that aren't actually close together.
-MAX_MATCH_DISTANCE_KM = 50.0
 
 # TASK-7.1: source transparency (Master Plan Principle 2) - attribution text is
 # copied verbatim from docs/data/source-registry.md, not reworded here. Only two
@@ -120,16 +116,22 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     areas_out = []
     for area in areas:
-        nearest, nearest_km = None, None
-        for station in stations_list:
-            km = haversine_km(
-                area.latitude, area.longitude, station["latitude"], station["longitude"]
-            )
-            if nearest_km is None or km < nearest_km:
-                nearest, nearest_km = station, km
+        # ADR-006/ADR-024: deterministic nearest station within MAX_MATCH_DISTANCE_KM
+        # (geo.select_stations); none in range = no air block, never a farther fallback.
+        match = next(
+            iter(
+                select_stations(
+                    area.latitude,
+                    area.longitude,
+                    [(s["station_id"], s["latitude"], s["longitude"]) for s in stations_list],
+                )
+            ),
+            None,
+        )
 
         air = None
-        if nearest is not None and nearest_km is not None and nearest_km <= MAX_MATCH_DISTANCE_KM:
+        if match is not None:
+            nearest = stations[match.station_id]
             # source+observed_at+freshness together, not source alone (Principle 2 /
             # TASK-7.1) - observed_at here is the latest across this station's params,
             # same aggregation weather already does below.
@@ -143,7 +145,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 "params": nearest["params"],
                 # ADR-015: EAQI from the params already loaded (no extra query, rule #14).
                 "index": air_index(nearest["params"], air_recent_max_age),
-                "distance_km": round(nearest_km, 1),
+                "distance_km": round(match.distance_km, 1),
+                "assignment_method": match.method,
             }
 
         params = weather_by_area.get(area.id, [])

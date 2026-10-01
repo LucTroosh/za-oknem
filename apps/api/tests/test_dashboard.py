@@ -668,3 +668,32 @@ def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch
     monkeypatch.setattr("app.api.v1.dashboard.pollen_block", once)
     client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
     _assert_pollen_degraded_rest_intact(client, caplog)
+
+
+def test_dashboard_air_has_assignment_provenance():
+    # ADR-024: station id + distance + method tell where the area's air data comes from.
+    near = _station(station_id="38", latitude=50.45, longitude=16.66)
+    client = _client([GeoArea(**KLODZKO)], [near], [])
+
+    air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+
+    assert air["station_id"] == "38"
+    assert air["assignment_method"] == "nearest_station"
+    assert 0 < air["distance_km"] < 5
+
+
+def test_dashboard_tie_between_stations_picks_lowest_id_regardless_of_row_order():
+    a = _station(station_id="10", source_record_id="a", latitude=50.5, longitude=16.7)
+    b = _station(station_id="9", source_record_id="b", latitude=50.5, longitude=16.7)
+
+    for rows in ([a, b], [b, a]):
+        client = _client([GeoArea(**KLODZKO)], rows, [])
+        air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+        assert air["station_id"] == "9"
+
+
+def test_dashboard_station_just_beyond_limit_is_not_assigned():
+    # ~55 km north of Kłodzko: the only station exists, but past MAX_MATCH_DISTANCE_KM.
+    client = _client([GeoArea(**KLODZKO)], [_station(latitude=50.93)], [])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None

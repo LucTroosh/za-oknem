@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
+from app.connectors.gios.discovery import assigned_station_ids, ensure_catalog, stations_by_id
 from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
@@ -88,14 +89,26 @@ def run_open_meteo_pollen() -> bool:
 
 def run_gios() -> bool:
     station_ids = _gios_station_ids()
-    if not station_ids:
-        logger.info("GIOS_STATION_IDS not set - skipping scheduled GIOS ingest")
-        return False  # skipped, not a successful fetch (ADR-012)
     db = SessionLocal()
     errors: list[str] = []
     try:
-        wanted = set(station_ids)
-        stations = gios_client.find_stations(wanted)
+        if station_ids:
+            # GIOS_STATION_IDS = explicit override (ADR-007): exactly these stations.
+            wanted = set(station_ids)
+            stations = gios_client.find_stations(wanted)
+        else:
+            # ADR-024: stations derived from the actively polled areas (nearest within the
+            # distance limit) via the cached catalog, refreshed at most daily.
+            if not polling_areas(db):  # nothing to serve: no catalog walk either
+                logger.info("no areas with active polling - skipping GIOS ingest")
+                return False
+            ensure_catalog(db)
+            ids = assigned_station_ids(db)
+            if not ids:
+                logger.info("no GIOS station assigned to any polling area - skipping GIOS ingest")
+                return False  # skipped, not a successful fetch (ADR-012)
+            wanted = set(ids)
+            stations = stations_by_id(db, ids)
         failed = sum(ingest_station(station, db, errors) is None for station in stations)
     finally:
         db.close()
