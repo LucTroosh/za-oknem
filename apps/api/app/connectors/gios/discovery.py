@@ -34,7 +34,10 @@ _last_failed_refresh: datetime | None = None
 
 def _parse(station: dict) -> tuple[str, str, float, float]:
     try:
-        sid = str(station["Identyfikator stacji"])
+        raw_id = station["Identyfikator stacji"]
+        if raw_id is None or not str(raw_id).strip() or isinstance(raw_id, bool):
+            raise ValueError("empty station id")
+        sid = str(raw_id).strip()
         name = str(station["Nazwa stacji"])
         lat, lon = float(station["WGS84 φ N"]), float(station["WGS84 λ E"])
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
@@ -142,13 +145,26 @@ def stations_by_id(db: Session, ids: list[str]) -> list[dict]:
     return [rows[i] for i in ids if i in rows]
 
 
-def current_station_ids(db: Session) -> set[str] | None:
-    """Stations the API may assign: the live catalog plus the GIOS_STATION_IDS override.
-    None = no catalog yet (legacy/env-only setup) -> no filtering. Keeps a station GIOŚ
-    dropped from the catalog (its old measurements stay in the DB) from being assigned
-    forever while the scheduler already polls its replacement."""
-    ids = set(db.execute(select(GiosStation.station_id)).scalars().all())
-    return ids | set(gios_station_ids()) if ids else None
+def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[str, float, float]]:
+    """(id, lat, lon) points the API may assign, from `stations` (id -> row with latitude/
+    longitude, i.e. the ones that have measurements). Once a catalog exists it is the
+    authority: only catalog stations qualify, at their CATALOG coordinates (the ones polling
+    assignment used), plus stations named in the GIOS_STATION_IDS override at their
+    measured coordinates. A station GIOŚ dropped from the catalog is therefore never
+    assigned on the strength of its old measurements. No catalog yet = legacy setup:
+    measured coordinates, no filtering."""
+    catalog = {
+        r.station_id: (r.latitude, r.longitude)
+        for r in db.execute(select(GiosStation)).scalars().all()
+    }
+    override = set(gios_station_ids())
+    points: list[tuple[str, float, float]] = []
+    for sid, s in stations.items():
+        if sid in catalog:
+            points.append((sid, *catalog[sid]))
+        elif not catalog or sid in override:
+            points.append((sid, s["latitude"], s["longitude"]))
+    return points
 
 
 def polling_expected(db: Session) -> bool:

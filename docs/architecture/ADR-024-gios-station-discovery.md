@@ -56,8 +56,9 @@ Opcja **B**.
   `station_id`, `distance_km`); `GET /air/latest?geo_area_id=N` zwraca tylko przypisaną stację
   z `distance_km` + `assignment_method` (brak stacji = `[]`, nieznany obszar = 404; bez
   parametru odpowiedź bez zmian). API wybiera spośród stacji, które mają pomiary, tą samą regułą,
-  ale tylko spośród aktualnego katalogu (+ ewentualny override env), o ile katalog już istnieje —
-  stacja usunięta z katalogu przez GIOŚ nie zostaje przypisana na zawsze przez stare pomiary.
+  ale gdy katalog już istnieje, jest autorytetem: tylko stacje z katalogu, według współrzędnych
+  z katalogu (tych, których używa polling), plus stacje z override env według współrzędnych
+  pomiarów. Stacja usunięta z katalogu nie zostaje przypisana na zawsze przez stare pomiary.
 - **source_health:** `gios` jest „monitored”, gdy jest env, istnieje przypisanie albo (pusty katalog)
   istnieje aktywny obszar — nieudane pierwsze odkrycie ma być widoczne, nie wyglądać na wyłączone źródło.
 

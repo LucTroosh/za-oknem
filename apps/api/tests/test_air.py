@@ -414,10 +414,23 @@ def test_air_latest_without_area_keeps_old_contract():
     assert "distance_km" not in stations[0] and "assignment_method" not in stations[0]
 
 
+def _cat(sid, lat, lon):
+    from app.models import GiosStation
+
+    return GiosStation(
+        station_id=sid,
+        station_name="s",
+        latitude=lat,
+        longitude=lon,
+        raw={},
+        fetched_at=datetime.now(UTC),
+    )
+
+
 def test_air_latest_for_area_skips_station_dropped_from_catalog():
     retired = _measurement(station_id="38", latitude=50.43, longitude=16.65)
     live = _measurement(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
-    client = _client_for_area([retired, live], {1: _area()}, catalog=["40"])
+    client = _client_for_area([retired, live], {1: _area()}, catalog=[_cat("40", 50.5, 16.7)])
 
     stations = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
 

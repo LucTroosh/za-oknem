@@ -702,13 +702,48 @@ def test_dashboard_station_just_beyond_limit_is_not_assigned():
     assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
 
 
+def _cat(sid, lat, lon):
+    from app.models import GiosStation
+
+    return GiosStation(
+        station_id=sid,
+        station_name="s",
+        latitude=lat,
+        longitude=lon,
+        raw={},
+        fetched_at=datetime.now(UTC),
+    )
+
+
 def test_dashboard_never_assigns_a_station_dropped_from_the_catalog():
     # Station 38 is nearest but no longer in the GIOŚ catalog (its old measurements stay):
     # the area must use the live catalog station 40, not the retired one.
     retired = _station(station_id="38", source_record_id="a")
     live = _station(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
-    client = _client([GeoArea(**KLODZKO)], [retired, live], [], catalog=["40", "41"])
+    client = _client(
+        [GeoArea(**KLODZKO)],
+        [retired, live],
+        [],
+        catalog=[_cat("40", 50.5, 16.7), _cat("41", 50.9, 16.7)],
+    )
 
     air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
 
     assert air["station_id"] == "40"
+
+
+def test_dashboard_uses_catalog_coordinates_not_the_stale_measured_ones():
+    # Measurements still carry the old position (50.43, 16.65 = on top of the area); the
+    # catalog says the station moved ~60 km away -> out of range, same as polling decides.
+    moved = _station(station_id="38")
+    client = _client([GeoArea(**KLODZKO)], [moved], [], catalog=[_cat("38", 50.97, 16.65)])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
+
+
+def test_dashboard_env_override_station_outside_catalog_keeps_measured_coordinates(monkeypatch):
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+    only_env = _station(station_id="38")
+    client = _client([GeoArea(**KLODZKO)], [only_env], [], catalog=[_cat("40", 52.0, 21.0)])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]["station_id"] == "38"

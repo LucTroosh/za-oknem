@@ -15,7 +15,7 @@ from app.api.v1.pollen import latest_pollen, pollen_block
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
 from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
-from app.connectors.gios.discovery import current_station_ids
+from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import select_stations
@@ -96,10 +96,8 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
             "observed_at": row.observed_at.isoformat(),
             "freshness": air_freshness(row.observed_at),
         }
-    allowed = current_station_ids(db)  # ADR-024: never assign a station dropped by GIOŚ
-    if allowed is not None:
-        stations = {k: v for k, v in stations.items() if k in allowed}
-    stations_list = list(stations.values())
+    # ADR-024: catalog is the authority for who may be assigned and where they are.
+    points = assignment_candidates(db, stations)
 
     weather_stmt = (
         select(WeatherSnapshot)
@@ -123,13 +121,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
         # ADR-006/ADR-024: deterministic nearest station within MAX_MATCH_DISTANCE_KM
         # (geo.select_stations); none in range = no air block, never a farther fallback.
         match = next(
-            iter(
-                select_stations(
-                    area.latitude,
-                    area.longitude,
-                    [(s["station_id"], s["latitude"], s["longitude"]) for s in stations_list],
-                )
-            ),
+            iter(select_stations(area.latitude, area.longitude, points)),
             None,
         )
 

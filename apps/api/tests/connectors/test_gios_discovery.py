@@ -160,15 +160,34 @@ def test_stations_by_id_returns_raw_dicts_in_requested_order(monkeypatch, db_ses
     assert [s["Identyfikator stacji"] for s in got] == [114, 38]
 
 
-def test_current_station_ids_is_catalog_plus_env_or_none_without_catalog(monkeypatch, db_session):
+def test_assignment_candidates_use_catalog_coordinates_and_drop_unlisted(monkeypatch, db_session):
     monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
-    assert discovery.current_station_ids(db_session) is None  # no catalog -> no filtering
+    measured = {sid: {"latitude": 1.0, "longitude": 2.0} for sid in ("38", "114", "gone", "env")}
+    legacy = discovery.assignment_candidates(db_session, measured)
+    assert len(legacy) == 4 and ("gone", 1.0, 2.0) in legacy  # no catalog -> no filtering
 
     _fetch(monkeypatch, CATALOG)
     discovery.discover_stations(db_session)
-    monkeypatch.setenv("GIOS_STATION_IDS", "999")
+    monkeypatch.setenv("GIOS_STATION_IDS", "env")
 
-    assert discovery.current_station_ids(db_session) == {"38", "114", "7", "999"}
+    got = discovery.assignment_candidates(db_session, measured)
+
+    assert sorted(got) == [
+        ("114", 52.2297, 21.0122),  # catalog coordinates, not the measured 1.0/2.0
+        ("38", 50.433493, 16.65366),
+        ("env", 1.0, 2.0),  # explicit override outside the catalog keeps measured coords
+    ]
+
+
+@pytest.mark.parametrize("bad_id", [None, "", "  ", True])
+def test_discover_rejects_null_or_empty_station_id(monkeypatch, db_session, bad_id):
+    _fetch(
+        monkeypatch, [{**_st(1, 50.0, 16.0), "Identyfikator stacji": bad_id}, _st(38, 50.4, 16.6)]
+    )
+
+    assert discovery.discover_stations(db_session) == 1
+
+    assert [r.station_id for r in db_session.query(GiosStation)] == ["38"]
 
 
 def test_polling_expected_covers_env_assignment_and_empty_catalog_bootstrap(
