@@ -31,10 +31,11 @@ from app.main import app
 from app.models import GeoArea
 
 
-def _both(client) -> tuple[dict, dict]:
+def _both(client, geo_area_id: int | None = None) -> tuple[dict, dict]:
     """(raw dict from the endpoint function, JSON body served over HTTP)."""
-    raw = dashboard_latest(next(app.dependency_overrides[get_db]()))
-    resp = client.get("/api/v1/dashboard/latest")
+    raw = dashboard_latest(geo_area_id, db=next(app.dependency_overrides[get_db]()))
+    query = "" if geo_area_id is None else f"?geo_area_id={geo_area_id}"
+    resp = client.get(f"/api/v1/dashboard/latest{query}")
     assert resp.status_code == 200
     return jsonable_encoder(raw), resp.json()
 
@@ -136,6 +137,7 @@ def test_openapi_documents_every_dashboard_block():
     area = comps["DashboardArea"]
     expected = {"geo_area_id", "slug", "name", "latitude", "longitude"}
     expected |= {"air", "weather", "forecast", "outdoor", "pollen", "local_alerts"}
+    expected |= {"weather_polling_active"}  # TASK-6.2(8): "no data" vs "source broken"
     assert set(area["properties"]) == expected
     assert set(area["required"]) == expected  # null = "no data", never an absent key
     assert set(comps["DashboardAlerts"]["properties"]) == {
@@ -147,6 +149,32 @@ def test_openapi_documents_every_dashboard_block():
     }
     # UNAVAILABLE must stay representable for a failed pollen block (rule #1).
     assert "UNAVAILABLE" in comps["DashboardPollen"]["properties"]["freshness"]["enum"]
+
+
+def test_narrowed_body_equals_endpoint_dict_also_for_an_inactive_area():
+    gmina = GeoArea(**{**KLODZKO, "id": 7, "slug": "x", "weather_polling_active": False})
+    raw, body = _both(_client([], [], [], lookup=[gmina]), geo_area_id=7)
+    assert body == raw
+    assert body["areas"][0]["weather_polling_active"] is False
+
+
+def test_openapi_documents_area_selection_endpoints():
+    schema = app.openapi()
+    paths, comps = schema["paths"], schema["components"]["schemas"]
+    params = paths["/api/v1/dashboard/latest"]["get"]["parameters"]
+    assert [(p["name"], p["required"]) for p in params] == [("geo_area_id", False)]
+    ref = lambda path, verb: paths[path][verb]["responses"]["200"]["content"][  # noqa: E731
+        "application/json"
+    ]["schema"]["$ref"]
+    assert ref("/api/v1/areas", "get") == "#/components/schemas/AreasResponse"
+    assert ref("/api/v1/geo/locate", "post") == "#/components/schemas/GeoLocateResponse"
+    assert set(comps["AreaOut"]["required"]) == {
+        "geo_area_id", "slug", "name", "teryt_code", "latitude", "longitude",
+        "weather_polling_active",
+    }  # fmt: skip
+    assert set(comps["GeoLocateResponse"]["required"]) == {
+        "status", "area", "assignment_method", "distance_km",
+    }  # fmt: skip
 
 
 @pytest.mark.parametrize("name", ["DashboardAir", "DashboardWeather", "DashboardForecast"])

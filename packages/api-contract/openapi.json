@@ -418,6 +418,72 @@
         "title": "AlertsLatestResponse",
         "type": "object"
       },
+      "AreaOut": {
+        "properties": {
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "teryt_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teryt Code"
+          },
+          "weather_polling_active": {
+            "title": "Weather Polling Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "slug",
+          "name",
+          "teryt_code",
+          "latitude",
+          "longitude",
+          "weather_polling_active"
+        ],
+        "title": "AreaOut",
+        "type": "object"
+      },
+      "AreasResponse": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOut"
+            },
+            "title": "Areas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "areas"
+        ],
+        "title": "AreasResponse",
+        "type": "object"
+      },
       "DailyBudgetOut": {
         "properties": {
           "limit": {
@@ -605,6 +671,10 @@
                 "type": "null"
               }
             ]
+          },
+          "weather_polling_active": {
+            "title": "Weather Polling Active",
+            "type": "boolean"
           }
         },
         "required": [
@@ -613,6 +683,7 @@
           "name",
           "latitude",
           "longitude",
+          "weather_polling_active",
           "air",
           "weather",
           "forecast",
@@ -1230,6 +1301,62 @@
           "params"
         ],
         "title": "ForecastDay",
+        "type": "object"
+      },
+      "GeoLocateResponse": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignment_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "point_in_polygon",
+                  "nearest_area"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Method"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "status": {
+            "enum": [
+              "resolved",
+              "out_of_range"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "area",
+          "assignment_method",
+          "distance_km"
+        ],
+        "title": "GeoLocateResponse",
         "type": "object"
       },
       "GeoResolveRequest": {
@@ -2293,6 +2420,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -2340,6 +2469,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -2375,10 +2506,83 @@
         "summary": "Latest Alerts"
       }
     },
+    "/api/v1/areas": {
+      "get": {
+        "description": "Areas the app can show, for picking a city from a list (TASK-6.2(8), ADR-026).\nDefault = actively polled areas only (what `/dashboard/latest` lists without a\nparameter); `active_only=false` adds imported gminas nobody polls.\nponytail: `limit` only bounds the response (~2.5k gminas fit); search/pagination is\nTASK-12.2's picker. The list changes rarely, so clients/CDN may cache it 5 min.",
+        "operationId": "list_areas_api_v1_areas_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 3000,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreasResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Areas"
+      }
+    },
     "/api/v1/dashboard/latest": {
       "get": {
-        "description": "Combined per-location view: weather (per geo_area, always) + nearest GIOŚ\nstation's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006\nnearest-station join, not a general geo engine). Reads only from our own DB\n(rule #14); the join happens in Python - three small independent result sets,\nnot worth a cross-table SQL join.\n\nTASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/\nSO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.",
+        "description": "Combined per-location view: weather (per geo_area, always) + nearest GIOŚ\nstation's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006\nnearest-station join, not a general geo engine). Reads only from our own DB\n(rule #14); the join happens in Python - three small independent result sets,\nnot worth a cross-table SQL join.\n\nTASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/\nSO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.\n\nTASK-6.2(8) / ADR-026: `?geo_area_id=N` narrows `areas` to that one area (any known\narea, also one without active polling - it then carries `weather_polling_active=false`\nand empty blocks instead of vanishing); unknown id = 404. Without it: the actively\npolled areas, as before (imported gminas must not fan out into ~2.5k areas).",
         "operationId": "dashboard_latest_api_v1_dashboard_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geo Area Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2389,6 +2593,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Dashboard Latest"
@@ -2511,6 +2725,45 @@
           }
         },
         "summary": "Unregister Device"
+      }
+    },
+    "/api/v1/geo/locate": {
+      "post": {
+        "description": "lat/lon -> the area to open the dashboard for (TASK-6.2(8), ADR-026).\n\n1. point-in-polygon gmina (ADR-019) - also when it has no active polling (the\n   dashboard then says \"no data here\"; the client may activate it, TASK-12.2);\n2. only when NO gmina covers the point (outside Poland / boundaries not imported):\n   nearest ACTIVE area within NEAREST_AREA_MAX_KM, disclosed as `nearest_area`;\n3. else `out_of_range`.\nPOST body, nothing logged/stored/echoed (ADR-002, like /geo/resolve).",
+        "operationId": "geo_locate_api_v1_geo_locate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeoResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoLocateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Geo Locate"
       }
     },
     "/api/v1/geo/resolve": {

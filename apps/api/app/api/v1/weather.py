@@ -158,17 +158,21 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
     return {"areas": areas}
 
 
-def forecasts_by_area(db: Session) -> dict[int, dict]:
+def forecasts_by_area(db: Session, geo_area_id: int | None = None) -> dict[int, dict]:
     """Latest non-expired forecast per geo_area: {geo_area_id: {model, fetched_at,
     freshness, days}}. Shared by /weather/forecast and /dashboard/latest (TASK-5.5)
     so both present the same prediction. `forecasts` is append-only (ADR-010) -
     several ingest runs can each hold a prediction for the same future day, so
     this picks the freshest one per (geo_area, day, param) via ORDER BY
-    forecast_reference_time DESC. Only days that haven't passed yet."""
+    forecast_reference_time DESC. Only days that haven't passed yet. `geo_area_id`
+    narrows the read to one area (TASK-6.2(8))."""
     now = datetime.now(UTC)
+    where = [Forecast.valid_until > now]
+    if geo_area_id is not None:
+        where.append(Forecast.geo_area_id == geo_area_id)
     stmt = (
         select(Forecast)
-        .where(Forecast.valid_until > now)
+        .where(*where)
         .distinct(Forecast.geo_area_id, Forecast.valid_from, Forecast.param_code)
         .order_by(
             Forecast.geo_area_id,
