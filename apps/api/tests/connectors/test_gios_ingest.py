@@ -98,6 +98,14 @@ def test_ingest_station_isolates_api_failure(monkeypatch, db_session):
     assert db_session.query(Measurement).count() == 0
 
 
+def test_ingest_station_without_any_monitored_sensor_returns_none(monkeypatch, db_session):
+    monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=[]))
+    errors: list[str] = []
+
+    assert ingest.ingest_station(STATION, db_session, errors) is None
+    assert "no monitored sensors" in errors[-1]
+
+
 def test_ingest_station_all_params_failing_returns_none(monkeypatch, db_session):
     """TASK-13.1: 429 on every sensor fetch is an outage, not "0 new readings"."""
     monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))

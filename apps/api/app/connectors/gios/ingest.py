@@ -134,10 +134,10 @@ def _ingest_param(
 
 def ingest_station(station: dict, db, errors: list[str] | None = None) -> int | None:
     """Returns the number of new readings stored across MONITORED_PARAMS, or None
-    when the station yielded nothing but failures: fetch_sensors() failed, or every
-    param that has a sensor failed (distinct from 0 = nothing new; the scheduler uses
-    it to avoid recording an outage as success, TASK-13.1). Failure causes are
-    appended to `errors` when given. One station's own failure is logged and skipped
+    when the station yielded nothing but failures: fetch_sensors() failed, it has no
+    monitored sensor, or every param that has a sensor failed (distinct from 0 =
+    nothing new; the scheduler uses it to avoid recording an outage as success,
+    TASK-13.1). Failure causes are appended to `errors` when given. One station's own failure is logged and skipped
     entirely — it must not abort ingestion for the rest of the run (rule #1); a
     single param's failure within a station is isolated by _ingest_param instead."""
     station_id = station.get("Identyfikator stacji")
@@ -153,7 +153,12 @@ def ingest_station(station: dict, db, errors: list[str] | None = None) -> int | 
         _ingest_param(station, sensors, formula, db, errors) for formula in MONITORED_PARAMS
     ]
     attempted = [o for o in outcomes if o != NO_SENSOR]
-    if attempted and all(o == FAILED for o in attempted):
+    # No monitored sensor at all (catalog/schema change) is as useless as all failing.
+    if not attempted:
+        if errors is not None:
+            errors.append(f"station {station_id}: no monitored sensors")
+        return None
+    if all(o == FAILED for o in attempted):
         return None
     return outcomes.count(STORED)
 
