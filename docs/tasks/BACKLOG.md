@@ -389,7 +389,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       muszą istnieć) — **przeniesione tu z Phase 7** (Codex: poprzednia
       wersja umieszczała to przed własną zależnością).
 
-- [x] **TASK-8.10** (ADR-023): Kalendarz pylenia — statyczne dane referencyjne
+- [x] **TASK-8.10** (PR #76, ADR-023): Kalendarz pylenia — statyczne dane referencyjne
       `app/data/pollen_calendar.json` + `GET /api/v1/pollen/calendar?date=` (typowy sezon
       per takson z fazami start/peak/end i `upcoming` 30 dni; `kind: seasonal_calendar`,
       NIE pomiar/prognoza). Pokryte: leszczyna, olsza, brzoza, jesion, dąb, bylica,
