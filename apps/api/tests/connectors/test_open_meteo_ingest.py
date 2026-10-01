@@ -379,12 +379,17 @@ class TestMain:
         db_session.commit()
         monkeypatch.setattr(sys, "argv", ["ingest"])
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
-        ingest_mock = MagicMock()
-        monkeypatch.setattr(ingest, "ingest_geo_area", ingest_mock)
+        slugs: list[str] = []  # read inside: the CLI's source_status commit expires the rows
+
+        def fake_ingest(area, *_args):
+            slugs.append(area.slug)
+            return 0
+
+        monkeypatch.setattr(ingest, "ingest_geo_area", fake_ingest)
 
         ingest.main()
 
-        assert [c[0][0].slug for c in ingest_mock.call_args_list] == ["klodzko"]
+        assert slugs == ["klodzko"]
 
     def test_explicit_slug_overrides_polling_flag(self, monkeypatch, db_session):
         inactive = GeoArea(
