@@ -9,7 +9,7 @@ import pytest
 
 import app.scheduler as scheduler
 from app.connectors.open_meteo_pollen import client as pollen_client
-from app.models import Alert, GeoArea, SourceFetch, WeatherSnapshot
+from app.models import Alert, GeoArea, PollenSnapshot, SourceFetch, WeatherSnapshot
 
 
 def _make_area(db, slug="klodzko") -> GeoArea:
@@ -430,19 +430,43 @@ class TestNewAreaBootstrap:
         db.commit()
         return a
 
+    @staticmethod
+    def _weather_row(area_id):
+        now = datetime.now(UTC)
+        return WeatherSnapshot(
+            source_id="open_meteo", source_record_id=f"w{area_id}", geo_area_id=area_id,
+            param_code="temperature_2m", value=1.0, unit="C", observed_at=now, fetched_at=now,
+        )  # fmt: skip
+
+    @staticmethod
+    def _pollen_row(area_id):
+        now = datetime.now(UTC)
+        return PollenSnapshot(
+            source_id="open_meteo_pollen", source_record_id=f"p{area_id}", geo_area_id=area_id,
+            unit="grains/m3", model="cams_europe", forecast_reference_time=now, valid_at=now,
+            fetched_at=now,
+        )  # fmt: skip
+
+    def test_missing_pollen_is_retried_on_its_own_after_weather_succeeded(
+        self, monkeypatch, db_session
+    ):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        db_session.add(self._weather_row(a.id))  # weather done, pollen failed earlier
+        db_session.commit()
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 1
+
+        weather.assert_not_called()
+        assert [x.id for x in pollen.call_args.args[0]] == [a.id]
+
     def test_fetches_only_active_place_areas_without_weather(self, monkeypatch, db_session):
         weather, pollen = self._setup(monkeypatch, db_session)
         new = self._area(db_session, "place-1", place_id=1)
         self._area(db_session, "seed-city")  # seeded: regular cycle only
         self._area(db_session, "place-2", place_id=2, active=False)
         has_data = self._area(db_session, "place-3", place_id=3)
-        db_session.add(
-            WeatherSnapshot(
-                source_id="open_meteo", source_record_id="r", geo_area_id=has_data.id,
-                param_code="temperature_2m", value=1.0, unit="C",
-                observed_at=datetime.now(UTC), fetched_at=datetime.now(UTC),
-            )  # fmt: skip
-        )
+        db_session.add_all([self._weather_row(has_data.id), self._pollen_row(has_data.id)])
         db_session.commit()
         attempts: dict = {}
 

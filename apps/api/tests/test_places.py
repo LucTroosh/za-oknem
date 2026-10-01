@@ -110,6 +110,18 @@ def test_activate_creates_the_area_once_and_starts_polling(db_session):
     assert area.last_requested_at.replace(tzinfo=UTC) == NOW + timedelta(days=1)  # refreshed
 
 
+def test_activation_refreshes_the_copied_fields_after_a_place_update(db_session):
+    place = _place(db_session, "Stara nazwa", lat=50.0, lon=19.0)
+    area, _ = activate_place(db_session, place, now=NOW)
+    place.name, place.latitude, place.longitude = "Nowa nazwa", 50.5, 19.5  # a later import
+    db_session.commit()
+
+    again, _ = activate_place(db_session, place, now=NOW + timedelta(hours=1))
+
+    assert again.id == area.id
+    assert (again.name, again.latitude, again.longitude) == ("Nowa nazwa", 50.5, 19.5)
+
+
 def test_activate_at_capacity_keeps_the_area_inactive_not_an_error(db_session, monkeypatch):
     monkeypatch.setattr(places, "max_active_areas", lambda: 1)
     db_session.add(GeoArea(slug="seed", name="Seed", latitude=1, longitude=1))  # counts: active

@@ -155,6 +155,9 @@ def activate_place(
             if area is None:
                 raise
     area.last_requested_at = now
+    # A later GeoNames import may have corrected the place: keep the copied fields in step,
+    # or polling / station assignment would keep using the stale coordinates.
+    area.name, area.latitude, area.longitude = place.name, place.latitude, place.longitude
     if area.weather_polling_active:
         polling: Polling = "active"
     elif _budget_exhausted(db, now.date()):

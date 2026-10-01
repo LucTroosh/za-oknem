@@ -25,7 +25,7 @@ from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
-from app.models import GeoArea, WeatherSnapshot
+from app.models import GeoArea, PollenSnapshot, WeatherSnapshot
 from app.places import expire_idle_areas
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
@@ -98,7 +98,8 @@ def run_open_meteo_pollen() -> bool:
 
 
 def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -> int:
-    """First fetch for place-based areas that are polled but have no weather yet (ADR-029).
+    """First fetch for place-based areas that are polled but have no weather or no pollen yet
+    (ADR-029).
     `attempts` (area id -> (count, monotonic time of the last one)) lives in the scheduler
     loop, in memory like the rest of its state (ADR-007): at most BOOTSTRAP_MAX_ATTEMPTS
     tries, BOOTSTRAP_RETRY_SECONDS apart; after that the regular cycle takes over. Records
@@ -107,29 +108,33 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
     db = None
     try:
         db = SessionLocal()
-        has_weather = exists().where(WeatherSnapshot.geo_area_id == GeoArea.id)
-        due = [
-            a
-            for a in db.execute(
-                select(GeoArea).where(
-                    GeoArea.weather_polling_active.is_(True),
-                    GeoArea.place_id.is_not(None),
-                    ~has_weather,
-                )
+        no_weather = ~exists().where(WeatherSnapshot.geo_area_id == GeoArea.id)
+        no_pollen = ~exists().where(PollenSnapshot.geo_area_id == GeoArea.id)
+        rows = db.execute(
+            select(GeoArea, no_weather, no_pollen).where(
+                GeoArea.weather_polling_active.is_(True),
+                GeoArea.place_id.is_not(None),
+                no_weather | no_pollen,
             )
-            .scalars()
-            .all()
+        ).all()
+        due = [
+            (a, need_weather, need_pollen)
+            for a, need_weather, need_pollen in rows
             if attempts.get(a.id, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
             and now - attempts.get(a.id, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
         ]
-        for area in due:
+        for area, need_weather, need_pollen in due:
             count = attempts.get(area.id, (0, 0.0))[0]
             attempts[area.id] = (count + 1, now)
-            ingest_geo_area(area, db)  # failure is logged inside, per area (rule #1)
-            try:
-                ingest_pollen_areas([area], db)
-            except Exception:
-                logger.exception("bootstrap: pollen for %s failed", area.slug)
+            # Each part is retried on its own: a pollen failure after a successful weather
+            # fetch must not stop the next attempt (weather existing is not "done").
+            if need_weather:
+                ingest_geo_area(area, db)  # failure is logged inside, per area (rule #1)
+            if need_pollen:
+                try:
+                    ingest_pollen_areas([area], db)
+                except Exception:
+                    logger.exception("bootstrap: pollen for %s failed", area.slug)
         return len(due)
     except Exception:
         logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
