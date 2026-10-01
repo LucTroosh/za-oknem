@@ -1,6 +1,6 @@
 name: GeoNames dump verification
 
-# Manual only (ADR-029): checks the importer's parser against the REAL GeoNames PL dump.
+# (TEMP push trigger below is for verifying from the PR branch.) Manual only (ADR-029): checks the importer's parser against the REAL GeoNames PL dump.
 # Not part of PR CI. Run: Actions -> "GeoNames dump verification" -> Run workflow.
 on:
   workflow_dispatch:

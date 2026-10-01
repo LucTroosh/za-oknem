@@ -7,12 +7,15 @@ import zipfile
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from app.connectors.geonames_places import ingest
 from app.connectors.geonames_places.parser import (
     SOURCE_ID,
     PlacesParseError,
+    attach_admin_names,
+    parse_admin_names,
     parse_lines,
 )
 from app.models import Place
@@ -164,3 +167,81 @@ def test_cli_reads_the_path_from_the_environment(monkeypatch, tmp_path, capsys):
     ingest.main()
 
     assert "5 valid" in capsys.readouterr().out
+
+
+ADMIN1 = ["PL.83\tSilesia\tSilesia\t3337497\n", "DE.01\tBaden\tBaden\t1\n", "broken\n"]
+ADMIN2 = ["PL.83.2466\tGliwice\tGliwice\t7530857\n", "PL.72.1001\tPowiat dzierżoniowski\tx\t2\n"]
+
+
+def test_admin_names_are_parsed_from_the_real_file_layout_and_attached():
+    a1, a2 = parse_admin_names(ADMIN1), parse_admin_names(ADMIN2)
+    assert a1 == {"PL.83": "Silesia"} and a2["PL.72.1001"] == "Powiat dzierżoniowski"
+
+    recs = parse_lines([_line(3099230, "Gliwice", 50.3, 18.67, a1="83", a2="2466")]).records
+    [rec] = attach_admin_names(recs, a1, a2)
+    assert (rec.admin1_name, rec.admin2_name) == ("Silesia", "Gliwice")
+
+    [unknown] = attach_admin_names(recs, {}, {})  # missing names are not an error
+    assert (unknown.admin1_name, unknown.admin2_name) == (None, None)
+
+
+def test_load_with_admin_files_and_import_stores_the_names(tmp_path, db_session):
+    txt = tmp_path / "PL.txt"
+    txt.write_text(_line(3099230, "Gliwice", 50.3, 18.67, a1="83", a2="2466"), encoding="utf-8")
+    f1, f2 = tmp_path / "a1.txt", tmp_path / "a2.txt"
+    f1.write_text("".join(ADMIN1), encoding="utf-8")
+    f2.write_text("".join(ADMIN2), encoding="utf-8")
+
+    ingest.import_records(ingest.load(txt, f1, f2).records, db_session)
+
+    row = db_session.query(Place).one()
+    assert (row.admin1_name, row.admin2_name) == ("Silesia", "Gliwice")
+
+
+def _transport(handler):
+    return httpx.MockTransport(handler)
+
+
+def test_download_fetches_all_files_from_the_configured_base_url(tmp_path, monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        return httpx.Response(200, content=b"data")
+
+    monkeypatch.setenv("GEONAMES_BASE_URL", "https://mirror.example/dump")
+
+    files = ingest.download(tmp_path, transport=_transport(handler))
+
+    assert seen == [f"https://mirror.example/dump/{n}" for n in ingest.DOWNLOAD_FILES]
+    assert all(p.read_bytes() == b"data" for p in files.values())
+
+
+def test_download_retries_transient_errors_a_bounded_number_of_times(tmp_path):
+    calls = {"n": 0}
+
+    def flaky(request):
+        calls["n"] += 1
+        return httpx.Response(503) if calls["n"] <= 2 else httpx.Response(200, content=b"x")
+
+    sleeps = []
+    ingest.download(tmp_path, sleep=sleeps.append, transport=_transport(flaky))
+    assert sleeps == [2.0, 4.0] and calls["n"] == 2 + len(ingest.DOWNLOAD_FILES)
+
+    always = MagicMock(return_value=httpx.Response(500))
+    with pytest.raises(RuntimeError, match="PL.zip"):
+        ingest.download(tmp_path, sleep=lambda _s: None, transport=_transport(always))
+    assert always.call_count == ingest.DOWNLOAD_ATTEMPTS
+
+
+def test_download_does_not_retry_client_errors(tmp_path):
+    handler = MagicMock(return_value=httpx.Response(404))
+
+    with pytest.raises(RuntimeError):
+        ingest.download(tmp_path, sleep=lambda _s: None, transport=_transport(handler))
+
+    assert handler.call_count == 1
+
+
+def test_cli_rejects_download_together_with_file(monkeypatch, tmp_path):
+    assert _run(monkeypatch, "--download", "--file", str(tmp_path / "x.txt")) == 2

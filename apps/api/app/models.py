@@ -165,6 +165,10 @@ class Place(Base):
     kind: Mapped[str] = mapped_column(String(10))
     admin1_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
     admin2_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # GeoNames' names for those codes (admin1CodesASCII / admin2Codes): voivodeship in
+    # English, powiat as "Powiat xyz"; `app.places.place_label` renders them for the UI.
+    admin1_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    admin2_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     population: Mapped[int | None] = mapped_column(Integer, nullable=True)

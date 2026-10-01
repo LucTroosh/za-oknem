@@ -322,6 +322,7 @@ export type PlaceOut = {
   admin1_code: string | null;
   admin2_code: string | null;
   kind: string;
+  label: string;
   latitude: number;
   longitude: number;
   name: string;

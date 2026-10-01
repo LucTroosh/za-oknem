@@ -47,6 +47,15 @@ formalna licencja PRNG poza stroną nieznana (podobnie jak PRG — gate #15 otwa
 ekstraktu (Overpass/Geofabrik) i czyszczenia; nic z tego nie weryfikowano w tej sesji
 (egress zablokowany). Zbyt duży koszt i obowiązki licencyjne jak na MVP.
 
+## Odrzucone (decyzja właściciela, 2026-10-01)
+
+- **Google Places / Geocoding:** płatne, ToS zabrania cache'owania współrzędnych, łamie FREE-FIRST (#17)
+  i „API czyta tylko z naszej bazy” (#14).
+- **Open-Meteo Geocoding API wołane na żądanie** (wyszukiwanie nazw): wołanie zewnętrznego API z
+  żądania użytkownika łamie #14 (i zużywa ten sam darmowy limit co pogoda).
+- **Geokoder urządzenia** (systemowy w telefonie): dopuszczalny wyłącznie opcjonalnie do „Użyj mojej
+  lokalizacji” (współrzędne → `POST /geo/locate`), nie jako źródło wyszukiwania miejscowości.
+
 ## Decision
 
 ### 1. Źródło: GeoNames PL (opcja A) — `geonames_pl`
@@ -54,13 +63,21 @@ ekstraktu (Overpass/Geofabrik) i czyszczenia; nic z tego nie weryfikowano w tej 
 Najmniej pracy i ryzyka techniczne: gotowy plik TSV w WGS84 z populacją, jedno źródło,
 licencja CC BY 4.0 zweryfikowana na stronie źródła (komercyjnie OK z atrybucją). Rejestr
 `docs/data/source-registry.md`: status **proposed (DISCOVERY)** do czasu przejścia Source Approval
-Gate (reguła #15) — nie zweryfikowano **na żywo** układu kolumn pliku (egress do
-`download.geonames.org` zablokowany: `CONNECT tunnel failed 403`; readme zrzutu nie dało się
-pobrać), więc parser waliduje liczbę kolumn (19) i zakres współrzędnych zamiast zgadywać.
-PRNG zostaje zapisany jako **ścieżka ulepszenia** (urzędowe nazwy, EPSG:2180), nie wybór.
+Gate (reguła #15). **Układ pliku zweryfikowany na prawdziwym zrzucie** (workflow
+`geonames-verify`, 2026-10-01, runner GitHub): 58 564 wiersze, wszystkie po 19 kolumn; parser →
+45 415 prawidłowych miejscowości, 0 odrzuconych, 13 149 pominiętych (inne klasy/kody); „Gliwice”
+= `PPLA3`, populacja 198 835, admin1 `83`, admin2 `2466`. (Lokalny sandbox ma zablokowany egress do
+GeoNames — dlatego weryfikacja idzie przez Actions.) Parser dalej waliduje ściśle. PRNG zostaje zapisany jako **ścieżka ulepszenia** (urzędowe nazwy, EPSG:2180), nie wybór.
 
-- Import: **lokalny plik** (`--file` albo env `GEONAMES_PL_FILE`; `.txt` lub `.zip`), operator-run,
-  `python -m app.connectors.geonames_places.ingest`. Żadnych zapytań do GeoNames z API ani z
+- Import, dwa tryby (operator-run, na produkcyjnym VPS, gdzie jest egress; nigdy na żądanie
+  użytkownika):
+  `docker compose exec api python -m app.connectors.geonames_places.ingest --download`
+  pobiera `PL.zip`, `admin1CodesASCII.txt`, `admin2Codes.txt` do katalogu tymczasowego (URL bazowy z
+  env `GEONAMES_BASE_URL`, domyślnie `https://download.geonames.org/export/dump/`; timeout 120 s,
+  max 3 próby z rosnącą pauzą, 4xx poza 429 bez ponowień — reguła #5) i importuje; albo **lokalny
+  plik** (`--file`/`GEONAMES_PL_FILE`, `.txt`/`.zip`, opcjonalnie `--admin1-file`/`--admin2-file`),
+  `--validate-only` nie dotyka bazy, `--sample "Gliwice"` drukuje rekordy. Import jest
+  idempotentny — można go powtarzać (np. raz na kwartał). Żadnych zapytań do GeoNames z API ani z
   mobile (#14); mobile nie woła zewnętrznego geokodera. Struktura `connectors/geonames_places/`
   (`parser.py`: parse/validate/normalize, `ingest.py`: store; bez `client.py` — jak `prg_gminy`,
   plik daje operator). Idempotentny upsert po `geonameid`; nie usuwa miejsc brakujących w nowszym
@@ -75,9 +92,13 @@ PRNG zostaje zapisany jako **ścieżka ulepszenia** (urzędowe nazwy, EPSG:2180)
 Migracja `0014`: `places(id, name, normalized_name, kind, admin1_code, admin2_code,
 latitude, longitude, population, source, source_record_id, imported_at)`, unikat
 `(source, source_record_id)`; `geo_areas.place_id` (FK, unikat) i `geo_areas.last_requested_at`.
-`kind` = kod cechy GeoNames; kody admin są **surowymi kodami GeoNames, nie TERYT** (nazwy
-województw/powiatów wymagałyby `admin1CodesASCII.txt`/`admin2Codes.txt` — poza zakresem, patrz
-Consequences).
+`kind` = kod cechy GeoNames; kody admin są **surowymi kodami GeoNames, nie TERYT**. Nazwy
+(`admin1_name`, `admin2_name`) pochodzą z `admin1CodesASCII.txt`/`admin2Codes.txt` (układ
+zweryfikowany na prawdziwych plikach): województwa są po angielsku („Silesia”), powiaty po polsku
+(„Powiat będziński”; miasta na prawach powiatu = nazwa miasta). API składa z nich czytelny `label`
+(„Nowa Wieś, pow. gliwicki, woj. śląskie”): `place_label` mapuje 16 angielskich nazw województw na
+polskie przymiotniki (stała `VOIVODESHIP_PL`), powiat o nazwie miejscowości nie jest powtarzany,
+nieznana nazwa jest pokazywana tak, jak ją ma GeoNames.
 
 Wyszukiwanie: **deterministyczna kolumna `normalized_name`** (`app/places.py::normalize_name`:
 casefold, NFKD bez znaków łączących, `ł→l`, wszystko poza `[a-z0-9]` → spacja) +
@@ -172,16 +193,15 @@ kalibracji. `exact` i `nearby` — bez zmian (wchodzą do werdyktu).
 - **UI poza zakresem PR:** ekran wyboru (wyszukiwarka → `POST .../activate` → dashboard po
   `geo_area_id`) to TASK-12.2/12.3 po decyzji o designie. Klient musi: wołać `activate` przy
   wyborze **i** przy otwarciu aplikacji, pokazywać `coverage`/odległość oraz atrybucję GeoNames.
-- **Duplikaty nazw:** „Nowa Wieś” występuje setki razy; odpowiedź ma `admin1_code`/`admin2_code`
-  (kody GeoNames) i współrzędne, ale **nie ma jeszcze czytelnej nazwy województwa/powiatu**. Do
-  doprowadzenia w TASK-12.2 (import `admin1CodesASCII.txt`/`admin2Codes.txt` albo PRNG).
+- **Duplikaty nazw:** „Nowa Wieś” występuje setki razy; `label` (powiat + województwo) rozróżnia
+  większość, ale dwie wsie o tej samej nazwie w jednym powiecie nadal wyglądają tak samo (UI może
+  pokazać dystans od użytkownika albo współrzędne).
 - **Alerty:** obszar z `place_id` nie ma `teryt_code`, więc `local_alerts` daje wynik
   `unresolved` (fail-safe ADR-013), nie „brak alertów”; dopasowanie miejscowości do gminy
   (`resolve_gmina`) wymaga granic PRG — osobny krok po odblokowaniu PRG.
 - **Obciążenie GIOŚ:** do ~411 obszarów × stacje (ADR-025: throttle 30 s/stację) wydłuża run
   GIOŚ; lista sensorów nadal bez cache (zapisane w ADR-025).
-- **Niezweryfikowane:** układ kolumn zrzutu GeoNames na żywym pliku (parser jest ścisły);
-  brak lokalnego uruchomienia testów/`alembic check` (PyPI niedostępne) — pierwszy dowód to CI;
+- **Niezweryfikowane:** brak lokalnego uruchomienia testów/`alembic check` (PyPI niedostępne) — pierwszy dowód to CI;
   `openapi.json` zaktualizowany ręcznie wg konwencji FastAPI (weryfikuje krok CI `--check`).
 - **Limit aktywnych nie jest atomowy** (równoległe aktywacje mogą przekroczyć o kilka); poprawka
   = blokada wiersza, gdyby miało to znaczenie. Retry w kliencie HTTP mnoży zużycie jednostek

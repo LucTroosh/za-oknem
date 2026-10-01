@@ -14,6 +14,7 @@ from app.places import (
     expire_idle_areas,
     max_active_areas,
     normalize_name,
+    place_label,
     search_places,
 )
 
@@ -204,3 +205,24 @@ def test_expired_area_can_be_activated_again(db_session):
     again, polling = activate_place(db_session, place, now=NOW)
 
     assert polling == "active" and again.id == area.id
+
+
+@pytest.mark.parametrize(
+    ("name", "a1", "a2", "label"),
+    [
+        ("Nowa Wieś", "Silesia", "Powiat gliwicki", "Nowa Wieś, pow. gliwicki, woj. śląskie"),
+        ("Gliwice", "Silesia", "Gliwice", "Gliwice, woj. śląskie"),  # city powiat not repeated
+        ("Łódź", "Łódź Voivodeship", None, "Łódź, woj. łódzkie"),
+        ("Wieś", "Lublin", "Powiat lubelski", "Wieś, pow. lubelski, woj. lubelskie"),
+        ("Wieś", "Nowa Kraina", None, "Wieś, woj. Nowa Kraina"),  # unknown: as GeoNames has it
+        ("Wieś", None, None, "Wieś"),
+    ],
+)
+def test_place_label(name, a1, a2, label):
+    p = Place(name=name, admin1_name=a1, admin2_name=a2)
+
+    assert place_label(p) == label
+
+
+def test_every_geonames_voivodeship_has_a_polish_name():
+    assert len(places.VOIVODESHIP_PL) == 16

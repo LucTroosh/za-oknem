@@ -28,6 +28,8 @@ def upgrade() -> None:
         sa.Column("kind", sa.String(length=10), nullable=False),
         sa.Column("admin1_code", sa.String(length=10), nullable=True),
         sa.Column("admin2_code", sa.String(length=20), nullable=True),
+        sa.Column("admin1_name", sa.String(length=100), nullable=True),
+        sa.Column("admin2_name", sa.String(length=150), nullable=True),
         sa.Column("latitude", sa.Float(), nullable=False),
         sa.Column("longitude", sa.Float(), nullable=False),
         sa.Column("population", sa.Integer(), nullable=True),

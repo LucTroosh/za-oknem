@@ -199,6 +199,7 @@ def test_openapi_documents_places_endpoints():
         "active", "inactive", "capacity_reached", "budget_exhausted",
     ]  # fmt: skip
     assert "attribution" in comps["PlacesResponse"]["required"]  # CC BY 4.0, ADR-029
+    assert "label" in comps["PlaceOut"]["required"]  # namesakes, ADR-029
 
 
 @pytest.mark.parametrize("name", ["DashboardAir", "DashboardWeather", "DashboardForecast"])

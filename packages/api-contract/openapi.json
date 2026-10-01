@@ -1812,6 +1812,10 @@
             "title": "Kind",
             "type": "string"
           },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
           "latitude": {
             "title": "Latitude",
             "type": "number"
@@ -1843,6 +1847,7 @@
         "required": [
           "place_id",
           "name",
+          "label",
           "kind",
           "admin1_code",
           "admin2_code",

@@ -41,6 +41,7 @@ def client():
                 normalized_name=normalize_name(name),
                 kind="PPL",
                 admin1_code="74",
+                admin1_name="Łódź Voivodeship",
                 admin2_code=None,
                 latitude=lat,
                 longitude=19.4,
@@ -78,8 +79,9 @@ def test_search_finds_any_locality_by_diacritic_free_prefix(client):
     assert [p["name"] for p in body["places"]] == ["Łódź", "Łódź Mała"]
     first = body["places"][0]
     assert first["place_id"] == 1 and first["kind"] == "PPL" and first["population"] == 768755
+    assert first["label"] == "Łódź, woj. łódzkie"
     assert set(first) == {
-        "place_id", "name", "kind", "admin1_code", "admin2_code", "latitude", "longitude",
+        "place_id", "name", "label", "kind", "admin1_code", "admin2_code", "latitude", "longitude",
         "population",
     }  # fmt: skip
     assert "GeoNames" in body["attribution"] and "CC BY 4.0" in body["attribution"]

@@ -34,6 +34,40 @@ def normalize_name(name: str) -> str:
     return _NON_ALNUM.sub(" ", stripped).strip()
 
 
+# GeoNames' English voivodeship names (admin1CodesASCII.txt, verified on the real file) ->
+# the official Polish adjective used in "woj. śląskie". Unknown name = shown as GeoNames has it.
+VOIVODESHIP_PL = {
+    "Lower Silesia": "dolnośląskie",
+    "Kujawsko-Pomorskie": "kujawsko-pomorskie",
+    "Lublin": "lubelskie",
+    "Lubusz": "lubuskie",
+    "Łódź Voivodeship": "łódzkie",
+    "Lesser Poland": "małopolskie",
+    "Mazovia": "mazowieckie",
+    "Opole Voivodeship": "opolskie",
+    "Subcarpathia": "podkarpackie",
+    "Podlasie": "podlaskie",
+    "Pomerania": "pomorskie",
+    "Silesia": "śląskie",
+    "Świętokrzyskie": "świętokrzyskie",
+    "Warmia-Masuria": "warmińsko-mazurskie",
+    "Greater Poland": "wielkopolskie",
+    "West Pomerania": "zachodniopomorskie",
+}
+
+
+def place_label(place: Place) -> str:
+    """Readable disambiguation: "Nowa Wieś, pow. gliwicki, woj. śląskie". A powiat named like
+    the place (city with powiat rights) is not repeated; missing names are left out."""
+    parts = [place.name]
+    a2 = place.admin2_name
+    if a2 and a2 != place.name:
+        parts.append("pow. " + a2.removeprefix("Powiat "))
+    if place.admin1_name:
+        parts.append("woj. " + VOIVODESHIP_PL.get(place.admin1_name, place.admin1_name))
+    return ", ".join(parts)
+
+
 def search_places(db: Session, q: str, limit: int) -> list[Place]:
     """Prefix search on the normalised name. Order: exact match first, then population
     (desc, unknown = 0), then name and id so ties are deterministic. A query that

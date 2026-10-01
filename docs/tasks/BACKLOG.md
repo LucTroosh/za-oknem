@@ -278,8 +278,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       jest ograniczony do 7 miast ani do gmin z PRG; dane dokładnie tam, gdzie są, a gdzie nie —
       uczciwie „stan dla obszaru w promieniu ~50/~100 km”.
       **Acceptance criteria:** (1) tabela `places` importowana z lokalnego pliku GeoNames PL
-      (`python -m app.connectors.geonames_places.ingest --file …`, idempotentnie; test na małym
-      fixture; plik z env/ścieżki, zero sekretów w repo); źródło wpisane do
+      (`python -m app.connectors.geonames_places.ingest --download` albo `--file …`, idempotentnie,
+      timeout + ograniczony retry; test na małym fixture; zweryfikowane na prawdziwym zrzucie
+      workflow `geonames-verify`; zero sekretów w repo), z nazwami powiatu/województwa → `label`; źródło wpisane do
       `source-registry.md` (`geonames_pl`, status proposed — gate #15 otwarty); (2)
       `GET /api/v1/places?q=&limit=` — prefiks bez diakrytyków, sort: dokładne dopasowanie →
       populacja, `q` ≥ 2 znaki, `limit` ≤ 20, 422 bez echa inputu; (3) `POST
@@ -292,8 +293,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       100, `none`; pogoda/pyłki = `grid` z opisem), polling GIOŚ do 100 km, testy graniczne
       49.9/50/100/100.1 km; (5) `regional` nie wchodzi do werdyktu „Na dwór” (silnik bez
       powietrza nie da `GOOD`); (6) kontrakt `openapi.json`/`schema.ts` zregenerowany, testy
-      pytest. **Non-goals:** UI wyboru (TASK-12.7), import granic PRG, nazwy
-      województw/powiatów, dopasowanie miejscowości do gminy/TERYT (alerty lokalne
+      pytest. **Non-goals:** UI wyboru (TASK-12.7), import granic PRG, dopasowanie miejscowości do gminy/TERYT (alerty lokalne
       `unresolved` do czasu PRG). **Dependencies:** ADR-029, TASK-6.2 (7)/(8).
 
 ### Phase 7 — Dashboard (dokończenie)
@@ -784,9 +784,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 - [ ] **TASK-12.7:** Ekran wyboru dowolnej miejscowości (mobile) — UI na backendzie z
       TASK-6.3 / ADR-029; osobny task po decyzji o designie. **Acceptance criteria:** (1)
       wyszukiwarka z debounce na `GET /api/v1/places` (min. 2 znaki, stan pusty „Nie znaleziono”,
-      błąd sieci bez wskazówek deweloperskich); lista rozróżnia imienników (współrzędne/kody
-      admin — czytelne nazwy województw/powiatów to osobny podzadanie danych, ADR-029
-      Consequences); (2) wybór wywołuje `POST /places/{id}/activate`, a potem dashboard po
+      błąd sieci bez wskazówek deweloperskich); lista pokazuje `label` („Nowa Wieś, pow. gliwicki, woj. śląskie”); (2) wybór wywołuje `POST /places/{id}/activate`, a potem dashboard po
       `geo_area_id`; to samo wywołanie przy każdym otwarciu aplikacji z wybranym miejscem
       (odświeża TTL); obsługa `polling=capacity_reached|budget_exhausted` jako „dane pogodowe
       chwilowo niedostępne dla tej miejscowości” (nie błąd); (3) ekran pokazuje `coverage`:

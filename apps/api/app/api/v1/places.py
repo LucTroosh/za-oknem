@@ -14,6 +14,7 @@ from app.places import (
     SEARCH_MIN_CHARS,
     activate_place,
     area_for_place,
+    place_label,
     search_places,
 )
 from app.rate_limit import limit_place_activations
@@ -28,6 +29,8 @@ PLACES_ATTRIBUTION = "Place names and coordinates: GeoNames (geonames.org, CC BY
 class PlaceOut(BaseModel):
     place_id: int
     name: str
+    # "Nowa Wieś, pow. gliwicki, woj. śląskie" - tells namesakes apart (ADR-029).
+    label: str
     # GeoNames feature code (PPL, PPLA, PPLC, ...); admin codes are GeoNames' own, not TERYT.
     kind: str
     admin1_code: str | None
@@ -46,6 +49,7 @@ def _place_out(p: Place) -> PlaceOut:
     return PlaceOut(
         place_id=p.id,
         name=p.name,
+        label=place_label(p),
         kind=p.kind,
         admin1_code=p.admin1_code,
         admin2_code=p.admin2_code,

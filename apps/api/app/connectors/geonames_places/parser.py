@@ -9,7 +9,7 @@ hence strict column-count validation instead of guessing.
 
 import math
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from app.connectors.prg_gminy.parser import POLAND_BBOX
 from app.places import normalize_name
@@ -40,6 +40,8 @@ class PlaceRecord:
     latitude: float
     longitude: float
     population: int | None
+    admin1_name: str | None = None  # voivodeship, GeoNames' (English) name
+    admin2_name: str | None = None  # powiat, e.g. "Powiat gliwicki"; city powiats: the city
 
 
 @dataclass
@@ -113,3 +115,26 @@ def parse_lines(lines: Iterable[str]) -> ParseResult:
     if not result.records:
         raise PlacesParseError("no valid places in the input")
     return result
+
+
+def parse_admin_names(lines: Iterable[str]) -> dict[str, str]:
+    """`admin1CodesASCII.txt` / `admin2Codes.txt` -> {"PL.72": "Lower Silesia", "PL.72.1234":
+    "Powiat ..."} (tab-separated: code, name, asciiname, geonameid; non-PL rows ignored).
+    Verified against the real files (ADR-029). Malformed rows are skipped."""
+    names: dict[str, str] = {}
+    for line in lines:
+        cols = line.rstrip("\r\n").split("\t")
+        if len(cols) >= 2 and cols[0].startswith("PL.") and cols[1].strip():
+            names[cols[0]] = cols[1].strip()
+    return names
+
+
+def attach_admin_names(
+    records: list[PlaceRecord], admin1: dict[str, str], admin2: dict[str, str]
+) -> list[PlaceRecord]:
+    out = []
+    for r in records:
+        a1 = admin1.get(f"PL.{r.admin1_code}") if r.admin1_code else None
+        a2 = admin2.get(f"PL.{r.admin1_code}.{r.admin2_code}") if r.admin2_code else None
+        out.append(replace(r, admin1_name=a1, admin2_name=a2))
+    return out

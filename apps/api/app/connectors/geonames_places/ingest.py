@@ -33,6 +33,8 @@ from app.connectors.geonames_places.parser import (
     ParseResult,
     PlaceRecord,
     PlacesParseError,
+    attach_admin_names,
+    parse_admin_names,
     parse_lines,
 )
 from app.db import SessionLocal
@@ -43,6 +45,8 @@ logger = logging.getLogger(__name__)
 CHUNK = 1000
 ZIP_MEMBER = "PL.txt"
 _FIELDS = (
+    "admin1_name",
+    "admin2_name",
     "name",
     "normalized_name",
     "kind",
@@ -130,13 +134,17 @@ DOWNLOAD_TIMEOUT_SECONDS = 120.0
 DOWNLOAD_ATTEMPTS = 3  # bounded retry (rule #5)
 
 
-def download(dest: Path, *, base_url: str | None = None, sleep=time.sleep) -> dict[str, Path]:
+def download(
+    dest: Path, *, base_url: str | None = None, sleep=time.sleep, transport=None
+) -> dict[str, Path]:
     """Fetch the GeoNames files into `dest` (operator-run, never on a user request, #14).
     Base URL from GEONAMES_BASE_URL (default: the public dump). Each file: timeout, at most
     DOWNLOAD_ATTEMPTS tries with growing pauses; 4xx (except 429) is not retried."""
     base = (base_url or os.environ.get("GEONAMES_BASE_URL") or DEFAULT_BASE_URL).rstrip("/") + "/"
     out: dict[str, Path] = {}
-    with httpx.Client(timeout=DOWNLOAD_TIMEOUT_SECONDS, follow_redirects=True) as http:
+    with httpx.Client(
+        timeout=DOWNLOAD_TIMEOUT_SECONDS, follow_redirects=True, transport=transport
+    ) as http:
         for name in DOWNLOAD_FILES:
             for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
                 try:
@@ -156,8 +164,16 @@ def download(dest: Path, *, base_url: str | None = None, sleep=time.sleep) -> di
     return out
 
 
-def load(path: Path) -> ParseResult:
-    return parse_lines(read_lines(path))
+def load(path: Path, admin1: Path | None = None, admin2: Path | None = None) -> ParseResult:
+    """Parse the dump; with the admin name files, records also carry voivodeship/powiat names."""
+    result = parse_lines(read_lines(path))
+    if admin1 or admin2:
+
+        def names(p: Path | None) -> dict[str, str]:
+            return parse_admin_names(p.read_text(encoding="utf-8").splitlines()) if p else {}
+
+        result.records = attach_admin_names(result.records, names(admin1), names(admin2))
+    return result
 
 
 def main() -> None:
@@ -169,6 +185,8 @@ def main() -> None:
         action="store_true",
         help="fetch the dump + admin name files first (GEONAMES_BASE_URL), into a temp dir",
     )
+    parser.add_argument("--admin1-file", type=Path, default=os.environ.get("GEONAMES_ADMIN1_FILE"))
+    parser.add_argument("--admin2-file", type=Path, default=os.environ.get("GEONAMES_ADMIN2_FILE"))
     parser.add_argument("--sample", action="append", default=[], help="print records by name")
     args = parser.parse_args()
     if args.download and args.file:
@@ -181,9 +199,11 @@ def main() -> None:
         try:
             if args.download:
                 files = download(Path(tmp))
-                parsed = load(files["PL.zip"])
+                parsed = load(
+                    files["PL.zip"], files["admin1CodesASCII.txt"], files["admin2Codes.txt"]
+                )
             else:
-                parsed = load(Path(args.file))
+                parsed = load(Path(args.file), args.admin1_file, args.admin2_file)
         except (
             OSError,
             KeyError,

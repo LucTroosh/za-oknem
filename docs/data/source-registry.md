@@ -523,7 +523,7 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
   (`--file` albo env `GEONAMES_PL_FILE`)
 - **endpoint (źródło, nie wołane przez aplikację ani mobile):**
   `https://download.geonames.org/export/dump/PL.zip` (zrzut `geoname` dla kraju PL, TSV, UTF-8,
-  19 kolumn wg dokumentacji GeoNames — NIE zweryfikowano na żywym pliku, patrz niżej)
+  19 kolumn — ZWERYFIKOWANE na prawdziwym pliku 2026-10-01, patrz niżej) plus `admin1CodesASCII.txt` i `admin2Codes.txt` z tego samego katalogu (nazwy województw/powiatów)
 - **frequency:** import ręczny, rzadki (nazwy miejscowości prawie się nie zmieniają; ADR-004:
   brak schedulera, odświeżenie np. raz na kwartał/rok). GeoNames publikuje dzienny eksport
   (strona `about.html`); częstotliwość zmian samych danych NIE podana
@@ -544,11 +544,13 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
   = punkt miejscowości, nie granica
 - **ograniczenia:** brak nazw jednostek admin (tylko kody GeoNames `admin1/admin2`, nie TERYT);
   populacja często 0/pusta dla wsi
-- **dostępność z tego środowiska:** NIE — `curl` do `download.geonames.org` dał
-  `CONNECT tunnel failed, response 403` (egress proxy); readme zrzutu (`dump/readme.txt`) nie
-  udało się odczytać (WebFetch: przekierowanie https↔http bez końca). Układ kolumn, kody cech i
-  semantyka kodów admin pochodzą z dokumentacji znanej autorowi, NIE z sesji — parser ściśle
-  waliduje (19 kolumn, liczby, bbox Polski)
+- **weryfikacja na prawdziwym pliku (2026-10-01, workflow `geonames-verify` na runnerze GitHub):**
+  PL.zip 2,0 MB, `PL.txt` 58 564 wierszy, wszystkie po 19 kolumn; parser: 45 415 prawidłowych,
+  0 odrzuconych, 13 149 pominiętych; „Gliwice” = PPLA3, populacja 198 835, admin1 83, admin2 2466;
+  `admin1CodesASCII.txt` (kod `PL.83`, nazwa angielska np. „Silesia”), `admin2Codes.txt`
+  (`PL.83.2466`, „Powiat będziński” / dla miast na prawach powiatu nazwa miasta)
+- **dostępność z sandboxa dewelopera:** NIE (`CONNECT tunnel failed 403`); import produkcyjny idzie
+  z VPS (`--download`), weryfikacja z GitHub Actions
 - **alternatywy rozważone (ADR-029):** PRNG/GUGiK — „free of charge and can be used for any
   purpose” (geoportal.gov.pl, 2026-10-01), GML/SHP/XLSX, EPSG:2180, bez populacji → ścieżka
   ulepszenia; TERYT SIMC (GUS) bez współrzędnych, wymaga rejestracji (wpis `teryt`); OSM `place=*`
