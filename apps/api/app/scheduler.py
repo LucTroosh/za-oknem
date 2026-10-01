@@ -12,17 +12,22 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.connectors.gios import client as gios_client
-from app.connectors.gios.ingest import ingest_station
+from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
+from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
 from app.provenance import purge_expired_payloads
-from app.source_health import collect_source_health, gios_station_ids, log_health_transitions
-from app.source_status import record_source_run
+from app.source_health import collect_source_health, log_health_transitions
+from app.source_status import (
+    SMALL_SET_MAX_FAILED_FRACTION,
+    record_source_run,
+    run_failure_reason,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +62,13 @@ def run_open_meteo() -> bool:
     if not areas:
         logger.warning("no geo_areas configured - skipping scheduled Open-Meteo ingest")
         return False  # skipped, not a successful fetch (ADR-012)
-    if failed == len(areas):
-        # Per-area isolation (rule #1) swallows fetch errors; if EVERY area failed the
-        # source is down and this run must not refresh last_success_at (ADR-012,
-        # TASK-13.1) - a partial failure still counts as a run.
-        raise RuntimeError(f"Open-Meteo failed for all {failed} geo area(s){_last_cause(errors)}")
+    # Per-area isolation (rule #1) swallows fetch errors; a failing majority is an
+    # outage and must not refresh last_success_at (ADR-012, TASK-13.1).
+    reason = run_failure_reason(
+        len(areas), failed, max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION
+    )
+    if reason:
+        raise RuntimeError(f"Open-Meteo: {reason}{_last_cause(errors)}")
     return True
 
 
@@ -77,14 +84,11 @@ def run_gios() -> bool:
         failed = sum(ingest_station(station, db, errors) is None for station in stations)
     finally:
         db.close()
-    # Per-station isolation (rule #1) swallows errors: configured IDs matching no
-    # station, or every station failing, is an outage - not a successful run
-    # (ADR-012, TASK-13.1). A partial failure still counts as a run.
-    if not stations or failed == len(stations):
-        raise RuntimeError(
-            f"GIOS: no data fetched ({len(stations)} station(s), {failed} failed)"
-            f"{_last_cause(errors)}"
-        )
+    # Per-station isolation (rule #1) swallows errors: IDs matching no station or a
+    # failing majority is an outage, not a successful run (ADR-012, TASK-13.1).
+    failure = run_failure(len(stations), failed)
+    if failure:
+        raise RuntimeError(f"{failure}{_last_cause(errors)}")
     return True
 
 
@@ -97,10 +101,11 @@ def run_imgw_hydro() -> None:
         _stored, rejected = ingest_hydro_snapshot(stations, db, fetched_at=datetime.now(UTC))
     finally:
         db.close()
-    # ADR-012: an empty answer or ANY rejected station is an incomplete snapshot - valid
-    # rows are stored, but the run is a failure, not a success (same as warnings).
-    if not stations or rejected:
-        raise RuntimeError(f"IMGW hydro: incomplete snapshot ({rejected}/{len(stations)} rejected)")
+    # No successes or more than 2% rejected = failed run; below that the run counts and
+    # the rejected ids are logged by ingest_snapshot (ADR-012 Consequences).
+    failure = snapshot_failure(stations, rejected)
+    if failure:
+        raise RuntimeError(failure)
 
 
 def run_imgw_warningshydro() -> None:

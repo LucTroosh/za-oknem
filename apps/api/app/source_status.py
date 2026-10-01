@@ -71,3 +71,21 @@ def source_freshness(db: Session, source_id: str, freshness: Callable[[datetime]
     if last > datetime.now(UTC) + MAX_CLOCK_SKEW:  # future success can't be verified
         return {"freshness": "STALE", "last_success_at": last.isoformat()}
     return {"freshness": freshness(last), "last_success_at": last.isoformat()}
+
+
+# Share of failed elements (stations/areas) tolerated in one run. Small fixed sets
+# (a few Open-Meteo areas, configured GIOS stations): only a failing majority is an
+# outage. Large sets (IMGW hydro, ~900 stations) set their own tight bound, so one
+# permanently broken record cannot keep the whole source STALE forever (rule #1).
+SMALL_SET_MAX_FAILED_FRACTION = 0.5
+
+
+def run_failure_reason(total: int, failed: int, *, max_failed_fraction: float) -> str | None:
+    """Shared policy for jobs that isolate errors per element (TASK-13.1): the run is
+    a failure when nothing came back, no element succeeded, or more than
+    `max_failed_fraction` failed; otherwise a (partial) success. None = acceptable."""
+    if total == 0:
+        return "nothing returned"
+    if failed >= total or failed / total > max_failed_fraction:
+        return f"{failed}/{total} failed"
+    return None

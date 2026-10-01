@@ -8,7 +8,6 @@ its own domain, already sized off that source's cycle (ADR-004, source-registry)
 so the health view and the data endpoints can never disagree about "stale"."""
 
 import logging
-import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -20,8 +19,9 @@ from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import freshness as alerts_freshness
 from app.api.v1.hydro import freshness as hydro_freshness
 from app.api.v1.weather import freshness as weather_freshness
+from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
-from app.models import SourceFetchCounter, SourceStatus
+from app.models import GeoArea, SourceFetchCounter, SourceStatus
 from app.source_status import source_freshness
 
 logger = logging.getLogger(__name__)
@@ -29,20 +29,12 @@ logger = logging.getLogger(__name__)
 MAX_PUBLIC_ERROR_LENGTH = 200
 
 
-def gios_station_ids() -> list[str]:
-    # ADR-007: which stations to poll is a deliberate, explicit choice (rule #9),
-    # never guessed - comma-separated env var, empty means "skip GIOS". Single parser
-    # shared by the scheduler and the health view so they cannot disagree.
-    raw = os.environ.get("GIOS_STATION_IDS", "")
-    return [s.strip() for s in raw.split(",") if s.strip()]
-
-
 @dataclass(frozen=True)
 class SourceSpec:
     freshness: Callable[[datetime], str]
     daily_limit: int | None = None  # None = no documented daily cap (source-registry)
     # False = deliberately switched off (not a fault): no alarm, `monitored: false`.
-    enabled: Callable[[], bool] = lambda: True
+    enabled: Callable[[Session], bool] = lambda db: True
 
 
 # Exactly the source_ids the scheduler records in source_status (ADR-012).
@@ -52,20 +44,33 @@ class SourceSpec:
 #   1h poll and 2h/6h thresholds are the documented working assumption (ADR-008/009),
 #   warnings being safety-critical (rule #16 exception).
 SOURCES: dict[str, SourceSpec] = {
-    "open_meteo": SourceSpec(weather_freshness, OPEN_METEO_DAILY_LIMIT),
+    # No geo_areas = nothing to poll (scheduler skips), not an outage.
+    "open_meteo": SourceSpec(
+        weather_freshness,
+        OPEN_METEO_DAILY_LIMIT,
+        enabled=lambda db: db.query(GeoArea).first() is not None,
+    ),
     # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
-    "gios": SourceSpec(air_freshness, enabled=lambda: bool(gios_station_ids())),
+    "gios": SourceSpec(air_freshness, enabled=lambda db: bool(gios_station_ids())),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),
 }
 
-# Error text is free-form (exception messages: URLs, headers, prose). Pattern-matching
-# every credential shape proved endless, so the rule is conservative instead: URL
-# userinfo and query strings are stripped, and if the message mentions anything
-# credential-like at all, only the exception type is kept ("Type: [redacted]").
+# Error text is free-form (exception messages: URLs, headers, DB hosts, prose). Keep the
+# diagnostic part (exception type, HTTP code, counts) and cut credentials: URL userinfo,
+# query strings, IPs/host:port and opaque tokens are masked; from the first credential-
+# like keyword (token, secret, password, authorization, bearer, api key, `key=` ...) the
+# rest of the message is dropped - per-shape patterns for values proved endless.
 _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
-_SENSITIVE = re.compile(r"(?i)key|token|secret|passw|auth|bearer|credential|signature|cookie")
+_IP = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?![\d.])")
+_HOST_PORT = re.compile(r"\b[A-Za-z][\w-]*(?:\.[\w-]+)*:\d{2,5}\b")
+_OPAQUE = re.compile(r"\bsk-[\w-]{6,}|\b[A-Za-z0-9+/_=-]{32,}")
+_KEYWORD = re.compile(
+    r"(?<![a-z])(?:(?:api[ _-]?key|access[ _-]?token|token|secret|passw(?:or)?d|"
+    r"authorization|bearer|credential|signature|cookie)s?(?![a-z])|key(?![a-z])\s*[=:])",
+    re.IGNORECASE,
+)
 _MAX_SCAN = 1000
 
 
@@ -73,11 +78,12 @@ def sanitize_error(error: str | None) -> str | None:
     if not error:
         return None
     text = " ".join(error[:_MAX_SCAN].split())
-    if _SENSITIVE.search(text):
-        head = text.split(":", 1)[0]
-        head = head if len(head) <= 60 and not _SENSITIVE.search(head) else "error"
-        return f"{head}: [redacted]"
-    return _QUERY.sub("", _USERINFO.sub("//[redacted]@", text))[:MAX_PUBLIC_ERROR_LENGTH]
+    text = _QUERY.sub("", _USERINFO.sub("//[redacted]@", text))
+    text = _OPAQUE.sub("[redacted]", _IP.sub("[ip]", text))
+    text = _HOST_PORT.sub("[host]", text)
+    if match := _KEYWORD.search(text):
+        text = text[: match.start()] + "[redacted]"
+    return text[:MAX_PUBLIC_ERROR_LENGTH]
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -108,9 +114,16 @@ def _source_health(db: Session, source_id: str, spec: SourceSpec, today: date) -
         "last_attempt_at": _iso(row.last_attempt_at) if row else None,
         "last_success_at": fresh["last_success_at"],
         "last_error": sanitize_error(row.last_error) if row else None,
-        "monitored": spec.enabled(),
+        "monitored": spec.enabled(db),
         "daily_budget": _budget(db, source_id, spec.daily_limit, today),
     }
+
+
+def _monitored_or_true(db: Session, source_id: str) -> bool:
+    try:
+        return SOURCES[source_id].enabled(db)
+    except Exception:  # DB is down: stay loud rather than silently drop the source
+        return True
 
 
 def collect_source_health(db: Session, source_ids: Iterable[str] | None = None) -> list[dict]:
@@ -135,7 +148,7 @@ def collect_source_health(db: Session, source_ids: Iterable[str] | None = None) 
                     "last_success_at": None,
                     "last_error": "health evaluation failed",
                     "daily_budget": None,
-                    "monitored": SOURCES[source_id].enabled(),
+                    "monitored": _monitored_or_true(db, source_id),
                 }
             )
     return report

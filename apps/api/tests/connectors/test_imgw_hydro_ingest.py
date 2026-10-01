@@ -59,7 +59,9 @@ def test_ingest_station_skips_when_no_current_reading(db_session):
 
 
 def test_ingest_station_isolates_parse_failure(db_session, monkeypatch):
-    monkeypatch.setattr(ingest, "normalize", MagicMock(side_effect=ImgwHydroParseError("boom")))
+    monkeypatch.setattr(
+        ingest, "normalize", MagicMock(side_effect=ImgwHydroParseError("boom"))
+    )
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
     assert stored == 0
@@ -79,7 +81,11 @@ def test_ingest_station_updates_threshold_even_without_a_new_water_reading(db_se
     stored = ingest.ingest_station(changed_station, db_session, fetched_at=datetime.now(UTC))
 
     assert stored == 1  # the threshold changed; the water level didn't
-    row = db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").one()
+    row = (
+        db_session.query(Measurement)
+        .filter_by(param_code="water_level_warn_cm")
+        .one()
+    )
     assert row.value == 310.0
 
 
@@ -188,14 +194,28 @@ class TestMain:
 
     def test_one_bad_station_does_not_abort_the_rest(self, monkeypatch, db_session):
         other = {**STATION, "id_stacji": "999", "lat": "not-a-number"}
-        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[other, STATION]))
+        monkeypatch.setattr(
+            client, "fetch_stations", MagicMock(return_value=[other, STATION])
+        )
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
 
-        with pytest.raises(RuntimeError, match="incomplete snapshot"):
-            ingest.main()  # ADR-012: partial snapshot = failed run, valid rows still stored
+        with pytest.raises(RuntimeError, match="1/2 failed"):
+            ingest.main()  # 50% rejected is over the 2% bound; valid rows still stored
 
         assert db_session.query(Measurement).count() == 1
-        assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is None
+
+    def test_one_rejected_station_in_a_large_snapshot_is_still_a_success(
+        self, monkeypatch, db_session, caplog
+    ):
+        stations = [{**STATION, "id_stacji": str(i)} for i in range(100)]
+        stations.append({**STATION, "id_stacji": "BAD", "lat": "not-a-number"})
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=stations))
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "imgw_hydro").last_success_at is not None
+        assert "BAD" in caplog.text  # rejected ids are logged on every run
 
     def test_success_is_recorded_in_source_status(self, monkeypatch, db_session):
         # ADR-012: CLI-only operators must still get a FRESH /hydro source_status.
@@ -215,7 +235,7 @@ class TestMain:
             ingest.main()
 
         status = db_session.get(SourceStatus, "imgw_hydro")
-        assert status.last_success_at is None and "incomplete snapshot" in status.last_error
+        assert status.last_success_at is None and "1/1 failed" in status.last_error
 
     def test_fetch_failure_is_recorded_and_reraised(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_stations", MagicMock(side_effect=RuntimeError("down")))

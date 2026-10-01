@@ -10,6 +10,7 @@ guess a polling frequency before it's verified. Run it yourself for now:
 
 import argparse
 import logging
+import os
 import sys
 from datetime import UTC, datetime
 
@@ -27,11 +28,26 @@ from app.connectors.gios.parser import (
 )
 from app.db import SessionLocal
 from app.models import Measurement
-from app.source_status import record_source_run
+from app.source_status import SMALL_SET_MAX_FAILED_FRACTION, record_source_run, run_failure_reason
 
 logger = logging.getLogger(__name__)
 
 MONITORED_PARAMS = list(PARAM_UNITS)
+
+
+def gios_station_ids() -> list[str]:
+    # ADR-007: which stations to poll is a deliberate, explicit choice (rule #9),
+    # never guessed - comma-separated env var, empty means "skip GIOS". One parser
+    # shared by the scheduler, the CLI and the health view so they cannot disagree.
+    raw = os.environ.get("GIOS_STATION_IDS", "")
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+def run_failure(total: int, failed: int) -> str | None:
+    """Failure reason for one GIOS run (shared by scheduler and CLI), or None."""
+    reason = run_failure_reason(total, failed, max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION)
+    return f"GIOS: {reason}" if reason else None
+
 
 # _ingest_param outcomes. TASK-13.1: "failed" (fetch/parse error) must stay distinct
 # from "nothing new" - otherwise a 429 on every param looks like a successful run.
@@ -194,25 +210,30 @@ def main() -> None:
 
     wanted = {str(sid) for sid in args.station_ids}
 
+    # ADR-012: a run over exactly the configured stations records source_status like
+    # the scheduler; an ad-hoc subset says nothing about the source as a whole.
+    record = wanted == set(gios_station_ids())
     db = SessionLocal()
     errors: list[str] = []
     try:
-        # ADR-012: the CLI records its outcome like the scheduler (same success rule).
         try:
             matched = client.find_stations(wanted)  # catalog outage is a failed run too
             failed = sum(ingest_station(station, db, errors) is None for station in matched)
-            if not matched or failed == len(matched):
-                raise RuntimeError(
-                    f"GIOS: no data fetched ({len(matched)} station(s), {failed} failed)"
-                )
+            failure = run_failure(len(matched), failed)
+            if failure:
+                raise RuntimeError(failure)
         except Exception as exc:
             db.rollback()
-            cause = f"; last cause: {errors[-1]}" if errors else ""
-            record_source_run(
-                db, "gios", success=False, error=f"{type(exc).__name__}: {exc}{cause}"
-            )
+            if record:
+                cause = f"; last cause: {errors[-1]}" if errors else ""
+                record_source_run(
+                    db, "gios", success=False, error=f"{type(exc).__name__}: {exc}{cause}"
+                )
             raise
-        record_source_run(db, "gios", success=True)
+        if record:
+            record_source_run(db, "gios", success=True)
+        else:
+            logger.info("subset run (not GIOS_STATION_IDS): source_status not updated")
     finally:
         db.close()
 

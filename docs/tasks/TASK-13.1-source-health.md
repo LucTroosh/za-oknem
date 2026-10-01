@@ -43,20 +43,27 @@ endpoint niczego nie zapisuje, więc nie ma strażnika zapisu opartego na jednym
 
 ## Czym jest "sukces" źródła
 
-Health wynika z `source_status`, więc wymaga, by job nie raportował sukcesu przy
-całkowitej awarii. Dlatego (ponad ADR-012): `ingest_geo_area()` i `ingest_station()`
-zwracają `None` (nie `0`) gdy pobranie się nie udało (Open-Meteo także gdy żaden
-blok nie dał się sparsować), a `run_open_meteo()`/`run_gios()` rzucają, gdy zawiodły
-WSZYSTKIE obszary/stacje (albo `GIOS_STATION_IDS` nie pasuje do żadnej stacji).
-Częściowa awaria nadal liczy się jako run (rule #1). GIOŚ: stacja to porażka także
-gdy KAŻDY parametr, który ma sensor, zakończył się błędem (np. 429); "nic nowego"
-to nie błąd. `last_error` niesie ostatnią przyczynę z connectora (zsanityzowaną
-przy odczycie). Brak `geo_areas` = skip, nie sukces. Ręczne CLI gios i open_meteo
-zapisują teraz `source_status` tą samą regułą (ADR-012: każdy punkt wejścia).
+Health wynika z `source_status`, więc job nie może raportować sukcesu przy awarii.
+Polityka jest jedna (`source_status.run_failure_reason`, używana przez scheduler
+i CLI): porażka gdy nic nie wróciło, zero udanych elementów albo odsetek
+nieudanych ponad próg. Progi: IMGW hydro 2% (~900 stacji, jedna zepsuta stacja
+nie może dawać wiecznego STALE; ID odrzuconych w `logger.warning` co run),
+Open-Meteo i GIOŚ 50% (małe zbiory). Ostrzeżenia IMGW zostają ścisłe (ADR-012).
+`ingest_geo_area()`/`ingest_station()` zwracają `None` przy porażce elementu
+(GIOŚ: także gdy każdy parametr z sensorem padł albo stacja nie ma żadnego
+monitorowanego sensora; Open-Meteo: fetch padł lub żaden z 3 bloków się nie
+sparsował). `last_error` niesie ostatnią przyczynę. Brak `geo_areas` = skip w
+schedulerze i `monitored: false` w raporcie (bez alarmu).
 
-Znane luki: Open-Meteo - awaria 1-2 z 3 bloków w każdym obszarze nadal daje sukces
-(patrz ADR-012, Consequences). GIOŚ wyłączony (brak `GIOS_STATION_IDS`) ma w
-raporcie `monitored: false` i nie generuje alarmów w logach.
+Ręczne CLI zapisuje `source_status` tylko dla pełnego przebiegu: hydro zawsze,
+open_meteo bez `--slug`, gios gdy `--station-id` = dokładnie `GIOS_STATION_IDS`
+(podzbiór nie mówi nic o stanie źródła).
+
+Znane ograniczenia (bez kodu): sukces = transport, nie świeżość danych (GIOŚ
+"nic nowego" przy zamrożonym feedzie to sukces; per-row freshness to łapie);
+Open-Meteo: awaria 1-2 z 3 bloków w każdym obszarze nadal daje sukces;
+`source_health.py` importuje funkcje freshness z routerów API i `DAILY_CALL_LIMIT`
+z connectora (wspólny moduł progów odłożony, zbyt duży diff jak na ten PR).
 
 ## Acceptance Criteria
 
@@ -89,16 +96,19 @@ ADR-012 (`source_status`), TASK-13.1a (`source_fetch_counters`), ADR-004, ADR-00
 ## Data Contract
 
 `{"generated_at": iso, "sources": [{"source_id", "freshness", "last_attempt_at",
-"last_success_at", "last_error", "daily_budget": {"used","limit","used_pct"} | null}]}`
+"last_success_at", "last_error", "monitored": bool,
+"daily_budget": {"used","limit","used_pct"} | null}]}`; `monitored=false` = źródło
+świadomie wyłączone (GIOŚ bez `GIOS_STATION_IDS`, Open-Meteo bez `geo_areas`),
+nie awaria - klient nie powinien alarmować.
 
 ## Security
 
-Tylko nasza baza (rule #14). `last_error` jest sanityzowany zachowawczo: userinfo
-URL i query stringi wycinane; jeśli komunikat zawiera cokolwiek przypominającego
-poświadczenia (key/token/secret/passw/auth/bearer/credential/signature/cookie),
-zostaje tylko typ wyjątku ("Type: [redacted]"); limit 200 znaków. Wzorce
-per-kształt poświadczeń odrzucone (nieskończony wyścig z wolnym tekstem).
-Skutek uboczny: nadmiarowa redakcja, np. słowo "keyboard".
+Tylko nasza baza (rule #14). `last_error` sanityzowany: userinfo URL, query
+stringi, IP i host:port maskowane, tokeny typu `sk-...`/długie opaque ciągi
+maskowane; od pierwszego słowa kluczowego poświadczeń (token, secret, password,
+authorization, bearer, api key, `key=`, credential, signature, cookie) reszta
+komunikatu jest ucinana. Typ wyjątku, kody HTTP ("401 Unauthorized"),
+"KeyError: 'current'" i liczby zostają. Limit 200 znaków.
 
 ## Architecture Impact
 

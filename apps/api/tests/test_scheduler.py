@@ -40,7 +40,7 @@ class TestRunOpenMeteo:
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setattr(scheduler, "ingest_geo_area", MagicMock(return_value=None))
 
-        with pytest.raises(RuntimeError, match="all 2 geo area"):
+        with pytest.raises(RuntimeError, match="2/2 failed"):
             scheduler.run_open_meteo()
 
     def test_partial_failure_is_still_a_run(self, monkeypatch, db_session):
@@ -101,7 +101,7 @@ class TestRunGios:
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setattr(scheduler.gios_client, "find_stations", MagicMock(return_value=[]))
 
-        with pytest.raises(RuntimeError, match="no data fetched"):
+        with pytest.raises(RuntimeError, match="nothing returned"):
             scheduler.run_gios()
 
     def test_all_stations_failing_raises(self, monkeypatch, db_session):
@@ -114,7 +114,7 @@ class TestRunGios:
         monkeypatch.setattr(scheduler.gios_client, "find_stations", find)
         monkeypatch.setattr(scheduler, "ingest_station", MagicMock(return_value=None))
 
-        with pytest.raises(RuntimeError, match="2 failed"):
+        with pytest.raises(RuntimeError, match="2/2 failed"):
             scheduler.run_gios()
 
     def test_partial_station_failure_is_still_a_run(self, monkeypatch, db_session):
@@ -145,20 +145,37 @@ class TestRunGios:
 
 
 class TestRunImgwHydro:
-    @pytest.mark.parametrize(
-        "stations,rejected", [([{"a": 1}, {"a": 2}], 2), ([{"a": 1}, {"a": 2}], 1), ([], 0)]
-    )
-    def test_no_usable_stations_raises(self, monkeypatch, db_session, stations, rejected):
+    def _stations(self, good, bad=0):
+        base = {
+            "id_stacji": "1", "stacja": "S", "rzeka": "R", "lat": "51.5", "lon": "14.8",
+            "stan_wody": "225", "stan_wody_data_pomiaru": "2026-09-27 21:20:00",
+            "stan_ostrzegawczy": None, "stan_alarmowy": None,
+        }  # fmt: skip
+        stations = [{**base, "id_stacji": str(i)} for i in range(good)]
+        return stations + [{**base, "id_stacji": f"bad{i}", "lat": "x"} for i in range(bad)]
+
+    def _run(self, monkeypatch, db_session, stations):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setattr(
             scheduler.imgw_hydro_client, "fetch_stations", MagicMock(return_value=stations)
         )
-        monkeypatch.setattr(
-            scheduler, "ingest_hydro_snapshot", MagicMock(return_value=(0, rejected))
-        )
+        scheduler.run_imgw_hydro()  # real ingest_snapshot
 
-        with pytest.raises(RuntimeError, match="incomplete snapshot"):
-            scheduler.run_imgw_hydro()
+    def test_one_bad_station_in_many_is_a_success(self, monkeypatch, db_session, caplog):
+        self._run(monkeypatch, db_session, self._stations(99, bad=1))
+        assert "bad0" in caplog.text  # ids of rejected stations logged every run
+
+    def test_rejected_over_the_bound_is_a_failure(self, monkeypatch, db_session):
+        with pytest.raises(RuntimeError, match="3/100 failed"):
+            self._run(monkeypatch, db_session, self._stations(97, bad=3))
+
+    def test_every_station_rejected_is_a_failure(self, monkeypatch, db_session):
+        with pytest.raises(RuntimeError, match="1/1 failed"):
+            self._run(monkeypatch, db_session, self._stations(0, bad=1))
+
+    def test_empty_response_is_a_failure(self, monkeypatch, db_session):
+        with pytest.raises(RuntimeError, match="nothing returned"):
+            self._run(monkeypatch, db_session, [])
 
     def test_ingests_whole_response_as_one_snapshot_no_gating(self, monkeypatch, db_session):
         # Unlike GIOS, no env var gate - one call already returns every station,
@@ -372,15 +389,26 @@ class TestCheckSourceHealth:
     def test_logs_transition_once_across_ticks(self, monkeypatch, db_session, caplog):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         monkeypatch.setenv("GIOS_STATION_IDS", "1")
+        _make_area(db_session)
         state: dict[str, str] = {}
 
         scheduler._check_source_health(state)
         scheduler._check_source_health(state)
 
         # Nothing ever fetched -> every source UNAVAILABLE, logged once each.
-        errors = [r for r in caplog.records if r.levelname == "ERROR"]
+        errors = [
+            r for r in caplog.records if r.name == "app.source_health" and r.levelname == "ERROR"
+        ]
         assert len(errors) == 4
         assert set(state.values()) == {"UNAVAILABLE"}
+
+    def test_open_meteo_without_geo_areas_is_not_monitored(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        state: dict[str, str] = {}
+
+        scheduler._check_source_health(state)
+
+        assert "open_meteo" not in state
 
     def test_skips_gios_when_not_configured(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)

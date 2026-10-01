@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import SourceFetchCounter, SourceStatus
+from app.models import GeoArea, SourceFetchCounter, SourceStatus
 from app.source_health import (
     SOURCES,
     collect_source_health,
@@ -117,6 +117,9 @@ def test_rollback_failure_still_yields_full_report(db_session, monkeypatch):
 def test_fallback_entry_keeps_monitored_flag(db_session, monkeypatch):
     import app.source_health as sh
 
+    db_session.add(GeoArea(slug="k", name="k", latitude=50.0, longitude=16.0))
+    db_session.commit()
+
     monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
     monkeypatch.setattr(sh, "_source_health", MagicMock(side_effect=RuntimeError("db gone")))
 
@@ -137,11 +140,31 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
     out = sanitize_error(raw)
 
     assert "SECRET123" not in out and "abc.def" not in out and "xyz" not in out
-    assert out == "ConnectionError: [redacted]"
+    assert out.startswith("ConnectionError: HTTPSConnectionPool")
     assert sanitize_error("HTTP 429 from https://u:p@host/x?a=b rate limited") == (
         "HTTP 429 from https://[redacted]@host/x rate limited"
     )
-    assert len(sanitize_error("x" * 1000)) == 200
+    assert len(sanitize_error("x " * 1000)) == 200
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "KeyError: 'current'",
+        "HTTP 401 Unauthorized",
+        "RuntimeError: Open-Meteo: 2/3 failed; last cause: KeyError: 'current'",
+        "GIOS: 0/5 failed",
+        "keyboard layout error",
+    ],
+)
+def test_sanitize_error_keeps_diagnostics(raw):
+    assert sanitize_error(raw) == raw
+
+
+def test_sanitize_error_masks_ips_hosts_and_opaque_tokens():
+    out = sanitize_error("could not connect to server at 10.0.3.7, port 5432 or db.internal:5432")
+    assert "10.0.3.7" not in out and "db.internal" not in out
+    assert "sk-abcdef123456" not in sanitize_error("rejected sk-abcdef123456 by upstream")
 
 
 @pytest.mark.parametrize(
@@ -228,6 +251,16 @@ def test_transitions_log_once_per_state_change(caplog):
     assert state == {"gios": "FRESH"}
 
 
+def test_run_failure_reason_policy():
+    from app.source_status import run_failure_reason as reason
+
+    assert reason(0, 0, max_failed_fraction=0.02) == "nothing returned"
+    assert reason(1, 1, max_failed_fraction=0.5) == "1/1 failed"  # no success at all
+    assert reason(100, 2, max_failed_fraction=0.02) is None
+    assert reason(100, 3, max_failed_fraction=0.02) == "3/100 failed"
+    assert reason(4, 2, max_failed_fraction=0.5) is None  # small sets: only a majority fails
+
+
 def test_unmonitored_source_is_never_logged(caplog):
     state = log_health_transitions([_entry("gios", "UNAVAILABLE", monitored=False)], {})
 
@@ -237,7 +270,10 @@ def test_unmonitored_source_is_never_logged(caplog):
 def test_gios_without_station_ids_is_reported_unmonitored(db_session, monkeypatch):
     monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
     by_id = _by_id(collect_source_health(db_session))
-    assert by_id["gios"]["monitored"] is False and by_id["open_meteo"]["monitored"] is True
+    assert by_id["gios"]["monitored"] is False and by_id["open_meteo"]["monitored"] is False
+    db_session.add(GeoArea(slug="k", name="k", latitude=50.0, longitude=16.0))
+    db_session.commit()
+    assert _by_id(collect_source_health(db_session))["open_meteo"]["monitored"] is True
 
     monkeypatch.setenv("GIOS_STATION_IDS", " \t\n ,  ")  # same parsing as the scheduler
     assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is False

@@ -352,7 +352,19 @@ class TestMain:
             ingest.main()
 
         row = db_session.get(SourceStatus, "open_meteo")
-        assert row.last_success_at is None and "all 1 geo area" in row.last_error
+        assert row.last_success_at is None and "1/1 failed" in row.last_error
+
+    def test_cli_slug_subset_does_not_record_source_status(self, monkeypatch, db_session):
+        from app.models import SourceStatus
+
+        _make_area(db_session)
+        monkeypatch.setattr(sys, "argv", ["ingest", "--slug", "klodzko"])
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(ingest, "ingest_geo_area", MagicMock(return_value=0))
+
+        ingest.main()
+
+        assert db_session.get(SourceStatus, "open_meteo") is None
 
     def test_slug_filters_to_matching_areas_only(self, monkeypatch, db_session):
         _make_area(db_session)  # slug="klodzko"

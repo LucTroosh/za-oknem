@@ -29,7 +29,7 @@ from app.connectors.open_meteo.parser import (
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
 from app.rate_budget import check_daily_budget, record_fetch_call
-from app.source_status import record_source_run
+from app.source_status import SMALL_SET_MAX_FAILED_FRACTION, record_source_run, run_failure_reason
 
 logger = logging.getLogger(__name__)
 
@@ -214,19 +214,28 @@ def main() -> None:
             print("No matching geo_areas found.", file=sys.stderr)
             sys.exit(1)
         errors: list[str] = []
-        # ADR-012: the CLI records its outcome like the scheduler (same success rule).
+        # ADR-012: a full run records source_status like the scheduler; a --slug subset
+        # says nothing about the source as a whole.
+        record = not args.slugs
         try:
             failed = sum(ingest_geo_area(area, db, errors) is None for area in areas)
-            if failed == len(areas):
-                raise RuntimeError(f"Open-Meteo failed for all {failed} geo area(s)")
+            reason = run_failure_reason(
+                len(areas), failed, max_failed_fraction=SMALL_SET_MAX_FAILED_FRACTION
+            )
+            if reason:
+                raise RuntimeError(f"Open-Meteo: {reason}")
         except Exception as exc:
             db.rollback()
-            cause = f"; last cause: {errors[-1]}" if errors else ""
-            record_source_run(
-                db, "open_meteo", success=False, error=f"{type(exc).__name__}: {exc}{cause}"
-            )
+            if record:
+                cause = f"; last cause: {errors[-1]}" if errors else ""
+                record_source_run(
+                    db, "open_meteo", success=False, error=f"{type(exc).__name__}: {exc}{cause}"
+                )
             raise
-        record_source_run(db, "open_meteo", success=True)
+        if record:
+            record_source_run(db, "open_meteo", success=True)
+        else:
+            logger.info("--slug subset run: source_status not updated")
     finally:
         db.close()
 
