@@ -11,11 +11,12 @@ override (ADR-007) and bypasses all of this.
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import provenance
 from app.connectors.gios import client
+from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
 from app.connectors.open_meteo.ingest import polling_areas
 from app.geo import select_stations
@@ -129,3 +130,23 @@ def stations_by_id(db: Session, ids: list[str]) -> list[dict]:
         r.station_id: r.raw for r in db.query(GiosStation).filter(GiosStation.station_id.in_(ids))
     }
     return [rows[i] for i in ids if i in rows]
+
+
+def current_station_ids(db: Session) -> set[str] | None:
+    """Stations the API may assign: the live catalog plus the GIOS_STATION_IDS override.
+    None = no catalog yet (legacy/env-only setup) -> no filtering. Keeps a station GIOŚ
+    dropped from the catalog (its old measurements stay in the DB) from being assigned
+    forever while the scheduler already polls its replacement."""
+    ids = set(db.execute(select(GiosStation.station_id)).scalars().all())
+    return ids | set(gios_station_ids()) if ids else None
+
+
+def polling_expected(db: Session) -> bool:
+    """Whether GIOS is meant to run (source_health `monitored`): an env override, an
+    assignment, or - while the catalog is still empty - any actively polled area, so a
+    failing first discovery stays visible instead of looking like a disabled source."""
+    if gios_station_ids():
+        return True
+    if db.query(GiosStation.id).first() is not None:
+        return bool(assigned_station_ids(db))
+    return bool(polling_areas(db))

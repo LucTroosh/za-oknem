@@ -140,9 +140,10 @@ def test_fallback_entry_keeps_monitored_flag(db_session, monkeypatch):
     report = collect_source_health(db_session)
     by_id = _by_id(report)
 
-    assert by_id["gios"]["monitored"] is False
+    # ADR-024: an active area with no catalog yet = GIOS is expected to run (monitored).
+    assert by_id["gios"]["monitored"] is True
     assert by_id["open_meteo"]["monitored"] is True
-    assert log_health_transitions(report, {}).keys() == set(SOURCES) - {"gios"}
+    assert log_health_transitions(report, {}).keys() == set(SOURCES)
 
 
 def test_sanitize_error_strips_query_secrets_and_truncates():
@@ -301,8 +302,10 @@ def test_gios_without_station_ids_is_reported_unmonitored(db_session, monkeypatc
     db_session.commit()
     assert _by_id(collect_source_health(db_session))["open_meteo"]["monitored"] is True
 
-    monkeypatch.setenv("GIOS_STATION_IDS", " \t\n ,  ")  # same parsing as the scheduler
-    assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is False
+    # Active area, empty catalog, no env: discovery is expected to run -> monitored, so a
+    # failing first discovery is visible (ADR-024). Same env parsing as the scheduler.
+    monkeypatch.setenv("GIOS_STATION_IDS", " \t\n ,  ")
+    assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is True
 
     monkeypatch.setenv("GIOS_STATION_IDS", "38")
     assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is True

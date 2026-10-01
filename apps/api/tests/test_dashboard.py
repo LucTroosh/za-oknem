@@ -73,11 +73,14 @@ def _client(
     alert_rows=(),
     pollen=([], []),
     status_rows=None,
+    catalog=(),
 ) -> TestClient:
-    # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts, then
-    # pollen snapshots (+ geo_areas when there are snapshots).
+    # Query order in dashboard_latest(): areas, stations, GIOŚ catalog ids (ADR-024; empty =
+    # no catalog yet), weather, forecasts, alerts, then pollen snapshots (+ geo_areas when
+    # there are snapshots).
     def _override():
-        sets = [areas, stations, weather_rows, list(forecast_rows), list(alert_rows)]
+        sets = [areas, stations, list(catalog), weather_rows, list(forecast_rows)]
+        sets.append(list(alert_rows))
         rows, pollen_areas = pollen
         sets += [rows, pollen_areas] if rows else [rows]
         yield _FakeSession(*sets, status_rows=status_rows)
@@ -555,7 +558,7 @@ def test_dashboard_lists_only_actively_polled_areas():
             return super().execute(stmt)
 
     def _override():
-        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [])
+        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [], [])
 
     app.dependency_overrides[get_db] = _override
     assert TestClient(app).get("/api/v1/dashboard/latest").status_code == 200
@@ -697,3 +700,15 @@ def test_dashboard_station_just_beyond_limit_is_not_assigned():
     client = _client([GeoArea(**KLODZKO)], [_station(latitude=50.93)], [])
 
     assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
+
+
+def test_dashboard_never_assigns_a_station_dropped_from_the_catalog():
+    # Station 38 is nearest but no longer in the GIOŚ catalog (its old measurements stay):
+    # the area must use the live catalog station 40, not the retired one.
+    retired = _station(station_id="38", source_record_id="a")
+    live = _station(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
+    client = _client([GeoArea(**KLODZKO)], [retired, live], [], catalog=["40", "41"])
+
+    air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+
+    assert air["station_id"] == "40"

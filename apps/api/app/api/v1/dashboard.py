@@ -15,6 +15,7 @@ from app.api.v1.pollen import latest_pollen, pollen_block
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
 from app.api.v1.weather import forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
+from app.connectors.gios.discovery import current_station_ids
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import select_stations
@@ -95,6 +96,9 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
             "observed_at": row.observed_at.isoformat(),
             "freshness": air_freshness(row.observed_at),
         }
+    allowed = current_station_ids(db)  # ADR-024: never assign a station dropped by GIOŚ
+    if allowed is not None:
+        stations = {k: v for k, v in stations.items() if k in allowed}
     stations_list = list(stations.values())
 
     weather_stmt = (

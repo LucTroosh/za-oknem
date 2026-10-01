@@ -20,8 +20,7 @@ from app.api.v1.alerts import freshness as alerts_freshness
 from app.api.v1.hydro import freshness as hydro_freshness
 from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import freshness as weather_freshness
-from app.connectors.gios.discovery import assigned_station_ids
-from app.connectors.gios.ingest import gios_station_ids
+from app.connectors.gios.discovery import polling_expected
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
 from app.connectors.open_meteo.ingest import polling_areas
 from app.models import SourceFetchCounter, SourceStatus
@@ -65,7 +64,7 @@ SOURCES: dict[str, SourceSpec] = {
     # for the stations assigned to actively polled areas (rule #9); neither = switched off.
     "gios": SourceSpec(
         air_freshness,
-        enabled=lambda db: bool(gios_station_ids()) or bool(assigned_station_ids(db)),
+        enabled=polling_expected,
     ),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),

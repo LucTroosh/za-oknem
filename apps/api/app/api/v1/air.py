@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.air_index import air_index
+from app.connectors.gios.discovery import current_station_ids
 from app.db import get_db
 from app.geo import select_stations
 from app.models import GeoArea, Measurement
@@ -140,10 +141,15 @@ def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get
         station["index"] = air_index(station["params"], RECENT_MAX_AGE)
     if area is None:
         return {"stations": list(stations.values())}
+    allowed = current_station_ids(db)  # never assign a station GIOŚ dropped from its catalog
     matches = select_stations(
         area.latitude,
         area.longitude,
-        [(s["station_id"], s["latitude"], s["longitude"]) for s in stations.values()],
+        [
+            (s["station_id"], s["latitude"], s["longitude"])
+            for s in stations.values()
+            if allowed is None or s["station_id"] in allowed
+        ],
     )
     return {
         "stations": [

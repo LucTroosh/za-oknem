@@ -151,3 +151,34 @@ def test_stations_by_id_returns_raw_dicts_in_requested_order(monkeypatch, db_ses
     got = discovery.stations_by_id(db_session, ["114", "38", "missing"])
 
     assert [s["Identyfikator stacji"] for s in got] == [114, 38]
+
+
+def test_current_station_ids_is_catalog_plus_env_or_none_without_catalog(monkeypatch, db_session):
+    monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+    assert discovery.current_station_ids(db_session) is None  # no catalog -> no filtering
+
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    monkeypatch.setenv("GIOS_STATION_IDS", "999")
+
+    assert discovery.current_station_ids(db_session) == {"38", "114", "7", "999"}
+
+
+def test_polling_expected_covers_env_assignment_and_empty_catalog_bootstrap(
+    monkeypatch, db_session
+):
+    monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+    assert discovery.polling_expected(db_session) is False  # nothing to serve
+
+    _area(db_session, "szczecin", 53.43, 14.55)
+    assert discovery.polling_expected(db_session) is True  # empty catalog, active area
+
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    assert discovery.polling_expected(db_session) is False  # catalog known, nothing in range
+
+    _area(db_session, "klodzko", 50.433493, 16.65366)
+    assert discovery.polling_expected(db_session) is True
+
+    monkeypatch.setenv("GIOS_STATION_IDS", "1")
+    assert discovery.polling_expected(db_session) is True

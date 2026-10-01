@@ -352,17 +352,21 @@ def test_latest_air_quality_index_non_ug_unit_is_dropped_not_converted():
 
 
 class _AreaSession(_FakeSession):
-    def __init__(self, rows, areas):
+    def __init__(self, rows, areas, catalog=()):
         super().__init__(rows)
         self._areas = areas
+        self._queue = [rows, list(catalog)]  # measurements, then GIOŚ catalog ids
+
+    def execute(self, _stmt):
+        return _FakeResult(self._queue.pop(0))
 
     def get(self, _model, key):
         return self._areas.get(key)
 
 
-def _client_for_area(rows, areas) -> TestClient:
+def _client_for_area(rows, areas, catalog=()) -> TestClient:
     def _override():
-        yield _AreaSession(rows, areas)
+        yield _AreaSession(rows, areas, catalog)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -408,3 +412,13 @@ def test_air_latest_without_area_keeps_old_contract():
 
     assert len(stations) == 1
     assert "distance_km" not in stations[0] and "assignment_method" not in stations[0]
+
+
+def test_air_latest_for_area_skips_station_dropped_from_catalog():
+    retired = _measurement(station_id="38", latitude=50.43, longitude=16.65)
+    live = _measurement(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
+    client = _client_for_area([retired, live], {1: _area()}, catalog=["40"])
+
+    stations = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
+
+    assert [s["station_id"] for s in stations] == ["40"]
