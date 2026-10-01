@@ -105,12 +105,16 @@ class GeoArea(Base):
 
     __tablename__ = "geo_areas"
     __table_args__ = (
+        # Matches migration 0003 (unique constraint + plain index); the old model said
+        # `unique=True, index=True` (one unique index) and `alembic check` flagged the drift -
+        # unnoticed while CI's `| tee` swallowed the exit code.
+        UniqueConstraint("slug", name="uq_geo_area_slug"),
         UniqueConstraint("teryt_code", name="uq_geo_area_teryt_code"),
         Index("ix_geo_areas_boundary", "boundary", postgresql_using="gist"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    slug: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(50), index=True)
     name: Mapped[str] = mapped_column(String(200))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
