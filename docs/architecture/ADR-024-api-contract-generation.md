@@ -43,6 +43,9 @@ w kształcie (`freshness: UNAVAILABLE`, puste `items`), więc nigdy nie unieważ
 - Nowe pole w dashboardzie = zmiana modelu + `export_openapi.py` + `generate.mjs` (CI wskaże, czego brakuje).
 - Pydantic odrzuca nieznane klucze przy serializacji — test kontraktowy porównuje body z surowym
   dictem endpointu, więc zapomniane pole nie przejdzie niezauważone.
+- Bez `uv.lock` (znana luka repo) wydanie FastAPI/Pydantic zmieniające serializację OpenAPI może
+  zaczerwienić `--check` na niezmienionym PR; komunikat podaje wersje, naprawa = regeneracja
+  (jedna komenda). Docelowo: commit `uv.lock` + `uv sync --locked`.
 - Generator obsługuje tylko konstrukcje, które emituje FastAPI/pydantic (`$ref`, `anyOf`, `enum`,
   `const`, `array`, `object`/`additionalProperties`); nieznany typ → `unknown`. Przy bardziej
   złożonych schematach rozważyć `openapi-typescript` (osobny ADR).

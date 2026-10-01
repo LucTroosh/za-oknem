@@ -8,6 +8,7 @@ real contract change.
 
 import json
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 API_DIR = Path(__file__).resolve().parents[1]
@@ -28,6 +29,10 @@ if __name__ == "__main__":
     if "--check" in sys.argv:
         if not TARGET.exists() or TARGET.read_text(encoding="utf-8") != text:
             GENERATED.write_text(text, encoding="utf-8")
-            sys.exit(f"{TARGET} is out of date - run: uv run python scripts/export_openapi.py")
+            sys.exit(
+                f"{TARGET} is out of date - run: uv run python scripts/export_openapi.py "
+                f"(fastapi {version('fastapi')}, pydantic {version('pydantic')}: with no uv.lock "
+                "a dependency release can change the serialization too)"
+            )
     else:
         TARGET.write_text(text, encoding="utf-8")
