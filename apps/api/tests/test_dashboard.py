@@ -29,6 +29,7 @@ KLODZKO = {
     "name": "Kłodzko",
     "latitude": 50.433493,
     "longitude": 16.65366,
+    "weather_polling_active": True,
 }
 WARSZAWA = {
     "id": 2,
@@ -36,6 +37,7 @@ WARSZAWA = {
     "name": "Warszawa",
     "latitude": 52.2297,
     "longitude": 21.0122,
+    "weather_polling_active": True,
 }
 
 
@@ -51,8 +53,9 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self, *result_sets, status_rows=None):
+    def __init__(self, *result_sets, status_rows=None, geo_areas=()):
         self._queue = list(result_sets)
+        self._geo_areas = {a.id: a for a in geo_areas}
         self._status_rows = status_rows or {}
 
     def execute(self, _stmt):
@@ -61,7 +64,9 @@ class _FakeSession:
     def rollback(self):
         pass
 
-    def get(self, _model, key):
+    def get(self, model, key):
+        if model is GeoArea:  # ?geo_area_id= lookup (TASK-6.2(8))
+            return self._geo_areas.get(key)
         # No source_status rows unless a test supplies one -> UNAVAILABLE (ADR-012).
         return self._status_rows.get(key)
 
@@ -75,16 +80,18 @@ def _client(
     pollen=([], []),
     status_rows=None,
     catalog=(),
+    lookup=(),
 ) -> TestClient:
     # Query order in dashboard_latest(): areas, stations, GIOŚ catalog ids (ADR-025; empty =
     # no catalog yet), weather, forecasts, alerts, then pollen snapshots (+ geo_areas when
     # there are snapshots).
     def _override():
-        sets = [areas, stations, list(catalog), weather_rows, list(forecast_rows)]
+        sets = [] if lookup else [areas]  # ?geo_area_id= reads the area via db.get
+        sets += [stations, list(catalog), weather_rows, list(forecast_rows)]
         sets.append(list(alert_rows))
         rows, pollen_areas = pollen
         sets += [rows, pollen_areas] if rows else [rows]
-        yield _FakeSession(*sets, status_rows=status_rows)
+        yield _FakeSession(*sets, status_rows=status_rows, geo_areas=lookup)
 
     app.dependency_overrides[get_db] = _override
     return TestClient(app)
@@ -774,6 +781,7 @@ def test_dashboard_env_override_station_outside_catalog_keeps_measured_coordinat
 
     assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]["station_id"] == "38"
 
+
 def _status(source_id: str, hours_old: float | None) -> dict:
     last = None if hours_old is None else datetime.now(UTC) - timedelta(hours=hours_old)
     return {source_id: SourceStatus(source_id=source_id, last_success_at=last)}
@@ -863,3 +871,48 @@ def test_dashboard_top_level_source_status_survives_null_blocks():
     assert body["areas"][0]["air"] is None and body["areas"][0]["weather"] is None
     assert body["source_status"]["air"]["freshness"] == "FRESH"
     assert body["source_status"]["weather"] == {"freshness": "UNAVAILABLE", "last_success_at": None}
+
+
+# --- ?geo_area_id= (TASK-6.2(8), ADR-026) ----------------------------------------------
+
+
+def test_dashboard_geo_area_id_narrows_to_that_area():
+    klodzko, warszawa = GeoArea(**KLODZKO), GeoArea(**WARSZAWA)
+    client = _client([], [_station()], [_weather()], lookup=[klodzko, warszawa])
+
+    body = client.get("/api/v1/dashboard/latest?geo_area_id=1").json()
+
+    assert [a["geo_area_id"] for a in body["areas"]] == [1]
+    area = body["areas"][0]
+    assert area["weather_polling_active"] is True
+    assert area["air"]["station_id"] == "38" and area["weather"] is not None
+    assert body["alerts"]["scope"] == "national"  # semantics unchanged
+
+
+def test_dashboard_geo_area_id_unknown_is_404():
+    client = _client([], [], [], lookup=[GeoArea(**KLODZKO)])
+    assert client.get("/api/v1/dashboard/latest?geo_area_id=99").status_code == 404
+
+
+def test_dashboard_without_param_lists_polled_areas_as_before():
+    client = _client([GeoArea(**KLODZKO), GeoArea(**WARSZAWA)], [], [])
+    body = client.get("/api/v1/dashboard/latest").json()
+    assert [a["geo_area_id"] for a in body["areas"]] == [1, 2]
+
+
+def test_dashboard_inactive_area_is_explicit_no_data():
+    # An imported gmina nobody polls: still answerable, flagged, every block says "no data".
+    gmina = GeoArea(**{**KLODZKO, "id": 7, "slug": "x", "weather_polling_active": False})
+    client = _client([], [], [], lookup=[gmina])
+
+    area = client.get("/api/v1/dashboard/latest?geo_area_id=7").json()["areas"][0]
+
+    assert area["weather_polling_active"] is False
+    assert area["air"] is None and area["weather"] is None and area["forecast"] is None
+    assert area["outdoor"]["level"] == "UNKNOWN"
+    assert area["pollen"]["freshness"] == "UNAVAILABLE" and area["pollen"]["current"] is None
+
+
+def test_dashboard_geo_area_id_not_int_is_422():
+    client = _client([], [], [], lookup=[GeoArea(**KLODZKO)])
+    assert client.get("/api/v1/dashboard/latest?geo_area_id=abc").status_code == 422

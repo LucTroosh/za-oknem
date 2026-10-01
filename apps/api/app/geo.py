@@ -19,6 +19,13 @@ EARTH_RADIUS_KM = 6371.0
 MAX_MATCH_DISTANCE_KM = 50.0
 METHOD_NEAREST_STATION = "nearest_station"
 
+# ADR-026: GPS/manual point -> app area. `point_in_polygon` = the gmina itself (ADR-019);
+# `nearest_area` = fallback to the closest ACTIVE area within this distance (inclusive),
+# always disclosed with its distance - it never replaces the administrative answer.
+METHOD_POINT_IN_POLYGON = "point_in_polygon"
+METHOD_NEAREST_AREA = "nearest_area"
+NEAREST_AREA_MAX_KM = 25.0
+
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance between two lat/lon points, in kilometers."""
@@ -56,6 +63,22 @@ def select_stations(
             scored.append((round(km, 3), sid))
     scored.sort(key=lambda t: (t[0], not t[1].isdigit(), len(t[1]), t[1]))
     return [StationMatch(sid, km) for km, sid in scored[:limit]]
+
+
+def nearest_area(
+    latitude: float,
+    longitude: float,
+    areas: Iterable[tuple[int, float, float]],
+    *,
+    max_km: float = NEAREST_AREA_MAX_KM,
+) -> tuple[int, float] | None:
+    """Pure, deterministic point -> (geo_area_id, distance_km) of the nearest area within
+    `max_km` (inclusive), ties by lowest id; None = out of range. `areas` are
+    (geo_area_id, lat, lon). Same rule as `select_stations` (reused, not copied)."""
+    match = select_stations(
+        latitude, longitude, ((str(i), la, lo) for i, la, lo in areas), max_km=max_km
+    )
+    return (int(match[0].station_id), match[0].distance_km) if match else None
 
 
 @dataclass(frozen=True)
