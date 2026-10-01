@@ -36,12 +36,17 @@ oficjalnego, dozwolonego źródła, bez zgadywania (rule #10, #15).
 
 ## Blokada — co musi zrobić człowiek
 
+Wystarczy jedna ścieżka; kroki 2–3 dotyczą tylko źródeł wybranych do użycia.
+
 1. Napisać do GIS (właściciel `sk.gis.gov.pl`) z prośbą o: udokumentowany
    eksport/API, pisemną zgodę na automatyczne pobieranie, warunki licencji i
    `commercial_use`, atrybucję, limit żądań i współrzędne/TERYT kąpielisk.
-2. W przeglądarce potwierdzić licencję wydania 2025 i schemat pliku EEA (Datahub, metadata factsheet), pola usługi `BathingWater_Dyna_WM_2025` i filtr `countryName=Poland` oraz limit żądań EEA
-3. Ręcznie sprawdzić portal dane.gov.pl pod kątem zbioru o kąpieliskach.
-4. Po 1–3 — przeprowadzić pełny Gate §38 (AC wyżej) i dopiero wtedy zatwierdzić źródło; wtedy zadanie można wznowić jako osobny PR.
+2. Jeśli wybrane ma być EEA (tylko rejestr + klasyfikacja roczna): potwierdzić
+   licencję wydania 2025, schemat xlsx, pola `BathingWater_Dyna_WM_2025`, filtr
+   `countryName=Poland` i limit żądań EEA.
+3. Opcjonalnie sprawdzić dane.gov.pl i WIOŚ/wojewódzkie jako dodatkowe kandydaty.
+4. Dla wybranego źródła przeprowadzić pełny Gate §38 (AC wyżej), zatwierdzić je
+   i wznowić zadanie jako osobny PR.
 
 ## Tests
 
