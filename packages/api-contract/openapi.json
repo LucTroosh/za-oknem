@@ -211,6 +211,28 @@
       },
       "AirStation": {
         "properties": {
+          "assignment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Method"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
           "index": {
             "$ref": "#/components/schemas/AirIndex"
           },
@@ -405,6 +427,10 @@
       },
       "DashboardAir": {
         "properties": {
+          "assignment_method": {
+            "title": "Assignment Method",
+            "type": "string"
+          },
           "attribution": {
             "title": "Attribution",
             "type": "string"
@@ -453,6 +479,7 @@
           "params",
           "index",
           "distance_km",
+          "assignment_method",
           "source_status"
         ],
         "title": "DashboardAir",
@@ -2232,8 +2259,26 @@
   "paths": {
     "/api/v1/air/latest": {
       "get": {
-        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.",
+        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest within MAX_MATCH_DISTANCE_KM, with `distance_km` + `assignment_method`);\nno station in range = empty list (\"brak danych dla obszaru\"), unknown area = 404.",
         "operationId": "latest_air_quality_api_v1_air_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geo Area Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2244,6 +2289,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Latest Air Quality"

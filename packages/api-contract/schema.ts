@@ -36,6 +36,8 @@ export type AirParam = {
 };
 
 export type AirStation = {
+  assignment_method?: string | null;
+  distance_km?: number | null;
   index: AirIndex;
   latitude: number;
   longitude: number;
@@ -74,6 +76,7 @@ export type DailyBudgetOut = {
 };
 
 export type DashboardAir = {
+  assignment_method: string;
   attribution: string;
   distance_km: number;
   index: AirIndex;

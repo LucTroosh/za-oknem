@@ -20,7 +20,7 @@ from app.api.v1.alerts import freshness as alerts_freshness
 from app.api.v1.hydro import freshness as hydro_freshness
 from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import freshness as weather_freshness
-from app.connectors.gios.ingest import gios_station_ids
+from app.connectors.gios.discovery import polling_expected
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
 from app.connectors.open_meteo.ingest import polling_areas
 from app.models import SourceFetchCounter, SourceStatus
@@ -60,8 +60,12 @@ SOURCES: dict[str, SourceSpec] = {
         pollen_freshness,
         enabled=lambda db: bool(polling_areas(db)),
     ),
-    # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
-    "gios": SourceSpec(air_freshness, enabled=lambda db: bool(gios_station_ids())),
+    # ADR-007/ADR-025: GIOS is polled for explicitly configured stations or, without them,
+    # for the stations assigned to actively polled areas (rule #9); neither = switched off.
+    "gios": SourceSpec(
+        air_freshness,
+        enabled=polling_expected,
+    ),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),
 }

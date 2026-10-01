@@ -1,14 +1,16 @@
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.air_index import air_index
+from app.connectors.gios.discovery import assignment_candidates
 from app.db import get_db
-from app.models import Measurement
+from app.geo import select_stations
+from app.models import GeoArea, Measurement
 
 router = APIRouter()
 
@@ -62,20 +64,34 @@ class AirStation(BaseModel):
     # Additive field: a client that ignores it keeps working.
     index: AirIndex
     source: Literal["gios"]
+    # Only with ?geo_area_id= (ADR-025): provenance of the area -> station assignment.
+    distance_km: float | None = None
+    assignment_method: str | None = None
 
 
 class AirLatestResponse(BaseModel):
     stations: list[AirStation]
 
 
-@router.get("/air/latest", response_model=AirLatestResponse)
-def latest_air_quality(db: Session = Depends(get_db)) -> dict:
+# exclude_unset: the ADR-025 provenance fields appear only for ?geo_area_id= - the plain list
+# keeps its exact old shape (explicit nulls such as index.level stay, they are "set").
+@router.get("/air/latest", response_model=AirLatestResponse, response_model_exclude_unset=True)
+def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) — never calls GIOŚ on request.
     Data arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).
 
     TASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —
     each station now returns a `params` dict keyed by param code instead of a single
-    top-level `pm25` field."""
+    top-level `pm25` field.
+
+    ADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area
+    (nearest within MAX_MATCH_DISTANCE_KM, with `distance_km` + `assignment_method`);
+    no station in range = empty list ("brak danych dla obszaru"), unknown area = 404."""
+    area = None
+    if geo_area_id is not None:
+        area = db.get(GeoArea, geo_area_id)
+        if area is None:
+            raise HTTPException(status_code=404, detail="geo_area not found")
     # Latest reading per (station, param): one query, no N+1 — distinct on
     # (station_id, param_code) ordered by observed_at desc is the standard Postgres
     # idiom for "latest per group", extended to two grouping columns.
@@ -123,4 +139,22 @@ def latest_air_quality(db: Session = Depends(get_db)) -> dict:
 
     for station in stations.values():
         station["index"] = air_index(station["params"], RECENT_MAX_AGE)
-    return {"stations": list(stations.values())}
+    if area is None:
+        return {"stations": list(stations.values())}
+    # ADR-025: catalog = authority for who may be assigned and at which coordinates.
+    points = assignment_candidates(db, stations)
+    coords = {sid: (lat, lon) for sid, lat, lon in points}
+    matches = select_stations(area.latitude, area.longitude, points)
+    return {
+        "stations": [
+            {
+                **stations[m.station_id],
+                # the position the distance was computed from (catalog), not the measured one
+                "latitude": coords[m.station_id][0],
+                "longitude": coords[m.station_id][1],
+                "distance_km": round(m.distance_km, 1),
+                "assignment_method": m.method,
+            }
+            for m in matches
+        ]
+    }

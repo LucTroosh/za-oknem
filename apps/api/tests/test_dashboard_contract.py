@@ -60,6 +60,7 @@ def test_all_fresh_body_equals_endpoint_dict():
     assert body == raw
     area = body["areas"][0]
     assert area["air"]["station_id"] == "38"
+    assert area["air"]["assignment_method"] == "nearest_station"  # ADR-025 survives the model
     assert area["weather"]["freshness"] == "FRESH"
     assert area["forecast"]["days"] and area["pollen"]["freshness"] == "FRESH"
     assert body["alerts"]["items"][0]["areas"] == [{"wojewodztwo": "wielkopolskie"}]
@@ -127,6 +128,11 @@ def test_openapi_documents_every_dashboard_block():
     assert set(comps["DashboardSourceStatus"]["required"]) == {"air", "weather"}
     for name in ("DashboardAir", "DashboardWeather"):
         assert "source_status" in comps[name]["required"]
+    assert "assignment_method" in comps["DashboardAir"]["required"]  # ADR-025
+    # /air/latest?geo_area_id= provenance: optional, only present for an area request
+    air_props = comps["AirStation"]["properties"]
+    assert {"distance_km", "assignment_method"} <= set(air_props)
+    assert not {"distance_km", "assignment_method"} & set(comps["AirStation"]["required"])
     area = comps["DashboardArea"]
     expected = {"geo_area_id", "slug", "name", "latitude", "longitude"}
     expected |= {"air", "weather", "forecast", "outdoor", "pollen"}

@@ -74,11 +74,14 @@ def _client(
     alert_rows=(),
     pollen=([], []),
     status_rows=None,
+    catalog=(),
 ) -> TestClient:
-    # Query order in dashboard_latest(): areas, stations, weather, forecasts, alerts, then
-    # pollen snapshots (+ geo_areas when there are snapshots).
+    # Query order in dashboard_latest(): areas, stations, GIOŚ catalog ids (ADR-025; empty =
+    # no catalog yet), weather, forecasts, alerts, then pollen snapshots (+ geo_areas when
+    # there are snapshots).
     def _override():
-        sets = [areas, stations, weather_rows, list(forecast_rows), list(alert_rows)]
+        sets = [areas, stations, list(catalog), weather_rows, list(forecast_rows)]
+        sets.append(list(alert_rows))
         rows, pollen_areas = pollen
         sets += [rows, pollen_areas] if rows else [rows]
         yield _FakeSession(*sets, status_rows=status_rows)
@@ -556,7 +559,7 @@ def test_dashboard_lists_only_actively_polled_areas():
             return super().execute(stmt)
 
     def _override():
-        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [])
+        yield _Recording([GeoArea(**KLODZKO)], [], [], [], [], [])
 
     app.dependency_overrides[get_db] = _override
     assert TestClient(app).get("/api/v1/dashboard/latest").status_code == 200
@@ -670,6 +673,81 @@ def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch
     client = _client([GeoArea(**KLODZKO)], [_station()], [_weather()])
     _assert_pollen_degraded_rest_intact(client, caplog)
 
+
+def test_dashboard_air_has_assignment_provenance():
+    # ADR-025: station id + distance + method tell where the area's air data comes from.
+    near = _station(station_id="38", latitude=50.45, longitude=16.66)
+    client = _client([GeoArea(**KLODZKO)], [near], [])
+
+    air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+
+    assert air["station_id"] == "38"
+    assert air["assignment_method"] == "nearest_station"
+    assert 0 < air["distance_km"] < 5
+
+
+def test_dashboard_tie_between_stations_picks_lowest_id_regardless_of_row_order():
+    a = _station(station_id="10", source_record_id="a", latitude=50.5, longitude=16.7)
+    b = _station(station_id="9", source_record_id="b", latitude=50.5, longitude=16.7)
+
+    for rows in ([a, b], [b, a]):
+        client = _client([GeoArea(**KLODZKO)], rows, [])
+        air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+        assert air["station_id"] == "9"
+
+
+def test_dashboard_station_just_beyond_limit_is_not_assigned():
+    # ~55 km north of Kłodzko: the only station exists, but past MAX_MATCH_DISTANCE_KM.
+    client = _client([GeoArea(**KLODZKO)], [_station(latitude=50.93)], [])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
+
+
+def _cat(sid, lat, lon):
+    from app.models import GiosStation
+
+    return GiosStation(
+        station_id=sid,
+        station_name="s",
+        latitude=lat,
+        longitude=lon,
+        raw={},
+        fetched_at=datetime.now(UTC),
+    )
+
+
+def test_dashboard_never_assigns_a_station_dropped_from_the_catalog():
+    # Station 38 is nearest but no longer in the GIOŚ catalog (its old measurements stay):
+    # the area must use the live catalog station 40, not the retired one.
+    retired = _station(station_id="38", source_record_id="a")
+    live = _station(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
+    client = _client(
+        [GeoArea(**KLODZKO)],
+        [retired, live],
+        [],
+        catalog=[_cat("40", 50.5, 16.7), _cat("41", 50.9, 16.7)],
+    )
+
+    air = client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]
+
+    assert air["station_id"] == "40"
+
+
+def test_dashboard_uses_catalog_coordinates_not_the_stale_measured_ones():
+    # Measurements still carry the old position (50.43, 16.65 = on top of the area); the
+    # catalog says the station moved ~60 km away -> out of range, same as polling decides.
+    moved = _station(station_id="38")
+    client = _client([GeoArea(**KLODZKO)], [moved], [], catalog=[_cat("38", 50.97, 16.65)])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
+
+
+def test_dashboard_env_override_station_outside_catalog_keeps_measured_coordinates(monkeypatch):
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+    only_env = _station(station_id="38")
+    client = _client([GeoArea(**KLODZKO)], [only_env], [], catalog=[_cat("40", 52.0, 21.0)])
+
+    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"]["station_id"] == "38"
 
 def _status(source_id: str, hours_old: float | None) -> dict:
     last = None if hours_old is None else datetime.now(UTC) - timedelta(hours=hours_old)

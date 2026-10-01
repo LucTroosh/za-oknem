@@ -346,3 +346,102 @@ def test_latest_air_quality_index_non_ug_unit_is_dropped_not_converted():
     index = client.get("/api/v1/air/latest").json()["stations"][0]["index"]
 
     assert index["level"] is None and index["missing"]["NO2"] == "UNIT"
+
+
+# --- ?geo_area_id= (ADR-025): the station assigned to an area, with provenance ----
+
+
+class _AreaSession(_FakeSession):
+    def __init__(self, rows, areas, catalog=()):
+        super().__init__(rows)
+        self._areas = areas
+        self._queue = [rows, list(catalog)]  # measurements, then GIOŚ catalog ids
+
+    def execute(self, _stmt):
+        return _FakeResult(self._queue.pop(0))
+
+    def get(self, _model, key):
+        return self._areas.get(key)
+
+
+def _client_for_area(rows, areas, catalog=()) -> TestClient:
+    def _override():
+        yield _AreaSession(rows, areas, catalog)
+
+    app.dependency_overrides[get_db] = _override
+    return TestClient(app)
+
+
+def _area(**kw):
+    from app.models import GeoArea
+
+    return GeoArea(
+        **{"id": 1, "slug": "k", "name": "K", "latitude": 50.43, "longitude": 16.65, **kw}
+    )
+
+
+def test_air_latest_for_area_returns_assigned_station_with_provenance():
+    near = _measurement(station_id="38", latitude=50.44, longitude=16.66)
+    far = _measurement(station_id="99", source_record_id="b", latitude=52.23, longitude=21.01)
+    client = _client_for_area([far, near], {1: _area()})
+
+    body = client.get("/api/v1/air/latest?geo_area_id=1").json()
+
+    assert [s["station_id"] for s in body["stations"]] == ["38"]
+    assert body["stations"][0]["assignment_method"] == "nearest_station"
+    assert 0 < body["stations"][0]["distance_km"] < 5
+    assert body["stations"][0]["params"]["PM2.5"]["value"] == 11.5
+
+
+def test_air_latest_for_area_without_station_in_range_is_empty():
+    far = _measurement(station_id="99", latitude=52.23, longitude=21.01)
+    client = _client_for_area([far], {1: _area()})
+
+    assert client.get("/api/v1/air/latest?geo_area_id=1").json() == {"stations": []}
+
+
+def test_air_latest_for_unknown_area_is_404():
+    assert (
+        _client_for_area([_measurement()], {}).get("/api/v1/air/latest?geo_area_id=5").status_code
+        == 404
+    )
+
+
+def test_air_latest_without_area_keeps_old_contract():
+    stations = _client_for_area([_measurement()], {}).get("/api/v1/air/latest").json()["stations"]
+
+    assert len(stations) == 1
+    assert "distance_km" not in stations[0] and "assignment_method" not in stations[0]
+
+
+def _cat(sid, lat, lon):
+    from app.models import GiosStation
+
+    return GiosStation(
+        station_id=sid,
+        station_name="s",
+        latitude=lat,
+        longitude=lon,
+        raw={},
+        fetched_at=datetime.now(UTC),
+    )
+
+
+def test_air_latest_for_area_skips_station_dropped_from_catalog():
+    retired = _measurement(station_id="38", latitude=50.43, longitude=16.65)
+    live = _measurement(station_id="40", source_record_id="b", latitude=50.5, longitude=16.7)
+    client = _client_for_area([retired, live], {1: _area()}, catalog=[_cat("40", 50.5, 16.7)])
+
+    stations = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
+
+    assert [s["station_id"] for s in stations] == ["40"]
+
+
+def test_air_latest_for_area_reports_the_catalog_coordinates_used_for_assignment():
+    row = _measurement(station_id="38", latitude=50.43, longitude=16.65)  # old position
+    client = _client_for_area([row], {1: _area()}, catalog=[_cat("38", 50.5, 16.7)])
+
+    [station] = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
+
+    assert (station["latitude"], station["longitude"]) == (50.5, 16.7)
+    assert station["distance_km"] > 5  # measured position would have said ~0 km
