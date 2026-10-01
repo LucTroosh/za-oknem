@@ -1,4 +1,4 @@
-"""GIOŚ station catalog as an entity + area -> station assignment (ADR-024, TASK-6.2 (7)).
+"""GIOŚ station catalog as an entity + area -> station assignment (ADR-025, TASK-6.2 (7)).
 
 `/station/findAll` is a 2 req/min list endpoint that GIOŚ itself marks as updated yearly
 (source-registry), so the scheduler walks it at most once a day (`CATALOG_MAX_AGE`) and

@@ -60,7 +60,7 @@ SOURCES: dict[str, SourceSpec] = {
         pollen_freshness,
         enabled=lambda db: bool(polling_areas(db)),
     ),
-    # ADR-007/ADR-024: GIOS is polled for explicitly configured stations or, without them,
+    # ADR-007/ADR-025: GIOS is polled for explicitly configured stations or, without them,
     # for the stations assigned to actively polled areas (rule #9); neither = switched off.
     "gios": SourceSpec(
         air_freshness,

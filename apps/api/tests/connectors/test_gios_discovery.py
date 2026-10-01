@@ -1,4 +1,4 @@
-"""GIOŚ station catalog cache + area -> station assignment (ADR-024). The client is
+"""GIOŚ station catalog cache + area -> station assignment (ADR-025). The client is
 mocked with the real `station/findAll` shape (Polish keys, coordinates as strings);
 no live network."""
 

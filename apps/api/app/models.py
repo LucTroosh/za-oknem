@@ -132,7 +132,7 @@ class GeoArea(Base):
 
 
 class GiosStation(Base):
-    """Cached GIOŚ station catalog (`/station/findAll`, ADR-024): the station as an
+    """Cached GIOŚ station catalog (`/station/findAll`, ADR-025): the station as an
     entity, so area -> station assignment and polling never need a catalog walk on the
     hot path. `raw` is the station dict exactly as GIOŚ returned it (what
     `ingest_station` consumes); `fetched_at` + `source_fetch_id` are its provenance."""

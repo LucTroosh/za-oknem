@@ -64,7 +64,7 @@ class AirStation(BaseModel):
     # Additive field: a client that ignores it keeps working.
     index: AirIndex
     source: Literal["gios"]
-    # Only with ?geo_area_id= (ADR-024): provenance of the area -> station assignment.
+    # Only with ?geo_area_id= (ADR-025): provenance of the area -> station assignment.
     distance_km: float | None = None
     assignment_method: str | None = None
 
@@ -73,7 +73,7 @@ class AirLatestResponse(BaseModel):
     stations: list[AirStation]
 
 
-# exclude_unset: the ADR-024 provenance fields appear only for ?geo_area_id= - the plain list
+# exclude_unset: the ADR-025 provenance fields appear only for ?geo_area_id= - the plain list
 # keeps its exact old shape (explicit nulls such as index.level stay, they are "set").
 @router.get("/air/latest", response_model=AirLatestResponse, response_model_exclude_unset=True)
 def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get_db)) -> dict:
@@ -84,7 +84,7 @@ def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get
     each station now returns a `params` dict keyed by param code instead of a single
     top-level `pm25` field.
 
-    ADR-024: `?geo_area_id=N` narrows the list to the station assigned to that area
+    ADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area
     (nearest within MAX_MATCH_DISTANCE_KM, with `distance_km` + `assignment_method`);
     no station in range = empty list ("brak danych dla obszaru"), unknown area = 404."""
     area = None
@@ -141,7 +141,7 @@ def latest_air_quality(geo_area_id: int | None = None, db: Session = Depends(get
         station["index"] = air_index(station["params"], RECENT_MAX_AGE)
     if area is None:
         return {"stations": list(stations.values())}
-    # ADR-024: catalog = authority for who may be assigned and at which coordinates.
+    # ADR-025: catalog = authority for who may be assigned and at which coordinates.
     points = assignment_candidates(db, stations)
     coords = {sid: (lat, lon) for sid, lat, lon in points}
     matches = select_stations(area.latitude, area.longitude, points)

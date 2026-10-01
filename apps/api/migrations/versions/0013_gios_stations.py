@@ -1,4 +1,4 @@
-"""add gios_stations (cached GIOŚ station catalog, ADR-024)
+"""add gios_stations (cached GIOŚ station catalog, ADR-025)
 
 Revision ID: 0013
 Revises: 0012

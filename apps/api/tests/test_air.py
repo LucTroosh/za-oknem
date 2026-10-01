@@ -348,7 +348,7 @@ def test_latest_air_quality_index_non_ug_unit_is_dropped_not_converted():
     assert index["level"] is None and index["missing"]["NO2"] == "UNIT"
 
 
-# --- ?geo_area_id= (ADR-024): the station assigned to an area, with provenance ----
+# --- ?geo_area_id= (ADR-025): the station assigned to an area, with provenance ----
 
 
 class _AreaSession(_FakeSession):

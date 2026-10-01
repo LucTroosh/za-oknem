@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 EARTH_RADIUS_KM = 6371.0
 
-# ADR-006/ADR-024: nearest-station match is only valid within this distance (inclusive).
+# ADR-006/ADR-025: nearest-station match is only valid within this distance (inclusive).
 # Beyond it the area has NO station ("brak danych dla obszaru") - never a "nearest" fallback.
 MAX_MATCH_DISTANCE_KM = 50.0
 METHOD_NEAREST_STATION = "nearest_station"
@@ -44,7 +44,7 @@ def select_stations(
     max_km: float = MAX_MATCH_DISTANCE_KM,
     limit: int = 1,
 ) -> list[StationMatch]:
-    """Pure, deterministic point -> stations (rule #9, ADR-024). `stations` are
+    """Pure, deterministic point -> stations (rule #9, ADR-025). `stations` are
     (station_id, lat, lon). Only stations within `max_km` (inclusive) qualify; result is
     sorted by distance rounded to 1 m, ties broken by station id (digit ids in numeric
     order), so input order never changes the outcome. Empty list = no data for the area."""

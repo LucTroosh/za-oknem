@@ -97,7 +97,7 @@ def run_gios() -> bool:
             wanted = set(station_ids)
             stations = gios_client.find_stations(wanted)
         else:
-            # ADR-024: stations derived from the actively polled areas (nearest within the
+            # ADR-025: stations derived from the actively polled areas (nearest within the
             # distance limit) via the cached catalog, refreshed at most daily.
             if not polling_areas(db):  # nothing to serve: no catalog walk either
                 logger.info("no areas with active polling - skipping GIOS ingest")

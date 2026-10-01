@@ -210,7 +210,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
 
 ### Phase 6 — Geo Engine
 
-- [ ] 🟡 **TASK-6.2** (PR #70, ADR-019: punkty (1)–(6) w kodzie — PostGIS, `teryt_code`/`boundary`/`weather_polling_active`, importer `prg_gminy`, `POST /api/v1/geo/resolve`; **brak załadowanych granic gmin** — pobranie/licencja po stronie człowieka; (7) odkrywanie stacji GIOŚ per obszar ✅ — ADR-024, migracja `0013`, katalog `gios_stations` + nearest ≤ 50 km, osobny PR; (8) zawężenie dashboardu NIE zrobione): TERYT-based geo model (§26-27). **Druga korekta tego
+- [ ] 🟡 **TASK-6.2** (PR #70, ADR-019: punkty (1)–(6) w kodzie — PostGIS, `teryt_code`/`boundary`/`weather_polling_active`, importer `prg_gminy`, `POST /api/v1/geo/resolve`; **brak załadowanych granic gmin** — pobranie/licencja po stronie człowieka; (7) odkrywanie stacji GIOŚ per obszar ✅ — ADR-025, migracja `0013`, katalog `gios_stations` + nearest ≤ 50 km, osobny PR; (8) zawężenie dashboardu NIE zrobione): TERYT-based geo model (§26-27). **Druga korekta tego
       tasku** (Codex, runda 2): pierwsza korekta ograniczyła zakres do
       mapowania TERYT tylko dla 7 zaseedowanych miast — to za mało. ADR-005
       (Accepted) explicité przypisuje do Phase 6: pełny import listy gmin z

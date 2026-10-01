@@ -96,7 +96,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
             "observed_at": row.observed_at.isoformat(),
             "freshness": air_freshness(row.observed_at),
         }
-    # ADR-024: catalog is the authority for who may be assigned and where they are.
+    # ADR-025: catalog is the authority for who may be assigned and where they are.
     points = assignment_candidates(db, stations)
 
     weather_stmt = (
@@ -118,7 +118,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
 
     areas_out = []
     for area in areas:
-        # ADR-006/ADR-024: deterministic nearest station within MAX_MATCH_DISTANCE_KM
+        # ADR-006/ADR-025: deterministic nearest station within MAX_MATCH_DISTANCE_KM
         # (geo.select_stations); none in range = no air block, never a farther fallback.
         match = next(
             iter(select_stations(area.latitude, area.longitude, points)),

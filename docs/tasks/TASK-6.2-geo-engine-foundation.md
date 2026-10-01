@@ -22,7 +22,7 @@ danych gotowym na pełny import gmin i bez wywracania pollingu pogody.
 
 ## Non-goals (osobne zadania)
 
-- **(7) Odkrywanie stacji GIOŚ per aktywna gmina — ✅ zrobione w osobnym PR (ADR-024, migracja `0013`, `connectors/gios/discovery.py`, `geo.select_stations`)**; oryginalny opis: katalog stacji (`/station/findAll`,
+- **(7) Odkrywanie stacji GIOŚ per aktywna gmina — ✅ zrobione w osobnym PR (ADR-025, migracja `0013`, `connectors/gios/discovery.py`, `geo.select_stations`)**; oryginalny opis: katalog stacji (`/station/findAll`,
   aktualizowany raz/rok wg registry) + dobór nearest-station per gmina + polling; dziś
   `run_gios` czyta `GIOS_STATION_IDS`.
 - **(8) Zawężenie dashboardu do wybranej lokalizacji** — parametr `geo_area_id` /

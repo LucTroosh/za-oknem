@@ -21,7 +21,7 @@ def test_haversine_is_symmetric():
     assert a == b
 
 
-# --- select_stations (ADR-024): pure, deterministic area -> station choice ------------
+# --- select_stations (ADR-025): pure, deterministic area -> station choice ------------
 
 from app.geo import MAX_MATCH_DISTANCE_KM, select_stations  # noqa: E402
 

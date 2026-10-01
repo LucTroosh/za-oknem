@@ -75,7 +75,7 @@ def _client(
     status_rows=None,
     catalog=(),
 ) -> TestClient:
-    # Query order in dashboard_latest(): areas, stations, GIOŚ catalog ids (ADR-024; empty =
+    # Query order in dashboard_latest(): areas, stations, GIOŚ catalog ids (ADR-025; empty =
     # no catalog yet), weather, forecasts, alerts, then pollen snapshots (+ geo_areas when
     # there are snapshots).
     def _override():
@@ -674,7 +674,7 @@ def test_dashboard_pollen_block_build_failure_is_isolated_and_logged(monkeypatch
 
 
 def test_dashboard_air_has_assignment_provenance():
-    # ADR-024: station id + distance + method tell where the area's air data comes from.
+    # ADR-025: station id + distance + method tell where the area's air data comes from.
     near = _station(station_id="38", latitude=50.45, longitude=16.66)
     client = _client([GeoArea(**KLODZKO)], [near], [])
 

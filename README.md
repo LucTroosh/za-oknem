@@ -37,7 +37,7 @@ ingestu dla stacji w pobliżu.
 `imgw_hydro` co 1h i `imgw_warningshydro` co 1h (wszystkie stacje/ostrzeżenia, bez
 konfiguracji), bez ręcznego CLI. Ustawione `GIOS_STATION_IDS` = override: dokładnie te
 stacje. Puste = scheduler sam wybiera dla każdego aktywnego obszaru najbliższą stację
-GIOŚ w promieniu 50 km z katalogu zapisanego w bazie (odświeżanego raz na dobę, ADR-024);
+GIOŚ w promieniu 50 km z katalogu zapisanego w bazie (odświeżanego raz na dobę, ADR-025);
 brak obszarów albo stacji w zasięgu = GIOŚ pominięty (jawnie loguje).
 
 ```bash

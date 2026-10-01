@@ -1,4 +1,4 @@
-# ADR-024: Katalog stacji GIOŚ jako byt + przypisanie obszar → stacja (nearest z limitem)
+# ADR-025: Katalog stacji GIOŚ jako byt + przypisanie obszar → stacja (nearest z limitem)
 
 **Status:** Proposed (do zaakceptowania wraz z merge PR TASK-6.2 (7))
 **Data:** 2026-10-01
