@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 MAX_PUBLIC_ERROR_LENGTH = 200
 
 
+def gios_station_ids() -> list[str]:
+    # ADR-007: which stations to poll is a deliberate, explicit choice (rule #9),
+    # never guessed - comma-separated env var, empty means "skip GIOS". Single parser
+    # shared by the scheduler and the health view so they cannot disagree.
+    raw = os.environ.get("GIOS_STATION_IDS", "")
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
 @dataclass(frozen=True)
 class SourceSpec:
     freshness: Callable[[datetime], str]
@@ -47,7 +55,7 @@ SOURCES: dict[str, SourceSpec] = {
     "open_meteo": SourceSpec(weather_freshness, OPEN_METEO_DAILY_LIMIT),
     # ADR-007: GIOS is polled only for explicitly configured stations (rule #9).
     "gios": SourceSpec(
-        air_freshness, enabled=lambda: bool(os.environ.get("GIOS_STATION_IDS", "").strip(", "))
+        air_freshness, enabled=lambda: bool(gios_station_ids())
     ),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),

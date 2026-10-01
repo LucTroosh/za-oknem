@@ -7,7 +7,6 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 """
 
 import logging
-import os
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -22,7 +21,7 @@ from app.connectors.open_meteo.ingest import ingest_geo_area
 from app.db import SessionLocal
 from app.models import GeoArea
 from app.provenance import purge_expired_payloads
-from app.source_health import collect_source_health, log_health_transitions
+from app.source_health import collect_source_health, gios_station_ids, log_health_transitions
 from app.source_status import record_source_run
 
 logger = logging.getLogger(__name__)
@@ -40,10 +39,7 @@ POLL_INTERVAL_SECONDS = 60
 
 
 def _gios_station_ids() -> list[str]:
-    # ADR-007: which stations to poll is a deliberate, explicit choice (rule #9),
-    # never guessed here - comma-separated env var, empty means "skip GIOS".
-    raw = os.environ.get("GIOS_STATION_IDS", "")
-    return [s.strip() for s in raw.split(",") if s.strip()]
+    return gios_station_ids()
 
 
 def _last_cause(errors: list[str]) -> str:

@@ -232,6 +232,9 @@ def test_gios_without_station_ids_is_reported_unmonitored(db_session, monkeypatc
     by_id = _by_id(collect_source_health(db_session))
     assert by_id["gios"]["monitored"] is False and by_id["open_meteo"]["monitored"] is True
 
+    monkeypatch.setenv("GIOS_STATION_IDS", " \t\n ,  ")  # same parsing as the scheduler
+    assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is False
+
     monkeypatch.setenv("GIOS_STATION_IDS", "38")
     assert _by_id(collect_source_health(db_session))["gios"]["monitored"] is True
 
