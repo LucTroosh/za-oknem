@@ -115,6 +115,20 @@ def test_rollback_failure_still_yields_full_report(db_session, monkeypatch):
     assert {e["freshness"] for e in report} == {"UNAVAILABLE"}
 
 
+def test_fallback_entry_keeps_monitored_flag(db_session, monkeypatch):
+    import app.source_health as sh
+
+    monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+    monkeypatch.setattr(sh, "_source_health", MagicMock(side_effect=RuntimeError("db gone")))
+
+    report = collect_source_health(db_session)
+    by_id = _by_id(report)
+
+    assert by_id["gios"]["monitored"] is False
+    assert by_id["open_meteo"]["monitored"] is True
+    assert log_health_transitions(report, {}).keys() == set(SOURCES) - {"gios"}
+
+
 def test_sanitize_error_strips_query_secrets_and_truncates():
     raw = (
         "ConnectionError: HTTPSConnectionPool: url: /v1?apikey=SECRET123&x=1 "

@@ -129,7 +129,7 @@ def collect_source_health(db: Session, source_ids: Iterable[str] | None = None) 
                     "last_success_at": None,
                     "last_error": "health evaluation failed",
                     "daily_budget": None,
-                    "monitored": True,
+                    "monitored": SOURCES[source_id].enabled(),
                 }
             )
     return report

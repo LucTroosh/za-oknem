@@ -275,6 +275,19 @@ class TestMain:
 
         assert db_session.get(SourceStatus, "gios").last_success_at is not None
 
+    def test_cli_records_failure_when_station_catalog_is_unavailable(self, monkeypatch, db_session):
+        monkeypatch.setattr(sys, "argv", ["ingest", "--station-id", "38"])
+        monkeypatch.setattr(
+            client, "find_stations", MagicMock(side_effect=client.GiosApiError("catalog down"))
+        )
+        monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
+
+        with pytest.raises(client.GiosApiError):
+            ingest.main()
+
+        row = db_session.get(SourceStatus, "gios")
+        assert row.last_success_at is None and "catalog down" in row.last_error
+
     def test_cli_records_failure_and_raises_when_every_station_failed(
         self, monkeypatch, db_session
     ):

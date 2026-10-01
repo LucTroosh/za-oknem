@@ -187,13 +187,13 @@ def main() -> None:
         sys.exit(1)
 
     wanted = {str(sid) for sid in args.station_ids}
-    matched = client.find_stations(wanted)
 
     db = SessionLocal()
     errors: list[str] = []
     try:
         # ADR-012: the CLI records its outcome like the scheduler (same success rule).
         try:
+            matched = client.find_stations(wanted)  # catalog outage is a failed run too
             failed = sum(ingest_station(station, db, errors) is None for station in matched)
             if not matched or failed == len(matched):
                 raise RuntimeError(
