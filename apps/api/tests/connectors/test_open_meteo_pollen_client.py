@@ -42,9 +42,11 @@ def test_returns_json_and_sends_documented_params(monkeypatch):
 
 
 def test_retries_once_then_succeeds(monkeypatch):
-    attempts = [httpx.RequestError("boom"), _ok({"ok": True})]
-    monkeypatch.setattr(client.httpx, "get", MagicMock(side_effect=lambda *a, **k: attempts.pop(0)))
+    # An exception INSTANCE inside a side_effect list is raised, not returned.
+    mock_get = MagicMock(side_effect=[httpx.RequestError("boom"), _ok({"ok": True})])
+    monkeypatch.setattr(client.httpx, "get", mock_get)
     assert client.fetch_pollen(50.43, 16.65) == {"ok": True}
+    assert mock_get.call_count == 2
 
 
 def test_raises_after_two_failures_not_forever(monkeypatch):
