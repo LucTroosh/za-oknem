@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
@@ -33,6 +34,8 @@ MAX_MATCH_DISTANCE_KM = 50.0
 # TASK-7.1: source transparency (Master Plan Principle 2) - attribution text is
 # copied verbatim from docs/data/source-registry.md, not reworded here. Only two
 # sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
+AIR_SOURCE_ID = "gios"  # source_status rows are keyed by the connector's source_id
+WEATHER_SOURCE_ID = "open_meteo"
 GIOS_ATTRIBUTION = "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
 # source-registry.md (imgw_hydro, same terms for imgw_warnings*): verbatim, required.
@@ -118,6 +121,12 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
     # consumed - the user never saw it. Same helper, so both show one prediction.
     forecasts = forecasts_by_area(db)
 
+    # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
+    # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
+    # failing the dashboard. Computed once per request, shared by every area.
+    air_status = _source_status(db, AIR_SOURCE_ID, air_freshness)
+    weather_status = _source_status(db, WEATHER_SOURCE_ID, weather_freshness)
+
     areas_out = []
     for area in areas:
         nearest, nearest_km = None, None
@@ -144,6 +153,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # ADR-015: EAQI from the params already loaded (no extra query, rule #14).
                 "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(nearest_km, 1),
+                "source_status": air_status,
             }
 
         params = weather_by_area.get(area.id, [])
@@ -170,6 +180,7 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
                 # cycles while `current` keeps refreshing, so the object-level max()
                 # above must not be the only freshness a client sees.
                 "params": weather_params,
+                "source_status": weather_status,
             }
 
         areas_out.append(
@@ -215,6 +226,15 @@ def dashboard_latest(db: Session = Depends(get_db)) -> dict:
             out["pollen"] = pollen_block(None, down)
 
     return {"areas": areas_out, "alerts": alerts}
+
+
+def _source_status(db: Session, source_id: str, freshness: Callable[[datetime], str]) -> dict:
+    try:
+        return source_freshness(db, source_id, freshness)
+    except Exception:
+        logger.exception("dashboard: source_status for %s failed", source_id)
+        db.rollback()  # a failed statement leaves a Postgres transaction aborted
+        return {"freshness": "UNAVAILABLE", "last_success_at": None}
 
 
 def _reading(

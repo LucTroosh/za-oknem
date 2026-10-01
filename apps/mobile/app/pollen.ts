@@ -3,12 +3,14 @@
 // measurement (rule #7) - every string here says so. Freshness is the server's own
 // value (rule #8), never recomputed from the clock; missing is "brak danych", never 0.
 
-import type { Freshness } from "./freshness";
+import { type FreshnessState, effectiveFreshness } from "./freshness";
+
+export { effectiveFreshness };
 
 export type PollenSpecies = "alder" | "birch" | "grass" | "mugwort" | "ragweed";
 export type PollenValues = Record<PollenSpecies, number | null>;
 // UNAVAILABLE = no snapshot for the area / source never succeeded (ADR-012).
-export type PollenFreshness = Freshness | "UNAVAILABLE";
+export type PollenFreshness = FreshnessState;
 
 // Contract of dashboard.py `pollen` (= one /pollen/latest area + source fields).
 export type PollenBlock = {
@@ -96,22 +98,6 @@ export type PollenView = {
 
 const isObject = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
-
-const RANK: PollenFreshness[] = ["FRESH", "RECENT", "STALE", "UNAVAILABLE"];
-
-// Unknown/garbage -> UNAVAILABLE (fail safe: never a falsely fresh label).
-function asFreshness(f: unknown): PollenFreshness {
-  return RANK.includes(f as PollenFreshness) ? (f as PollenFreshness) : "UNAVAILABLE";
-}
-
-// Area data AND source can each be stale (ADR-012): the worse one wins.
-export function effectiveFreshness(block: Record<string, unknown>): PollenFreshness {
-  const own = asFreshness(block.freshness);
-  const src = asFreshness(
-    isObject(block.source_status) ? block.source_status.freshness : undefined,
-  );
-  return RANK[Math.max(RANK.indexOf(own), RANK.indexOf(src))];
-}
 
 // The number the user reads: level and text both derive from THIS, so "10" is never
 // shown next to "poniżej progu sezonu" (9,96 displays as 10 -> season).
