@@ -65,7 +65,7 @@ describe("verdictModel", () => {
 
 describe("statusCards (data-driven, partial failure)", () => {
   it("renders air, weather and pollen when all present, in that order", () => {
-    const cards = statusCards({ air: air(), weather: weather(), pollen: pollen({ birch: 1 }) }, null, NOW, NOW);
+    const cards = statusCards({ air: air(), weather: weather(), pollen: pollen({ alder: 0, birch: 1, grass: 1, mugwort: 0, ragweed: 0 }) }, null, NOW, NOW);
     expect(cards.map((c) => c.key)).toEqual(["air", "weather", "pollen"]);
     expect(cards[0]).toMatchObject({ level: "GOOD", headline: "Dobra", supporting: "PM2.5: 12 µg/m³", freshnessNote: null });
     expect(cards[1]).toMatchObject({ headline: "16°C", supporting: "bezchmurnie", level: null });
@@ -99,6 +99,19 @@ describe("statusCards (data-driven, partial failure)", () => {
     const c = statusCards({ air: null, weather: w }, null, NOW, NOW)[1];
     expect(c.state).toBe("unavailable");
     expect(currentTemperature(w, undefined, NOW)).toBeNull();
+  });
+  it("partial pollen data is not 'Niskie'; the header shows fresh temperatures only", () => {
+    const [, , c] = statusCards({ air: null, weather: null, pollen: pollen({ birch: 1, grass: null as unknown as number }) }, null, NOW, NOW);
+    expect(c).toMatchObject({ headline: "Dane częściowe", level: "UNKNOWN" });
+    expect(c.supporting).toContain("Brak danych");
+    const w = weather({ temperature_2m: param(16, "°C", 180, "RECENT") });
+    expect(currentTemperature(w, undefined, NOW)).toBe("16°C");
+    expect(currentTemperature(w, undefined, NOW, true)).toBeNull();
+  });
+  it("pollen recent note compares with the screen clock (another day shows the date)", () => {
+    const p = { ...pollen({ birch: 1 }, "RECENT"), source_status: src, fetched_at: ago(40 * 60), current: { alder: 0, birch: 1, grass: 1, mugwort: 0, ragweed: 0 } };
+    const [, , c] = statusCards({ air: null, weather: null, pollen: p }, null, NOW, NOW);
+    expect(c.freshnessNote).toMatch(/^Dane z \d\d\.\d\d, \d\d:\d\d$/);
   });
   it("currentTemperature rounds and keeps the spec format", () => {
     expect(currentTemperature(weather(), undefined, NOW)).toBe("16°C");

@@ -50,7 +50,7 @@ export default function Start() {
         name={area?.name ?? null}
         loading={loading}
         dateText={formatHeaderDate(now)}
-        temperature={area ? currentTemperature(area.weather, d.sourceStatus?.weather, now) : null}
+        temperature={area ? currentTemperature(area.weather, d.sourceStatus?.weather, now, true) : null}
       />
     ),
     verdict: loading ? (

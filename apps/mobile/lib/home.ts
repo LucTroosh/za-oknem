@@ -168,11 +168,20 @@ function weatherReading(weather: unknown, key: string): { value: number; unit: u
 }
 
 // Temperature shown in the header / card: only when its reading is usable and not stale.
-export function currentTemperature(weather: unknown, sourceStatus: unknown, now: number): string | null {
+// `onlyFresh` (header): a RECENT reading can be hours old and the header carries no age note,
+// so it shows FRESH readings only; the weather card shows RECENT ones with "Dane z HH:MM".
+export function currentTemperature(
+  weather: unknown,
+  sourceStatus: unknown,
+  now: number,
+  onlyFresh = false,
+): string | null {
   const view = weatherView(weather, now, sourceStatus);
   const line = view?.lines.find((l) => l.key === "temperature_2m");
   const r = weatherReading(weather, "temperature_2m");
-  if (!view || view.unavailable || !line || line.state === "missing" || line.state === "stale" || !r) return null;
+  if (!view || view.unavailable || !line || line.state === "missing" || line.state === "stale" || (onlyFresh && line.state !== "ok") || !r) {
+    return null;
+  }
   return celsius(r.value, r.unit);
 }
 
@@ -215,7 +224,7 @@ const POLLEN_HEADLINE: Record<PollenLevel, string> = {
 export const POLLEN_CARD_TITLE = "Prognoza pyłków";
 export const POLLEN_FORECAST_NOTE = "Prognoza modelu CAMS";
 
-function pollenCard(pollen: unknown): StatusCardModel | null {
+function pollenCard(pollen: unknown, now: number): StatusCardModel | null {
   const view = pollenView(pollen);
   if (!view) return null;
   const title = POLLEN_CARD_TITLE;
@@ -225,19 +234,23 @@ function pollenCard(pollen: unknown): StatusCardModel | null {
   if (levels.length === 0) return unavailable("pollen", title);
   const top = levels.reduce((a, l) => (POLLEN_RANK[l.level] > POLLEN_RANK[a] ? l.level : a), levels[0].level);
   const driving = levels.filter((l) => l.level === top && top !== "BELOW_SEASON").map((l) => POLLEN_NAME[l.species]);
+  // A species without a value could be higher: all-below-season with gaps is not "Niskie".
+  const missing = view.lines.filter((l) => l.level === null).map((l) => POLLEN_NAME[l.species]);
+  const partial = missing.length > 0 && top === "BELOW_SEASON";
+  const parts = [
+    driving.length > 0 ? driving.join(", ") : null,
+    missing.length > 0 ? `Brak danych: ${missing.join(", ")}` : null,
+    POLLEN_FORECAST_NOTE,
+  ].filter(Boolean);
   return {
     key: "pollen",
     title,
     state: "ready",
-    level: POLLEN_GLYPH[top],
-    headline: POLLEN_HEADLINE[top],
-    supporting: `${driving.length > 0 ? `${driving.join(", ")}. ` : ""}${POLLEN_FORECAST_NOTE}`,
-    freshnessNote: view.state === "recent" ? (dataFromHour(view.fetchedAt) ?? STALE_NOTE) : null,
+    level: partial ? "UNKNOWN" : POLLEN_GLYPH[top],
+    headline: partial ? "Dane częściowe" : POLLEN_HEADLINE[top],
+    supporting: `${parts.join(". ")}`,
+    freshnessNote: view.state === "recent" ? (dataFrom(view.fetchedAt, now) ?? STALE_NOTE) : null,
   };
-}
-
-function dataFromHour(iso: string | null): string | null {
-  return iso === null ? null : dataFrom(iso, Date.parse(iso));
 }
 
 export type AreaLike = { air?: unknown; weather?: unknown; pollen?: unknown };
@@ -251,7 +264,7 @@ export function statusCards(
   now: number,
   receivedAt: number,
 ): StatusCardModel[] {
-  const pollen = pollenCard(area.pollen);
+  const pollen = pollenCard(area.pollen, now);
   return [
     airCard(area.air, sourceStatus?.air, now, receivedAt),
     weatherCard(area.weather, sourceStatus?.weather, now),
