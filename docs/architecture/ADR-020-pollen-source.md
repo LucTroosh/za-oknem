@@ -85,6 +85,22 @@ wspólne rozszerzenie zmieszałoby dwa cykle w jednym jobie i jednym wierszu
   `open_meteo` (TASK-13.1a), więc alert 70% odzwierciedla łączne zużycie.
 - Godzina faktycznego uruchomienia modelu (00 UTC?) — Open-Meteo jej nie zwraca.
 
+### Walidacja payloadu (kontrakt parsera)
+
+Payload jest odrzucany (`invalid`, surowy zapis zostaje w `source_fetches`), gdy: brak
+`utc_offset_seconds` lub ≠ 0; `hourly.time` ma duplikaty, nie jest tekstem
+`YYYY-MM-DDTHH:MM`, ma offset albo nie jest wyrównany do pełnej godziny; jednostki nie są
+jednakowymi niepustymi stringami ≤ 20 znaków; wartość nie jest liczbą ≥ 0 (NaN/inf/
+przepełnienie też); długości serii się nie zgadzają. **Świeżość samego payloadu:** seria
+musi obejmować godzinę z `fetched_at` (zaokrągloną w dół) albo godzinę wcześniejszą
+(`CURRENT_HOUR_MAX_LAG = 1 h`, jawna stała — godzina może „przeskoczyć” między
+wyliczeniem serii u dostawcy a naszym `fetched_at`). Bez tego payload w całości z
+przeszłości trafiłby pod dzisiejszy `forecast_reference_time`, wygrał ze starszym dobrym
+przebiegiem i nie dał żadnego `current`. Seria samych `null` (poza sezonem), która
+godzinę obejmuje, jest poprawna. Zapis (`_store_batch`) jest upsertem całego bucketu
+(obszar + `forecast_reference_time`) z blokadą wierszy i strażnikiem `fetched_at` (starszy,
+równoległy fetch nie nadpisuje nowszego), z jednym retry po wyścigu pierwszego inserta.
+
 ### Model danych: `PollenSnapshot` = modelowa prognoza, nie Measurement
 
 - Tabela `pollen_snapshots` (ADR-001 opcja C): **osobna** od `measurements`

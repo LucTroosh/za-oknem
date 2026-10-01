@@ -16,6 +16,16 @@ from app.connectors.open_meteo_pollen.parser import PARSER_VERSION
 from app.models import GeoArea, PollenSnapshot, SourceFetch, SourceFetchCounter, SourceStatus
 
 UNIT = "grains/m³"
+
+
+def _stamp(hours_from_now: int) -> str:
+    """Hourly slot relative to NOW - the payload must cover the fetch hour (parser), so the
+    fixture cannot use fixed dates. Built at import; the parser's 1h lag tolerance absorbs
+    an hour tick between import and the test."""
+    slot = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    return (slot + timedelta(hours=hours_from_now)).strftime("%Y-%m-%dT%H:%M")
+
+
 VARS = ("alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "ragweed_pollen")
 # FIXTURE (docs-derived, same as the parser tests) - not a recorded live response.
 PAYLOAD = {
@@ -23,7 +33,7 @@ PAYLOAD = {
     "timezone": "UTC",
     "hourly_units": {"time": "iso8601", **dict.fromkeys(VARS, UNIT)},
     "hourly": {
-        "time": ["2026-05-04T00:00", "2026-05-04T01:00", "2026-05-04T02:00"],
+        "time": [_stamp(-1), _stamp(0), _stamp(1)],
         "alder_pollen": [0.0, 0.4, None],
         "birch_pollen": [12.5, 13.0, 14.25],
         "grass_pollen": [None, None, None],
@@ -82,7 +92,7 @@ def test_later_fetch_same_day_replaces_values_and_adds_new_hours(db_session, mon
     ingest.ingest_geo_area(area, db_session)
 
     updated = deepcopy(PAYLOAD)
-    updated["hourly"]["time"].append("2026-05-04T03:00")
+    updated["hourly"]["time"].append(_stamp(2))
     for variable in VARS:
         updated["hourly"][variable] = [*updated["hourly"][variable], 1.0]
     updated["hourly"]["birch_pollen"][0] = 99.0

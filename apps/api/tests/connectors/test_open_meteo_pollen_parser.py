@@ -8,11 +8,12 @@ pollen season are NOT verified live - see ADR-020.
 """
 
 from copy import deepcopy
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from app.connectors.open_meteo_pollen.parser import (
+    CURRENT_HOUR_MAX_LAG,
     MODEL,
     SOURCE_ID,
     OpenMeteoPollenParseError,
@@ -20,6 +21,13 @@ from app.connectors.open_meteo_pollen.parser import (
 )
 
 FETCHED_AT = datetime(2026, 5, 4, 7, 12, tzinfo=UTC)
+HOUR = FETCHED_AT.replace(minute=0)  # the fetch hour: every fixture slot is relative to it
+
+
+def _stamp(hours_from_fetch_hour: int) -> str:
+    return (HOUR + timedelta(hours=hours_from_fetch_hour)).strftime("%Y-%m-%dT%H:%M")
+
+
 UNIT = "grains/m³"
 VARS = ("alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "ragweed_pollen")
 
@@ -30,7 +38,7 @@ PAYLOAD = {  # FIXTURE (docs-derived)
     "timezone": "UTC",
     "hourly_units": {"time": "iso8601", **dict.fromkeys(VARS, UNIT)},
     "hourly": {
-        "time": ["2026-05-04T00:00", "2026-05-04T01:00", "2026-05-04T02:00"],
+        "time": [_stamp(-1), _stamp(0), _stamp(1)],
         "alder_pollen": [0.0, 0.4, None],
         "birch_pollen": [12.5, 13.0, 14.25],
         "grass_pollen": [None, None, None],
@@ -56,7 +64,7 @@ def test_one_record_per_hour_with_all_five_species():
         1.0,
     )
     assert r["unit"] == UNIT
-    assert r["valid_at"] == datetime(2026, 5, 4, 1, tzinfo=UTC)
+    assert r["valid_at"] == HOUR
     assert r["model"] == MODEL == "cams_europe"
     assert r["source_id"] == SOURCE_ID
     assert r["geo_area_id"] == 7
@@ -72,13 +80,16 @@ def test_null_stays_null_and_zero_stays_zero():
 
 def test_reference_time_is_bucketed_to_the_24h_cycle_and_ids_are_stable():
     a = _normalize()
-    b = normalize(
-        geo_area_id=7, payload=PAYLOAD, fetched_at=datetime(2026, 5, 4, 23, 59, tzinfo=UTC)
-    )
+    b = normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=HOUR.replace(minute=59))
     assert a[0]["forecast_reference_time"] == datetime(2026, 5, 4, tzinfo=UTC)
     # same run day -> same ids (idempotent re-ingest); next day -> new ids
     assert [r["source_record_id"] for r in a] == [r["source_record_id"] for r in b]
-    c = normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=datetime(2026, 5, 5, 7, 0, tzinfo=UTC))
+    next_day = HOUR + timedelta(days=1)
+    c_payload = deepcopy(PAYLOAD)
+    c_payload["hourly"]["time"] = [
+        (next_day + timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M") for h in (-1, 0, 1)
+    ]
+    c = normalize(geo_area_id=7, payload=c_payload, fetched_at=next_day)
     assert c[0]["source_record_id"] != a[0]["source_record_id"]
 
 
@@ -88,6 +99,39 @@ def test_missing_block_raises(missing):
     del bad[missing]
     with pytest.raises(OpenMeteoPollenParseError):
         _normalize(bad)
+
+
+def test_series_must_cover_the_fetch_hour():
+    for hours in ([-9, -8, -7], [2, 3, 4], [-30, -29, -28]):  # all stale / all future-only
+        bad = deepcopy(PAYLOAD)
+        bad["hourly"]["time"] = [_stamp(h) for h in hours]
+        with pytest.raises(OpenMeteoPollenParseError, match="cover"):
+            _normalize(bad)
+
+
+def test_fetch_hour_boundary_and_the_explicit_one_hour_lag():
+    assert timedelta(hours=1) == CURRENT_HOUR_MAX_LAG
+    ok = deepcopy(PAYLOAD)
+    ok["hourly"]["time"] = [_stamp(-3), _stamp(-2), _stamp(-1)]  # ends exactly one hour back
+    assert len(_normalize(ok)) == 3
+    too_old = deepcopy(PAYLOAD)
+    too_old["hourly"]["time"] = [_stamp(-4), _stamp(-3), _stamp(-2)]  # ends two hours back
+    with pytest.raises(OpenMeteoPollenParseError, match="cover"):
+        _normalize(too_old)
+    # fetch hour ticked past the series end by exactly the lag: still accepted
+    late = normalize(geo_area_id=7, payload=PAYLOAD, fetched_at=HOUR + timedelta(hours=2))
+    assert len(late) == 3
+
+
+def test_all_null_series_covering_the_fetch_hour_is_valid_out_of_season():
+    quiet = deepcopy(PAYLOAD)
+    for variable in VARS:
+        quiet["hourly"][variable] = [None, None, None]
+    records = _normalize(quiet)
+    assert len(records) == 3
+    assert all(
+        r[s] is None for r in records for s in ("alder", "birch", "grass", "mugwort", "ragweed")
+    )
 
 
 def test_missing_species_raises():
@@ -126,7 +170,7 @@ def test_duplicate_timestamps_raise():
         _normalize(bad)
 
 
-@pytest.mark.parametrize("stamp", ["2026-05-04T01:00+02:00", "2026-05-04T01:00Z"])
+@pytest.mark.parametrize("stamp", [f"{_stamp(0)}+02:00", f"{_stamp(0)}Z"])
 def test_timestamps_with_an_offset_raise_instead_of_being_relabelled(stamp):
     bad = deepcopy(PAYLOAD)
     bad["hourly"]["time"][1] = stamp
@@ -134,7 +178,9 @@ def test_timestamps_with_an_offset_raise_instead_of_being_relabelled(stamp):
         _normalize(bad)
 
 
-@pytest.mark.parametrize("stamp", ["2026-05-04", 20260504, "20260504T0100", None, 1777852800])
+@pytest.mark.parametrize(
+    "stamp", [HOUR.strftime("%Y-%m-%d"), 20260504, "20260504T0700", None, 1777852800]
+)
 def test_non_hourly_timestamp_shapes_raise_instead_of_becoming_midnight(stamp):
     bad = deepcopy(PAYLOAD)
     bad["hourly"]["time"][1] = stamp
@@ -142,7 +188,7 @@ def test_non_hourly_timestamp_shapes_raise_instead_of_becoming_midnight(stamp):
         _normalize(bad)
 
 
-@pytest.mark.parametrize("stamp", ["2026-05-04T01:30", "2026-05-04T01:00:30"])
+@pytest.mark.parametrize("stamp", [f"{_stamp(0)[:-2]}30", f"{_stamp(0)}:30"])
 def test_timestamps_not_aligned_to_the_hour_raise(stamp):
     bad = deepcopy(PAYLOAD)
     bad["hourly"]["time"][1] = stamp
