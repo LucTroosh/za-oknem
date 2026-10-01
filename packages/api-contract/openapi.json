@@ -2420,6 +2420,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -2467,6 +2469,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
@@ -2504,7 +2508,7 @@
     },
     "/api/v1/areas": {
       "get": {
-        "description": "Areas the app can show, for picking a city from a list (TASK-6.2(8), ADR-026).\nDefault = actively polled areas only (what `/dashboard/latest` lists without a\nparameter); `active_only=false` adds imported gminas nobody polls.\nponytail: no search/pagination - TASK-12.2 owns the ~2.5k-gmina picker.",
+        "description": "Areas the app can show, for picking a city from a list (TASK-6.2(8), ADR-026).\nDefault = actively polled areas only (what `/dashboard/latest` lists without a\nparameter); `active_only=false` adds imported gminas nobody polls.\nponytail: `limit` only bounds the response (~2.5k gminas fit); search/pagination is\nTASK-12.2's picker. The list changes rarely, so clients/CDN may cache it 5 min.",
         "operationId": "list_areas_api_v1_areas_get",
         "parameters": [
           {
@@ -2515,6 +2519,18 @@
               "default": true,
               "title": "Active Only",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 3000,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           }
         ],
@@ -2555,6 +2571,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 2147483647,
+                  "minimum": 1,
                   "type": "integer"
                 },
                 {
