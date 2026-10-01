@@ -247,3 +247,13 @@ def test_discover_rejects_non_finite_coordinates(monkeypatch, db_session, bad):
     _fetch(monkeypatch, [{**_st(1, 50.0, 16.0), "WGS84 φ N": bad}, _st(38, 50.4, 16.6)])
 
     assert discovery.discover_stations(db_session) == 1
+
+
+def test_discover_does_not_prune_when_catalog_suddenly_shrinks_a_lot(monkeypatch, db_session):
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    _fetch(monkeypatch, [CATALOG[0]])  # 1 of 3 left, e.g. a truncated page walk
+
+    discovery.discover_stations(db_session)
+
+    assert db_session.query(GiosStation).count() == 3

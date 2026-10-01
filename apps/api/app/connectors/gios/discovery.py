@@ -88,9 +88,15 @@ def discover_stations(db: Session, *, now: datetime | None = None) -> int:
     # A station GIOŚ no longer lists must stop being assigned. Rejected-but-listed ones
     # keep their previous row (a parse problem is not a removal) - only unlisted go.
     listed = {str(s.get("Identyfikator stacji")) for s in stations if isinstance(s, dict)}
-    for sid, row in existing.items():
-        if sid not in parsed and sid not in listed:
-            db.delete(row)
+    # ponytail: a walk that silently stopped early (e.g. a page without `totalPages`) looks
+    # like a mass removal - prune only when the new snapshot keeps at least half of the cache.
+    # Proper fix: make client._iter_station_pages require pagination metadata.
+    if len(listed) * 2 >= len(existing):
+        for sid, row in existing.items():
+            if sid not in parsed and sid not in listed:
+                db.delete(row)
+    else:
+        logger.warning("GIOS catalog shrank %s -> %s: not pruning", len(existing), len(listed))
     db.commit()
     return len(parsed)
 
