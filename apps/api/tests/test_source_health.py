@@ -153,6 +153,9 @@ def test_sanitize_error_strips_query_secrets_and_truncates():
         ("Authorization: Bearer tok.en.val", "tok.en.val"),
         ("Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
         ("Proxy-Authorization: Token t0k3n9", "t0k3n9"),
+        ("Authentication: Bearer secret123", "secret123"),
+        ("auth_header='Bearer secret456'", "secret456"),
+        ("retry with Bearer abc789 failed", "abc789"),
         (
             "Authorization: AWS4-HMAC-SHA256 Credential=AKID123/x, SignedHeaders=host, "
             "Signature=SIG456",

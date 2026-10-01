@@ -61,7 +61,8 @@ _USERINFO = re.compile(r"//[^/@\s]+@")
 _QUERY = re.compile(r"(?<=\S)\?\S+")
 # Authorization values can be multi-part (Basic x, AWS4-HMAC-SHA256 Credential=..,
 # Signature=..): redact everything after the field name to the end of the message.
-_AUTH = re.compile(r"""(?i)[\w-]*authorization[\w-]*["']?\s*[=:].*""")
+_AUTH = re.compile(r"""(?i)[\w-]*auth[\w-]*["']?\s*[=:].*""")
+_BEARER = re.compile(r"""(?i)\bbearer\s+[^\s"',;&)]+""")
 _SECRET = re.compile(
     r"""(?i)[\w-]*(?:key|token|secret|password|passwd|authorization)[\w-]*["']?"""
     r"""\s*[=:]?\s*(?:bearer\s+)?["']?[^\s"',;&)]+["']?"""
@@ -74,7 +75,7 @@ def sanitize_error(error: str | None) -> str | None:
         return None
     text = " ".join(error[:_MAX_SCAN].split())
     text = _AUTH.sub("[redacted]", _QUERY.sub("", _USERINFO.sub("//[redacted]@", text)))
-    text = _SECRET.sub("[redacted]", text)
+    text = _BEARER.sub("[redacted]", _SECRET.sub("[redacted]", text))
     return text[:MAX_PUBLIC_ERROR_LENGTH]
 
 
