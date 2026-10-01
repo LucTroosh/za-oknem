@@ -82,13 +82,12 @@ jobs:
 
       - name: OpenAPI contract is current (TASK-2.1, ADR-024)
         run: uv run python scripts/export_openapi.py --check
-      - name: Upload regenerated OpenAPI (when the committed one is stale)
+      - name: Show regenerated OpenAPI (when the committed one is stale)
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openapi-generated
-          path: /tmp/openapi.generated.json
-          if-no-files-found: ignore
+        run: |
+          # Artifacts/logs are not always reachable - one annotation with the new file,
+          # gzip+base64 (decode: echo <text> | base64 -d | gunzip > openapi.json).
+          [ -f /tmp/openapi.generated.json ] && echo "::warning title=openapi-gz::$(gzip -9 -c /tmp/openapi.generated.json | base64 -w0)" || true
 
   mobile:
     runs-on: ubuntu-latest
