@@ -8,6 +8,7 @@ import {
   LOCAL_SCRIM,
   LOCAL_SCRIM_LAYERS,
   LOGO_SIZE,
+  TOP_GROUP_SHIFT,
   WELCOME_TEXT,
   localScrimLayerAlpha,
   WELCOME_CTA,
@@ -84,8 +85,12 @@ describe("welcome typography", () => {
     expect(LOGO_SIZE).toBeGreaterThanOrEqual(76 * 0.92);
     expect(LOGO_SIZE).toBeLessThanOrEqual(76 * 0.95); // ~5-8% smaller than 76
   });
+  it("logo and text block sit slightly lower, not drastically", () => {
+    expect(TOP_GROUP_SHIFT).toBeGreaterThanOrEqual(8);
+    expect(TOP_GROUP_SHIFT).toBeLessThanOrEqual(20);
+  });
   it("text colours are the specified ones", () => {
-    expect(WELCOME_TEXT.light).toEqual({ brand: "#0F2F5C", intro: "#2F5385" });
+    expect(WELCOME_TEXT.light).toEqual({ brand: "#102A3A", intro: "#3F5563" });
     expect(WELCOME_TEXT.dark).toEqual({ brand: "#F4F7F8", intro: "#D7E0E4" });
   });
   it("the local scrim layers add up to the target alpha at the centre", () => {
