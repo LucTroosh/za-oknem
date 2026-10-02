@@ -294,6 +294,13 @@ export type HydroStation = {
   water_level_cm: number;
 };
 
+export type NearestPlaceResponse = {
+  attribution: string;
+  distance_km: number | null;
+  place: PlaceOut | null;
+  status: "found" | "out_of_range";
+};
+
 export type NotCovered = {
   key: string;
   name_pl: string;

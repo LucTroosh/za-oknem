@@ -2,6 +2,7 @@
 as a polled area, idle expiry. Pure helpers + small DB functions; no external calls (rule #14).
 """
 
+import math
 import re
 import unicodedata
 from datetime import UTC, date, datetime, timedelta
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.connectors.open_meteo.ingest import ESTIMATED_BILLABLE_UNITS_PER_CALL
 from app.connectors.open_meteo_pollen.ingest import UNITS_PER_CALL as POLLEN_UNITS_PER_CALL
+from app.geo import haversine_km
 from app.models import GeoArea, Place, SourceFetchCounter
 from app.rate_budget import ALERT_THRESHOLD_PCT
 
@@ -87,6 +89,34 @@ def search_places(db: Session, q: str, limit: int) -> list[Place]:
         .limit(limit)
     )
     return list(db.execute(stmt).scalars().all())
+
+
+# --- nearest place to a point ("pokaż najbliższą miejscowość", GPS without account) ---------
+
+NEAREST_PLACE_MAX_KM = 30.0
+_KM_PER_DEG_LAT = 111.32
+
+
+def nearest_place(
+    db: Session, latitude: float, longitude: float, *, max_km: float = NEAREST_PLACE_MAX_KM
+) -> tuple[Place, float] | None:
+    """Deterministic (rule #9): the registry place closest to the point within `max_km`, with the
+    distance in km; ties broken by id. None = nothing in range (never a farther guess). A
+    bounding box narrows the SQL, haversine ranks the candidates."""
+    d_lat = max_km / _KM_PER_DEG_LAT
+    d_lon = max_km / (_KM_PER_DEG_LAT * max(math.cos(math.radians(latitude)), 0.01))
+    candidates = db.execute(
+        select(Place).where(
+            Place.latitude.between(latitude - d_lat, latitude + d_lat),
+            Place.longitude.between(longitude - d_lon, longitude + d_lon),
+        )
+    ).scalars()
+    best: tuple[float, int, Place] | None = None
+    for place in candidates:
+        km = haversine_km(latitude, longitude, place.latitude, place.longitude)
+        if km <= max_km and (best is None or (round(km, 3), place.id) < best[:2]):
+            best = (round(km, 3), place.id, place)
+    return (best[2], best[0]) if best else None
 
 
 # --- activation of a place as a polled area (ADR-029) ---------------------------------
