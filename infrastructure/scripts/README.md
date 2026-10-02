@@ -81,3 +81,10 @@ przebiegu, więc reguła wiekowa usuwa zestaw w całości.
 i wydzielony host weryfikacyjny (z prywatnym kluczem) to decyzja/zasoby od Ciebie —
 skrypty są gotowe i przetestowane lokalnie, ale zaplanowane uruchamianie na
 produkcyjnym VPS (TASK-15.2) wymaga tych danych.
+
+## smoke_data.py: czy backend dociągnął dane?
+
+`python3 infrastructure/scripts/smoke_data.py [slug] [base_url]` (domyślnie `wroclaw`, `http://localhost:8000`).
+Tylko do odczytu, sama biblioteka standardowa. Sprawdza zdrowie źródeł, to co dostałaby aplikacja dla miasta
+(powietrze + parametry, pogoda, prognoza godzinowa, pyłki, alerty) i rejestr miejscowości (wyszukiwarka + GPS).
+`OK` = dane są i nie są stare, `WARN` = stare/częściowe, `FAIL` = brak (kod wyjścia 1).
