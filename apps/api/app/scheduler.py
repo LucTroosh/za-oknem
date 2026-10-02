@@ -251,9 +251,19 @@ def run_raw_retention() -> None:
     daily housekeeping drops hourly forecast rows left behind by areas that stopped being
     polled."""
     db = SessionLocal()
+    purged = hourly = 0
     try:
-        purged = purge_expired_payloads(db)
-        hourly = purge_stale_hourly_forecasts(db)
+        # Independent steps: a failing payload purge must not skip the hourly cleanup (#1).
+        try:
+            purged = purge_expired_payloads(db)
+        except Exception:
+            logger.exception("raw payload retention failed")
+            db.rollback()
+        try:
+            hourly = purge_stale_hourly_forecasts(db)
+        except Exception:
+            logger.exception("hourly forecast retention failed")
+            db.rollback()
     finally:
         db.close()
     logger.info(

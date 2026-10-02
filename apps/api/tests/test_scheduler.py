@@ -657,6 +657,20 @@ class TestRunRawRetention:
 
         assert [r.source_record_id for r in db_session.query(Forecast)] == ["recent"]
 
+    def test_a_failing_payload_purge_does_not_skip_the_hourly_cleanup(
+        self, monkeypatch, db_session
+    ):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        monkeypatch.setattr(
+            scheduler, "purge_expired_payloads", MagicMock(side_effect=RuntimeError("x"))
+        )
+        hourly = MagicMock(return_value=0)
+        monkeypatch.setattr(scheduler, "purge_stale_hourly_forecasts", hourly)
+
+        scheduler.run_raw_retention()  # must not raise
+
+        hourly.assert_called_once()
+
     def test_failure_does_not_record_source_status_or_raise(self, monkeypatch):
         # Housekeeping is not a data source: no source_status row (ADR-012), and
         # like every job it must not take the scheduler down (rule #1).

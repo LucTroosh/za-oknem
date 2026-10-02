@@ -496,3 +496,22 @@ def test_daily_core_params_stay_strict():
     payload["daily"]["temperature_2m_max"] = [18.5, None]
     with pytest.raises(OpenMeteoParseError):
         normalize_forecast(geo_area_id=1, payload=payload, fetched_at=FETCHED)
+
+
+def test_hourly_forecast_window_cuts_exactly_48_hours_from_a_7_day_response():
+    # forecast_days=7 -> 168 hourly values per param from midnight (the real request)
+    records = _hourly(_hourly_payload(hours=168))
+    starts = sorted({r["valid_from"] for r in records})
+    assert len(starts) == 48
+    assert starts[0] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
+    assert starts[-1] == datetime(2026, 9, 30, 17, 0, tzinfo=UTC)
+    assert len(records) == 48 * len(HOURLY_FORECAST_PARAM_CODES)
+
+
+def test_hourly_forecast_unreadable_current_time_falls_back_to_fetch_time():
+    for bad in ("garbage", None, 12):
+        payload = _hourly_payload()
+        payload["current"] = {"time": bad}
+        starts = sorted({r["valid_from"] for r in _hourly(payload)})
+        assert starts[0] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)  # floor(FETCHED)
+        assert len(starts) == 48

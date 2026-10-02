@@ -109,38 +109,82 @@ def _store_forecast_batch(records: list[dict], db) -> int:
     return len(new_records)
 
 
+# ADR-030: a baseline run older than this is replaced even by a poorer one (otherwise a model
+# that really dropped a param would keep an ever-older run alive).
+HOURLY_BASELINE_MAX_AGE = timedelta(hours=6)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=UTC)  # SQLite returns naive
+
+
 def _store_hourly_forecast(records: list[dict], db) -> int:
-    """ADR-030: all-or-nothing, and only the NEWEST model run is kept per area. The hourly
-    window (48 h x ~9 params) is re-fetched every cycle; keeping every run (as the daily
-    forecast does, ADR-010) would grow by ~3.5k rows per area per day. The older runs of
-    the same area are deleted in the same commit as the insert, so a reader never sees the
-    area without an hourly forecast. One query for the already-stored ids, not one per row."""
+    """ADR-030: all-or-nothing, and only the NEWEST model run is kept per area (the hourly
+    window is re-fetched every cycle; keeping every run would add ~3.5k rows/area/day).
+
+    * Replace, not skip: a re-run with the SAME reference time overwrites that run (its
+      fetched_at/values are the fresh ones - freshness must not lie).
+    * A DEGRADED run never destroys a good one: if the new run covers fewer than half of
+      the previous run's still-relevant slots or drops one of its params, the previous run
+      stays (honestly ageing -> STALE) and nothing is written - unless that previous run is
+      itself older than HOURLY_BASELINE_MAX_AGE.
+    * A run OLDER than what is stored (late concurrent run) writes nothing.
+    * Delete + insert + commit are one transaction inside one try: any IntegrityError
+      (race with another ingest) rolls back and is swallowed, never escapes (rule #1).
+    Returns the number of rows written."""
     area_id, reference = records[0]["geo_area_id"], records[0]["forecast_reference_time"]
-    existing = set(
-        db.execute(
-            select(Forecast.source_record_id).where(
+    window_start = min(r["valid_from"] for r in records)
+    try:
+        stored = db.execute(
+            select(
+                Forecast.forecast_reference_time,
+                Forecast.valid_from,
+                Forecast.param_code,
+                Forecast.fetched_at,
+            ).where(
                 Forecast.source_id == records[0]["source_id"],
                 Forecast.geo_area_id == area_id,
                 Forecast.granularity == "hourly",
-                Forecast.forecast_reference_time == reference,
             )
-        ).scalars()
-    )
-    new_records = [Forecast(**r) for r in records if r["source_record_id"] not in existing]
-    db.add_all(new_records)
-    db.execute(
-        delete(Forecast).where(
-            Forecast.geo_area_id == area_id,
-            Forecast.granularity == "hourly",
-            Forecast.forecast_reference_time < reference,
+        ).all()
+        if stored:
+            newest = max(_utc(ref) for ref, *_ in stored)
+            if newest > reference:
+                return 0
+            base = [row for row in stored if _utc(row[0]) == newest]
+            base_relevant = [row for row in base if _utc(row[1]) >= window_start]
+            base_slots = {_utc(row[1]) for row in base_relevant}
+            base_params = {row[2] for row in base_relevant}
+            new_slots = {r["valid_from"] for r in records}
+            new_params = {r["param_code"] for r in records}
+            baseline_old = max(_utc(row[3]) for row in base) < (
+                records[0]["fetched_at"] - HOURLY_BASELINE_MAX_AGE
+            )
+            degraded = len(new_slots) * 2 < len(base_slots) or not base_params <= new_params
+            if base_relevant and not baseline_old and degraded:
+                logger.warning(
+                    "geo_area %s: degraded hourly forecast run (%s slots / %s params vs "
+                    "%s / %s) - keeping the previous run",
+                    area_id,
+                    len(new_slots),
+                    len(new_params),
+                    len(base_slots),
+                    len(base_params),
+                )
+                return 0
+        db.execute(
+            delete(Forecast).where(
+                Forecast.geo_area_id == area_id,
+                Forecast.granularity == "hourly",
+                Forecast.forecast_reference_time <= reference,
+            )
         )
-    )
-    try:
+        db.add_all(Forecast(**r) for r in records)
         db.commit()
     except IntegrityError:
         db.rollback()  # race with another ingest run - next scheduled cycle retries
         return 0
-    return len(new_records)
+    return len(records)
 
 
 def purge_stale_hourly_forecasts(db, *, now: datetime | None = None) -> int:

@@ -70,15 +70,20 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
    godziny (UTC), `valid_until` = +1 h, `model='auto'`, `forecast_reference_time` = fetch w koszu
    3 h (jak ADR-010). `source_record_id = hourly:{area}:{param}:{valid_from}:{ref}` — prefiks
    gwarantuje rozłączność z id dziennymi.
-5. **Retencja godzinowa: tylko najnowszy przebieg per obszar.** Po wstawieniu nowego przebiegu w
-   **tym samym commicie** kasujemy wiersze godzinowe tego obszaru ze starszym
-   `forecast_reference_time` (czytelnik nigdy nie widzi obszaru bez prognozy godzinowej).
-   Historia „jak zmieniała się prognoza godzinowa” **nie jest** zachowywana — w odróżnieniu od
-   dziennej (ADR-010) nikt jej nie potrzebuje, a koszt jest ~100× większy. Dzienna pozostaje
-   append-only. Wstawianie jednym zapytaniem o istniejące id (nie zapytanie na wiersz).
-   Dobowa konserwacja (`run_raw_retention`, już dziś dobowa) usuwa wiersze godzinowe, których
-   godzina skończyła się > 1 dobę temu (obszary, które przestały być odpytywane — wygasłe
-   miejscowości ADR-029 — inaczej trzymałyby ostatni przebieg wiecznie).
+5. **Retencja godzinowa: tylko najnowszy przebieg per obszar, ale degradacja go nie niszczy.**
+   Nowy przebieg zastępuje poprzedni (delete + insert + commit w jednej transakcji, jeden
+   `try`, `IntegrityError` jest połykany i wycofywany — nie ucieka z `ingest_geo_area`, #1).
+   Zasady: (a) **ten sam `forecast_reference_time` nadpisuje cały przebieg** (nie pomija znanych
+   id — `fetched_at` i wartości muszą być świeże); (b) **przebieg zdegradowany** — pokrywa
+   < połowy slotów poprzedniego (w oknie nowego) albo gubi któryś jego parametr — **nie kasuje
+   poprzedniego**: zostaje stary (uczciwie starzeje się do STALE), log ostrzega; wyjątek: gdy
+   poprzedni ma > 6 h (`HOURLY_BASELINE_MAX_AGE`), zastępujemy go nawet słabszym; (c)
+   przebieg starszy niż zapisany nic nie zapisuje. Historia zmian prognozy godzinowej **nie
+   jest** zachowywana (dzienna zostaje append-only, ADR-010) — nikt jej nie potrzebuje, a koszt
+   jest ~100× większy. Dobowa konserwacja (`run_raw_retention`, kroki w osobnych `try`)
+   usuwa wiersze godzinowe, których godzina skończyła się > 1 dobę temu (wygasłe miejscowości
+   ADR-029 trzymałyby inaczej ostatni przebieg wiecznie). Schemat: `CHECK granularity IN
+   ('daily','hourly')` i indeks `(granularity, valid_until)` pod to czyszczenie.
 6. **API:** `dashboard_latest()` → `areas[].forecast.hours[]` (`valid_from`, `valid_until`,
    `params{value,unit}`), **osobna lista od `days`**, nigdy mieszana. Czytanie
    (`forecasts_by_area(hourly=True)`) bierze najświeższy przebieg per (obszar, granularity,
@@ -117,4 +122,8 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
   stałym); wierszy godzinowych jest na stałe ~430 na aktywny obszar.
 - Kod czytający `Forecast` musi rozróżniać `granularity` (dziś: `forecasts_by_area`).
 - Limit aktywnych miejscowości spada do 280 (ADR-029 zaktualizowany notą).
+- **Wspólna świeżość `days`/`hours`:** blok `forecast` ma jedno `freshness`/`fetched_at` = starsza
+  część. Konsekwencja: zablokowany/zdegradowany przebieg godzinowy (zachowany stary) albo
+  nieodświeżany dzienny sprawia, że cały blok, także druga część, wygląda na starszy niż jest.
+  To świadomie zachowawcze (#8); osobne pola per część dopiero gdy UI tego potrzebuje.
 - Rozszerzenie okna (np. 72 h) = zmiana `HOURLY_FORECAST_HOURS` + test; retencja bez zmian.

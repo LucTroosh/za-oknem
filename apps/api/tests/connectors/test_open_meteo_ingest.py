@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app import provenance
 from app.connectors.open_meteo import client, ingest
@@ -15,6 +16,7 @@ from app.connectors.open_meteo.parser import (
     HOURLY_PARAM_CODES,
     PARAM_CODES,
     PARSER_VERSION,
+    normalize_hourly_forecast,
 )
 from app.models import Forecast, GeoArea, SourceFetch, SourceFetchCounter, WeatherSnapshot
 
@@ -532,16 +534,25 @@ def test_ingest_stores_hourly_forecast_next_to_daily_without_mixing(db_session, 
     assert kinds == ["daily", "hourly"]
 
 
-def test_ingest_hourly_forecast_is_idempotent_within_a_cycle(db_session, monkeypatch):
+def test_ingest_hourly_forecast_same_cycle_overwrites_the_whole_run(db_session, monkeypatch):
+    # Same forecast_reference_time: the run is REPLACED (fresh values and fetched_at), not
+    # skipped as "already known" - freshness must not lie (review of PR #89).
     area = _make_area(db_session)
     monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=_full_payload()))
-
     ingest.ingest_geo_area(area, db_session)
     n = len(_hourly_rows(db_session))
-    again = ingest.ingest_geo_area(area, db_session)
+    first_fetch = {r.fetched_at for r in _hourly_rows(db_session)}
+    changed = _full_payload()
+    changed["hourly"]["temperature_2m"] = [99.0] * 72
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=changed))
 
-    assert again == 0
-    assert len(_hourly_rows(db_session)) == n
+    ingest.ingest_geo_area(area, db_session)
+
+    rows = _hourly_rows(db_session)
+    assert len(rows) == n  # rewritten, not duplicated
+    temps = {r.value for r in rows if r.param_code == "temperature_2m"}
+    assert temps == {99.0}
+    assert {r.fetched_at for r in rows}.isdisjoint(first_fetch)
 
 
 def test_ingest_hourly_forecast_keeps_only_the_newest_run_per_area(db_session, monkeypatch):
@@ -655,3 +666,70 @@ def test_request_units_estimate_follows_the_union_of_requested_variables():
     )
     assert total == 28
     assert ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL == 3  # ceil(28 / 10), ADR-030
+
+
+def _records(area, payload, fetched_at):
+    return normalize_hourly_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
+
+
+def _hourly_refs(db):
+    return {r.forecast_reference_time.replace(tzinfo=UTC) for r in _hourly_rows(db)}
+
+
+T1 = datetime(2026, 9, 28, 18, 20, tzinfo=UTC)
+T2 = datetime(2026, 9, 28, 21, 20, tzinfo=UTC)
+
+
+def test_degraded_hourly_run_does_not_destroy_the_previous_one(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session)
+    full = len(_hourly_rows(db_session))
+
+    # (a) far fewer slots: the series ends 3 h after the new window starts
+    short = _full_payload("2026-09-28T21:00")
+    short["hourly"] = {k: (v[:24] if k != "time" else v[:24]) for k, v in short["hourly"].items()}
+    assert ingest._store_hourly_forecast(_records(area, short, T2), db_session) == 0
+    # (b) full length but a param narrower than the previous run
+    narrow = _full_payload("2026-09-28T21:00")
+    del narrow["hourly"]["wind_gusts_10m"]
+    assert ingest._store_hourly_forecast(_records(area, narrow, T2), db_session) == 0
+
+    assert len(_hourly_rows(db_session)) == full
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 28, 18, 0, tzinfo=UTC)}
+
+
+def test_degraded_run_replaces_a_baseline_that_is_itself_too_old(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session)
+    narrow = _full_payload("2026-09-29T01:00")
+    del narrow["hourly"]["wind_gusts_10m"]
+    late = T1 + timedelta(hours=7)  # baseline older than HOURLY_BASELINE_MAX_AGE
+
+    assert ingest._store_hourly_forecast(_records(area, narrow, late), db_session) > 0
+
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 29, 0, 0, tzinfo=UTC)}
+
+
+def test_older_hourly_run_than_stored_writes_nothing(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload("2026-09-28T21:00"), T2), db_session)
+    before = len(_hourly_rows(db_session))
+
+    assert ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session) == 0
+
+    assert len(_hourly_rows(db_session)) == before
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 28, 21, 0, tzinfo=UTC)}
+
+
+def test_hourly_store_swallows_integrity_error_and_rolls_back(db_session, monkeypatch):
+    area = _make_area(db_session)
+    records = _records(area, _full_payload(), T1)
+
+    def _boom():
+        raise IntegrityError("insert", {}, Exception("race"))
+
+    monkeypatch.setattr(db_session, "commit", _boom)
+
+    assert ingest._store_hourly_forecast(records, db_session) == 0  # no exception escapes
+    monkeypatch.undo()
+    assert _hourly_rows(db_session) == []

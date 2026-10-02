@@ -1228,6 +1228,9 @@ placeholderze.
       `/dashboard/latest` bez zmian po aktywacji miejscowości; log Caddy nie zawiera query
       `/api/v1/places?q=` (usunąć `query` z formatu logu / filtr `delete`), bo to miejscowość
       użytkownika (obraz API ma `--no-access-log`).
+      **Dopisek (ADR-030, review #89):** odpowiedź `/dashboard/latest` urosła o `forecast.hours`
+      (~25 KB na obszar); w Caddy włączyć `encode zstd gzip` (JSON ściska się dobrze) i
+      sprawdzić rozmiar odpowiedzi dla listy obszarów; kontraktu API nie zmieniać.
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**
