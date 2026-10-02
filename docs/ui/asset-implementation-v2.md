@@ -35,9 +35,11 @@ Do not hand-copy alternate exports or replace the approved files with regenerate
 apps/mobile/assets/za-oknem/
   android/
     app-icon-1024.png
-    adaptive-icon-foreground-1024.png
+    adaptive-icon-foreground-1024.png       (approved original, kept unchanged)
+    adaptive-icon-foreground-fit-1024.png   (runtime: same artwork, 1.10x, bbox-centred)
     adaptive-icon-background-1024.png
-    adaptive-icon-monochrome-1024.png
+    adaptive-icon-monochrome-1024.png       (approved original, kept unchanged)
+    adaptive-icon-monochrome-fit-1024.png   (runtime: same artwork, 1.10x, bbox-centred)
     play-store-icon-512.png
   brand/
     logo-mark.svg
@@ -75,9 +77,9 @@ Required intent:
     "android": {
       "package": "pl.zaoknem.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/za-oknem/android/adaptive-icon-foreground-1024.png",
+        "foregroundImage": "./assets/za-oknem/android/adaptive-icon-foreground-fit-1024.png",
         "backgroundColor": "#F4FAF7",
-        "monochromeImage": "./assets/za-oknem/android/adaptive-icon-monochrome-1024.png"
+        "monochromeImage": "./assets/za-oknem/android/adaptive-icon-monochrome-fit-1024.png"
       }
     }
   }
@@ -85,6 +87,10 @@ Required intent:
 ```
 
 Keep package id, scheme, version and existing plugins unchanged.
+
+#### Adaptive icon scale
+
+The approved foreground/monochrome rasters are transparent and the mark fills only ~57% of the canvas, so it looked small on circular launcher masks. Expo has no scale option for adaptive icons, so `*-fit-1024.png` are the same artwork resampled 1.10x and centred on the bounding box (no redrawing). On a circle mask only the white frame rim corners are clipped; panes, sun and leaf stay intact; squircle and rounded-square masks clip nothing. 1.15x was rejected (frame clearly cut, sun touches the mask edge). Regenerate from the approved originals, not from the `-fit-` files.
 
 The Play Store 512×512 file is a store-listing asset and should not be referenced by runtime code.
 
