@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { apiGet } from "./api";
+import { ApiError, apiGet, apiPost } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -20,5 +20,23 @@ describe("apiGet", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
 
     await expect(apiGet("/api/v1/health")).rejects.toThrow("503");
+  });
+});
+
+describe("apiPost / ApiError", () => {
+  it("POSTs without a body and resolves with the JSON", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ polling: "active" }) });
+    vi.stubGlobal("fetch", f);
+
+    await expect(apiPost("/api/v1/places/1/activate")).resolves.toEqual({ polling: "active" });
+    expect(f.mock.calls[0][1].method).toBe("POST");
+  });
+
+  it("rejects with an ApiError that carries the status", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429 }));
+
+    const err = await apiPost("/api/v1/places/1/activate").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(429);
   });
 });

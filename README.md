@@ -107,7 +107,22 @@ npm install
 npm start
 ```
 
-Aplikacja ma trzy zakładki (Home / Alerty / Ustawienia) i podąża za jasnym/ciemnym
+Pierwsze uruchomienie: Welcome → „Ustaw lokalizację” → Start (kolejne uruchomienia od razu
+Start). Wybrana miejscowość jest zapamiętana tylko na urządzeniu (AsyncStorage); zmienisz ją
+tapem w nazwę miejscowości na Start albo w Ustawieniach → Lokalizacja. Żeby przejść ekran
+lokalizacji od zera, wyczyść dane aplikacji (Android: Ustawienia → Aplikacje → Expo Go →
+Pamięć → Wyczyść dane) albo odinstaluj ją.
+
+**Miejscowości w lokalnym stacku.** Wyszukiwarka czyta `GET /api/v1/places`, a ta tabela jest
+pusta, dopóki nie zaimportujesz GeoNames (wyszukiwanie zwraca wtedy „Nie znaleziono…”, a pod
+polem są „Większe miasta” z `GET /api/v1/areas`, więc ekran nadal działa). Import (komenda z
+sekcji „Rejestr miejscowości”, ADR-029; wymaga internetu, na VPS albo lokalnie):
+
+```bash
+docker compose exec api python -m app.connectors.geonames_places.ingest --download
+```
+
+Aplikacja ma trzy zakładki (Start / Alerty / Ustawienia) i podąża za jasnym/ciemnym
 motywem systemu (przełącz go w ustawieniach telefonu lub emulatora, bez restartu).
 Domyślnie łączy się z `http://localhost:8000`. Na emulatorze Androida ustaw
 `EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`, na fizycznym urządzeniu — LAN IP hosta

@@ -1,9 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 
 import { DashboardProvider } from "../../components/DashboardProvider";
+import useLocation from "../../components/LocationProvider";
 import useTheme from "../../components/useTheme";
+import { entryRedirect } from "../../lib/location";
 import { typo } from "../../lib/theme";
 
 // Icons: @expo/vector-icons ships with the Expo SDK (dependency of `expo`), no new package.
@@ -16,8 +18,11 @@ const icon = (name: IconName, focusedName: IconName) =>
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const { settings } = useLocation();
+  const redirect = entryRedirect(settings, "tabs");
+  if (redirect !== null || settings.location === null) return <Redirect href={redirect ?? "/location"} />;
   return (
-    <DashboardProvider>
+    <DashboardProvider key={settings.location.geoAreaId} geoAreaId={settings.location.geoAreaId}>
       <Tabs
         screenOptions={{
           sceneStyle: { backgroundColor: colors.bg },

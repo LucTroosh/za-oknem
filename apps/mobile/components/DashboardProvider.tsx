@@ -2,16 +2,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import type { DashboardResponse } from "../../../packages/api-contract/schema";
 import type { AlertsBlock } from "../lib/alerts";
-import { apiGet } from "../lib/api";
+import { ApiError, apiGet } from "../lib/api";
 import type { DashboardArea, DashboardSourceStatus, LoadState } from "../lib/dashboardTypes";
 import type { HydroBlock } from "../lib/hydro";
 import { createLatestGuard } from "../lib/latest";
+import { EXPIRED_AREA_MESSAGE } from "../lib/places";
 import type { PollenCalendarBlock } from "../lib/pollenCalendar";
+import useLocation from "./LocationProvider";
 import usePollenCalendar from "./usePollenCalendar";
 
 // The shared data of the tabs, each from its own request (rule #1: one failing never blanks
 // another) and only from our backend (rule #14):
-//   /api/v1/dashboard/latest -> areas (Home), alerts (Alerts + Home banner), attributions
+//   /api/v1/dashboard/latest?geo_area_id= -> the chosen area (Home), alerts (Alerts + Home banner), attributions
 //   /api/v1/hydro/latest     -> water levels (Alerts + Home banner)
 //   /api/v1/pollen/calendar  -> typical pollen season (Home, attribution in Settings)
 // A failed refresh keeps the previous data and flips the state to "error", so screens can
@@ -34,7 +36,10 @@ export type DashboardContext = {
 
 const Ctx = createContext<DashboardContext | null>(null);
 
-export function DashboardProvider({ children }: { children: ReactNode }) {
+// Mounted with `key={geoAreaId}`: another location = a fresh provider, so nothing of the
+// previous place stays on screen under the new name.
+export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; children: ReactNode }) {
+  const { invalidate } = useLocation();
   const [state, setState] = useState<LoadState>("loading");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [hydroState, setHydroState] = useState<LoadState>("loading");
@@ -47,15 +52,20 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   const loadDashboard = useCallback(() => {
     const isLatest = guards.current.dashboard();
-    return apiGet<DashboardResponse>("/api/v1/dashboard/latest")
+    return apiGet<DashboardResponse>(`/api/v1/dashboard/latest?geo_area_id=${geoAreaId}`)
       .then((body) => {
         if (!isLatest()) return;
         setDashboard(body);
         setLoadedAt(Date.now());
         setState("ready");
       })
-      .catch(() => isLatest() && setState("error"));
-  }, []);
+      .catch((err: unknown) => {
+        // 404 = the remembered area no longer exists: back to the picker with an explanation.
+        // Any other failure is a failed refresh (older data stays, flagged as such).
+        if (err instanceof ApiError && err.status === 404) invalidate(geoAreaId, EXPIRED_AREA_MESSAGE);
+        else if (isLatest()) setState("error");
+      });
+  }, [geoAreaId, invalidate]);
 
   const loadHydro = useCallback(() => {
     const isLatest = guards.current.hydro();

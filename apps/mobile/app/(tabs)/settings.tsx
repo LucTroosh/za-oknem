@@ -1,28 +1,49 @@
-import { StyleSheet, Text } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import appConfig from "../../app.json";
 import Card from "../../components/Card";
 import useDashboard from "../../components/DashboardProvider";
+import useLocation from "../../components/LocationProvider";
 import Screen from "../../components/Screen";
-import { useThemedStyles } from "../../components/useTheme";
+import useTheme, { useThemedStyles } from "../../components/useTheme";
 import { collectAttributions } from "../../lib/sources";
-import { type Theme, space, typo } from "../../lib/theme";
+import { MIN_TOUCH, type Theme, space, typo } from "../../lib/theme";
 
-// Placeholder (TASK-12.1): about + data sources. Location, profile, allergies and
-// notifications arrive with TASK-12.2-12.4; the privacy policy page with TASK-12.6.
+// Location (one, local to the device) + about + data sources. Topics, theme and the privacy
+// policy page arrive with TASK-12.13 / 12.19 / 12.6.
 // Sources = the attribution strings the backend sent with the data (shown verbatim).
 export default function Settings() {
   const styles = useThemedStyles(createStyles);
+  const { colors } = useTheme();
+  const router = useRouter();
+  const { settings } = useLocation();
   const { dashboard, hydro, calendar } = useDashboard();
   const sources = collectAttributions(dashboard, hydro, calendar);
   return (
     <Screen>
       <Card>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Lokalizacja: ${settings.location?.label ?? "nie wybrano"}`}
+          accessibilityHint="Otwiera wybór lokalizacji"
+          onPress={() => router.push("/location")}
+          style={styles.row}
+        >
+          <View style={styles.rowText}>
+            <Text style={styles.heading}>Lokalizacja</Text>
+            <Text style={styles.body}>{settings.location?.label ?? "Nie wybrano"}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </Pressable>
+      </Card>
+      <Card>
         <Text style={styles.heading} accessibilityRole="header">
           O aplikacji
         </Text>
         <Text style={styles.body}>
-          {appConfig.expo.name} pokazuje, co dzieje się wokół Ciebie: powietrze, pogodę, pyłki, wodę i ostrzeżenia.
+          {appConfig.expo.name} pokazuje, co dzieje się wokół Ciebie: powietrze, pogodę, pyłki i ostrzeżenia.
         </Text>
         <Text style={styles.meta}>Wersja {appConfig.expo.version}</Text>
       </Card>
@@ -46,7 +67,7 @@ export default function Settings() {
           Prywatność
         </Text>
         <Text style={styles.body}>
-          Aplikacja nie wymaga konta i nie korzysta z lokalizacji urządzenia. Pokazywana miejscowość jest na razie stała (wybór lokalizacji w przygotowaniu).
+          Aplikacja nie wymaga konta i nie tworzy profilu. Nie korzysta z lokalizacji urządzenia. Wybrana miejscowość jest zapamiętana tylko na tym telefonie.
         </Text>
       </Card>
     </Screen>
@@ -57,5 +78,7 @@ const createStyles = (t: Theme) =>
   StyleSheet.create({
     heading: { ...typo.heading, color: t.colors.text, marginBottom: space.xs },
     body: { ...typo.body, color: t.colors.text },
+    row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: MIN_TOUCH },
+    rowText: { flex: 1, gap: space.xs },
     meta: { ...typo.caption, color: t.colors.textSecondary, marginTop: space.xs },
   });

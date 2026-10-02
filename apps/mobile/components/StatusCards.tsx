@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { DashboardArea, DashboardSourceStatus } from "../lib/dashboardTypes";
 import { formatObservedAt } from "../lib/dashboardTypes";
+import { gridDescription } from "../lib/coverage";
 import { forecastLine } from "../lib/forecast";
 import { FRESHNESS_LABEL } from "../lib/freshness";
 import { type ModuleKey, type StatusCardModel } from "../lib/home";
@@ -29,7 +30,7 @@ function StatusCard({ model, children }: { model: StatusCardModel; children: Rea
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState(false);
-  const label = [model.title, model.headline, model.supporting, model.freshnessNote].filter(Boolean).join(". ");
+  const label = [model.title, model.headline, model.supporting, model.coverageNote, model.freshnessNote].filter(Boolean).join(". ");
   return (
     <View style={styles.wrap}>
       <Pressable
@@ -57,6 +58,7 @@ function StatusCard({ model, children }: { model: StatusCardModel; children: Rea
           <Text style={[styles.headline, model.state === "unavailable" && styles.dim]}>{model.headline}</Text>
         </View>
         {model.supporting && <Text style={styles.supporting}>{model.supporting}</Text>}
+        {model.coverageNote && <Text style={styles.coverage}>{model.coverageNote}</Text>}
         {model.freshnessNote && <Text style={styles.stale}>{model.freshnessNote}</Text>}
       </Pressable>
       {open && <View style={styles.details}>{children}</View>}
@@ -80,6 +82,12 @@ function ForecastCard({ forecast }: { forecast: NonNullable<DashboardArea["forec
   );
 }
 
+// Weather and pollen are model values on a grid, not a measurement in the town (ADR-029 §5).
+function GridNote({ text }: { text: string }) {
+  const styles = useThemedStyles(createStyles);
+  return <Text style={styles.micro}>{text}</Text>;
+}
+
 // Renders exactly the modules `cards` lists (data-driven, §50) - any length.
 export default function StatusCards({
   cards,
@@ -93,15 +101,22 @@ export default function StatusCards({
   receivedAt: number;
 }) {
   const forecast = area.forecast && forecastLine(area.forecast.days) ? area.forecast : null;
+  const grid = gridDescription(area.coverage);
   const details: Record<ModuleKey, ReactNode> = {
     air: <AirParams air={area.air} sourceStatus={sourceStatus?.air} receivedAt={receivedAt} />,
     weather: (
       <>
         <WeatherCard weather={area.weather} sourceStatus={sourceStatus?.weather} />
         {forecast && <ForecastCard forecast={forecast} />}
+        <GridNote text={grid} />
       </>
     ),
-    pollen: <PollenCard pollen={area.pollen} />,
+    pollen: (
+      <>
+        <PollenCard pollen={area.pollen} />
+        <GridNote text={grid} />
+      </>
+    ),
   };
   return (
     <>
@@ -133,6 +148,7 @@ const createStyles = (t: Theme) =>
     headline: { ...typo.title, color: t.colors.text, flexShrink: 1 },
     dim: { color: t.colors.dim },
     supporting: { ...typo.body, color: t.colors.textSecondary },
+    coverage: { ...typo.caption, color: t.colors.textSecondary },
     stale: { ...typo.caption, color: t.colors.warning, fontWeight: "600" },
     details: { gap: space.sm },
     detailHeading: { ...typo.heading, color: t.colors.text },

@@ -848,6 +848,16 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Źródła; (5) brak background location, brak konta (reguły #11). **Notatka:**
       `docs/ui/screen-map.md` (PR #84, ADR-028) w chwili pisania nie jest w `main` — po jego
       merge dopisać ten ekran do mapy ekranów. **Dependencies:** TASK-6.3, TASK-12.2/12.3.
+      **Stan (PR #NNN):** zrobione (1)–(3) i (5) w `app/location.tsx`, `lib/places.ts`,
+      `lib/coverage.ts`, `components/usePlaceSearch.ts`: wyszukiwarka (debounce 300 ms,
+      latest-wins z anulowaniem), `activate` przy wyborze i przy każdym otwarciu aplikacji,
+      429/503 → odczyt `GET /places/{id}` (obszar istnieje ⇒ dalej, inaczej uczciwy błąd),
+      `capacity_reached`/`budget_exhausted` ⇒ Start tłumaczy brak pogody i pyłków, coverage
+      powietrza i opis siatki na Start. (4) częściowo: atrybucja GeoNames (`attribution` z
+      `/places`) pod wynikami wyszukiwania; **brak** jej na ekranie Źródła (TASK-12.6).
+      Ekran nie ma „Użyj mojej lokalizacji” (TASK-12.3). Do zrobienia: heartbeat instalacji
+      (TASK-12.2 a–c), import GeoNames na VPS (bez niego wyszukiwarka zwraca „Nie
+      znaleziono…”, działa lista miast z `/areas`).
 
 ### Phase 12 — UI: struktura ekranów i mocki (docs/ui/screen-map.md, ADR-028)
 
@@ -954,6 +964,15 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       dostępnej listy; testy czystej logiki stanu. **Non-goals:** konto, synchronizacja,
       zapisane lokalizacje, grafika hero (właściciel). **Dependencies:** TASK-12.11
       (kolejność: 12.11 → 12.17 → 12.13, bez cyklu).
+      **Stan (PR #NNN):** zrobione: Welcome (hero = neutralny placeholder z tokenów), ekran
+      lokalizacji (TASK-12.7) z jedną aktywną lokalizacją, magazyn AsyncStorage
+      (`lib/location.ts`, `lib/storage.ts`; `{v, onboardingDone, location}`; tryb motywu i tematy
+      dojdą z TASK-12.19/12.13 jako podniesienie `v`), guard `entryRedirect` (Welcome nie wraca;
+      brak lokalizacji ⇒ wybór), zmiana z nagłówka Start i Ustawień, 404 dashboardu ⇒ wybór z
+      komunikatem. **Nie zrobione:** krok „Co chcesz śledzić?” (TASK-12.13) — wymaga osobnego
+      ekranu w Ustawieniach i ukrywania kart na Start, poza zakresem tego PR. Nowa zależność:
+      `@react-native-async-storage/async-storage` 1.23.1 (wersja z Expo SDK 52, działa w Expo Go;
+      `expo-secure-store` odrzucone: nic sekretnego, limity rozmiaru, prosty klucz-wartość wystarcza).
 - [ ] **TASK-12.18:** Przebudowa ekranu Start (spec UI §10–17, §40–44, §50; P0 #4–10, #15).
       **Goal:** Start odpowiada na „co dzieje się wokół mnie i co mogę robić” w kilka
       sekund. **Scope:** zakładki Start | Alerty | Ustawienia (ikony Home/Bell/Settings);

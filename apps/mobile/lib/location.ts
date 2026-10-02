@@ -1,0 +1,90 @@
+// The one thing the app remembers on the device (spec §3): ONE active location + whether the
+// onboarding was finished. Pure logic only (serialise / parse / validate); the AsyncStorage
+// calls live in lib/storage.ts. No account, no profile, and the coordinates are the CENTRE of
+// the chosen place (public data of the places registry) - never the user's position.
+// Versioned: an unknown or corrupt record parses to the defaults, so the app always starts.
+import type { AreaOut, PlaceOut } from "../../../packages/api-contract/schema";
+
+export const SETTINGS_KEY = "za-oknem/settings";
+export const SETTINGS_VERSION = 1;
+
+export type ActiveLocation = {
+  geoAreaId: number;
+  // null for a seeded city picked from /areas (no registry entry behind it).
+  placeId: number | null;
+  // Short name for the header ("Gliwice") and the long label for the picker ("Gliwice, pow. ...").
+  name: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type Settings = { onboardingDone: boolean; location: ActiveLocation | null };
+
+export const DEFAULT_SETTINGS: Settings = { onboardingDone: false, location: null };
+
+export function serializeSettings(s: Settings): string {
+  return JSON.stringify({ v: SETTINGS_VERSION, onboardingDone: s.onboardingDone, location: s.location });
+}
+
+const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
+const posInt = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x > 0;
+const text = (x: unknown): x is string => typeof x === "string" && x.trim() !== "";
+const inRange = (x: unknown, lim: number): x is number => typeof x === "number" && Number.isFinite(x) && Math.abs(x) <= lim;
+
+function parseLocation(x: unknown): ActiveLocation | null {
+  if (!isObject(x)) return null;
+  const { geoAreaId, placeId, name, label, latitude, longitude } = x;
+  if (!posInt(geoAreaId) || !text(name) || !text(label) || !inRange(latitude, 90) || !inRange(longitude, 180)) return null;
+  if (placeId !== null && !posInt(placeId)) return null;
+  return { geoAreaId, placeId, name, label, latitude, longitude };
+}
+
+// Anything unreadable -> defaults (the user sees Welcome again, never a crash). A readable
+// record with a damaged location keeps `onboardingDone` (the user chooses a place again, but
+// does not see Welcome again).
+export function parseSettings(raw: string | null | undefined): Settings {
+  if (typeof raw !== "string") return DEFAULT_SETTINGS;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+  if (!isObject(data) || data.v !== SETTINGS_VERSION) return DEFAULT_SETTINGS;
+  return { onboardingDone: data.onboardingDone === true, location: parseLocation(data.location) };
+}
+
+export function locationFromPlace(place: PlaceOut, area: AreaOut): ActiveLocation {
+  return {
+    geoAreaId: area.geo_area_id,
+    placeId: place.place_id,
+    name: place.name,
+    label: place.label,
+    latitude: place.latitude,
+    longitude: place.longitude,
+  };
+}
+
+export function locationFromArea(area: AreaOut): ActiveLocation {
+  return {
+    geoAreaId: area.geo_area_id,
+    placeId: null,
+    name: area.name,
+    label: area.name,
+    latitude: area.latitude,
+    longitude: area.longitude,
+  };
+}
+
+// ---- routing guard --------------------------------------------------------------------------
+
+export type Entry = "tabs" | "welcome";
+
+// Where a route must send the user instead of rendering (null = render). Welcome never comes
+// back after the onboarding; with no usable location the picker is the only way on.
+export function entryRedirect(s: Settings, entry: Entry): "/welcome" | "/location" | "/" | null {
+  if (!s.onboardingDone) return entry === "welcome" ? null : "/welcome";
+  if (s.location === null) return "/location";
+  return entry === "welcome" ? "/" : null;
+}

@@ -41,12 +41,12 @@ Dziś w kodzie jest wspólny zestaw: `LoadingState`, `EmptyState`, `Notice`, `Fr
 ```text
 Root Stack (app/_layout.tsx)
 │
-├── Welcome (S0)            ← tylko pierwsze uruchomienie              ⬜ TASK-12.17
-├── Onboarding (S4+S10)     ← lokalizacja + tematy, JEDEN ekran        ⬜ TASK-12.17
+├── Welcome (S0)            ← tylko pierwsze uruchomienie              ✅ TASK-12.17
+├── Lokalizacja (S4)        ← onboarding i zmiana, JEDEN ekran         ✅ TASK-12.17/12.7 (tematy S10: ⬜ TASK-12.13)
 │
 ├── (tabs)                  ← dolna nawigacja, dokładnie 3 zakładki: Start | Alerty | Ustawienia
 │   ├── Start           S1   🟡 jest jako „Dziś” (app/(tabs)/index.tsx) — do przebudowy TASK-12.18
-│   │     [nagłówek] nazwa miejscowości ⌄ ──────────► S4 Zmiana lokalizacji
+│   │     [nagłówek] nazwa miejscowości ⌄ ──────────► S4 Zmiana lokalizacji ✅
 │   │     karta werdyktu „Na dwór” ─────────────────► szczegóły werdyktu (reasons[]) ⬜
 │   │     karta Powietrze ──────────────────────────► S5 Szczegóły: Powietrze          ⬜ TASK-12.12
 │   │     karta Pogoda ─────────────────────────────► S6 Szczegóły: Pogoda             ⬜ TASK-12.12
@@ -59,7 +59,7 @@ Root Stack (app/_layout.tsx)
 │   │     stacje wodowskazowe (rzeki) ──────────────► S8 Stany rzek
 │   │
 │   └── Ustawienia      S9   🟡 jest jako placeholder (app/(tabs)/settings.tsx)
-│         ├── Lokalizacja ────────────────────────► S4                                  ⬜ TASK-12.2/12.11
+│         ├── Lokalizacja ────────────────────────► S4                                  ✅ TASK-12.7/12.17
 │         ├── Obserwowane tematy ─────────────────► S10                                 ⬜ TASK-12.13
 │         ├── Wygląd (Systemowy | Jasny | Ciemny) ► (przełącznik w wierszu)             ⬜ TASK-12.19
 │         ├── Dostępność (respektuj ustawienia systemu)                                 ⬜ TASK-12.19
@@ -95,9 +95,9 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 
 | P0 | Ekran | Status dziś | Task |
 |---|---|---|---|
-| 1 Welcome | S0 | ⬜ | TASK-12.17 |
-| 2 Lokalizacja | S4 | 🟡 backend ✅ (`/areas`, `/geo/locate`; miejscowości: PR #85), UI ⬜ | TASK-12.11, 12.7, 12.2 |
-| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ⬜ | TASK-12.13, 12.17 |
+| 1 Welcome | S0 | ✅ (hero = neutralny placeholder z tokenów; grafika po stronie właściciela) | TASK-12.17 |
+| 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; bez GPS (TASK-12.3) | TASK-12.7, 12.17 |
+| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ⬜ (świadomie poza PR onboardingu: wymaga ekranu w Ustawieniach i ukrywania kart na Start) | TASK-12.13 |
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
 | 5 Dashboard | S1 | 🟡 | TASK-12.18 |
 | 6 Hero Verdict | S1 | ✅ dane i karta (LIVE, bez mocka) | TASK-7.8 ✅ |
@@ -111,12 +111,12 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 | 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; brak Dynamic Type/Reduce Motion — niesprawdzone) | TASK-12.19 |
 | 15 Loading/error/unavailable | wszystkie | 🟡 (spinner globalny; skeleton per moduł ⬜) | TASK-12.18 |
 
-### S0. Welcome — ⬜ (statyczny)
+### S0. Welcome — ✅ (statyczny)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Nazwa, nagłówek „Sprawdź, co dzieje się wokół Ciebie”, tekst „Powietrze, pogoda, pyłki i lokalne alerty w jednym miejscu.”, „Bez konta. Bez zbędnych danych.”, CTA „Zaczynamy” | statyczne (copy ze spec UI §6) | ⬜ | TASK-12.17 | brak sieci nie blokuje; **bez wzmianki o wodzie/kąpieliskach**; pojawia się raz (flaga lokalna „onboarding zakończony”) |
-| Obraz hero | zasób graficzny od właściciela | ⬜ (design po stronie właściciela) | — | — |
+| Nazwa, nagłówek „Sprawdź, co dzieje się wokół Ciebie”, tekst „Powietrze, pogoda, pyłki i lokalne alerty w jednym miejscu.”, „Bez konta. Bez zbędnych danych.”, CTA „Zaczynamy” | statyczne (copy ze spec UI §6) | ✅ | TASK-12.17 | brak sieci nie blokuje; **bez wzmianki o wodzie/kąpieliskach**; pojawia się raz (flaga lokalna „onboarding zakończony”) |
+| Obraz hero | zasób graficzny od właściciela | ⬜ (dziś neutralny placeholder z tokenów; design po stronie właściciela) | — | — |
 
 ### S1. Start (Home) — 🟡 istnieje jako „Dziś”
 
@@ -125,7 +125,7 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 
 | Element UI | Źródło (endpoint · pole) | Status | Task | Stany do zaprojektowania |
 |---|---|---|---|---|
-| Nagłówek: miejscowość ⌄, data | `GET /areas` · `name`, `geo_area_id`; data z zegara urządzenia | ⬜ (dziś tytuł sekcji, brak przełącznika) | TASK-12.2, 12.11, 12.18 | L (skeleton nagłówka), Er listy obszarów |
+| Nagłówek: miejscowość ⌄, data | zapamiętana lokalizacja (nazwa) + `GET /dashboard/latest?geo_area_id=`; data z zegara urządzenia | ✅ (tap → S4) | TASK-12.7, 12.17, 12.18 | L (skeleton nagłówka), Er |
 | Nagłówek: temperatura teraz, max/min dnia | `areas[].weather.params.temperature_2m`(wg `lib/weather.ts`), `areas[].forecast.days[0].params` (`temperature_2m_max/min`) | 🟡 dane ✅, UI ⬜ | TASK-12.18 | brak pogody/prognozy ⇒ pomijamy element, nie 0 |
 | Baner/podgląd alertu | `dashboard.alerts.items[]`, `alerts.source_status`; `GET /hydro/latest` · `stations[].status` | ✅ cała Polska (banery); lokalnie: `areas[].local_alerts`, `geo_match` backend ✅, mobile nieużyte | TASK-9.7, 9.5 | „✓ Brak aktywnych ostrzeżeń” TYLKO przy potwierdzonym zero (źródło FRESH/RECENT); „? Nie udało się sprawdzić ostrzeżeń” przy U/S (ADR-012; `alertsBanner.ts`) — to dwa różne stany |
 | Powiadomienie „nie udało się odświeżyć” | stan klienta | ✅ | — | Er przy istniejących danych |
@@ -137,7 +137,7 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | „Co możesz dziś robić?” — karty aktywności (spacer, bieganie/rower, wietrzenie, wieczorny wysiłek) | **brak**: `outdoor` daje jeden werdykt + powody, nie rekomendacje per aktywność; brak przedziałów czasu (brak prognozy godzinowej powietrza i pogody) | ⬜ wymaga backendu — **bez mocka** (rekomendacja to interpretacja zbliżona do werdyktu; zakaz mockowania) | **TASK-7.9** (backend), TASK-12.18 (UI) | GOOD ✓ / CAUTION ! / AVOID × / UNKNOWN ? (glif + słowo, nie sam kolor); powód po tapnięciu; przedział czasu opcjonalny, dziś nieobecny |
 | Kalendarz pylenia | `GET /pollen/calendar` | 🟡 (8 taksonów; ambrozja/pokrzywowate `not_covered`) | TASK-8.10 ✅ | pusty `active` ≠ „nic nie pyli” |
 | Prognoza dobowa | `areas[].forecast` · `days[].params`, `freshness`, `fetched_at` | ✅ dane; blok `forecast` nie ma własnego `source_status`, ale pochodzi z tego samego pobrania Open-Meteo co pogoda (źródło `open_meteo`, ADR-010), więc **używamy `source_status.weather`**: efektywna świeżość = najgorsza z `forecast.freshness` i `source_status.weather.freshness` (`worstFreshness`, ADR-012), `fetched_at` jako wiek | TASK-12.18 | S/U ⇒ „Prognoza mogła się zmienić / niedostępna”, bez max/min w nagłówku; brak bloku `forecast` ⇒ pomijamy |
-| Obszar bez pollingu / miejscowość bez pokrycia | `areas[].weather_polling_active=false`; (PR #85: `coverage` exact/nearby/regional/none) | 🟡 backend ✅ (#85 niezmergowany) | TASK-12.11, 12.7 | „dane pogodowe nie są jeszcze zbierane dla tej lokalizacji”; `regional`/`none` opisane jawnie, `none` ≠ „dobre” |
+| Obszar bez pollingu / miejscowość bez pokrycia | `areas[].weather_polling_active=false`; `coverage` exact/nearby/regional/none, `grid_description` | ✅ | TASK-12.7 | Start: „Pogoda i pyłki dla tej miejscowości są chwilowo niedostępne. Powietrze może pochodzić ze stacji w okolicy.”; nearby/regional: „Dane ze stacji X, N km stąd” / „Stan dla obszaru w promieniu ok. 100 km — stacja X, N km”; `none` = UNAVAILABLE „Brak stacji pomiarowej w okolicy”; opis siatki w szczegółach pogody i pyłków |
 | Stan ekranu: ładowanie / błąd / pusty / częściowa awaria | stan `DashboardProvider` | 🟡 (globalny spinner; każdy moduł ma własny stan, ekran nie blokuje się przy awarii jednego — spec §42) | TASK-12.18 | skeleton per moduł; „Nie udało się pobrać aktualnych danych. Spróbuj ponownie” bez błędów technicznych |
 | Sekcja Woda / Kąpieliska | — | **poza UI** (nie rysujemy, nie „wkrótce”) | — | — |
 
@@ -170,21 +170,21 @@ endpointu; wyszukiwanie po `external_id` dojdzie dopiero z deep linkiem, TASK-10
 | Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ⬜ (dane ✅) | TASK-9.7 | — |
 | „Co to oznacza?” — interpretacja Za Oknem (spec §20) | **brak**: nie ma pola ani źródła treści | ⬜ wymaga decyzji o treści (statyczne teksty per rodzaj ostrzeżenia, redagowane przez ludzi; **bez LLM**, reguła #10) | decyzja w sekcji 5 → osobny task po decyzji | wizualnie i słownie oddzielona od „Oficjalny komunikat”; nigdy jako komunikat urzędowy; bez tekstu = sekcji nie ma |
 
-### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ⬜ UI / 🟡 backend
+### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ✅ wyszukiwarka i lista / ⬜ GPS
 
 Jedna aktywna lokalizacja. Ten sam ekran w onboardingu (razem z tematami, S10) i jako Ustawienia → Lokalizacja / tap w nagłówku Start.
 Backend na `main` (ADR-026): `GET /areas`, `POST /geo/locate`, `GET /dashboard/latest?geo_area_id=` — dziś **7 miast**; granice PRG niezaładowane.
-**PR #85 (ADR-029, otwarty, niezmergowany)** dodaje wyszukiwanie dowolnej miejscowości (`GET /places?q=`, `GET /places/{id}`,
-`POST /places/{id}/activate`, `coverage`) — do czasu merge'a traktujemy je jako planowane; UI wyboru: TASK-12.7.
+ADR-029 (PR #85, `main`): wyszukiwanie dowolnej miejscowości (`GET /places?q=`, `GET /places/{id}`,
+`POST /places/{id}/activate`, `coverage`) — UI zrobione w TASK-12.7. Bez zaimportowanego pliku GeoNames `/places` zwraca `[]` (ekran pokazuje „Nie znaleziono…”, a pod spodem lista miast z `/areas`).
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Lista dostępnych obszarów (dziś 7 miast) | `GET /areas` · `geo_area_id`, `slug`, `name`, `weather_polling_active` | ⬜ UI (backend ✅) → **live od razu**; „nie udajemy pełnego search” (spec §7) | TASK-12.11 | L, E, Er (nie blokuje reszty aplikacji) |
-| Pole „Wpisz miejscowość lub gminę” | po merge #85: `GET /places?q=` (q ≥ 2, limit ≤ 20) + `POST /places/{id}/activate`; do tego czasu brak | 🧪 preview/dev: fixture typu `Proposed*` zgodny z kontraktem #85; **produkcja: tylko lista z `/areas`**, bez udawanego searcha | TASK-12.11 (mock), TASK-12.7 (live po #85) | E („brak wyników”), L, Er; wynik bez pokrycia (`coverage`) opisany jawnie |
+| Lista dostępnych obszarów („Większe miasta”, dziś 7) | `GET /areas` · `geo_area_id`, `slug`, `name`, `weather_polling_active` | ✅ pokazywana przy pustym polu; błąd listy nie blokuje wyszukiwania | TASK-12.11 | L, E, Er (nie blokuje reszty aplikacji) |
+| Pole „Wpisz miejscowość lub gminę” | `GET /places?q=` (q ≥ 2, debounce 300 ms, latest-wins z anulowaniem) + `POST /places/{id}/activate` (429/503 → `GET /places/{id}`; `capacity_reached`/`budget_exhausted` = idź dalej, Start tłumaczy brak pogody) | ✅ live, **bez mocka** | TASK-12.7 | E („Nie znaleziono miejscowości …”), L, Er (bez technikaliów, „Spróbuj ponownie”); atrybucja GeoNames pod wynikami; `coverage` opisane na Start |
 | „Użyj mojej lokalizacji” + wyjaśnienie (S4a) | `expo-location` (nowa zależność, uzasadnić w PR) → `POST /geo/locate` · `status`, `area`, `assignment_method`, `distance_km` | 🧪 stub **tylko dev/preview**; **w produkcji CTA nie pokazujemy**, dopóki TASK-12.3 nie działa (spec §7: żadnego CTA prowadzącego donikąd); backend ✅ | TASK-12.11 (stub), TASK-12.3 (live) | P: nie pytano / zgoda / odmowa → wybór ręczny (§25) / odmowa trwała; timeout GPS |
 | Wynik lokalizacji | `GeoLocateResponse` | 🧪 j.w. | TASK-12.3 | trzy komunikaty: `point_in_polygon`, `nearest_area` („najbliższy obszar z danymi: X, N km” — NIE „Twoja gmina”), `out_of_range` |
-| Zapamiętanie jednej aktywnej lokalizacji | pamięć lokalna: `geo_area_id`/`place_id` (współrzędne NIE są zapisywane, ADR-002/026) | ⬜ (nowa zależność do pamięci lokalnej, uzasadnić w PR) | TASK-12.17 | błąd odczytu ⇒ wartości domyślne, aplikacja działa |
-| Aktywacja obszaru / heartbeat | brak (heartbeat TASK-12.2); `POST /places/{id}/activate` w #85 | ⬜ | TASK-12.2, 12.7 | odmowa aktywacji (budżet) = obszar bez pogody, nie błąd |
+| Zapamiętanie jednej aktywnej lokalizacji | AsyncStorage (`@react-native-async-storage/async-storage`): `{v:1, onboardingDone, location:{geoAreaId, placeId|null, name, label, latitude, longitude}}` — współrzędne to ŚRODEK wybranej miejscowości (dane publiczne), nie pozycja użytkownika | ✅ | TASK-12.17 | błąd/uszkodzenie odczytu ⇒ wartości domyślne (Welcome), uszkodzona lokalizacja ⇒ wybór ponownie bez Welcome; 404 dashboardu ⇒ wybór z komunikatem |
+| Aktywacja obszaru / heartbeat | `POST /places/{id}/activate` przy wyborze i przy każdym otwarciu aplikacji z wybraną miejscowością (odświeża TTL); heartbeat instalacji (TASK-12.2) nadal ⬜ | ✅ aktywacja | TASK-12.7 | odmowa aktywacji (budżet) = obszar bez pogody, nie błąd |
 
 Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 
@@ -235,7 +235,7 @@ Dziś: trzy karty (O aplikacji + wersja, Źródła danych z `attribution`, Prywa
 
 | Wiersz | Prowadzi do | Status | Task |
 |---|---|---|---|
-| Lokalizacja (bieżąca miejscowość) | S4 | ⬜ | TASK-12.11, 12.2 |
+| Lokalizacja (bieżąca miejscowość) | S4 | ✅ | TASK-12.7 |
 | Obserwowane tematy (Powietrze, Pogoda, Pyłki, Alerty, Aktywność) | S10 | ⬜ | TASK-12.13 |
 | Wygląd: Systemowy / Jasny / Ciemny (domyślnie Systemowy) | przełącznik w wierszu | ⬜ (dziś wyłącznie wg systemu) | TASK-12.19 |
 | Dostępność | preferujemy ustawienia systemowe zamiast własnych duplikatów (Większy tekst, Wysoki kontrast, Ogranicz animacje) | ⬜ | TASK-12.19 |
@@ -366,7 +366,7 @@ Mock nie wyprzedza rzeczywistości: każde pole, które fixture albo UI zakłada
 | `areas[].activities[]` (`activity`, `status` GOOD/CAUTION/AVOID/UNKNOWN, `reasons[]` z kodem/parametrem/progiem, `missing[]`, `valid_until`, `window` = `null` do czasu danych godzinowych) | Start: „Co możesz dziś robić?” | brak; `outdoor` to jeden werdykt | **TASK-7.9** (dodany) | deterministyczny silnik (jak ADR-016), bez LLM, bez pyłków (progi ADR-020 to nie ryzyko objawów), wymaga ADR; **bez mocka** |
 | przedziały czasu aktywności („najlepiej przed 17:00”, „po 18:00”) | karty aktywności | brak prognozy godzinowej powietrza i pogody (zapisywana tylko godzina `current`; powietrze to pomiary GIOŚ, CAMS Air = MVP+) | **brak taska** — decyzja właściciela (sekcja 5) | `window` zostaje `null`; nie rysujemy „wieczorny wysiłek” bez danych |
 | `GET /pollen/latest?geo_area_id=` oraz `areas[].hourly[]` (`valid_at` + 5 gatunków `number\|null`) | S7 wykres godzinowy | `GET /pollen/latest` nie ma parametru (funkcja `latest_pollen(db, geo_area_id)` go wspiera); `hourly` nie jest wystawione | **TASK-8.11** | brak snapshotu ⇒ `areas: []` + `source_status`, to stan „niedostępne”, nie „puste”; NULL ≠ 0 |
-| `GET /places?q=`, `GET /places/{id}`, `POST /places/{id}/activate`, `coverage` | S4 wyszukiwanie dowolnej miejscowości | **PR #85 (otwarty)**, nie na `main` | PR #85, UI: TASK-12.7 | do merge'a pole wyszukiwania tylko dev/preview |
+| `GET /places?q=`, `GET /places/{id}`, `POST /places/{id}/activate`, `coverage` | S4 wyszukiwanie dowolnej miejscowości | ✅ `main` (PR #85) | UI ✅ TASK-12.7 | dane: wymagany import GeoNames na serwerze |
 | `GET /areas?q=&limit=&offset=` (wyszukiwanie gmin) | S4 | zastąpione ścieżką `/places` (PR #85); granice PRG nadal ⛔ człowiek | TASK-12.2, 6.2 | — |
 | nearest-station hydro per lokalizacja | S2/S8 | `/hydro/latest` bez lokalizacji | TASK-9.5 | deterministyczne po stronie serwera (reguła #9) |
 | kategoria alertu (pogoda/powietrze/woda/inne) | S2 chipy | brak pola; wynika z `source` | TASK-9.7 (po stronie klienta albo pole w kontrakcie) | tylko kategorie z danymi |
@@ -401,10 +401,11 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 | Stany rzek (cała Polska) | ✅ | ✅ (WARNING/ALARM) | ⬜ pełna lista (TASK-12.16) |
 | Stany rzek po lokalizacji | ⬜ | ⬜ | TASK-9.5 |
 | Kąpieliska, woda pitna | ⛔ | **poza UI** | po decyzji o źródle, przed sezonem |
-| Lokalizacja: 7 miast | ✅ `/areas`, `?geo_area_id=` | ⬜ | TASK-12.11 |
-| Lokalizacja: dowolna miejscowość | 🟡 PR #85 (otwarty) | ⬜ | TASK-12.7; do merge'a 🧪 dev/preview |
+| Lokalizacja: 7 miast | ✅ `/areas`, `?geo_area_id=` | ✅ lista „Większe miasta” | TASK-12.11 |
+| Lokalizacja: dowolna miejscowość | ✅ `main` (PR #85) | ✅ | TASK-12.7 |
 | Lokalizacja: GPS jednorazowy | ✅ `POST /geo/locate` | ⬜ | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
-| Welcome + onboarding + tematy (lokalne) | — | ⬜ | TASK-12.17, 12.13 |
+| Welcome + onboarding (lokalizacja) | — | ✅ | TASK-12.17 |
+| Tematy „Co chcesz śledzić?” (lokalne) | — | ⬜ | TASK-12.13 |
 | Motyw Systemowy/Jasny/Ciemny, dostępność | — | 🟡 (tylko wg systemu) | TASK-12.19 |
 | Powiadomienia push | 🟡 rejestracja urządzeń; ⛔ klucze | ⬜ | **ukryte** (TASK-12.15) |
 | Źródła i licencje | ✅ `attribution` | 🟡 | TASK-12.6 |

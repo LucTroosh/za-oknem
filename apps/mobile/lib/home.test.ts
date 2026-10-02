@@ -6,7 +6,8 @@ import {
   STALE_NOTE,
   UNAVAILABLE_HEADLINE,
   alertsStatus,
-  defaultArea,
+  pollingOff,
+  selectArea,
   currentTemperature,
   formatHeaderDate,
   sectionOrder,
@@ -185,9 +186,43 @@ describe("formatHeaderDate", () => {
   });
 });
 
-describe("defaultArea", () => {
-  it("is deterministic: smallest geo_area_id regardless of response order", () => {
-    expect(defaultArea([{ geo_area_id: 5 }, { geo_area_id: 2 }, { geo_area_id: 9 }])).toEqual({ geo_area_id: 2 });
-    expect(defaultArea([])).toBeNull();
+describe("selectArea", () => {
+  it("picks the chosen area by id, never the first one", () => {
+    expect(selectArea([{ geo_area_id: 5 }, { geo_area_id: 2 }], 5)).toEqual({ geo_area_id: 5 });
+    expect(selectArea([{ geo_area_id: 5 }], 2)).toBeNull();
+    expect(selectArea([], 2)).toBeNull();
+  });
+});
+
+describe("pollingOff", () => {
+  it("is true only for an explicit false (older backends omit the field)", () => {
+    expect(pollingOff({ weather_polling_active: false })).toBe(true);
+    expect(pollingOff({ weather_polling_active: true })).toBe(false);
+    expect(pollingOff({})).toBe(false);
+    expect(pollingOff(null)).toBe(false);
+  });
+});
+
+describe("air card coverage (ADR-029)", () => {
+  const withAir = (coverage: unknown, extra: Record<string, unknown> = {}) =>
+    statusCards({ air: { ...air(), station_name: "Gliwice, ul. Mewy", distance_km: 3, ...extra }, weather: null, coverage }, null, NOW, NOW)[0];
+  it("exact: no note", () => {
+    expect(withAir({ air: "exact", air_radius_km: 10 }).coverageNote).toBeNull();
+  });
+  it("nearby: station and distance", () => {
+    const c = withAir({ air: "nearby", air_radius_km: 50 }, { distance_km: 23.4 });
+    expect(c.coverageNote).toBe("Dane ze stacji Gliwice, ul. Mewy, 23,4 km stąd.");
+    expect(c.state).toBe("ready");
+  });
+  it("regional: explicit area state", () => {
+    expect(withAir({ air: "regional", air_radius_km: 100 }, { distance_km: 71 }).coverageNote).toBe(
+      "Stan dla obszaru w promieniu ok. 100 km — stacja Gliwice, ul. Mewy, 71 km.",
+    );
+  });
+  it("none: unavailable, never good, even if a block is present", () => {
+    const c = withAir({ air: "none", air_radius_km: null });
+    expect(c).toMatchObject({ state: "unavailable", level: "UNKNOWN", headline: "Brak stacji pomiarowej w okolicy", supporting: null });
+    const noBlock = statusCards({ air: null, weather: null, coverage: { air: "none" } }, null, NOW, NOW)[0];
+    expect(noBlock.headline).toBe("Brak stacji pomiarowej w okolicy");
   });
 });

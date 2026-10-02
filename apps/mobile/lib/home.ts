@@ -4,6 +4,7 @@
 // (outdoor verdict, EAQI, pollen thresholds); this maps them to copy and decides what a
 // card may CLAIM when data is old or missing (rule #8, ADR-012).
 import { type AirIndexView, airIndexView } from "./aqi";
+import { NO_STATION_HEADLINE, airCoverage } from "./coverage";
 import { type OutdoorLevel, outdoorView } from "./outdoor";
 import { type HomeBanner } from "./alertsBanner";
 import { POLLEN_NAME, type PollenLevel, pollenView } from "./pollen";
@@ -78,13 +79,15 @@ export type StatusCardModel = {
   supporting: string | null;
   // "Dane z 17:00" / "Dane mogą być nieaktualne" (§43), null when fresh.
   freshnessNote: string | null;
+  // Air only: where the measurement comes from when it is not "right here" (lib/coverage.ts).
+  coverageNote: string | null;
 };
 
 export const UNAVAILABLE_HEADLINE = "Dane chwilowo niedostępne";
 export const STALE_NOTE = "Dane mogą być nieaktualne";
 
 function unavailable(key: ModuleKey, title: string, headline = UNAVAILABLE_HEADLINE): StatusCardModel {
-  return { key, title, state: "unavailable", level: "UNKNOWN", headline, supporting: null, freshnessNote: null };
+  return { key, title, state: "unavailable", level: "UNKNOWN", headline, supporting: null, freshnessNote: null, coverageNote: null };
 }
 
 const isObject = (x: unknown): x is Record<string, unknown> =>
@@ -139,8 +142,11 @@ function worstLine(block: unknown, lines: ReadingLine[]): ReadingLine | undefine
 
 const AQI_GLYPH: Record<string, GlyphLevel> = { GOOD: "GOOD", FAIR: "GOOD", MODERATE: "CAUTION" };
 
-function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: number): StatusCardModel {
+function airCard(air: unknown, coverage: unknown, sourceStatus: unknown, now: number, receivedAt: number): StatusCardModel {
   const title = "Powietrze";
+  // No station within 100 km: UNAVAILABLE, whatever else the block holds - never "good".
+  const cov = airCoverage(coverage, air);
+  if (cov.unavailable) return unavailable("air", title, NO_STATION_HEADLINE);
   const view: ReadingsView | null = airView(air, now, sourceStatus);
   if (view === null) return unavailable("air", title, "Brak stacji w pobliżu");
   if (view.unavailable) return unavailable("air", title);
@@ -156,6 +162,7 @@ function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: n
       headline: "Brak aktualnej oceny",
       supporting: pmUsable ? `PM2.5: ${pm.text}` : null,
       freshnessNote: STALE_NOTE,
+      coverageNote: cov.note,
     };
   }
   const index: AirIndexView | null = airIndexView(isObject(air) ? air.index : undefined, now, receivedAt);
@@ -173,6 +180,7 @@ function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: n
       : "Brak oceny",
     supporting: pmUsable ? `PM2.5: ${pm.text}` : null,
     freshnessNote: ((w) => (w ? freshnessNote(w.state, paramIso(air, w.key), now) : null))(worstLine(air, view.lines)),
+    coverageNote: cov.note,
   };
 }
 
@@ -236,6 +244,7 @@ function weatherCard(weather: unknown, sourceStatus: unknown, now: number): Stat
     headline: temp ?? (condition as string),
     supporting: temp !== null ? condition : null,
     freshnessNote: worst ? freshnessNote(worst.state, paramIso(weather, worst.key), now) : null,
+    coverageNote: null,
   };
 }
 
@@ -277,10 +286,11 @@ function pollenCard(pollen: unknown, now: number): StatusCardModel | null {
     headline: partial ? "Dane częściowe" : POLLEN_HEADLINE[top],
     supporting: `${parts.join(". ")}`,
     freshnessNote: view.state === "recent" ? (dataFrom(view.fetchedAt, now) ?? STALE_NOTE) : null,
+    coverageNote: null,
   };
 }
 
-export type AreaLike = { air?: unknown; weather?: unknown; pollen?: unknown };
+export type AreaLike = { air?: unknown; weather?: unknown; pollen?: unknown; coverage?: unknown };
 
 // Data-driven list (§50): air and weather are core modules and always get a card (a failed
 // one says "niedostępne"); pollen only when the backend sent the block; a future module
@@ -293,7 +303,7 @@ export function statusCards(
 ): StatusCardModel[] {
   const pollen = pollenCard(area.pollen, now);
   return [
-    airCard(area.air, sourceStatus?.air, now, receivedAt),
+    airCard(area.air, area.coverage, sourceStatus?.air, now, receivedAt),
     weatherCard(area.weather, sourceStatus?.weather, now),
     ...(pollen ? [pollen] : []),
   ];
@@ -330,10 +340,17 @@ export function alertsStatus(
   return shown.length > 0 ? { kind: "unavailable", banners: shown } : { kind: "none" };
 }
 
-// TODO(TASK-12.7): the chosen location replaces this. Until then a deterministic default
-// (smallest geo_area_id) - the order of the response is not part of the API contract.
-export function defaultArea<T extends { geo_area_id: number }>(areas: T[]): T | null {
-  return areas.reduce<T | null>((a, x) => (a === null || x.geo_area_id < a.geo_area_id ? x : a), null);
+// The dashboard is requested with ?geo_area_id=, so it holds exactly the chosen area; still
+// pick it by id - never "the first one" (the order of the response is not part of the contract).
+export function selectArea<T extends { geo_area_id: number }>(areas: T[], geoAreaId: number): T | null {
+  return areas.find((a) => a.geo_area_id === geoAreaId) ?? null;
+}
+
+// `weather_polling_active === false`: nobody collects weather for this place right now
+// (capacity, budget or expired activation). Strictly false - an older backend without the
+// field must not trigger it.
+export function pollingOff(area: { weather_polling_active?: boolean } | null): boolean {
+  return area !== null && area.weather_polling_active === false;
 }
 
 // ---- order --------------------------------------------------------------------------------

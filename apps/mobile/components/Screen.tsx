@@ -24,6 +24,7 @@ export default function Screen({
   return (
     <ScrollView
       style={[styles.flex, { backgroundColor: colors.bg }]}
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.content,
         padTop && { paddingTop: insets.top + space.lg },
