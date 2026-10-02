@@ -1,7 +1,6 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import type { AreaOut, AreasResponse, PlaceOut } from "../../../packages/api-contract/schema";
 import Button from "../components/Button";
@@ -11,20 +10,23 @@ import LocationRow from "../components/LocationRow";
 import Notice from "../components/Notice";
 import Screen from "../components/Screen";
 import StateIllustration from "../components/StateIllustration";
+import PageHeader from "../components/PageHeader";
+import SearchField from "../components/SearchField";
+import SectionHeader from "../components/SectionHeader";
+import { SettingsGroup } from "../components/SettingsRow";
 import usePlaceSearch from "../components/usePlaceSearch";
-import useTheme, { useThemedStyles } from "../components/useTheme";
+import { useThemedStyles } from "../components/useTheme";
 import { apiGet } from "../lib/api";
 import { entryRedirect, locationFromArea, locationFromPlace } from "../lib/location";
 import { SEARCH_ERROR, SEARCH_HINT, activatePlace, emptyResultMessage } from "../lib/places";
 import { LOCATION_REQUIRED_ART } from "../lib/stateArt";
-import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
+import { type Theme, space, typo } from "../lib/theme";
 
 // "Ustaw lokalizację" (spec §7): onboarding (first run) and change (from Start / Settings) in
 // one screen - ONE active location. Search = our own /places (ADR-029); with no query it lists
 // the big cities from /areas, so the screen is useful even before places are imported.
 // No "use my location" button: GPS (TASK-12.3) does not exist yet, and a dead CTA is forbidden.
 export default function LocationScreen() {
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { settings, notice, choose, welcomeSeen } = useLocation();
@@ -51,8 +53,8 @@ export default function LocationScreen() {
   }, []);
 
   const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
-  // First run only: one more onboarding step ("Co chcesz śledzić?"), then Start.
-  const done = () => (changing ? leave() : router.replace("/topics"));
+  // Production UI v1: Welcome -> Location -> Start. The first pick goes straight to Start.
+  const done = () => (changing ? leave() : router.replace("/"));
 
   const pickPlace = async (place: PlaceOut) => {
     if (pending.current) return;
@@ -90,56 +92,43 @@ export default function LocationScreen() {
   if (redirect !== null) return <Redirect href={redirect} />;
 
   const busy = busyId !== null;
+  const activeAreaId = settings.location?.geoAreaId ?? null;
   return (
-    <Screen padTop>
-      {changing && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Wróć"
-          onPress={() => router.back()}
-          style={styles.back}
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.accent} />
-          <Text style={styles.backText}>Wróć</Text>
-        </Pressable>
+    <Screen padTop gap={12}>
+      {changing && <PageHeader title="Gdzie jesteś?" subtitle="Wybierz lokalizację, aby pokazać aktualne warunki w Twojej okolicy." />}
+      {!changing && (
+        <>
+          {/* No location chosen yet (first run): the only state where this illustration is true. */}
+          {settings.location === null && <StateIllustration art={LOCATION_REQUIRED_ART} height={112} />}
+          <Text style={styles.title} accessibilityRole="header">
+            Gdzie jesteś?
+          </Text>
+          <Text style={styles.supporting}>Wybierz lokalizację, aby pokazać aktualne warunki w Twojej okolicy.</Text>
+        </>
       )}
-      {/* No location chosen yet (first run): the only state where this illustration is true. */}
-      {settings.location === null && <StateIllustration art={LOCATION_REQUIRED_ART} height={120} />}
-      <Text style={styles.title} accessibilityRole="header">
-        {changing ? "Zmień lokalizację" : "Ustaw lokalizację"}
-      </Text>
-      <Text style={styles.supporting}>Wybierz lokalizację, żeby zobaczyć aktualne warunki w Twojej okolicy.</Text>
-      {changing && settings.location && <Text style={styles.supporting}>Teraz: {settings.location.label}</Text>}
       {notice && <Notice tone="warning" text={notice} />}
       {failure && <Notice tone="danger" text={failure} />}
 
-      <TextInput
-        value={text}
-        onChangeText={setText}
-        placeholder="Wpisz miejscowość"
-        placeholderTextColor={colors.dim}
-        accessibilityLabel="Wpisz miejscowość"
-        style={styles.input}
-        autoCorrect={false}
-        autoCapitalize="words"
-        returnKeyType="search"
-        clearButtonMode="while-editing"
-        maxLength={100}
-        editable={!busy}
-      />
+      <SearchField value={text} onChangeText={setText} placeholder="Wpisz miejscowość" editable={!busy} />
 
       {search.status === "idle" && (
         <>
           <Text style={styles.hint}>{SEARCH_HINT}</Text>
           {cities.length > 0 && (
             <>
-              <Text style={styles.section} accessibilityRole="header">
-                Większe miasta
-              </Text>
-              {cities.map((a) => (
-                <LocationRow key={a.geo_area_id} title={a.name} disabled={busy} onPress={() => pickCity(a)} />
-              ))}
+              <SectionHeader title="Większe miasta" />
+              <SettingsGroup>
+                {cities.map((a, i) => (
+                  <LocationRow
+                    key={a.geo_area_id}
+                    title={a.name}
+                    active={a.geo_area_id === activeAreaId}
+                    last={i === cities.length - 1}
+                    disabled={busy}
+                    onPress={() => pickCity(a)}
+                  />
+                ))}
+              </SettingsGroup>
             </>
           )}
         </>
@@ -148,7 +137,7 @@ export default function LocationScreen() {
       {search.status === "error" && (
         <View style={styles.message}>
           <Text style={styles.body}>{SEARCH_ERROR}</Text>
-          <Button label="Spróbuj ponownie" onPress={() => setRetry((n) => n + 1)} />
+          <Button label="Spróbuj ponownie" variant="secondary" onPress={() => setRetry((n) => n + 1)} />
         </View>
       )}
       {search.status === "ready" && search.places.length === 0 && (
@@ -157,22 +146,24 @@ export default function LocationScreen() {
             {emptyResultMessage(search.query)}
           </Text>
           {__DEV__ && (
-            <Text style={styles.dev}>
-              Dev: pusta baza miejscowości? Zaimportuj GeoNames (README, sekcja Mobile → Miejscowości).
-            </Text>
+            <Text style={styles.dev}>Dev: pusta baza miejscowości? Zaimportuj GeoNames (README, sekcja Mobile → Miejscowości).</Text>
           )}
         </View>
       )}
-      {search.status === "ready" &&
-        search.places.map((p) => (
-          <LocationRow
-            key={p.place_id}
-            title={p.label}
-            busy={busyId === p.place_id}
-            disabled={busy}
-            onPress={() => pickPlace(p)}
-          />
-        ))}
+      {search.status === "ready" && search.places.length > 0 && (
+        <SettingsGroup>
+          {search.places.map((p, i) => (
+            <LocationRow
+              key={p.place_id}
+              title={p.label}
+              busy={busyId === p.place_id}
+              disabled={busy}
+              last={i === search.places.length - 1}
+              onPress={() => pickPlace(p)}
+            />
+          ))}
+        </SettingsGroup>
+      )}
       {search.status === "ready" && search.places.length > 0 && search.attribution && (
         <Text style={styles.micro}>Nazwy miejscowości: {search.attribution}</Text>
       )}
@@ -182,24 +173,11 @@ export default function LocationScreen() {
 
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    back: { flexDirection: "row", alignItems: "center", minHeight: MIN_TOUCH, alignSelf: "flex-start" },
-    backText: { ...typo.strong, color: t.colors.accent },
     title: { ...typo.display, color: t.colors.text },
-    supporting: { ...typo.body, color: t.colors.textSecondary },
-    input: {
-      ...typo.body,
-      minHeight: 48,
-      paddingHorizontal: space.lg,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: t.colors.border,
-      backgroundColor: t.colors.surface,
-      color: t.colors.text,
-    },
+    supporting: { ...typo.supporting, color: t.colors.textSecondary },
     hint: { ...typo.caption, color: t.colors.textSecondary },
-    section: { ...typo.heading, color: t.colors.text, marginTop: space.sm },
     message: { gap: space.md, paddingVertical: space.sm },
     body: { ...typo.body, color: t.colors.text },
     dev: { ...typo.caption, color: t.colors.dim, fontStyle: "italic" },
-    micro: { ...typo.micro, color: t.colors.textSecondary },
+    micro: { ...typo.meta, color: t.colors.textSecondary },
   });

@@ -1,27 +1,29 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import type { WeatherIcon } from "../lib/weatherIcon";
 import { MIN_TOUCH, type Theme, space, typo } from "../lib/theme";
 import Skeleton from "./Skeleton";
 import useTheme, { useThemedStyles } from "./useTheme";
 
-// Spec §10: location, date, current temperature. Always on screen; only the name and the
-// temperature wait for data (`name` null = still loading).
-// The location name is a button (chevron) that opens the picker (spec §10); ONE location.
+// Compact header (production UI v1 §3): location + chevron + date on the left, current
+// temperature (+ glyph, + today's range) on the right. No card, no border. The temperature
+// waits for data; the name is a button that opens the location picker (ONE location).
 export default function HomeHeader({
   name,
   loading,
   dateText,
   temperature,
   range,
+  icon,
   onChangeLocation,
 }: {
   name: string | null;
   loading: boolean;
   dateText: string;
   temperature: string | null;
-  // "Dziś maks. 18° / min. 9°" from forecast.days[0]; null = not usable (never a stale/foreign day).
   range?: string | null;
+  icon?: WeatherIcon | null;
   onChangeLocation: () => void;
 }) {
   const { colors } = useTheme();
@@ -39,20 +41,22 @@ export default function HomeHeader({
             onPress={onChangeLocation}
             style={styles.nameRow}
           >
-            <Text style={styles.name} importantForAccessibility="no">
+            <Ionicons name="location" size={20} color={colors.accent} importantForAccessibility="no" />
+            <Text style={styles.name} importantForAccessibility="no" numberOfLines={2}>
               {name ?? "Za Oknem"}
             </Text>
-            <Ionicons name="chevron-down" size={24} color={colors.textSecondary} />
+            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} importantForAccessibility="no" />
           </Pressable>
         )}
         <Text style={styles.date}>{dateText}</Text>
       </View>
       {(temperature !== null || range) && (
-        <View style={styles.right}>
+        <View style={styles.right} accessible accessibilityLabel={[temperature ? `Teraz ${temperature}` : null, range].filter(Boolean).join(", ")}>
           {temperature !== null && (
-            <Text style={styles.temp} accessibilityLabel={`Teraz ${temperature}`}>
-              {temperature}
-            </Text>
+            <View style={styles.tempRow}>
+              {icon ? <Ionicons name={icon} size={22} color={colors.weatherFg} importantForAccessibility="no" /> : null}
+              <Text style={styles.temp}>{temperature}</Text>
+            </View>
           )}
           {range ? <Text style={styles.range}>{range}</Text> : null}
         </View>
@@ -63,12 +67,14 @@ export default function HomeHeader({
 
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md },
-    left: { flex: 1, gap: space.xs },
+    // Wraps instead of colliding: at large system font the temperature block drops below the name.
+    row: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", columnGap: space.md },
+    left: { flexGrow: 1, flexShrink: 1, flexBasis: "55%", minWidth: 150 },
     nameRow: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: MIN_TOUCH, alignSelf: "flex-start" },
-    name: { ...typo.display, color: t.colors.text, flexShrink: 1 },
-    date: { ...typo.body, color: t.colors.textSecondary },
-    right: { alignItems: "flex-end", flexShrink: 1 },
-    range: { ...typo.caption, color: t.colors.textSecondary },
-    temp: { ...typo.title, color: t.colors.text },
+    name: { ...typo.display, fontSize: 24, lineHeight: 30, color: t.colors.text, flexShrink: 1 },
+    date: { ...typo.caption, color: t.colors.textSecondary, marginTop: -space.sm },
+    right: { alignItems: "flex-end", flexGrow: 0, paddingTop: space.sm },
+    tempRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
+    temp: { ...typo.title, fontSize: 24, lineHeight: 30, fontWeight: "800", color: t.colors.text },
+    range: { ...typo.meta, color: t.colors.textSecondary },
   });

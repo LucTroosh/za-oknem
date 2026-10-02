@@ -12,7 +12,7 @@ export const WELCOME_COPY = {
 
 // Lightweight domain cues (no water: no source yet). Icons are from the one vector library.
 export const WELCOME_DOMAINS = [
-  { label: "Powietrze", icon: "speedometer-outline" },
+  { label: "Powietrze", icon: "leaf-outline" },
   { label: "Pogoda", icon: "partly-sunny-outline" },
   { label: "Pyłki", icon: "flower-outline" },
   { label: "Alerty", icon: "notifications-outline" },
@@ -22,7 +22,7 @@ export const WELCOME_DOMAINS = [
 // theme background, so text tokens keep their designed contrast on it.
 // Layout: a short fade zone (photo -> panel) ABOVE the text block, then a constant-alpha panel
 // behind ALL the text. Contrast is guaranteed (and tested) for the panel alpha only.
-export const SCRIM_TEXT_ALPHA = 0.93;
+export const SCRIM_TEXT_ALPHA = 0.98;
 export const SCRIM_FADE_HEIGHT = 96;
 export const SCRIM_FADE_STEPS = 24;
 

@@ -1030,7 +1030,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       (`lib/location.ts`, `lib/storage.ts`; `{v, onboardingDone, location}`; tryb motywu i tematy
       dojdą z TASK-12.19/12.13 jako podniesienie `v`), guard `entryRedirect` (Welcome nie wraca;
       brak lokalizacji ⇒ wybór), zmiana z nagłówka Start i Ustawień, 404 dashboardu ⇒ wybór z
-      komunikatem. **Nie zrobione:** krok „Co chcesz śledzić?” (TASK-12.13) — wymaga osobnego
+      komunikatem. **SUPERSEDED przez docs/ui/production-ui-v1.md (Topics usunięte).** Krok „Co chcesz śledzić?” (TASK-12.13) — wymaga osobnego
       ekranu w Ustawieniach i ukrywania kart na Start, poza zakresem tego PR. Nowa zależność:
       `@react-native-async-storage/async-storage` 1.23.1 (wersja z Expo SDK 52, działa w Expo Go;
       `expo-secure-store` odrzucone: nic sekretnego, limity rozmiaru, prosty klucz-wartość wystarcza).

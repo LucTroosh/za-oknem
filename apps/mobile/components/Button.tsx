@@ -3,19 +3,22 @@ import { Pressable, StyleSheet, Text } from "react-native";
 import { type Theme, radius, space, typo } from "../lib/theme";
 import { useThemedStyles } from "./useTheme";
 
-// Primary action: accent pill, >= 44 dp (spec §38), disabled state announced.
+// PrimaryButton / SecondaryButton (production UI v1): pill, >= 52 dp, disabled state announced.
 export default function Button({
   label,
   onPress,
   disabled,
   hint,
+  variant = "primary",
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   hint?: string;
+  variant?: "primary" | "secondary";
 }) {
   const styles = useThemedStyles(createStyles);
+  const secondary = variant === "secondary";
   return (
     <Pressable
       accessibilityRole="button"
@@ -24,9 +27,9 @@ export default function Button({
       accessibilityState={{ disabled: disabled ?? false }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.button, disabled && styles.disabled]}
+      style={[styles.button, secondary ? styles.secondary : styles.primary, disabled && styles.disabled]}
     >
-      <Text style={styles.text}>{label}</Text>
+      <Text style={[styles.text, secondary ? styles.secondaryText : styles.primaryText]}>{label}</Text>
     </Pressable>
   );
 }
@@ -38,9 +41,13 @@ const createStyles = (t: Theme) =>
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: space.xl,
+      paddingVertical: space.sm,
       borderRadius: radius.pill,
-      backgroundColor: t.colors.accent,
     },
+    primary: { backgroundColor: t.colors.accent },
+    secondary: { backgroundColor: t.colors.elevated },
     disabled: { opacity: 0.5 },
-    text: { ...typo.heading, color: t.colors.onAccent },
+    text: { ...typo.cardTitle, textAlign: "center" },
+    primaryText: { color: t.colors.onAccent },
+    secondaryText: { color: t.colors.accent },
   });

@@ -5,7 +5,6 @@
 // Versioned: an unknown or corrupt record parses to the defaults, so the app always starts.
 import type { AreaOut, PlaceOut } from "../../../packages/api-contract/schema";
 import { type ThemePref, parseThemePref } from "./theme";
-import { type TopicKey, parseTopics } from "./topics";
 
 export const SETTINGS_KEY = "za-oknem/settings";
 export const SETTINGS_VERSION = 1;
@@ -24,17 +23,17 @@ export type ActiveLocation = {
   attribution: string | null;
 };
 
-// `theme` and `topics` are optional in the stored record (older installs have none): missing ->
-// "system" / [] (all), so no version bump and no reset of an existing install.
+// `theme` is optional in the stored record (older installs have none): missing -> "system", so
+// no version bump and no reset of an existing install. A `topics` field written by an earlier
+// build (the removed "Co chcesz sledzic?" step, production UI v1) is simply ignored on read and
+// dropped on the next write: every available module is always shown.
 export type Settings = {
   onboardingDone: boolean;
   location: ActiveLocation | null;
   theme: ThemePref;
-  // TASK-12.13: modules Start shows; [] = all available.
-  topics: TopicKey[];
 };
 
-export const DEFAULT_SETTINGS: Settings = { onboardingDone: false, location: null, theme: "system", topics: [] };
+export const DEFAULT_SETTINGS: Settings = { onboardingDone: false, location: null, theme: "system" };
 
 export function serializeSettings(s: Settings): string {
   return JSON.stringify({
@@ -42,7 +41,6 @@ export function serializeSettings(s: Settings): string {
     onboardingDone: s.onboardingDone,
     location: s.location,
     theme: s.theme,
-    topics: s.topics,
   });
 }
 
@@ -76,7 +74,6 @@ export function parseSettings(raw: string | null | undefined): Settings {
     onboardingDone: data.onboardingDone === true,
     location: parseLocation(data.location),
     theme: parseThemePref(data.theme),
-    topics: parseTopics(data.topics),
   };
 }
 

@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ALERTS_NONE_TEXT,
   GLYPH_CHAR,
   STALE_NOTE,
   UNAVAILABLE_HEADLINE,
-  alertsStatus,
   pollingOff,
   pollingPending,
   selectArea,
   currentTemperature,
   formatHeaderDate,
-  sectionOrder,
   statusCards,
   verdictModel,
 } from "./home";
@@ -50,7 +47,7 @@ const pollen = (current: Record<string, number>, freshness = "FRESH") => ({
 describe("verdictModel", () => {
   const outdoor = (level: string) => ({ level, reasons: [], missing: [], valid_until: new Date(NOW + 3600_000).toISOString() });
   it("maps backend levels to spec glyph levels and Polish headlines", () => {
-    expect(verdictModel(outdoor("GOOD"), NOW, NOW)).toMatchObject({ level: "GOOD", headline: "Dobre warunki na zewnątrz" });
+    expect(verdictModel(outdoor("GOOD"), NOW, NOW)).toMatchObject({ level: "GOOD", headline: "Dziś warto wyjść na zewnątrz" });
     expect(verdictModel(outdoor("MODERATE"), NOW, NOW)?.level).toBe("CAUTION");
     expect(verdictModel(outdoor("POOR"), NOW, NOW)?.level).toBe("AVOID");
     expect(verdictModel(outdoor("UNKNOWN"), NOW, NOW)?.level).toBe("UNKNOWN");
@@ -60,6 +57,19 @@ describe("verdictModel", () => {
   });
   it("no block = no hero (never a mock)", () => {
     expect(verdictModel(undefined, NOW, NOW)).toBeNull();
+  });
+  it("UNKNOWN is human copy first; the technical gap list is only a secondary detail", () => {
+    const m = verdictModel({ level: "UNKNOWN", reasons: [], missing: [{ group: "air", params: [], status: "MISSING", blocking: true }] }, NOW, NOW);
+    expect(m?.headline).toBe("Nie możemy jeszcze ocenić wszystkich warunków");
+    expect(m?.supporting).toBe("Brakuje części aktualnych danych. Dostępne informacje pokazujemy poniżej.");
+    for (const text of [m?.headline, m?.supporting]) expect(text).not.toMatch(/brak danych|\(brak\)|NO₂|O₃/i);
+    expect(m?.details.join(" ")).toContain("jakość powietrza");
+    expect(m?.reasons).toEqual([]);
+  });
+  it("a verdict computed without part of the data says so in human words", () => {
+    const m = verdictModel({ level: "GOOD", reasons: [], missing: [{ group: "uv", params: ["uv_index"], status: "MISSING", blocking: false }], valid_until: new Date(NOW + 3600_000).toISOString() }, NOW, NOW);
+    expect(m?.supporting).toContain("chwilowo niedostępna");
+    expect(m?.details.length).toBe(1);
   });
   it("glyphs are the spec's", () => {
     expect(GLYPH_CHAR).toEqual({ GOOD: "✓", CAUTION: "!", AVOID: "×", UNKNOWN: "?" });
@@ -142,42 +152,6 @@ describe("statusCards (data-driven, partial failure)", () => {
   });
   it("currentTemperature rounds and keeps the spec format", () => {
     expect(currentTemperature(weather(), undefined, NOW)).toBe("16°C");
-  });
-});
-
-describe("alertsStatus (empty != unavailable, §44)", () => {
-  const warn = { tone: "warning", text: "w" } as const;
-  const neutral = { tone: "neutral", text: "n" } as const;
-  const loaded = { alerts: true, hydro: true };
-  it("confirmed all-clear", () => {
-    expect(alertsStatus([null, null], loaded)).toEqual({ kind: "none" });
-    expect(ALERTS_NONE_TEXT).toBe("Brak aktywnych ostrzeżeń");
-  });
-  it("could-not-check is a different state", () => {
-    expect(alertsStatus([neutral, null], loaded).kind).toBe("unavailable");
-  });
-  it("a failed refresh never re-confirms a cached all-clear", () => {
-    expect(alertsStatus([null, null], loaded, { alerts: false, hydro: true }).kind).toBe("unavailable");
-    expect(alertsStatus([null, null], loaded, { alerts: true, hydro: false }).kind).toBe("unavailable");
-  });
-  it("a cached real warning still shows after a failed refresh", () => {
-    expect(alertsStatus([warn, null], loaded, { alerts: false, hydro: true }).kind).toBe("active");
-  });
-  it("still loading is neither", () => {
-    expect(alertsStatus([null, null], { alerts: true, hydro: false })).toEqual({ kind: "loading" });
-  });
-  it("a real warning wins even while the other source loads", () => {
-    expect(alertsStatus([warn, null], { alerts: true, hydro: false }).kind).toBe("active");
-  });
-});
-
-describe("sectionOrder", () => {
-  it("header, verdict, cards, alerts, calendar by default", () => {
-    expect(sectionOrder({ kind: "none" })).toEqual(["header", "verdict", "cards", "alerts", "calendar"]);
-    expect(sectionOrder({ kind: "unavailable", banners: [] })).toEqual(["header", "verdict", "cards", "alerts", "calendar"]);
-  });
-  it("a significant alert moves up under the header", () => {
-    expect(sectionOrder({ kind: "active", banners: [] })).toEqual(["header", "alerts", "verdict", "cards", "calendar"]);
   });
 });
 

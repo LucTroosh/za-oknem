@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { airIndexDetail, airIndexUnavailableText, airStation, forecastRows, sourceLine } from "./details";
+import { airHero, airIndexDetail, airIndexUnavailableText, airMeaning, airMetrics, airStation, forecastRows, sourceLine } from "./details";
 import { AIR_AGE } from "./readings";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
@@ -88,5 +88,35 @@ describe("forecastRows", () => {
   });
   it("undefined input", () => {
     expect(forecastRows(undefined)).toEqual([]);
+  });
+});
+
+describe("air detail view models", () => {
+  const rt = NOW;
+  const pm = (v: number, min = 10) => ({ value: v, unit: "µg/m³", observed_at: new Date(NOW - min * 60_000).toISOString(), freshness: "FRESH" });
+  const withParams = (extra: Record<string, unknown> = {}) => air({ params: { "PM2.5": pm(12.4), PM10: pm(28.1, 900), ...extra } });
+  it("hero is human copy with the real 1..6 scale step", () => {
+    const h = airHero(withParams(), { air: "exact" }, false, NOW, rt);
+    expect(h).toMatchObject({ tone: "warning", step: 3 });
+    expect(h.headline).toBe("Co najmniej umiarkowana jakość powietrza"); // fixture index is incomplete
+  });
+  it("no index -> neutral, no scale, plain reason (never a good-looking headline)", () => {
+    const h = airHero(withParams(), { air: "regional" }, false, NOW, rt);
+    expect(h).toMatchObject({ tone: "neutral", step: null, headline: "Nie możemy ocenić jakości powietrza" });
+    expect(h.supporting).toMatch(/za daleko/);
+  });
+  it("meaning is factual lines (decisive component, gaps), no health advice", () => {
+    const lines = airMeaning(airIndexDetail(withParams(), { air: "exact" }, false, NOW, rt));
+    expect(lines[0]).toContain("GIOŚ");
+    expect(lines.join(" ")).toContain("PM10");
+    expect(lines.join(" ")).toContain("O3: nieaktualne");
+    expect(airMeaning(null)).toEqual([]);
+  });
+  it("metrics: value, unit, age; an old one dimmed; empty for a silent block", () => {
+    const m = airMetrics(withParams(), NOW, { freshness: "FRESH", last_success_at: new Date(NOW - 600_000).toISOString() });
+    expect(m.find((x) => x.key === "PM2.5")).toMatchObject({ value: "12,4", dim: false });
+    expect(m.find((x) => x.key === "PM2.5")?.note).toContain("µg/m³");
+    expect(m.find((x) => x.key === "PM10")).toMatchObject({ dim: true });
+    expect(airMetrics(null, NOW, null)).toEqual([]);
   });
 });

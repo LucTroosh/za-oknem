@@ -2,6 +2,7 @@
 // the server (dashboard.py forecast block) - nothing is estimated here.
 import { ageFreshness, worstFreshness } from "./freshness";
 import { WEATHER_AGE } from "./readings";
+import { type WeatherIcon, weatherIcon } from "./weatherIcon";
 import type {
   DashboardForecastDay,
   DashboardForecastHour,
@@ -48,12 +49,10 @@ export type ForecastLike = {
   freshness?: unknown;
 } | null;
 
-export function todayRange(forecast: ForecastLike, weatherSource: unknown, now: number): string | null {
-  const day = forecast?.days?.[0];
-  if (!forecast || !day) return null;
-  const from = Date.parse(day.valid_from);
-  const until = Date.parse(day.valid_until);
-  if (!Number.isFinite(from) || !Number.isFinite(until) || now < from || now >= until) return null;
+// A forecast may be shown only while its worst freshness (own label, age on the device clock,
+// weather source status) is FRESH/RECENT (ADR-012).
+export function forecastUsable(forecast: ForecastLike, weatherSource: unknown, now: number): boolean {
+  if (!forecast) return false;
   const src = typeof weatherSource === "object" && weatherSource !== null ? (weatherSource as Record<string, unknown>) : null;
   const state = worstFreshness(
     forecast.freshness,
@@ -61,9 +60,50 @@ export function todayRange(forecast: ForecastLike, weatherSource: unknown, now: 
     src ? src.freshness : "FRESH",
     src ? ageFreshness(src.last_success_at, now, WEATHER_AGE) : "FRESH",
   );
-  if (state !== "FRESH" && state !== "RECENT") return null;
+  return state === "FRESH" || state === "RECENT";
+}
+
+export function todayRange(forecast: ForecastLike, weatherSource: unknown, now: number): string | null {
+  const day = forecast?.days?.[0];
+  if (!forecast || !day) return null;
+  const from = Date.parse(day.valid_from);
+  const until = Date.parse(day.valid_until);
+  if (!Number.isFinite(from) || !Number.isFinite(until) || now < from || now >= until) return null;
+  if (!forecastUsable(forecast, weatherSource, now)) return null;
   const max = day.params.temperature_2m_max;
   const min = day.params.temperature_2m_min;
   if (!max || !min || !Number.isFinite(max.value) || !Number.isFinite(min.value)) return null;
   return `Dziś maks. ${Math.round(max.value)}° / min. ${Math.round(min.value)}°`;
+}
+
+export type HourCell = { key: string; time: string; temp: string; icon: WeatherIcon | null };
+
+// Next hours from the 48 h model forecast (ADR-030) for the weather screen's strip: only hours that
+// have a real temperature, starting with the hour that contains `now`, at most `limit`. Times are
+// shown in the device's local time. Nothing is interpolated or filled in.
+export function hourlyStrip(
+  forecast: (ForecastLike & { hours?: ForecastHour[] }) | null,
+  weatherSource: unknown,
+  now: number,
+  limit = 12,
+): HourCell[] {
+  if (!forecast || !forecastUsable(forecast, weatherSource, now)) return [];
+  const cells: HourCell[] = [];
+  for (const h of forecast.hours ?? []) {
+    const from = Date.parse(h.valid_from);
+    const until = Date.parse(h.valid_until);
+    if (!Number.isFinite(from) || !Number.isFinite(until) || until <= now) continue;
+    const t = h.params?.temperature_2m;
+    if (!t || !Number.isFinite(t.value)) continue;
+    const code = h.params?.weather_code;
+    const d = new Date(from);
+    cells.push({
+      key: h.valid_from,
+      time: `${String(d.getHours()).padStart(2, "0")}:00`,
+      temp: `${Math.round(t.value)}°`,
+      icon: code && Number.isFinite(code.value) ? weatherIcon(code.value) : null,
+    });
+    if (cells.length >= limit) break;
+  }
+  return cells;
 }

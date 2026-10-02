@@ -251,9 +251,9 @@ i **nie może ukryć alertów/danych bezpieczeństwa** poza wyborem „Alerty”
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ✅ `TopicsPicker` w onboardingu (`app/topics.tsx`, po pierwszym wyborze lokalizacji) i w Ustawieniach; zapis lokalny `Settings.topics` | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
+| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ⛔ USUNIĘTE (production-ui-v1): brak kroku „Co chcesz śledzić?” i pickera w Ustawieniach; `Settings.topics` ignorowane przy odczycie | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
 | Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ✅ (kafelka Aktywność nie ma) | TASK-12.13 | „Aktywność” pojawia się dopiero po TASK-7.9 |
-| Skutek na Start | lokalne | ✅ `lib/topics.ts` (`visibleCards`, `showAlertsStatus`, `showPollenCalendar`) | TASK-12.13 | wyłączony temat = brak karty, nie „0”; **baner realnego ostrzeżenia nigdy nie jest ukrywany** (decyzja do pkt 9 z sekcji 5.2: temat „Alerty” steruje tylko cichą linią „brak/nie sprawdzono”) |
+| Skutek na Start | lokalne | ⛔ USUNIĘTE (`lib/topics.ts`); Start pokazuje wszystkie dostępne moduły | TASK-12.13 | wyłączony temat = brak karty, nie „0”; **baner realnego ostrzeżenia nigdy nie jest ukrywany** (decyzja do pkt 9 z sekcji 5.2: temat „Alerty” steruje tylko cichą linią „brak/nie sprawdzono”) |
 | Dawny zakres „profil alergika” (gatunki pyłków, „rodzina”, „outdoor” jako profil; TASK-12.4 v1) | **SUPERSEDED** przez spec UI v1: zostają wyłącznie tematy | wycofane | — | brak decyzji do podjęcia |
 
 ### S11. Powiadomienia — ukryte w produkcji
@@ -405,7 +405,7 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 | Lokalizacja: dowolna miejscowość | ✅ `main` (PR #85) | ✅ | TASK-12.7 |
 | Lokalizacja: GPS jednorazowy | ✅ `POST /geo/locate` | ⬜ | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
 | Welcome + onboarding (lokalizacja) | — | ✅ | TASK-12.17 |
-| Tematy „Co chcesz śledzić?” (lokalne) | — | ⬜ | TASK-12.13 |
+| Tematy „Co chcesz śledzić?” (lokalne) | — | ⛔ zastąpione przez production-ui-v1 | TASK-12.13 |
 | Motyw Systemowy/Jasny/Ciemny, dostępność | — | ✅ wybór w Ustawieniach → Wygląd (zapis lokalny); dostępność wg [`a11y-review.md`](a11y-review.md) | TASK-12.19 |
 | Powiadomienia push | 🟡 rejestracja urządzeń; ⛔ klucze | ⬜ | **ukryte** (TASK-12.15) |
 | Źródła i licencje | ✅ `attribution` | 🟡 | TASK-12.6 |

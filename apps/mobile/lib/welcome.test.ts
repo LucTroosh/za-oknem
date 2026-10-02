@@ -20,8 +20,8 @@ describe("scrim", () => {
     expect(SCRIM_FADE_ALPHAS.at(-1)).toBeGreaterThan(SCRIM_TEXT_ALPHA - 0.01);
   });
   it("is the theme background with alpha", () => {
-    expect(scrimColor(LIGHT, 0.5)).toBe("rgba(234, 240, 243, 0.5)");
-    expect(scrimColor(DARK, 1)).toBe("rgba(12, 21, 26, 1)");
+    expect(scrimColor(LIGHT, 0.5)).toBe("rgba(244, 248, 250, 0.5)");
+    expect(scrimColor(DARK, 1)).toBe("rgba(12, 23, 27, 1)");
   });
   for (const [name, p] of [["light", LIGHT], ["dark", DARK]] as const) {
     it(`${name}: text is AA over the scrim on the worst-case photo pixel`, () => {

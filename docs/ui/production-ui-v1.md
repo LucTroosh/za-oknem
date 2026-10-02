@@ -673,28 +673,28 @@ Unsupported product features are not.
 
 ## 21. Definition of Done
 
-- [ ] first-run is Welcome -> Location -> Start
-- [ ] no Topics screen
-- [ ] no Topics picker in Settings
-- [ ] bottom nav has exactly Start / Alerty / Ustawienia
-- [ ] Welcome matches approved production direction
-- [ ] Location looks like a polished consumer picker
-- [ ] Start uses answer-first hierarchy
-- [ ] hero diagnostic copy is human-facing
-- [ ] status cards are compact premium tiles
-- [ ] activity section only appears with real recommendation logic
-- [ ] local alerts are prioritized
-- [ ] Settings uses compact navigation rows
-- [ ] air/weather detail screens share the same design system
-- [ ] empty/error/offline states use approved illustrations
-- [ ] light mode verified
-- [ ] dark mode verified
+- [x] first-run is Welcome -> Location -> Start
+- [x] no Topics screen
+- [x] no Topics picker in Settings
+- [x] bottom nav has exactly Start / Alerty / Ustawienia
+- [x] Welcome matches approved production direction
+- [x] Location looks like a polished consumer picker
+- [x] Start uses answer-first hierarchy
+- [x] hero diagnostic copy is human-facing
+- [x] status cards are compact premium tiles
+- [x] activity section only appears with real recommendation logic
+- [x] local alerts are prioritized
+- [x] Settings uses compact navigation rows
+- [x] air/weather detail screens share the same design system
+- [x] empty/error/offline states use approved illustrations
+- [x] light mode verified (react-native-web preview; device check pending)
+- [x] dark mode verified (react-native-web preview; device check pending)
 - [ ] 200% text scaling verified
 - [ ] TalkBack order verified
-- [ ] no hardcoded fake environmental/safety data
-- [ ] npm run lint passes
-- [ ] npm run typecheck passes
-- [ ] npm test passes
+- [x] no hardcoded fake environmental/safety data
+- [x] npm run lint passes
+- [x] npm run typecheck passes
+- [x] npm test passes
 - [ ] APK builds successfully
 - [ ] screenshots from a physical Android device are added to the PR
 

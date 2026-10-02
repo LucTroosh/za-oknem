@@ -1,11 +1,12 @@
 // TASK-12.12: pure view models for the Air (S5) and Weather (S6) detail screens. Everything
 // comes from the backend blocks the dashboard already carries; nothing is classified or
 // estimated here (rule #10) and every gap is said out loud, never filled (rule #8).
-import { type AirIndexView, AQI_LABEL, airIndexView, validAqiLevel } from "./aqi";
+import { type AirIndexView, AQI_LABEL, airIndexView, aqiStep, validAqiLevel } from "./aqi";
 import { airCoverage, showAirIndex } from "./coverage";
 import type { ForecastDay } from "./forecast";
+import type { Tone } from "./theme";
 import { type AgeBounds, FRESHNESS_LABEL, type FreshnessState, ageLabel, asFreshness } from "./freshness";
-import { formatNumber, sourceState, withUnit } from "./readings";
+import { airView, formatNumber, sourceState, withUnit } from "./readings";
 import { weatherCodeText } from "./weather";
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -142,4 +143,72 @@ export function forecastRows(days: ForecastDay[] | undefined, limit = 7): Foreca
     })
     .filter((r) => r.range !== null || r.precipitation !== null || r.condition !== null)
     .slice(0, limit);
+}
+
+// ---- air detail (production UI v1 §10) ---------------------------------------------------------
+
+export type AirHero = {
+  tone: Tone;
+  headline: string;
+  supporting: string;
+  // EEA band 1..6 when an index is shown; the scale bar is drawn only then (it IS the real scale).
+  step: number | null;
+};
+
+const AIR_TONE: Record<string, Tone> = { GOOD: "good", FAIR: "good", MODERATE: "warning", POOR: "danger", VERY_POOR: "danger", EXTREMELY_POOR: "danger" };
+
+// Human headline for the top card. With no index (regional/none, silent source, expired) it says so
+// plainly and gives the one-line reason; never a good-looking value (rule #8).
+export function airHero(air: unknown, coverage: unknown, suppressDerived: boolean, now: number, receivedAt: number): AirHero {
+  const detail = airIndexDetail(air, coverage, suppressDerived, now, receivedAt);
+  if (!detail || detail.summary.level === null) {
+    return {
+      tone: "neutral",
+      headline: "Nie możemy ocenić jakości powietrza",
+      supporting: airIndexUnavailableText(air, coverage, suppressDerived).replace(/^Brak indeksu: /, "").replace(/^./, (c) => c.toUpperCase()),
+      step: null,
+    };
+  }
+  const level = detail.summary.level;
+  const label = AQI_LABEL[level].toLowerCase();
+  return {
+    tone: AIR_TONE[level] ?? "neutral",
+    headline: `${detail.complete ? "" : "Co najmniej "}${label} jakość powietrza`.replace(/^./, (c) => c.toUpperCase()),
+    supporting: detail.complete ? "Europejski Indeks Jakości Powietrza (EEA)." : "Europejski Indeks Jakości Powietrza (EEA), zestaw niepełny.",
+    step: aqiStep(level),
+  };
+}
+
+// "Co to oznacza?": 2-3 factual lines from the index block itself (what decides, what is missing).
+// No health advice: that would be our own interpretation of a safety-relevant measurement.
+export function airMeaning(detail: AirIndexDetail | null): string[] {
+  if (!detail) return [];
+  const lines: string[] = ["Indeks liczymy z pomiarów GIOŚ według europejskiej skali EEA."];
+  if (detail.dominant.length > 0) lines.push(`O poziomie decyduje: ${detail.dominant.join(", ")}.`);
+  if (!detail.complete && detail.gaps.length > 0) lines.push(`Nie uwzględniono: ${detail.gaps.join(", ")}.`);
+  return lines;
+}
+
+export type AirMetric = { key: string; label: string; value: string; note: string | null; dim: boolean };
+
+// One tile per measured pollutant: value, unit and age. A pollutant the station does not send is
+// omitted (not 0); an old reading is dimmed with its age.
+export function airMetrics(air: unknown, now: number, status: unknown): AirMetric[] {
+  const view = airView(air, now, status);
+  if (!view || view.unavailable || !isObject(air) || !isObject(air.params)) return [];
+  const params = air.params as Record<string, { value?: unknown; unit?: unknown }>;
+  return view.lines
+    .filter((l) => l.state !== "missing")
+    .map((l) => {
+      const raw = params[l.key];
+      const value = formatNumber(raw?.value, 2) ?? l.text;
+      const unit = typeof raw?.unit === "string" && raw.unit !== "" ? raw.unit : null;
+      return {
+        key: l.key,
+        label: l.label,
+        value,
+        note: [unit, l.state === "stale" ? "nieaktualne" : l.state === "recent" ? l.note : null].filter(Boolean).join(" · ") || null,
+        dim: l.state === "stale",
+      };
+    });
 }
