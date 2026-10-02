@@ -6,7 +6,6 @@
 import { type AirIndexView, airIndexView } from "./aqi";
 import { MODEL_NOTE, NO_STATION_HEADLINE, airCoverage } from "./coverage";
 import { type OutdoorLevel, outdoorView } from "./outdoor";
-import { type HomeBanner } from "./alertsBanner";
 import { POLLEN_NAME, type PollenLevel, pollenView } from "./pollen";
 import { type LineState, type ReadingLine, type ReadingsView, airView, formatNumber } from "./readings";
 import { weatherCodeText, weatherView } from "./weather";
@@ -31,19 +30,34 @@ const OUTDOOR_LEVEL: Record<OutdoorLevel, GlyphLevel> = {
   UNKNOWN: "UNKNOWN",
 };
 
+// Production UI v1 §7/§14: answer-first, human copy. The verdict itself (level, reasons, gaps) is
+// the backend's (rule #10); this only words it. Internal diagnostics ("brak danych: ... (brak)")
+// never reach the headline: they live in `details`, behind a disclosure.
 export const VERDICT_HEADLINE: Record<GlyphLevel, string> = {
-  GOOD: "Dobre warunki na zewnątrz",
-  CAUTION: "Zachowaj ostrożność na zewnątrz",
-  AVOID: "Lepiej odpuścić wyjście na zewnątrz",
-  UNKNOWN: "Brak wystarczających danych",
+  GOOD: "Dziś warto wyjść na zewnątrz",
+  CAUTION: "Warunki są dziś średnie",
+  AVOID: "Lepiej ograniczyć aktywność na zewnątrz",
+  UNKNOWN: "Nie możemy jeszcze ocenić wszystkich warunków",
 };
+
+export const VERDICT_SUPPORTING: Record<GlyphLevel, string> = {
+  GOOD: "Według dostępnych danych nic nie stoi na przeszkodzie.",
+  CAUTION: "Część wskaźników przekracza progi. Powody poniżej.",
+  AVOID: "Część wskaźników przekracza progi. Powody poniżej.",
+  UNKNOWN: "Brakuje części aktualnych danych. Dostępne informacje pokazujemy poniżej.",
+};
+
+export const VERDICT_PARTIAL_NOTE = "Część danych jest chwilowo niedostępna, więc nie została uwzględniona.";
 
 export type VerdictModel = {
   level: GlyphLevel;
   headline: string;
-  // Backend reasons / gaps, as already formatted by outdoorView (no invented advice).
-  lines: string[];
-  note: string | null;
+  // One short human sentence under the headline (never a variable name or a source name).
+  supporting: string;
+  // Backend reasons, already formatted by outdoorView (no invented advice). Shown on tap.
+  reasons: string[];
+  // Technical gaps ("Brak oceny - brak danych: ..."): secondary disclosure only.
+  details: string[];
 };
 
 // null = the backend sent no verdict block (older backend): the hero disappears, never a mock.
@@ -51,9 +65,15 @@ export function verdictModel(outdoor: unknown, now: number, receivedAt: number):
   const v = outdoorView(outdoor, now, receivedAt);
   if (!v) return null;
   const level = OUTDOOR_LEVEL[v.level];
-  // UNKNOWN: the view's own headline says why ("Brak oceny - dane mogly sie zestarzec ...").
-  const lines = v.level === "UNKNOWN" ? [v.headline] : v.reasonLines;
-  return { level, headline: VERDICT_HEADLINE[level], lines, note: v.missingLine };
+  const unknown = v.level === "UNKNOWN";
+  const partial = !unknown && v.missingLine !== null;
+  return {
+    level,
+    headline: VERDICT_HEADLINE[level],
+    supporting: partial ? `${VERDICT_SUPPORTING[level]} ${VERDICT_PARTIAL_NOTE}` : VERDICT_SUPPORTING[level],
+    reasons: unknown ? [] : v.reasonLines,
+    details: unknown ? [v.headline] : v.missingLine ? [v.missingLine] : [],
+  };
 }
 
 // ---- header -------------------------------------------------------------------------------
@@ -323,37 +343,6 @@ export function statusCards(
   ];
 }
 
-// ---- alerts -------------------------------------------------------------------------------
-
-// §44: nothing active (checked) is not the same as could-not-check.
-export type AlertsStatus =
-  | { kind: "loading" }
-  | { kind: "active"; banners: HomeBanner[] }
-  | { kind: "unavailable"; banners: HomeBanner[] }
-  | { kind: "none" };
-
-export const ALERTS_NONE_TEXT = "Brak aktywnych ostrzeżeń";
-export const ALERTS_UNKNOWN_TEXT = "Nie udało się sprawdzić ostrzeżeń";
-
-// `banners`: what homeAlertsBanner / homeHydroBanner returned for the loaded blocks (null = a
-// confirmed all-clear OR not loaded yet - hence the loaded flags).
-// `failed`: the LAST request of that source failed. The provider keeps the previous block, so
-// a cached "nothing active" must not be re-confirmed after a failed refresh: that is
-// "could not check" (a cached real warning still shows, it is not a false all-clear).
-export function alertsStatus(
-  banners: (HomeBanner | null)[],
-  loaded: { alerts: boolean; hydro: boolean },
-  failed: { alerts: boolean; hydro: boolean } = { alerts: false, hydro: false },
-): AlertsStatus {
-  const shown = banners.filter((b): b is HomeBanner => b !== null);
-  if (shown.some((b) => b.tone !== "neutral")) return { kind: "active", banners: shown };
-  if (!loaded.alerts || !loaded.hydro) return { kind: "loading" };
-  if (shown.length === 0 && (failed.alerts || failed.hydro)) {
-    return { kind: "unavailable", banners: [{ tone: "neutral", text: `${ALERTS_UNKNOWN_TEXT}.` }] };
-  }
-  return shown.length > 0 ? { kind: "unavailable", banners: shown } : { kind: "none" };
-}
-
 // The dashboard is requested with ?geo_area_id=, so it holds exactly the chosen area; still
 // pick it by id - never "the first one" (the order of the response is not part of the contract).
 export function selectArea<T extends { geo_area_id: number }>(areas: T[], geoAreaId: number): T | null {
@@ -371,17 +360,4 @@ export function pollingPending(area: { weather_polling_active?: boolean; weather
 
 export function pollingOff(area: { weather_polling_active?: boolean } | null): boolean {
   return area !== null && area.weather_polling_active === false;
-}
-
-// ---- order --------------------------------------------------------------------------------
-
-export type Section = "header" | "alerts" | "verdict" | "cards" | "calendar";
-
-// Spec §17: header -> verdict -> cards -> alerts. A real warning moves up right under the
-// header (§16 "relatively high"); the activity section has no backend yet and is not rendered.
-export function sectionOrder(alerts: AlertsStatus): Section[] {
-  const body: Section[] = ["verdict", "cards", "alerts", "calendar"];
-  return alerts.kind === "active"
-    ? ["header", "alerts", "verdict", "cards", "calendar"]
-    : ["header", ...body];
 }

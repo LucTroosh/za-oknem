@@ -1,26 +1,27 @@
 import { useState } from "react";
-import { StyleSheet, Text, TextInput } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
 import Button from "../../components/Button";
 import Card from "../../components/Card";
-import DetailBack from "../../components/DetailBack";
 import useDashboard from "../../components/DashboardProvider";
 import EmptyState, { LoadingState } from "../../components/EmptyState";
-import Notice from "../../components/Notice";
+import InfoBanner from "../../components/InfoBanner";
+import PageHeader from "../../components/PageHeader";
+import SearchField from "../../components/SearchField";
+import SectionHeader from "../../components/SectionHeader";
 import Screen from "../../components/Screen";
 import StationRow from "../../components/StationRow";
 import useNow from "../../components/useNow";
-import useTheme, { useThemedStyles } from "../../components/useTheme";
+import { useThemedStyles } from "../../components/useTheme";
 import { formatObservedAt } from "../../lib/dashboardTypes";
 import { RIVERS_PAGE, buildRivers, limitGroups } from "../../lib/rivers";
-import { type Theme, radius, space, typo } from "../../lib/theme";
+import { type Theme, space, typo } from "../../lib/theme";
 
 // S8 Stany rzek (TASK-12.16): every IMGW water-level station from /hydro/latest, nationwide
 // (matching to the location is TASK-9.5). Live only; hydrology and nothing else.
 export default function Rivers() {
   const d = useDashboard();
   const now = useNow();
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(RIVERS_PAGE);
@@ -28,15 +29,11 @@ export default function Rivers() {
   const shown = model ? limitGroups(model.groups, limit) : [];
   const shownCount = shown.reduce((n, g) => n + g.items.length, 0);
   return (
-    <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh}>
-      <DetailBack title="Stany rzek" />
-      <Text style={styles.scope}>Cała Polska — stacje wodowskazowe IMGW z progami ostrzegawczym i alarmowym.</Text>
-      {d.hydroState === "error" && d.hydro && <Notice tone="danger" text="Nie udało się odświeżyć. Pokazane dane mogą być nieaktualne." />}
+    <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh} gap={16}>
+      <PageHeader title="Stany rzek" subtitle="Cała Polska: stacje wodowskazowe IMGW z progami ostrzegawczym i alarmowym." />
+      {d.hydroState === "error" && d.hydro && <InfoBanner tone="warning" text="Nie udało się odświeżyć danych." detail="Pokazane informacje mogą być nieaktualne." />}
       {model && !model.sourceOk && (
-        <Notice
-          tone="warning"
-          text={`Źródło nie odświeża się na bieżąco (ostatnia udana aktualizacja: ${model.lastSuccessAt ? formatObservedAt(model.lastSuccessAt) : "brak"}). Stany mogą być nieaktualne.`}
-        />
+        <InfoBanner tone="warning" text="Źródło nie odświeża się na bieżąco." detail={`Ostatnia udana aktualizacja: ostatnia udana aktualizacja: ${model.lastSuccessAt ? formatObservedAt(model.lastSuccessAt) : "brak"}. Stany mogą być nieaktualne.`} />
       )}
       {!d.hydro ? (
         d.hydroState === "loading" ? (
@@ -51,36 +48,28 @@ export default function Rivers() {
         )
       ) : (
         <>
-          <TextInput
+          <SearchField
             value={query}
             onChangeText={(t) => {
               setQuery(t);
               setLimit(RIVERS_PAGE);
             }}
             placeholder="Szukaj stacji lub rzeki"
-            placeholderTextColor={colors.dim}
-            accessibilityLabel="Szukaj stacji"
-            style={styles.input}
-            autoCorrect={false}
-            maxLength={60}
-            clearButtonMode="while-editing"
           />
           {model && model.total === 0 && (
             <Text style={styles.body}>{query.trim() === "" ? "Brak stacji w danych." : `Nie znaleziono stacji „${query.trim()}”.`}</Text>
           )}
           {shown.map((g) => (
             <Card key={g.key}>
-              <Text style={styles.heading} accessibilityRole="header">
-                {g.title}
-              </Text>
+              <SectionHeader title={g.title} />
               {g.note && <Text style={styles.scope}>{g.note}</Text>}
-              {g.items.map((item) => (
-                <StationRow key={item.station.station_id} item={item} statusText={g.key === "outdated" ? "odczyt nieaktualny" : undefined} />
+              {g.items.map((item, i) => (
+                <StationRow key={item.station.station_id} item={item} first={i === 0} statusText={g.key === "outdated" ? "odczyt nieaktualny" : undefined} />
               ))}
             </Card>
           ))}
           {model && shownCount < model.total && (
-            <Button label={`Pokaż więcej (${model.total - shownCount})`} onPress={() => setLimit((n) => n + RIVERS_PAGE)} />
+            <Button variant="secondary" label={`Pokaż więcej (${model.total - shownCount})`} onPress={() => setLimit((n) => n + RIVERS_PAGE)} />
           )}
           <Text style={styles.micro}>{d.hydro.attribution}</Text>
         </>
@@ -91,18 +80,7 @@ export default function Rivers() {
 
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    heading: { ...typo.heading, color: t.colors.text },
     scope: { ...typo.caption, color: t.colors.textSecondary },
     body: { ...typo.body, color: t.colors.text },
-    micro: { ...typo.micro, color: t.colors.textSecondary },
-    input: {
-      ...typo.body,
-      minHeight: 48,
-      paddingHorizontal: space.lg,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: t.colors.border,
-      backgroundColor: t.colors.surface,
-      color: t.colors.text,
-    },
+    micro: { ...typo.meta, color: t.colors.textSecondary, marginBottom: space.md },
   });

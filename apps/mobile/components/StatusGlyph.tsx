@@ -11,7 +11,7 @@ type IconName = ComponentProps<typeof Ionicons>["name"];
 const ICON: Record<GlyphLevel, IconName> = {
   GOOD: "checkmark-circle",
   CAUTION: "alert-circle",
-  AVOID: "close-circle",
+  AVOID: "warning",
   UNKNOWN: "help-circle",
 };
 export const GLYPH_TONE: Record<GlyphLevel, Tone> = {

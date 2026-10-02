@@ -1,24 +1,41 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
 import { Redirect, Tabs } from "expo-router";
+import { StyleSheet, Text, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DashboardProvider } from "../../components/DashboardProvider";
 import useLocation from "../../components/LocationProvider";
 import useTheme from "../../components/useTheme";
 import { entryRedirect } from "../../lib/location";
-import { typo } from "../../lib/theme";
+import { elevation, typo } from "../../lib/theme";
 
 // Icons: @expo/vector-icons ships with the Expo SDK (dependency of `expo`), no new package.
 // Every tab also has a text label, so the icon is never the only carrier.
 type IconName = ComponentProps<typeof Ionicons>["name"];
 const icon = (name: IconName, focusedName: IconName) =>
-  function TabIcon({ color, size, focused }: { color: string; size: number; focused: boolean }) {
-    return <Ionicons name={focused ? focusedName : name} size={size} color={color} />;
+  function TabIcon({ color, focused }: { color: string; focused: boolean }) {
+    return <Ionicons name={focused ? focusedName : name} size={24} color={color} />;
   };
 
+// Label scales with the system font (200% contract); one line that shrinks to fit its third of the
+// bar instead of being clipped, and the bar itself grows with the font scale.
+const tabLabel = (title: string) =>
+  function TabLabel({ color }: { color: string; focused: boolean }) {
+    return (
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} maxFontSizeMultiplier={2} style={{ color, fontSize: typo.meta.fontSize, fontWeight: "600" }}>
+        {title}
+      </Text>
+    );
+  };
+
+const HIDDEN = ["air", "weather", "pollen", "alert", "rivers", "appearance", "accessibility", "privacy", "sources", "about"] as const;
+
 export default function TabsLayout() {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const { settings } = useLocation();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const redirect = entryRedirect(settings, "tabs");
   if (redirect !== null || settings.location === null) return <Redirect href={redirect ?? "/location"} />;
   return (
@@ -26,25 +43,30 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={{
           sceneStyle: { backgroundColor: colors.bg },
-          headerStyle: { backgroundColor: colors.surface },
-          headerTitleStyle: { ...typo.heading },
-          headerTintColor: colors.text,
-          headerShadowVisible: false,
+          // Every screen draws its own page header (production UI v1): no navigator header.
+          headerShown: false,
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.textSecondary,
-          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-          tabBarLabelStyle: { fontSize: typo.micro.fontSize, fontWeight: "600" },
+          // Elevated surface + a soft top shadow instead of a hard border; safe-area aware by the navigator.
+          tabBarStyle: {
+            height: 16 + 24 + Math.ceil(typo.meta.lineHeight * Math.min(fontScale, 2)) + insets.bottom,
+            backgroundColor: scheme === "dark" ? colors.elevated : colors.surface,
+            borderTopWidth: scheme === "dark" ? StyleSheet.hairlineWidth : 0,
+            borderTopColor: colors.border,
+            ...elevation(scheme, 2),
+            shadowOffset: { width: 0, height: -3 },
+          },
+          tabBarItemStyle: { minHeight: 48 },
         }}
       >
-        {/* Start draws its own header (location, date, temperature). */}
-        <Tabs.Screen name="index" options={{ title: "Start", headerShown: false, tabBarIcon: icon("home-outline", "home") }} />
-        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("notifications-outline", "notifications") }} />
-        {/* Detail screens (S5/S6): reachable from the Start cards only, no tab of their own. */}
-        <Tabs.Screen name="air" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="weather" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="alert" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="rivers" options={{ href: null, headerShown: false }} />
-        <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
+        {/* Exactly three tabs (locked architecture): Start / Alerty / Ustawienia. */}
+        <Tabs.Screen name="index" options={{ title: "Start", tabBarLabel: tabLabel("Start"), tabBarIcon: icon("home-outline", "home") }} />
+        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarLabel: tabLabel("Alerty"), tabBarIcon: icon("notifications-outline", "notifications") }} />
+        <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarLabel: tabLabel("Ustawienia"), tabBarIcon: icon("settings-outline", "settings") }} />
+        {/* Detail screens are hidden tabs (they need this layout's DashboardProvider): no tab of their own. */}
+        {HIDDEN.map((name) => (
+          <Tabs.Screen key={name} name={name} options={{ href: null }} />
+        ))}
       </Tabs>
     </DashboardProvider>
   );

@@ -94,7 +94,7 @@ const createStyles = (t: Theme) =>
     body: { gap: space.md, paddingHorizontal: space.xl, paddingTop: space.lg, marginTop: SCRIM_FADE_HEIGHT },
     scrim: { position: "absolute", top: -SCRIM_FADE_HEIGHT, left: 0, right: 0, bottom: 0 },
     brand: { ...typo.title, color: t.colors.accent },
-    headline: { ...typo.display, color: t.colors.text },
+    headline: { ...typo.hero, color: t.colors.text },
     domains: { flexDirection: "row", flexWrap: "wrap", columnGap: space.lg, rowGap: space.sm },
     domain: { flexDirection: "row", alignItems: "center", gap: space.xs },
     domainText: { ...typo.body, color: t.colors.textSecondary },

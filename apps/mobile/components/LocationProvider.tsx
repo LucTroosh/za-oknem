@@ -13,7 +13,6 @@ import {
 import { activatePlace } from "../lib/places";
 import { loadSettings, saveSettings } from "../lib/storage";
 import { type ThemePref, themeOverride } from "../lib/theme";
-import type { TopicKey } from "../lib/topics";
 
 // The remembered location + onboarding flag for the whole app (spec §3: ONE location, local to
 // the device, no account). `ready` = the stored record has been read (the root shows nothing
@@ -30,8 +29,6 @@ export type LocationContext = {
   startOnboarding: () => void;
   // Appearance (TASK-12.19): saved with the rest of the settings, applied app-wide.
   setTheme: (theme: ThemePref) => void;
-  // "Co chcesz śledzić?" (TASK-12.13): [] = all. Local preference only.
-  setTopics: (topics: TopicKey[]) => void;
   // Resolves when the most recent activation (launch or foreground) has finished (or failed / timed out).
   // A dashboard 404 for a place may only mean "not re-created yet": wait for this first.
   latestActivation: () => Promise<void>;
@@ -150,15 +147,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setState((cur) => (cur.settings.theme === theme ? cur : { ...cur, settings: { ...cur.settings, theme } }));
   }, []);
 
-  const setTopics = useCallback((topics: TopicKey[]) => {
-    setState((cur) => ({ ...cur, settings: { ...cur.settings, topics } }));
-  }, []);
-
   const latestActivation = useCallback(() => latest.current, []);
 
   const value = useMemo(
-    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, setTopics, latestActivation, choose, invalidate }),
-    [ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, setTopics, latestActivation, choose, invalidate],
+    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, latestActivation, choose, invalidate }),
+    [ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, latestActivation, choose, invalidate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

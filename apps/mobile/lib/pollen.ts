@@ -70,6 +70,9 @@ export type PollenLine = {
   name: string;
   text: string;
   level: PollenLevel | null;
+  // Same information split for compact rows: the level in words, the number with its unit.
+  levelLabel?: string | null;
+  valueText?: string | null;
 };
 
 export type PollenView = {
@@ -105,12 +108,19 @@ function lineFor(
   const raw = current[species];
   const name = POLLEN_NAME[species];
   if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
-    return { species, name, text: "brak danych", level: null };
+    return { species, name, text: "brak danych", level: null, levelLabel: null, valueText: null };
   }
   const level = pollenLevel(species, roundPollen(raw), unit);
   const u = typeof unit === "string" && unit !== "" ? ` ${unit}` : "";
   const value = `${formatPollenValue(raw)}${u}`;
-  return { species, name, text: level ? `${POLLEN_LEVEL_LABEL[level]} (${value})` : value, level };
+  return {
+    species,
+    name,
+    text: level ? `${POLLEN_LEVEL_LABEL[level]} (${value})` : value,
+    level,
+    levelLabel: level ? POLLEN_LEVEL_LABEL[level] : null,
+    valueText: value,
+  };
 }
 
 // null = nothing to show (older backend without the field, or no attribution to credit).

@@ -67,7 +67,7 @@ export default function PollenCalendarCard({
 // Colours come from the palettes, whose text pairs are contrast-tested (theme.test.ts).
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    title: { ...typo.heading, color: t.colors.text, marginBottom: space.xs },
+    title: { ...typo.cardTitle, color: t.colors.text, marginBottom: space.xs },
     kind: { ...typo.caption, color: t.colors.textSecondary },
     sub: { ...typo.caption, fontWeight: "600", color: t.colors.textSecondary, paddingTop: 2 },
     line: { ...typo.body, color: t.colors.text },

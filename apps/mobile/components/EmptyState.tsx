@@ -1,13 +1,14 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
-import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
 import type { StateArt } from "../lib/stateArt";
+import { type Theme, space, typo } from "../lib/theme";
+import Button from "./Button";
 import Card from "./Card";
 import StateIllustration from "./StateIllustration";
 import useTheme, { useThemedStyles } from "./useTheme";
 
-// One place for "nothing here yet" / "could not load": say what happened and what to do.
-// `devHint` is shown only in development builds (never in the production UI).
+// One place for "nothing here yet" / "could not load": say what happened and what to do, in
+// human language. The illustration is decorative; `devHint` shows only in development builds.
 export default function EmptyState({
   title,
   message,
@@ -21,23 +22,20 @@ export default function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
   devHint?: string;
-  // Decorative illustration above the text; the text still says everything.
   art?: StateArt;
 }) {
   const styles = useThemedStyles(createStyles);
   return (
     <Card>
-      {art ? <StateIllustration art={art} /> : null}
-      <Text style={styles.title} accessibilityRole="header">
-        {title}
-      </Text>
-      <Text style={styles.message}>{message}</Text>
-      {__DEV__ && devHint ? <Text style={styles.dev}>Dev: {devHint}</Text> : null}
-      {actionLabel && onAction ? (
-        <Pressable accessibilityRole="button" onPress={onAction} style={styles.button}>
-          <Text style={styles.buttonText}>{actionLabel}</Text>
-        </Pressable>
-      ) : null}
+      <View style={styles.box}>
+        {art ? <StateIllustration art={art} height={120} /> : null}
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text style={styles.message}>{message}</Text>
+        {__DEV__ && devHint ? <Text style={styles.dev}>Dev: {devHint}</Text> : null}
+        {actionLabel && onAction ? <Button label={actionLabel} variant="secondary" onPress={onAction} /> : null}
+      </View>
     </Card>
   );
 }
@@ -59,17 +57,8 @@ const loading = StyleSheet.create({
 
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    title: { ...typo.heading, color: t.colors.text },
-    message: { ...typo.body, color: t.colors.textSecondary },
-    dev: { ...typo.caption, color: t.colors.dim, fontStyle: "italic" },
-    button: {
-      alignSelf: "flex-start",
-      minHeight: MIN_TOUCH,
-      justifyContent: "center",
-      paddingHorizontal: space.lg,
-      marginTop: space.sm,
-      borderRadius: radius.pill,
-      backgroundColor: t.colors.accent,
-    },
-    buttonText: { ...typo.strong, color: t.colors.onAccent },
+    box: { alignItems: "center", gap: space.sm, paddingVertical: space.sm },
+    title: { ...typo.heading, color: t.colors.text, textAlign: "center" },
+    message: { ...typo.supporting, color: t.colors.textSecondary, textAlign: "center" },
+    dev: { ...typo.caption, color: t.colors.dim, fontStyle: "italic", textAlign: "center" },
   });

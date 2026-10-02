@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type ForecastDay, forecastDayLabel, forecastLine, todayRange } from "./forecast";
+import { type ForecastDay, forecastDayLabel, forecastLine, hourlyStrip, todayRange } from "./forecast";
 
 const day = (params: Record<string, { value: number; unit: string }>) => ({
   valid_from: "2026-09-30T00:00:00+00:00", // a Wednesday
@@ -77,5 +77,37 @@ describe("todayRange", () => {
   });
   it("older backend without source status adds no constraint", () => {
     expect(todayRange(fc(), null, now)).not.toBeNull();
+  });
+});
+
+describe("hourlyStrip", () => {
+  const now = Date.parse("2026-10-02T12:30:00Z");
+  const hour = (iso: string, temp: number | null, code?: number) => ({
+    valid_from: iso,
+    valid_until: new Date(Date.parse(iso) + 3600_000).toISOString(),
+    params: {
+      ...(temp === null ? {} : { temperature_2m: { value: temp, unit: "°C" } }),
+      ...(code === undefined ? {} : { weather_code: { value: code, unit: "" } }),
+    },
+  });
+  const fc = (hours: ReturnType<typeof hour>[], over = {}) => ({ days: [], hours, fetched_at: "2026-10-02T11:00:00Z", freshness: "FRESH", ...over });
+  const src = { freshness: "FRESH", last_success_at: "2026-10-02T11:00:00Z" };
+
+  it("starts with the hour that contains now, skips the past and hours without a temperature", () => {
+    const cells = hourlyStrip(
+      fc([hour("2026-10-02T11:00:00Z", 10, 0), hour("2026-10-02T12:00:00Z", 11.6, 61), hour("2026-10-02T13:00:00Z", null), hour("2026-10-02T14:00:00Z", 13, 3)]),
+      src,
+      now,
+    );
+    expect(cells.map((c) => c.temp)).toEqual(["12°", "13°"]);
+    expect(cells[0].icon).toBe("rainy");
+    expect(cells[0].time).toMatch(/^\d\d:00$/);
+  });
+  it("respects the limit and never shows an old or silent forecast", () => {
+    const hours = Array.from({ length: 20 }, (_, i) => hour(new Date(Date.parse("2026-10-02T12:00:00Z") + i * 3600_000).toISOString(), i));
+    expect(hourlyStrip(fc(hours), src, now, 5)).toHaveLength(5);
+    expect(hourlyStrip(fc(hours, { freshness: "STALE" }), src, now)).toEqual([]);
+    expect(hourlyStrip(fc(hours), { freshness: "UNAVAILABLE", last_success_at: null }, now)).toEqual([]);
+    expect(hourlyStrip(null, src, now)).toEqual([]);
   });
 });
