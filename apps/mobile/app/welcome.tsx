@@ -1,4 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold";
+import { Manrope_800ExtraBold } from "@expo-google-fonts/manrope/800ExtraBold";
+import { useFonts } from "expo-font";
 import { Redirect, useNavigation, useRouter } from "expo-router";
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +19,7 @@ import {
   TOP_VEIL_PLATEAU,
   WELCOME_COPY,
   WELCOME_DOMAINS,
+  WELCOME_TYPE,
   footerChipColor,
   heroFrame,
   scrimColor,
@@ -51,11 +55,14 @@ export default function Welcome() {
   const router = useRouter();
   const { settings, startOnboarding } = useLocation();
   const navigation = useNavigation();
+  // Local font files: loads in a few ms; until then (or if it fails) the plain background / system font.
+  const [fontsLoaded, fontError] = useFonts({ Manrope_600SemiBold, Manrope_800ExtraBold });
   const redirect = entryRedirect(settings, "welcome");
   // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
   // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the
   // background, the picker resets the history itself (lib/navigation.ts).
   if (redirect !== null) return navigation.isFocused() ? <Redirect href={redirect} /> : null;
+  if (!fontsLoaded && !fontError) return <View style={styles.screen} />; // no font flash
   const frame = heroFrame(width, height);
   const color = (a: number) => scrimColor(colors, a);
   return (
@@ -77,10 +84,10 @@ export default function Welcome() {
         <View style={[styles.top, { paddingTop: insets.top + space.xxl }]}>
           {/* Decorative: "Za Oknem" is announced by the text right below. */}
           <Image source={LOGO} style={styles.logo} accessible={false} importantForAccessibility="no" />
+          <Text style={styles.eyebrow}>{WELCOME_COPY.headline}</Text>
           <Text style={styles.brand} accessibilityRole="header">
             {WELCOME_COPY.brand}
           </Text>
-          <Text style={styles.headline}>{WELCOME_COPY.headline}</Text>
         </View>
         <View style={[styles.bottom, { paddingBottom: Math.max(space.xl, insets.bottom + space.md) }]}>
           {/* One soft capsule, four domains; read as one line by TalkBack (icons are decorative). */}
@@ -127,9 +134,11 @@ const createStyles = (t: Theme) =>
     // The gap between the two groups is the panorama.
     content: { flexGrow: 1, justifyContent: "space-between" },
     top: { alignItems: "center", paddingHorizontal: space.xl },
-    logo: { width: 84, height: 84, marginBottom: space.ml },
-    brand: { fontSize: 36, lineHeight: 44, fontWeight: "800", color: t.colors.text, textAlign: "center" },
-    headline: { fontSize: 20, lineHeight: 28, fontWeight: "600", color: t.colors.text, textAlign: "center", marginTop: space.xs },
+    logo: { width: 84, height: 84, marginBottom: space.lg },
+    // Weight comes from the font family (Manrope), so no fontWeight; the system font is the fallback
+    // when the font fails to load.
+    eyebrow: { ...WELCOME_TYPE.eyebrow, color: t.colors.text, textAlign: "center" },
+    brand: { ...WELCOME_TYPE.brand, color: t.colors.text, textAlign: "center", marginTop: space.xs },
     bottom: { paddingHorizontal: space.xl, paddingTop: space.xxl },
     capsule: {
       flexDirection: "row",

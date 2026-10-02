@@ -11,6 +11,14 @@ export const WELCOME_COPY = {
   privacy: "Bez konta. Bez reklam.",
 } as const;
 
+// Welcome typography: Manrope (soft, modern consumer look; OFL-1.1) for the two brand lines only.
+// A small eyebrow line above, the brand name below as the strongest text on the screen. Family names
+// are the ones @expo-google-fonts/manrope registers; weights come from the family, not fontWeight.
+export const WELCOME_TYPE = {
+  eyebrow: { fontFamily: "Manrope_600SemiBold", fontSize: 17, lineHeight: 24 },
+  brand: { fontFamily: "Manrope_800ExtraBold", fontSize: 42, lineHeight: 50 },
+} as const;
+
 // Four domain cues in one soft capsule (no water: no source yet). Labels are PRESENTATION only:
 // "Alergeny" is the Welcome wording of the pollen domain, nothing in the logic is renamed. Icons
 // are from the one vector library; `tint` picks the domain colour (alerts use the neutral info tint,
@@ -58,7 +66,7 @@ export function heroFrame(screenW: number, screenH: number): HeroFrame {
 // brand text (over the sky) and a short bottom one that only blends the photo into the screen edge.
 // Capsule and CTA are solid surfaces, the footer sits on its own translucent chip, so the panorama
 // stays visible. Veils are stacks of strips (no gradient dependency).
-export const TOP_VEIL = { light: 0.34, dark: 0.66 } as const; // plateau alpha behind the brand text
+export const TOP_VEIL = { light: 0.38, dark: 0.66 } as const; // plateau alpha behind the brand text
 export const TOP_VEIL_HEIGHT = 320;
 export const TOP_VEIL_PLATEAU = 0.6; // fraction of the height at full alpha, then a smooth fade
 export const BOTTOM_VEIL = { light: 0.3, dark: 0.55 } as const;

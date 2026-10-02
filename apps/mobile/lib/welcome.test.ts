@@ -8,6 +8,7 @@ import {
   VEIL_STEPS,
   WELCOME_COPY,
   WELCOME_DOMAINS,
+  WELCOME_TYPE,
   heroFrame,
   scrimColor,
   veilAlphas,
@@ -37,6 +38,18 @@ describe("welcome copy", () => {
       expect(welcomeTintColors(p, "air")).toEqual({ fg: p.airFg, bg: p.airBg });
       expect(welcomeTintColors(p, "info")).toEqual({ fg: p.info, bg: p.infoBg });
     }
+  });
+});
+
+describe("welcome typography", () => {
+  it("brand name is the strongest line, the eyebrow a lighter supporting line", () => {
+    expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThanOrEqual(36);
+    expect(WELCOME_TYPE.brand.fontSize).toBeLessThanOrEqual(42);
+    expect(WELCOME_TYPE.eyebrow.fontSize).toBeGreaterThanOrEqual(16);
+    expect(WELCOME_TYPE.eyebrow.fontSize).toBeLessThanOrEqual(18);
+    expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThan(WELCOME_TYPE.eyebrow.fontSize * 2);
+    expect(WELCOME_TYPE.brand.fontFamily).toContain("800");
+    expect(WELCOME_TYPE.eyebrow.fontFamily).toContain("600");
   });
 });
 
