@@ -11,9 +11,9 @@
     "android": {
       "package": "pl.zaoknem.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/za-oknem/android/adaptive-icon-foreground-1024.png",
+        "foregroundImage": "./assets/za-oknem/android/adaptive-icon-foreground-fit-1024.png",
         "backgroundColor": "#F4FAF7",
-        "monochromeImage": "./assets/za-oknem/android/adaptive-icon-monochrome-1024.png"
+        "monochromeImage": "./assets/za-oknem/android/adaptive-icon-monochrome-fit-1024.png"
       }
     },
     "ios": {
