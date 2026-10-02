@@ -996,6 +996,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Non-goals:** `/water`, connector, nearest-station hydro (TASK-9.5).
       **Dependencies:** brak (dane ✅); kąpieliska wracają jako osobny etap przed sezonem
       (TASK-11.x ⛔).
+      **Stan (kolejny PR):** ✅ `app/(tabs)/rivers.tsx` + `lib/rivers.ts` (testy) + `StationRow`; test regresji `lib/noWaterUi.test.ts` pilnuje braku kąpielisk/wody pitnej w `app/` i `components/`; brak `lib/mock/**`. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.17:** Welcome + onboarding (lokalizacja i tematy, jeden ekran) + lokalny
       magazyn ustawień (spec UI §5–8, P0 #1–3). **Goal:** pierwsze uruchomienie
       Welcome → Lokalizacja + tematy → Start, kolejne od razu Start. **Scope:** ekran
