@@ -1,22 +1,34 @@
 // Welcome screen content + scrim (asset pack v2, docs/ui/asset-implementation-v2.md §4-§8).
 // Pure data/functions so the copy and the contrast are unit-tested; the screen only lays it out.
-import { type Palette, contrastRatio } from "./theme";
+import { type Palette, contrastRatio, domainColors, toneColors } from "./theme";
 
 export const WELCOME_COPY = {
   brand: "Za Oknem",
-  headline: "Sprawdź, co dzieje się wokół Ciebie",
+  headline: "Sprawdź, co słychać u Ciebie za oknem",
   cta: "Zaczynamy",
   ctaHint: "Przechodzi do wyboru lokalizacji",
-  privacy: "Bez konta. Bez profilowania.",
+  privacy: "Bez konta. Bez reklam.",
 } as const;
 
-// Lightweight domain cues (no water: no source yet). Icons are from the one vector library.
+// Four domain cues in one soft capsule (no water: no source yet). Labels are PRESENTATION only:
+// "Alergeny" is the Welcome wording of the pollen domain, nothing in the logic is renamed. Icons
+// are from the one vector library; `tint` picks the domain colour (alerts use the neutral info tint,
+// not a severity colour).
 export const WELCOME_DOMAINS = [
-  { label: "Powietrze", icon: "leaf-outline" },
-  { label: "Pogoda", icon: "partly-sunny-outline" },
-  { label: "Pyłki", icon: "flower-outline" },
-  { label: "Alerty", icon: "notifications-outline" },
+  { label: "Powietrze", icon: "leaf", tint: "air" },
+  { label: "Pogoda", icon: "partly-sunny", tint: "weather" },
+  { label: "Alergeny", icon: "flower", tint: "pollen" },
+  { label: "Alerty", icon: "alert-circle", tint: "info" },
 ] as const;
+
+export type WelcomeTint = (typeof WELCOME_DOMAINS)[number]["tint"];
+
+export function welcomeTintColors(p: Palette, tint: WelcomeTint): { fg: string; bg: string } {
+  return tint === "info" ? toneColors(p, "info") : domainColors(p, tint);
+}
+
+// One row of four at normal font size; 2 x 2 once the system font is enlarged so labels never clip.
+export const welcomeDomainColumns = (fontScale: number): 2 | 4 => (fontScale >= 1.3 ? 2 : 4);
 
 // The photo stays the same in both themes; only the scrim changes. Scrim base colour is the
 // theme background, so text tokens keep their designed contrast on it.
@@ -57,5 +69,12 @@ export function welcomeContrasts(p: Palette): { name: string; ratio: number }[] 
     out.push({ name: "accent", ratio: contrastRatio(p.accent, bg) });
   }
   out.push({ name: "onAccent/accent", ratio: contrastRatio(p.onAccent, p.accent) });
+  // The capsule is a solid surface (not scrim-dependent): label + icon on it.
+  for (const tint of WELCOME_DOMAINS.map((d) => d.tint)) {
+    const c = welcomeTintColors(p, tint);
+    out.push({ name: `icon ${tint}`, ratio: contrastRatio(c.fg, c.bg) });
+  }
+  out.push({ name: "capsule label", ratio: contrastRatio(p.text, p.surface) });
+  out.push({ name: "capsule label (dark)", ratio: contrastRatio(p.text, p.elevated) });
   return out;
 }

@@ -1,14 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Redirect, useNavigation, useRouter } from "expo-router";
-import { Image, ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ImageBackground, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Button from "../components/Button";
 import useLocation from "../components/LocationProvider";
 import useTheme, { useThemedStyles } from "../components/useTheme";
 import { entryRedirect } from "../lib/location";
-import { type Theme, space, typo } from "../lib/theme";
-import { SCRIM_FADE_ALPHAS, SCRIM_FADE_HEIGHT, SCRIM_TEXT_ALPHA, WELCOME_COPY, WELCOME_DOMAINS, scrimColor } from "../lib/welcome";
+import { type Theme, elevation, radius, space, typo } from "../lib/theme";
+import { SCRIM_FADE_ALPHAS, SCRIM_FADE_HEIGHT, SCRIM_TEXT_ALPHA, WELCOME_COPY, WELCOME_DOMAINS, scrimColor, welcomeDomainColumns, welcomeTintColors } from "../lib/welcome";
 
 // Welcome (spec §6; asset pack v2 contract §4-§8), first run only. The approved photo is a
 // decorative background (the same JPG in both themes); the brand mark, all text, the domain
@@ -19,6 +19,7 @@ const LOGO = require("../assets/za-oknem/brand/logo-mark-512.png");
 
 export default function Welcome() {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -54,16 +55,22 @@ export default function Welcome() {
           </View>
           <Text style={styles.brand}>{WELCOME_COPY.brand}</Text>
           <Text style={styles.headline} accessibilityRole="header">
-            {WELCOME_COPY.headline}
+            {/* Non-breaking space after one-letter words: no orphan "u" at the end of a line. */}
+            {WELCOME_COPY.headline.replace(/\b([uwzoiaUWZOIA]) /g, "$1\u00A0")}
           </Text>
-          {/* Four short cues, read as one line by TalkBack. */}
-          <View style={styles.domains} accessible accessibilityLabel={WELCOME_DOMAINS.map((d) => d.label).join(", ")}>
-            {WELCOME_DOMAINS.map((d) => (
-              <View key={d.label} style={styles.domain}>
-                <Ionicons name={d.icon} size={20} color={colors.accent} importantForAccessibility="no" />
-                <Text style={styles.domainText}>{d.label}</Text>
-              </View>
-            ))}
+          {/* One soft capsule, four domains; read as one line by TalkBack (icons are decorative). */}
+          <View style={styles.capsule} accessible accessibilityLabel={WELCOME_DOMAINS.map((d) => d.label).join(", ")}>
+            {WELCOME_DOMAINS.map((d) => {
+              const c = welcomeTintColors(colors, d.tint);
+              return (
+                <View key={d.label} style={[styles.domain, { width: welcomeDomainColumns(fontScale) === 4 ? "25%" : "50%" }]}>
+                  <View style={[styles.iconCircle, { backgroundColor: c.bg }]}>
+                    <Ionicons name={d.icon} size={24} color={c.fg} importantForAccessibility="no" />
+                  </View>
+                  <Text style={styles.domainText}>{d.label}</Text>
+                </View>
+              );
+            })}
           </View>
           {/* push, not replace: Back (header or Android) from the picker returns to Welcome. */}
           <Button
@@ -75,7 +82,7 @@ export default function Welcome() {
             }}
           />
           <View style={styles.privacy}>
-            <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} importantForAccessibility="no" />
+            <Ionicons name="lock-closed-outline" size={16} color={colors.textSecondary} importantForAccessibility="no" />
             <Text style={styles.privacyText}>{WELCOME_COPY.privacy}</Text>
           </View>
         </View>
@@ -95,13 +102,24 @@ const createStyles = (t: Theme) =>
     logo: { width: 112, height: 112 },
     // The scrim reaches up by the fade height, so the photo fades into the panel (no hard edge)
     // and the text block itself sits on the constant-alpha panel.
-    body: { gap: space.md, paddingHorizontal: space.xl, paddingTop: space.lg, marginTop: SCRIM_FADE_HEIGHT },
+    body: { gap: space.lg, paddingHorizontal: space.xl, paddingTop: space.lg, marginTop: SCRIM_FADE_HEIGHT },
     scrim: { position: "absolute", top: -SCRIM_FADE_HEIGHT, left: 0, right: 0, bottom: 0 },
-    brand: { ...typo.title, color: t.colors.accent },
-    headline: { ...typo.hero, color: t.colors.text },
-    domains: { flexDirection: "row", flexWrap: "wrap", columnGap: space.lg, rowGap: space.sm },
-    domain: { flexDirection: "row", alignItems: "center", gap: space.xs },
-    domainText: { ...typo.body, color: t.colors.textSecondary },
-    privacy: { flexDirection: "row", alignItems: "center", gap: space.sm },
-    privacyText: { ...typo.body, color: t.colors.textSecondary, flexShrink: 1 },
+    brand: { ...typo.title, color: t.colors.accent, textAlign: "center" },
+    headline: { ...typo.hero, color: t.colors.text, textAlign: "center" },
+    capsule: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "center",
+      rowGap: space.md,
+      paddingVertical: space.md,
+      paddingHorizontal: space.sm,
+      borderRadius: radius.hero,
+      backgroundColor: t.scheme === "dark" ? t.colors.elevated : t.colors.surface,
+      ...elevation(t.scheme, 2),
+    },
+    domain: { alignItems: "center", gap: space.xs },
+    iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+    domainText: { ...typo.caption, fontWeight: "600", color: t.colors.text, textAlign: "center" },
+    privacy: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm },
+    privacyText: { ...typo.caption, color: t.colors.textSecondary, flexShrink: 1 },
   });

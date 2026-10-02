@@ -1,14 +1,29 @@
 import { describe, expect, it } from "vitest";
 
 import { DARK, LIGHT } from "./theme";
-import { SCRIM_FADE_ALPHAS, SCRIM_TEXT_ALPHA, WELCOME_COPY, WELCOME_DOMAINS, scrimColor, welcomeContrasts } from "./welcome";
+import { SCRIM_FADE_ALPHAS, SCRIM_TEXT_ALPHA, WELCOME_COPY, WELCOME_DOMAINS, scrimColor, welcomeContrasts, welcomeDomainColumns, welcomeTintColors } from "./welcome";
 
 describe("welcome copy (contract §4)", () => {
   it("uses the approved strings", () => {
-    expect(WELCOME_COPY.headline).toBe("Sprawdź, co dzieje się wokół Ciebie");
-    expect(WELCOME_COPY.privacy).toBe("Bez konta. Bez profilowania.");
+    expect(WELCOME_COPY.brand).toBe("Za Oknem");
+    expect(WELCOME_COPY.headline).toBe("Sprawdź, co słychać u Ciebie za oknem");
+    expect(WELCOME_COPY.privacy).toBe("Bez konta. Bez reklam.");
     expect(WELCOME_COPY.cta).toBe("Zaczynamy");
-    expect(WELCOME_DOMAINS.map((d) => d.label)).toEqual(["Powietrze", "Pogoda", "Pyłki", "Alerty"]);
+    // "Alergeny" is only the Welcome label of the pollen domain.
+    expect(WELCOME_DOMAINS.map((d) => d.label)).toEqual(["Powietrze", "Pogoda", "Alergeny", "Alerty"]);
+    expect(WELCOME_DOMAINS.map((d) => d.icon)).toEqual(["leaf", "partly-sunny", "flower", "alert-circle"]);
+  });
+  it("capsule is one row of four, 2 x 2 at an enlarged system font", () => {
+    expect(welcomeDomainColumns(1)).toBe(4);
+    expect(welcomeDomainColumns(1.15)).toBe(4);
+    expect(welcomeDomainColumns(1.3)).toBe(2);
+    expect(welcomeDomainColumns(2)).toBe(2);
+  });
+  it("every domain has its own tint; alerts use the neutral info tint, not a severity colour", () => {
+    for (const p of [LIGHT, DARK]) {
+      expect(welcomeTintColors(p, "air")).toEqual({ fg: p.airFg, bg: p.airBg });
+      expect(welcomeTintColors(p, "info")).toEqual({ fg: p.info, bg: p.infoBg });
+    }
   });
 });
 
