@@ -112,7 +112,9 @@ describe("readSettings", () => {
     expect(await readSettings(() => Promise.resolve(null), 50)).toEqual({ settings: DEFAULT_SETTINGS, ok: true });
   });
   it("a read error is flagged, with defaults to start on", async () => {
-    expect(await readSettings(() => Promise.reject(new Error("io")), 50)).toEqual({ settings: DEFAULT_SETTINGS, ok: false });
+    const r = await readSettings(() => Promise.reject(new Error("io")), 50);
+    expect(r).toEqual({ settings: DEFAULT_SETTINGS, ok: false });
+    expect(r.settings).not.toBe(DEFAULT_SETTINGS); // never the shared singleton
   });
   it("a hanging read times out with the defaults, flagged", async () => {
     expect(await readSettings(() => new Promise<string | null>(() => undefined), 20)).toEqual({ settings: DEFAULT_SETTINGS, ok: false });

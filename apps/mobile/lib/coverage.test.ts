@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GRID_FALLBACK, NO_STATION_HEADLINE, airCoverage, gridDescription } from "./coverage";
+import { GRID_FALLBACK, NO_STATION_HEADLINE, airCoverage, gridDescription, showAirIndex } from "./coverage";
 
 const air = { station_name: "Zabrze", distance_km: 12, coverage: "nearby" };
 
@@ -34,5 +34,15 @@ describe("gridDescription", () => {
     expect(gridDescription({ grid_description: "Model Open-Meteo, siatka ~11 km." })).toBe("Model Open-Meteo, siatka ~11 km.");
     expect(gridDescription({ grid_description: " " })).toBe(GRID_FALLBACK);
     expect(gridDescription(undefined)).toBe(GRID_FALLBACK);
+  });
+});
+
+describe("showAirIndex (details badge)", () => {
+  it("only for exact / nearby / unknown-band stations, never regional or none", () => {
+    expect(showAirIndex({ air: "exact" }, air)).toBe(true);
+    expect(showAirIndex({ air: "nearby" }, air)).toBe(true);
+    expect(showAirIndex(undefined, null)).toBe(true);
+    expect(showAirIndex({ air: "regional" }, air)).toBe(false);
+    expect(showAirIndex({ air: "none" }, null)).toBe(false);
   });
 });

@@ -26,9 +26,9 @@ export type LocationContext = {
   // The Welcome CTA was pressed in this run (memory only): the first run may enter the picker.
   welcomeSeen: boolean;
   startOnboarding: () => void;
-  // Resolves when the activation started at app launch has finished (or failed / timed out).
+  // Resolves when the most recent activation (launch or foreground) has finished (or failed / timed out).
   // A dashboard 404 for a place may only mean "not re-created yet": wait for this first.
-  startupActivation: () => Promise<void>;
+  latestActivation: () => Promise<void>;
   // Choosing a place finishes the onboarding as well.
   choose: (location: ActiveLocation) => void;
   // The remembered area is gone/unavailable: forget it (Welcome stays done), explain in the picker.
@@ -54,11 +54,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // read returns defaults that must not overwrite a record that may still be there).
   const loaded = useRef<Settings | null>(null);
   const lastActivation = useRef<number | null>(null);
-  const startup = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef<Promise<void>>(Promise.resolve());
 
   // Activates the remembered place (TTL, ADR-029) and takes the answer as the authority on its
   // name / label / area id. Best effort with a timeout: a failure changes nothing.
-  const reactivate = useCallback(async (placeId: number) => {
+  const activateRemembered = useCallback(async (placeId: number) => {
     lastActivation.current = Date.now();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ACTIVATION_TIMEOUT_MS);
@@ -78,14 +78,20 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const reactivate = useCallback((placeId: number): Promise<void> => {
+    const p = activateRemembered(placeId);
+    latest.current = p;
+    return p;
+  }, [activateRemembered]);
+
   useEffect(() => {
     let cancelled = false;
     loadSettings().then(({ settings: s }) => {
       if (cancelled) return;
       loaded.current = s;
       const placeId = s.location?.placeId;
-      // Set BEFORE `ready`: the dashboard provider mounts right after and may need it.
-      if (placeId != null) startup.current = reactivate(placeId);
+      // Started BEFORE `ready`: the dashboard provider mounts right after and may await it.
+      if (placeId != null) void reactivate(placeId);
       setState((cur) => ({ ...cur, ready: true, settings: s }));
     });
     return () => {
@@ -122,11 +128,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const startupActivation = useCallback(() => startup.current, []);
+  const latestActivation = useCallback(() => latest.current, []);
 
   const value = useMemo(
-    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, startupActivation, choose, invalidate }),
-    [ready, settings, notice, activations, welcomeSeen, startOnboarding, startupActivation, choose, invalidate],
+    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, latestActivation, choose, invalidate }),
+    [ready, settings, notice, activations, welcomeSeen, startOnboarding, latestActivation, choose, invalidate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

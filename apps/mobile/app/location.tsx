@@ -111,9 +111,9 @@ export default function LocationScreen() {
       <TextInput
         value={text}
         onChangeText={setText}
-        placeholder="Wpisz miejscowość lub gminę"
+        placeholder="Wpisz miejscowość"
         placeholderTextColor={colors.dim}
-        accessibilityLabel="Wpisz miejscowość lub gminę"
+        accessibilityLabel="Wpisz miejscowość"
         style={styles.input}
         autoCorrect={false}
         autoCapitalize="words"

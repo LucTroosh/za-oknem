@@ -76,7 +76,8 @@ export async function readSettings(
     ]);
     return { settings: parseSettings(raw), ok: true };
   } catch {
-    return { settings: DEFAULT_SETTINGS, ok: false };
+    // A fresh copy: callers tell "read from storage" apart by `ok`, never by object identity.
+    return { settings: { ...DEFAULT_SETTINGS }, ok: false };
   } finally {
     clearTimeout(timer);
   }

@@ -40,3 +40,19 @@ describe("apiPost / ApiError", () => {
     expect((err as ApiError).status).toBe(429);
   });
 });
+
+describe("request timeout", () => {
+  const hang = () => (_url: string, init: { signal: AbortSignal }) =>
+    new Promise((_res, rej) => init.signal.addEventListener("abort", () => rej(new Error("aborted"))));
+  it("a hung request rejects after the timeout", async () => {
+    vi.stubGlobal("fetch", hang());
+    await expect(apiGet("/api/v1/x", undefined, 20)).rejects.toThrow("aborted");
+  });
+  it("the caller's abort still cancels", async () => {
+    vi.stubGlobal("fetch", hang());
+    const c = new AbortController();
+    const p = apiGet("/api/v1/x", c.signal, 5000);
+    c.abort();
+    await expect(p).rejects.toThrow("aborted");
+  });
+});

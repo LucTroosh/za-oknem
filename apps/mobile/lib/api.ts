@@ -17,11 +17,28 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: "GET" | "POST", path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, method === "GET" ? { signal } : { method, signal });
-  if (!res.ok) throw new ApiError(res.status, `${method} ${path} -> ${res.status}`);
-  return res.json();
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+// A hung connection must end in an error the screen can show ("Spróbuj ponownie"), never in a
+// spinner without a way out. The timeout aborts a private controller that also follows the
+// caller's `signal`; a timeout therefore looks like a failed request, not like a cancellation.
+async function request<T>(method: "GET" | "POST", path: string, signal?: AbortSignal, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (signal?.aborted) ctrl.abort();
+  signal?.addEventListener("abort", onAbort);
+  const timer = setTimeout(onAbort, timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}${path}`, method === "GET" ? { signal: ctrl.signal } : { method, signal: ctrl.signal });
+    if (!res.ok) throw new ApiError(res.status, `${method} ${path} -> ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
 
-export const apiGet = <T>(path: string, signal?: AbortSignal): Promise<T> => request<T>("GET", path, signal);
-export const apiPost = <T>(path: string, signal?: AbortSignal): Promise<T> => request<T>("POST", path, signal);
+export const apiGet = <T>(path: string, signal?: AbortSignal, timeoutMs?: number): Promise<T> =>
+  request<T>("GET", path, signal, timeoutMs);
+export const apiPost = <T>(path: string, signal?: AbortSignal, timeoutMs?: number): Promise<T> =>
+  request<T>("POST", path, signal, timeoutMs);

@@ -40,7 +40,7 @@ const Ctx = createContext<DashboardContext | null>(null);
 // Mounted with `key={geoAreaId}`: another location = a fresh provider, so nothing of the
 // previous place stays on screen under the new name.
 export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; children: ReactNode }) {
-  const { invalidate, activations, startupActivation } = useLocation();
+  const { invalidate, activations, latestActivation } = useLocation();
   const [state, setState] = useState<LoadState>("loading");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [hydroState, setHydroState] = useState<LoadState>("loading");
@@ -54,12 +54,12 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
   const loadDashboard = useCallback(() => {
     const isLatest = guards.current.dashboard();
     const url = `/api/v1/dashboard/latest?geo_area_id=${geoAreaId}`;
-    // A 404 at app start may only mean the place is not re-created yet by the activation that
+    // A 404 may only mean the place is not re-created yet by an activation that
     // is still running: wait for it and ask once more before giving the place up.
     return apiGet<DashboardResponse>(url)
       .catch(async (err: unknown) => {
         if (!(err instanceof ApiError && err.status === 404)) throw err;
-        await startupActivation();
+        await latestActivation();
         return apiGet<DashboardResponse>(url);
       })
       .then((body) => {
@@ -71,10 +71,11 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
       .catch((err: unknown) => {
         // 404 = the remembered area no longer exists: back to the picker with an explanation.
         // Any other failure is a failed refresh (older data stays, flagged as such).
+        if (!isLatest()) return;
         if (err instanceof ApiError && err.status === 404) invalidate(geoAreaId, EXPIRED_AREA_MESSAGE);
-        else if (isLatest()) setState("error");
+        else setState("error");
       });
-  }, [geoAreaId, invalidate, startupActivation]);
+  }, [geoAreaId, invalidate, latestActivation]);
 
   const loadHydro = useCallback(() => {
     const isLatest = guards.current.hydro();

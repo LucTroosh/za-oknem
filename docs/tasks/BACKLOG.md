@@ -982,6 +982,10 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       dowieźć TASK-9.7 + PRG. Reaktywacja miejscowości: przy starcie i przy powrocie aplikacji
       na pierwszy plan (max raz na godzinę; TTL 7 dni); regional (50–100 km) na karcie
       powietrza jest „orientacyjnie” (poziom neutralny, nagłówek = stacja), nie ocena.
+      **Follow-up (re-review #88):** (a) automatyczne odświeżenie Start po komunikacie „Pobieramy
+      dane…” (dziś ręcznie / pull-to-refresh); (b) jeden odczyt dashboardu zamiast dwóch po
+      `activate` (dziś drugi tylko gdy pierwszy mógł być wyścigiem); (c) throttle reaktywacji
+      liczony od ostatniego UDANEGO activate, nie od próby.
 - [ ] **TASK-12.18:** Przebudowa ekranu Start (spec UI §10–17, §40–44, §50; P0 #4–10, #15).
       **Goal:** Start odpowiada na „co dzieje się wokół mnie i co mogę robić” w kilka
       sekund. **Scope:** zakładki Start | Alerty | Ustawienia (ikony Home/Bell/Settings);

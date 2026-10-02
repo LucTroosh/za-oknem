@@ -52,6 +52,13 @@ export function airCoverage(coverage: unknown, air: unknown): AirCoverage {
   }
 }
 
+// The AQI badge beside the readings (details): only for a station that speaks for "here".
+// regional is orientation and none has no data, so no index is shown for either.
+export function showAirIndex(coverage: unknown, air: unknown): boolean {
+  const band = airCoverage(coverage, air).band;
+  return band !== "regional" && band !== "none";
+}
+
 export function gridDescription(coverage: unknown): string {
   const d = isObject(coverage) ? coverage.grid_description : undefined;
   return typeof d === "string" && d.trim() !== "" ? d : GRID_FALLBACK;

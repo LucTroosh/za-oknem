@@ -103,7 +103,7 @@ export default function StatusCards({
   const forecast = area.forecast && forecastLine(area.forecast.days) ? area.forecast : null;
   const grid = gridDescription(area.coverage);
   const details: Record<ModuleKey, ReactNode> = {
-    air: <AirParams air={area.air} sourceStatus={sourceStatus?.air} receivedAt={receivedAt} />,
+    air: <AirParams air={area.air} coverage={area.coverage} sourceStatus={sourceStatus?.air} receivedAt={receivedAt} />,
     weather: (
       <>
         <WeatherCard weather={area.weather} sourceStatus={sourceStatus?.weather} />
