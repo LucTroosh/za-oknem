@@ -27,6 +27,7 @@ from app.db import get_db
 from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
 from app.models import GeoArea, Measurement, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
+from app.places import alert_match_codes
 from app.source_status import source_freshness
 
 logger = logging.getLogger(__name__)
@@ -342,6 +343,7 @@ def dashboard_latest(
     national_alerts = current_alerts(db)
 
     areas_out = []
+    match_codes = alert_match_codes(db, list(areas))
     for area in areas:
         # ADR-006/ADR-025/ADR-029: deterministic nearest station within REGIONAL_MAX_KM
         # (geo.pick_air_station), classified exact/nearby/regional; none in range = no air
@@ -425,7 +427,7 @@ def dashboard_latest(
                     "pollen": "grid",
                     "grid_description": GRID_DESCRIPTION,
                 },
-                "local_alerts": filter_alerts_for_area(national_alerts, area.teryt_code),
+                "local_alerts": filter_alerts_for_area(national_alerts, match_codes[area.id]),
             }
         )
 
