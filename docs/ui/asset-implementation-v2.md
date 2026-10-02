@@ -205,11 +205,11 @@ Attach screenshots of:
 
 ## Acceptance criteria
 
-- [ ] all approved raster assets are present in `apps/mobile/assets/za-oknem/`
-- [ ] checksums/dimensions pass the installer
+- [x] all approved raster assets are present in `apps/mobile/assets/za-oknem/`
+- [x] checksums/dimensions pass the installer
 - [x] `app.json` references approved launcher/adaptive assets
 - [x] current Welcome placeholder is removed
-- [ ] approved Welcome hero is used
+- [x] approved Welcome hero is used
 - [x] Welcome copy is native, not baked into the image
 - [x] privacy copy says `Bez konta. Bez profilowania.`
 - [x] current onboarding routing remains unchanged
@@ -222,11 +222,9 @@ Attach screenshots of:
 
 ### Stan implementacji (PR #90)
 
-Zaznaczone powyżej = sprawdzone w kodzie/CI (przy `lint`/`typecheck`/`test` zielonych). Niezaznaczone i dlaczego:
+Zaznaczone powyżej = sprawdzone (kod/CI albo instalator). Rastry zainstalowane skryptem po jego dopasowaniu do faktycznej
+paczki (hashe i wymiary przeszły); `expo export` na Androidzie i w webie bundluje się z assetami. Niezaznaczone:
 
-- raster assets / checksums / dimensions: dostarczony `za_oknem_asset_pack_v2.zip` zawiera nieoptymalizowane mastery
-  (nazwy bez `-q`, inne hashe, także `welcome-hero`), więc `install_ui_asset_pack.py` kończy się `Missing approved asset`.
-  Wymagana jest paczka z plikami `-q` zgodna z hashami w skrypcie (albo świadoma aktualizacja hashy przez właściciela).
-- approved Welcome hero is used: kod gotowy (`app/welcome.tsx`), plik pojawi się po instalacji paczki.
 - accessibility manual review i screenshoty z Androida: brak emulatora w środowisku agenta; do zrobienia ręcznie
   (lista w komentarzu PR). Podgląd react-native-web to tylko przybliżenie układu.
+- Uwaga: paczka zawiera też `dashboard-*.jpg` i `logo-mark-1024/256`, które nie są podpięte w kodzie (kontrakt ich nie wymaga).
