@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import { DARK, LIGHT } from "./theme";
-import { SCRIM_FADE_ALPHAS, SCRIM_TEXT_ALPHA, WELCOME_COPY, WELCOME_DOMAINS, scrimColor, welcomeContrasts, welcomeDomainColumns, welcomeTintColors } from "./welcome";
+import {
+  BOTTOM_VEIL,
+  FOOTER_CHIP_ALPHA,
+  TOP_VEIL,
+  VEIL_STEPS,
+  WELCOME_COPY,
+  WELCOME_DOMAINS,
+  heroFrame,
+  scrimColor,
+  veilAlphas,
+  welcomeContrasts,
+  welcomeDomainColumns,
+  welcomeTintColors,
+} from "./welcome";
 
-describe("welcome copy (contract §4)", () => {
+describe("welcome copy", () => {
   it("uses the approved strings", () => {
     expect(WELCOME_COPY.brand).toBe("Za Oknem");
-    expect(WELCOME_COPY.headline).toBe("Sprawdź, co słychać u Ciebie za oknem");
+    expect(WELCOME_COPY.headline).toBe("Sprawdź, co u Ciebie słychać");
     expect(WELCOME_COPY.privacy).toBe("Bez konta. Bez reklam.");
     expect(WELCOME_COPY.cta).toBe("Zaczynamy");
     // "Alergeny" is only the Welcome label of the pollen domain.
@@ -27,20 +40,51 @@ describe("welcome copy (contract §4)", () => {
   });
 });
 
-describe("scrim", () => {
-  it("fades in monotonically and ends at the panel alpha", () => {
-    for (let i = 1; i < SCRIM_FADE_ALPHAS.length; i++) expect(SCRIM_FADE_ALPHAS[i]).toBeGreaterThanOrEqual(SCRIM_FADE_ALPHAS[i - 1]);
-    expect(SCRIM_FADE_ALPHAS[0]).toBeLessThan(0.01);
-    expect(SCRIM_FADE_ALPHAS.at(-1)).toBeLessThanOrEqual(SCRIM_TEXT_ALPHA);
-    expect(SCRIM_FADE_ALPHAS.at(-1)).toBeGreaterThan(SCRIM_TEXT_ALPHA - 0.01);
+describe("hero framing (panorama, not clouds)", () => {
+  const phones: [number, number][] = [[360, 740], [390, 844], [412, 915], [320, 568], [430, 932], [600, 960]];
+  it("always covers the whole screen (no empty edge)", () => {
+    for (const [w, h] of phones) {
+      const f = heroFrame(w, h);
+      expect(f.left).toBeLessThanOrEqual(0);
+      expect(f.top).toBeLessThanOrEqual(0);
+      expect(f.left + f.width).toBeGreaterThanOrEqual(w - 0.5);
+      expect(f.top + f.height).toBeGreaterThanOrEqual(h - 0.5);
+    }
+  });
+  it("shows roughly 35-40% sky and 60-65% city / river / greenery on typical phones", () => {
+    for (const [w, h] of [[360, 740], [390, 844], [412, 915], [430, 932]] as [number, number][]) {
+      const sky = heroFrame(w, h).horizonY / h;
+      expect(sky, `${w}x${h}`).toBeGreaterThan(0.33);
+      expect(sky, `${w}x${h}`).toBeLessThan(0.42);
+    }
+  });
+});
+
+describe("veils", () => {
+  it("fade monotonically from the solid edge to nothing", () => {
+    for (const max of [TOP_VEIL.light, TOP_VEIL.dark, BOTTOM_VEIL.light, BOTTOM_VEIL.dark]) {
+      const a = veilAlphas(max, 0.6);
+      expect(a).toHaveLength(VEIL_STEPS);
+      for (let i = 1; i < a.length; i++) expect(a[i]).toBeLessThanOrEqual(a[i - 1]);
+      expect(a[0]).toBe(max);
+      expect(a.at(-1)).toBeLessThan(0.01);
+    }
+  });
+  it("stay subtle: no big white patch over the panorama", () => {
+    expect(BOTTOM_VEIL.light).toBeLessThanOrEqual(0.35);
+    expect(TOP_VEIL.light).toBeLessThanOrEqual(0.4);
+    expect(FOOTER_CHIP_ALPHA).toBeLessThan(1);
   });
   it("is the theme background with alpha", () => {
     expect(scrimColor(LIGHT, 0.5)).toBe("rgba(244, 248, 250, 0.5)");
     expect(scrimColor(DARK, 1)).toBe("rgba(12, 23, 27, 1)");
   });
-  for (const [name, p] of [["light", LIGHT], ["dark", DARK]] as const) {
-    it(`${name}: text is AA over the scrim on the worst-case photo pixel`, () => {
-      for (const { name: n, ratio } of welcomeContrasts(p)) expect(ratio, n).toBeGreaterThanOrEqual(4.5);
+});
+
+describe("contrast (AA, worst-case photo pixel)", () => {
+  for (const [name, p, scheme] of [["light", LIGHT, "light"], ["dark", DARK, "dark"]] as const) {
+    it(`${name}: all Welcome text and icons are AA`, () => {
+      for (const { name: n, ratio } of welcomeContrasts(p, scheme)) expect(ratio, n).toBeGreaterThanOrEqual(4.5);
     });
   }
 });

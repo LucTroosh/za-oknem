@@ -1,10 +1,11 @@
-// Welcome screen content + scrim (asset pack v2, docs/ui/asset-implementation-v2.md §4-§8).
-// Pure data/functions so the copy and the contrast are unit-tested; the screen only lays it out.
+// Welcome screen content, hero framing and veils (asset pack v2, docs/ui/asset-implementation-v2.md
+// §4-§8). Pure data/functions so the copy, the crop and the contrast are unit-tested; the screen only
+// lays it out.
 import { type Palette, contrastRatio, domainColors, toneColors } from "./theme";
 
 export const WELCOME_COPY = {
   brand: "Za Oknem",
-  headline: "Sprawdź, co słychać u Ciebie za oknem",
+  headline: "Sprawdź, co u Ciebie słychać",
   cta: "Zaczynamy",
   ctaHint: "Przechodzi do wyboru lokalizacji",
   privacy: "Bez konta. Bez reklam.",
@@ -30,23 +31,61 @@ export function welcomeTintColors(p: Palette, tint: WelcomeTint): { fg: string; 
 // One row of four at normal font size; 2 x 2 once the system font is enlarged so labels never clip.
 export const welcomeDomainColumns = (fontScale: number): 2 | 4 => (fontScale >= 1.3 ? 2 : 4);
 
-// The photo stays the same in both themes; only the scrim changes. Scrim base colour is the
-// theme background, so text tokens keep their designed contrast on it.
-// Layout: a short fade zone (photo -> panel) ABOVE the text block, then a constant-alpha panel
-// behind ALL the text. Contrast is guaranteed (and tested) for the panel alpha only.
-export const SCRIM_TEXT_ALPHA = 0.98;
-export const SCRIM_FADE_HEIGHT = 96;
-export const SCRIM_FADE_STEPS = 24;
+// ---- hero framing ----------------------------------------------------------------------------
+// The approved photo (1242 x 2688) is half sky. Plain `cover` shows all of it, so the panorama
+// (city, river, greenery) ends up under the text. Instead the same file is zoomed and anchored to a
+// window that starts below the top of the sky: about 38% of the screen is sky, the rest is the city,
+// the river and the foliage. Same asset, same brand direction - only the crop changes.
+export const HERO_SIZE = { width: 1242, height: 2688 } as const;
+export const HERO_HORIZON = 0.52; // horizon line, as a fraction of the photo height
+export const HERO_ZOOM = 1.28; // on top of `cover`
+export const HERO_WINDOW = { x: 0.06, y: 0.22 } as const; // top-left of the visible window (fractions)
 
-// Smoothstep 0 -> SCRIM_TEXT_ALPHA: no visible banding, no hard edge at either end.
-export const SCRIM_FADE_ALPHAS: number[] = Array.from({ length: SCRIM_FADE_STEPS }, (_, i) => {
-  const t = (i + 0.5) / SCRIM_FADE_STEPS;
-  return Math.round(SCRIM_TEXT_ALPHA * t * t * (3 - 2 * t) * 1000) / 1000;
-});
+export type HeroFrame = { width: number; height: number; left: number; top: number; horizonY: number };
+
+export function heroFrame(screenW: number, screenH: number): HeroFrame {
+  const cover = Math.max(screenW / HERO_SIZE.width, screenH / HERO_SIZE.height);
+  const width = HERO_SIZE.width * cover * HERO_ZOOM;
+  const height = HERO_SIZE.height * cover * HERO_ZOOM;
+  // Never leave an empty edge: the frame always covers the screen.
+  const left = Math.min(0, Math.max(screenW - width, -HERO_WINDOW.x * width));
+  const top = Math.min(0, Math.max(screenH - height, -HERO_WINDOW.y * height));
+  return { width, height, left, top, horizonY: top + HERO_HORIZON * height };
+}
+
+// ---- veils -----------------------------------------------------------------------------------
+// Two light veils in the theme background colour replace the old white fade: a top one behind the
+// brand text (over the sky) and a short bottom one that only blends the photo into the screen edge.
+// Capsule and CTA are solid surfaces, the footer sits on its own translucent chip, so the panorama
+// stays visible. Veils are stacks of strips (no gradient dependency).
+export const TOP_VEIL = { light: 0.34, dark: 0.66 } as const; // plateau alpha behind the brand text
+export const TOP_VEIL_HEIGHT = 320;
+export const TOP_VEIL_PLATEAU = 0.6; // fraction of the height at full alpha, then a smooth fade
+export const BOTTOM_VEIL = { light: 0.3, dark: 0.55 } as const;
+export const BOTTOM_VEIL_HEIGHT = 240;
+export const VEIL_STEPS = 64;
+export const FOOTER_CHIP_ALPHA = 0.96;
+
+const smooth = (t: number) => t * t * (3 - 2 * t);
+
+// Alpha per strip, ordered from the veil's solid edge to its faded edge.
+export function veilAlphas(max: number, plateau = 0): number[] {
+  return Array.from({ length: VEIL_STEPS }, (_, i) => {
+    const t = (i + 0.5) / VEIL_STEPS;
+    const f = t <= plateau ? 1 : 1 - smooth((t - plateau) / (1 - plateau));
+    return Math.round(max * f * 1000) / 1000;
+  });
+}
 
 export function scrimColor(p: Palette, alpha: number): string {
   const n = (i: number) => parseInt(p.bg.slice(1 + i * 2, 3 + i * 2), 16);
   return `rgba(${n(0)}, ${n(1)}, ${n(2)}, ${alpha})`;
+}
+
+// The footer chip: the theme surface at FOOTER_CHIP_ALPHA (translucent, so it belongs to the photo).
+export function footerChipColor(p: Palette): string {
+  const n = (i: number) => parseInt(p.surface.slice(1 + i * 2, 3 + i * 2), 16);
+  return `rgba(${n(0)}, ${n(1)}, ${n(2)}, ${FOOTER_CHIP_ALPHA})`;
 }
 
 function mix(fg: string, bg: string, a: number): string {
@@ -55,26 +94,32 @@ function mix(fg: string, bg: string, a: number): string {
   return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-// Effective background of the text area over the worst-case photo pixel (pure black / white).
-export function scrimWorstCases(p: Palette): string[] {
-  return [mix(p.bg, "#000000", SCRIM_TEXT_ALPHA), mix(p.bg, "#ffffff", SCRIM_TEXT_ALPHA)];
-}
+// Luminance-equivalent grays of the sampled extremes of the photo (relative luminance measured on
+// welcome-hero-1242x2688.jpg over the area the brand text can occupy: darkest sky 0.239, brightest
+// cloud 0.948). Contrast is checked against both, so any pixel in between is covered. If the asset
+// is ever replaced, re-measure and update these.
+export const SKY_EXTREMES = { darkest: "#868686", brightest: "#f9f9f9" } as const;
+// ... and of the foliage/water strip behind the footer chip: from near black to bright highlights.
+export const FOOTER_ZONE_EXTREMES = { darkest: "#000000", brightest: "#d9d9d9" } as const;
 
-// Every (text, scrim-over-photo) contrast the screen relies on, worst case.
-export function welcomeContrasts(p: Palette): { name: string; ratio: number }[] {
+// Every (text, background) contrast the screen relies on, worst case.
+export function welcomeContrasts(p: Palette, scheme: "light" | "dark"): { name: string; ratio: number }[] {
   const out: { name: string; ratio: number }[] = [];
-  for (const bg of scrimWorstCases(p)) {
-    out.push({ name: "text", ratio: contrastRatio(p.text, bg) });
-    out.push({ name: "textSecondary", ratio: contrastRatio(p.textSecondary, bg) });
-    out.push({ name: "accent", ratio: contrastRatio(p.accent, bg) });
+  const veil = TOP_VEIL[scheme];
+  for (const px of Object.values(SKY_EXTREMES)) {
+    const bg = mix(p.bg, px, veil);
+    out.push({ name: `brand over sky ${px}`, ratio: contrastRatio(p.text, bg) });
+    out.push({ name: `headline over sky ${px}`, ratio: contrastRatio(p.text, bg) });
+  }
+  for (const px of Object.values(FOOTER_ZONE_EXTREMES)) {
+    out.push({ name: `footer over chip ${px}`, ratio: contrastRatio(p.textSecondary, mix(p.surface, px, FOOTER_CHIP_ALPHA)) });
   }
   out.push({ name: "onAccent/accent", ratio: contrastRatio(p.onAccent, p.accent) });
-  // The capsule is a solid surface (not scrim-dependent): label + icon on it.
+  // The capsule is a solid surface (not photo-dependent): label + icons on it.
   for (const tint of WELCOME_DOMAINS.map((d) => d.tint)) {
     const c = welcomeTintColors(p, tint);
     out.push({ name: `icon ${tint}`, ratio: contrastRatio(c.fg, c.bg) });
   }
-  out.push({ name: "capsule label", ratio: contrastRatio(p.text, p.surface) });
-  out.push({ name: "capsule label (dark)", ratio: contrastRatio(p.text, p.elevated) });
+  out.push({ name: "capsule label", ratio: contrastRatio(p.text, scheme === "dark" ? p.elevated : p.surface) });
   return out;
 }
