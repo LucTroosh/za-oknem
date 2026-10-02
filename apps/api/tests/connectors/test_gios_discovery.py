@@ -178,7 +178,16 @@ def test_assigned_station_ids_is_stable_and_empty_without_catalog(monkeypatch, d
     discovery.discover_stations(db_session)
     first = discovery.assigned_station_ids(db_session)
 
-    assert first == ["2"] == discovery.assigned_station_ids(db_session)
+    # both are within the per-area fallback count; the order is stable (sorted ids)
+    assert first == ["10", "2"] == discovery.assigned_station_ids(db_session)
+
+
+def test_assigned_station_ids_polls_only_the_nearest_few_per_area(monkeypatch, db_session):
+    _area(db_session, "klodzko", 50.433493, 16.65366)
+    _fetch(monkeypatch, [_st(i, 50.43 + i * 0.01, 16.65) for i in range(1, 7)])
+    discovery.discover_stations(db_session)
+
+    assert len(discovery.assigned_station_ids(db_session)) == discovery.AIR_STATIONS_PER_AREA
 
 
 def test_stations_by_id_returns_raw_dicts_in_requested_order(monkeypatch, db_session):
