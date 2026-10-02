@@ -39,11 +39,7 @@ CURRENT_PARAMS = (
 
 # Daily forecast fields (ADR-010, Master Plan §30). Deliberately narrow MVP set,
 # not Open-Meteo's full daily catalog (YAGNI, same spirit as CURRENT_PARAMS).
-DAILY_PARAMS_CORE = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
-# ADR-030: models do not always provide these (probability is often null), so the parser
-# skips them when absent instead of failing the whole daily block (rule #1).
-DAILY_PARAMS_OPTIONAL = "precipitation_probability_max,uv_index_max"
-DAILY_PARAMS = f"{DAILY_PARAMS_CORE},{DAILY_PARAMS_OPTIONAL}"
+DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
 
 # Last three §5 MVP fields (dew point, visibility, UV index): Open-Meteo's docs
 # only list them under `hourly`, not `current` (TASK-5.4) - parser.py picks the

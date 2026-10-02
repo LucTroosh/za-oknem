@@ -49,7 +49,10 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
    dotychczasowe `dew_point_2m, visibility, uv_index` + `temperature_2m, apparent_temperature,
    precipitation, precipitation_probability, wind_speed_10m, wind_gusts_10m, weather_code`
    (`visibility` i `uv_index` są już w żądaniu, więc **widoczność wchodzi bez kosztu**; mgła
-   i burza to wejścia silnika/okna). `daily` +`precipitation_probability_max`, `uv_index_max`.
+   i burza to wejścia silnika/okna). `daily` bez zmian (4 pola): `precipitation_probability_max`/`uv_index_max` nie mają żadnego
+   konsumenta (silnik, API, UI), więc ich nie pobieramy; godzinowe `precipitation_probability`
+   zostaje dla TASK-7.10. `rain`/`snowfall` w `current` też nie są nigdzie używane osobno, ale
+   zostają (pola MVP §5, TASK-5.4, mobile pokazuje wszystkie zwracane) — usunięcie to osobny task.
    **`forecast_days=7` jawnie** (to dotychczasowa wartość domyślna Open-Meteo — dzienna
    prognoza zostaje 7-dniowa; sama zmiana niczego nie zmienia, ale przestaje być niejawna).
    **`forecast_hours` celowo NIE jest ustawione**: według dokumentacji liczy od bieżącej godziny
@@ -64,8 +67,8 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
    w godzinie, nieparsowalny czas → ginie **ta jedna wartość** (lub ten parametr), nigdy cała
    reszta; brak wartości = brak klucza w `params` godziny, nigdy 0. Zero użytecznych wartości w
    oknie → `OpenMeteoParseError` (pusty blok to porażka bloku w provenance/`source_status`, nie
-   cichy sukces). Dziennie: 4 pola rdzeniowe ścisłe jak w ADR-010; nowe 2 **opcjonalne** (pomijane
-   przy braku). `PARSER_VERSION` = 2.
+   cichy sukces). Dzienne: bez zmian, ścisłe jak w ADR-010 (nowe pola daily odpadły, patrz pkt 2).
+   `PARSER_VERSION` = 2.
 4. **Model danych godziny:** wiersz `Forecast` z `granularity='hourly'`, `valid_from` = początek
    godziny (UTC), `valid_until` = +1 h, `model='auto'`, `forecast_reference_time` = fetch w koszu
    3 h (jak ADR-010). `source_record_id = hourly:{area}:{param}:{valid_from}:{ref}` — prefiks
@@ -73,11 +76,15 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
 5. **Retencja godzinowa: tylko najnowszy przebieg per obszar, ale degradacja go nie niszczy.**
    Nowy przebieg zastępuje poprzedni (delete + insert + commit w jednej transakcji, jeden
    `try`, `IntegrityError` jest połykany i wycofywany — nie ucieka z `ingest_geo_area`, #1).
+   Stopień degradacji liczymy po liczbie wartości (wierszy), nie slotów: przebieg ze wszystkimi
+   slotami, ale garstką parametrów też jest zdegradowany. Zachowanie starego przebiegu trafia do
+   `errors` runu (ślad w `last_error`, gdy run się nie powiedzie), ale **`source_status.weather`
+   go nie sygnalizuje** (run jest „udany”) — widać go tylko w `forecast.freshness`/`fetched_at`.
    Zasady: (a) **ten sam `forecast_reference_time` nadpisuje cały przebieg** (nie pomija znanych
    id — `fetched_at` i wartości muszą być świeże); (b) **przebieg zdegradowany** — pokrywa
    < połowy slotów poprzedniego (w oknie nowego) albo gubi któryś jego parametr — **nie kasuje
    poprzedniego**: zostaje stary (uczciwie starzeje się do STALE), log ostrzega; wyjątek: gdy
-   poprzedni ma > 6 h (`HOURLY_BASELINE_MAX_AGE`), zastępujemy go nawet słabszym; (c)
+   poprzedni ma co najmniej 6 h (`HOURLY_BASELINE_MAX_AGE`, czyli w praktyce 6 h + okres do kolejnego cyklu 3 h), zastępujemy go nawet słabszym; (c)
    przebieg starszy niż zapisany nic nie zapisuje. Historia zmian prognozy godzinowej **nie
    jest** zachowywana (dzienna zostaje append-only, ADR-010) — nikt jej nie potrzebuje, a koszt
    jest ~100× większy. Dobowa konserwacja (`run_raw_retention`, kroki w osobnych `try`)
@@ -95,7 +102,7 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
    bloku godzinowego, nie „brak prognozy”.
 7. **Budżet jednostek (ADR-003/022): ZMIENIA SIĘ.** Estymata to dotychczasowy wzór
    `ceil(zmienne / 10)` liczony z unii żądanych zmiennych (zawyżony: zmienna w `current` i
-   `hourly` liczy się dwa razy). Było 12 + 3 + 4 = 19 → **2 jednostki**; jest 12 + 10 + 6 = 28
+   `hourly` liczy się dwa razy). Było 12 + 3 + 4 = 19 → **2 jednostki**; jest 12 + 10 + 4 = 26
    → **3 jednostki** (+50% na wywołanie). Konsekwencje liczbowe (limit 10 000/dobę, 8 fetchy/dobę
    na obszar): 7 obszarów seed = 168 jedn./dobę (było 112); **`max_active_areas()` (ADR-029)
    spada z floor(7000/17) = 411 do floor(7000/25) = 280** (8·3 + 1 pyłki). Wzór `8·units + 1`
@@ -122,6 +129,10 @@ uv_index — TASK-5.4, tylko dla godziny `current`).
   stałym); wierszy godzinowych jest na stałe ~430 na aktywny obszar.
 - Kod czytający `Forecast` musi rozróżniać `granularity` (dziś: `forecasts_by_area`).
 - Limit aktywnych miejscowości spada do 280 (ADR-029 zaktualizowany notą).
+- **Rozmiar odpowiedzi:** `forecast.hours` to ~432 wartości na obszar, czyli rzędu 15–25 KB JSON
+  na obszar w `/dashboard/latest`; kompresja w Caddy (`encode zstd gzip`) jest w TASK-15.6.
+- **Puste `hours` = porażka bloku godzinowego** (albo jeszcze nie pobrany), nie „brak prognozy”;
+  klient nie może z niego wnioskować pogody.
 - **Wspólna świeżość `days`/`hours`:** blok `forecast` ma jedno `freshness`/`fetched_at` = starsza
   część. Konsekwencja: zablokowany/zdegradowany przebieg godzinowy (zachowany stary) albo
   nieodświeżany dzienny sprawia, że cały blok, także druga część, wygląda na starszy niż jest.

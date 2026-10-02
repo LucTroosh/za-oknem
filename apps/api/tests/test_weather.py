@@ -463,7 +463,7 @@ def test_forecasts_by_area_takes_all_params_from_the_newest_run_only(db_session,
     day = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
     old, new = datetime.now(UTC) - timedelta(hours=6), datetime.now(UTC) - timedelta(hours=3)
     # old run supplied the optional probability; the new run (null from the model) did not.
-    for param, value in (("temperature_2m_max", 18.0), ("precipitation_probability_max", 70.0)):
+    for param, value in (("temperature_2m_max", 18.0), ("precipitation_sum", 70.0)):
         _run_row(db_session, area.id, old, param, value, valid_from=day)
     _run_row(db_session, area.id, new, "temperature_2m_max", 19.5, valid_from=day)
     db_session.commit()

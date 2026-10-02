@@ -480,7 +480,7 @@ def test_ingest_geo_area_records_every_attempt_even_on_final_failure(db_session,
 # --- ADR-030: hourly forecast storage ---------------------------------------------------
 
 
-def _full_payload(current_time="2026-09-28T18:00", with_optional_daily=True) -> dict:
+def _full_payload(current_time="2026-09-28T18:00") -> dict:
     """Whole-day hourly arrays for every forecast param (3 days from midnight)."""
     first = datetime.fromisoformat(current_time).replace(hour=0)
     times = [(first + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(72)]
@@ -494,17 +494,6 @@ def _full_payload(current_time="2026-09-28T18:00", with_optional_daily=True) -> 
         "hourly": {"time": times, **hourly},
         "hourly_units": units,
     }
-    if with_optional_daily:
-        payload["daily"] = {
-            **DAILY_BLOCK["daily"],
-            "precipitation_probability_max": [70, 20],
-            "uv_index_max": [3.5, 4.0],
-        }
-        payload["daily_units"] = {
-            **DAILY_BLOCK["daily_units"],
-            "precipitation_probability_max": "%",
-            "uv_index_max": "",
-        }
     return payload
 
 
@@ -522,7 +511,7 @@ def test_ingest_stores_hourly_forecast_next_to_daily_without_mixing(db_session, 
     hourly = _hourly_rows(db_session)
     daily = db_session.query(Forecast).filter(Forecast.granularity == "daily").all()
     assert len(hourly) == 48 * len(HOURLY_FORECAST_PARAM_CODES)
-    assert len(daily) == (len(FORECAST_PARAM_CODES) + 2) * 2  # core + prob max + UV max
+    assert len(daily) == len(FORECAST_PARAM_CODES) * 2
     assert stored == PARAM_COUNT + HOURLY_COUNT + len(daily) + len(hourly)
     # weather_code exists in both granularities, also at the same instant: no collision.
     midnight = datetime(2026, 9, 29, 0, 0)  # SQLite returns naive datetimes
@@ -664,8 +653,8 @@ def test_request_units_estimate_follows_the_union_of_requested_variables():
         + len(client.HOURLY_REQUEST_PARAMS.split(","))
         + len(client.DAILY_PARAMS.split(","))
     )
-    assert total == 28
-    assert ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL == 3  # ceil(28 / 10), ADR-030
+    assert total == 26
+    assert ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL == 3  # ceil(26 / 10), ADR-030
 
 
 def _records(area, payload, fetched_at):
@@ -688,7 +677,9 @@ def test_degraded_hourly_run_does_not_destroy_the_previous_one(db_session):
     # (a) far fewer slots: the series ends 3 h after the new window starts
     short = _full_payload("2026-09-28T21:00")
     short["hourly"] = {k: (v[:24] if k != "time" else v[:24]) for k, v in short["hourly"].items()}
-    assert ingest._store_hourly_forecast(_records(area, short, T2), db_session) == 0
+    errors: list[str] = []
+    assert ingest._store_hourly_forecast(_records(area, short, T2), db_session, errors) == 0
+    assert errors == ["hourly forecast degraded run kept previous run"]  # trace in the run
     # (b) full length but a param narrower than the previous run
     narrow = _full_payload("2026-09-28T21:00")
     del narrow["hourly"]["wind_gusts_10m"]

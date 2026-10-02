@@ -66,12 +66,6 @@ def test_hourly_request_is_the_union_of_both_sets_without_duplicates():
     assert set(client.HOURLY_PARAMS.split(",")) <= set(requested)
 
 
-def test_daily_request_adds_probability_and_uv_max():
-    daily = client.DAILY_PARAMS.split(",")
-    assert daily[:4] == client.DAILY_PARAMS_CORE.split(",")
-    assert daily[4:] == ["precipitation_probability_max", "uv_index_max"]
-
-
 def test_fetch_weather_fires_on_attempt_once_per_real_request(monkeypatch):
     monkeypatch.setattr(client.httpx, "get", MagicMock(return_value=_ok_response({"ok": True})))
     calls = []

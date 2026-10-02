@@ -11,18 +11,14 @@ from typing import Any
 
 from app.connectors.open_meteo.client import (
     CURRENT_PARAMS,
-    DAILY_PARAMS_CORE,
-    DAILY_PARAMS_OPTIONAL,
+    DAILY_PARAMS,
     HOURLY_FORECAST_HOURS,
     HOURLY_FORECAST_PARAMS,
     HOURLY_PARAMS,
 )
 
 PARAM_CODES = CURRENT_PARAMS.split(",")
-# Core daily params are strict (one missing value fails the block, ADR-010); the optional
-# ones (probability max, UV max) are skipped when the model does not provide them (ADR-030).
-FORECAST_PARAM_CODES = DAILY_PARAMS_CORE.split(",")
-OPTIONAL_FORECAST_PARAM_CODES = DAILY_PARAMS_OPTIONAL.split(",")
+FORECAST_PARAM_CODES = DAILY_PARAMS.split(",")
 HOURLY_PARAM_CODES = HOURLY_PARAMS.split(",")
 HOURLY_FORECAST_PARAM_CODES = HOURLY_FORECAST_PARAMS.split(",")
 
@@ -37,7 +33,7 @@ FETCH_CYCLE_HOURS = 3
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested fields), so old payloads stay interpretable.
-PARSER_VERSION = "2"  # 2: hourly forecast + optional daily params (ADR-030)
+PARSER_VERSION = "2"  # 2: hourly forecast (ADR-030)
 
 
 class OpenMeteoParseError(Exception):
@@ -227,20 +223,6 @@ def normalize_forecast(
                 ) from exc
 
             records.append(_daily_record(geo_area_id, param_code, value, unit, valid_from))
-
-        for param_code in OPTIONAL_FORECAST_PARAM_CODES:
-            # ADR-030: absent series / null value / no unit = this param is skipped for this
-            # day; it never costs the core params above (rule #1).
-            series = daily.get(param_code)
-            if not isinstance(series, list) or len(series) != len(days):
-                continue
-            optional_value = _finite(series[day_index])
-            optional_unit = units.get(param_code)
-            if optional_value is None or not isinstance(optional_unit, str):
-                continue
-            records.append(
-                _daily_record(geo_area_id, param_code, optional_value, optional_unit, valid_from)
-            )
     return records
 
 

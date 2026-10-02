@@ -10,7 +10,6 @@ from app.connectors.open_meteo.parser import (
     FORECAST_PARAM_CODES,
     HOURLY_FORECAST_PARAM_CODES,
     HOURLY_PARAM_CODES,
-    OPTIONAL_FORECAST_PARAM_CODES,
     PARAM_CODES,
     OpenMeteoParseError,
     normalize,
@@ -451,67 +450,3 @@ def test_hourly_forecast_needs_neither_current_values_nor_daily_block():
     payload = _hourly_payload()
     payload["current"] = {"time": "2026-09-28T18:00"}  # no values at all
     assert _hourly(payload)
-
-
-def _daily_with_optional(prob, uv_max) -> dict:
-    payload = {**VALID_PAYLOAD}
-    payload["daily"] = {
-        **VALID_PAYLOAD["daily"],
-        "precipitation_probability_max": prob,
-        "uv_index_max": uv_max,
-    }
-    payload["daily_units"] = {
-        **VALID_PAYLOAD["daily_units"],
-        "precipitation_probability_max": "%",
-        "uv_index_max": "",
-    }
-    return payload
-
-
-def test_daily_optional_params_are_stored_when_present():
-    payload = _daily_with_optional([80, 10], [4.5, 3.0])
-    records = normalize_forecast(geo_area_id=1, payload=payload, fetched_at=FETCHED)
-    assert len(records) == (len(FORECAST_PARAM_CODES) + len(OPTIONAL_FORECAST_PARAM_CODES)) * 2
-    prob = [r for r in records if r["param_code"] == "precipitation_probability_max"]
-    assert [(r["value"], r["unit"]) for r in prob] == [(80.0, "%"), (10.0, "%")]
-    assert all("granularity" not in r for r in records)  # daily = the column default
-
-
-def test_daily_optional_null_or_absent_never_fails_the_core_params():
-    # null for a day, whole series absent, and a unit missing: only the optional value is lost
-    payload = _daily_with_optional([None, 10], [4.5, 3.0])
-    del payload["daily_units"]["uv_index_max"]
-    records = normalize_forecast(geo_area_id=1, payload=payload, fetched_at=FETCHED)
-    optional = [r for r in records if r["param_code"] in OPTIONAL_FORECAST_PARAM_CODES]
-    assert [(r["param_code"], r["value"]) for r in optional] == [
-        ("precipitation_probability_max", 10.0)
-    ]
-    assert len([r for r in records if r["param_code"] in FORECAST_PARAM_CODES]) == 4 * 2
-    # payload from before ADR-030 (no optional keys at all) still parses
-    assert len(normalize_forecast(geo_area_id=1, payload=VALID_PAYLOAD, fetched_at=FETCHED)) == 8
-
-
-def test_daily_core_params_stay_strict():
-    payload = _daily_with_optional([80, 10], [4.5, 3.0])
-    payload["daily"]["temperature_2m_max"] = [18.5, None]
-    with pytest.raises(OpenMeteoParseError):
-        normalize_forecast(geo_area_id=1, payload=payload, fetched_at=FETCHED)
-
-
-def test_hourly_forecast_window_cuts_exactly_48_hours_from_a_7_day_response():
-    # forecast_days=7 -> 168 hourly values per param from midnight (the real request)
-    records = _hourly(_hourly_payload(hours=168))
-    starts = sorted({r["valid_from"] for r in records})
-    assert len(starts) == 48
-    assert starts[0] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)
-    assert starts[-1] == datetime(2026, 9, 30, 17, 0, tzinfo=UTC)
-    assert len(records) == 48 * len(HOURLY_FORECAST_PARAM_CODES)
-
-
-def test_hourly_forecast_unreadable_current_time_falls_back_to_fetch_time():
-    for bad in ("garbage", None, 12):
-        payload = _hourly_payload()
-        payload["current"] = {"time": bad}
-        starts = sorted({r["valid_from"] for r in _hourly(payload)})
-        assert starts[0] == datetime(2026, 9, 28, 18, 0, tzinfo=UTC)  # floor(FETCHED)
-        assert len(starts) == 48

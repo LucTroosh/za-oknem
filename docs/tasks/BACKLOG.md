@@ -211,8 +211,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       użytkownika.
 - [x] **TASK-5.6** (PR #89, ADR-030): Prognoza godzinowa 48 h — `forecast.hours[]` w
       `dashboard_latest()` (osobno od `days`), zapis w `forecasts` z `granularity='hourly'`
-      (migracja `0015`), jedno żądanie Open-Meteo (+ `precipitation_probability_max`,
-      `uv_index_max` daily), tylko najnowszy przebieg per obszar + dobowe czyszczenie,
+      (migracja `0015`), jedno żądanie Open-Meteo (hourly +7 zmiennych; daily bez zmian), tylko najnowszy przebieg per obszar + dobowe czyszczenie,
       parser odporny na `null` (jedna godzina/parametr nie zrywa reszty). Estymata budżetu
       2 → 3 jedn./wywołanie (`max_active_areas` 411 → 280). **Non-goals:** UI, silnik okna,
       powietrze godzinowe (TASK-7.10/7.11).
@@ -1231,6 +1230,10 @@ placeholderze.
       **Dopisek (ADR-030, review #89):** odpowiedź `/dashboard/latest` urosła o `forecast.hours`
       (~25 KB na obszar); w Caddy włączyć `encode zstd gzip` (JSON ściska się dobrze) i
       sprawdzić rozmiar odpowiedzi dla listy obszarów; kontraktu API nie zmieniać.
+      Migracja `0015` (ADD COLUMN + CHECK + indeks na małej tabeli `forecasts`) wdrażać poza
+      cyklem schedulera (zatrzymać `scheduler` na czas `alembic upgrade`). Osobny drobny task
+      (do rozważenia): `rain`/`snowfall` w `current` nie mają konsumenta poza `precipitation` —
+      usunięcie obniży estymatę (26 → 24 zmienne, nadal 3 jedn.), więc bez zysku w budżecie.
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**

@@ -60,11 +60,11 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
 - **forecast (`hourly`, 48 h):** dodane 2026-10-02 (TASK-5.6, ADR-030) — to samo żądanie,
   `hourly` rozszerzone o temperature_2m, apparent_temperature, precipitation,
   precipitation_probability, wind_speed_10m, wind_gusts_10m, weather_code (+ już żądane
-  visibility/uv_index), `daily` o precipitation_probability_max i uv_index_max,
+  visibility/uv_index), `daily` bez zmian,
   `forecast_days=7` jawnie. Semantyka zmiennych i parametrów `forecast_days`/`forecast_hours`
   odczytana z open-meteo.com/en/docs (2026-10-02); **kształt odpowiedzi niezweryfikowany na
   żywo** (egress), dostępność `precipitation_probability` dla domyślnego modelu w Polsce
-  nieznana (parser pomija brakujące wartości). Estymata kosztu: 28 zmiennych = 3 jednostki.
+  nieznana (parser pomija brakujące wartości). Estymata kosztu: 26 zmiennych = 3 jednostki.
 - **last_verified_at:** 2026-09-28 (current), 2026-09-29 (dokumentacja daily)
 
 ## open_meteo_pollen (CAMS Europe pyłki przez Open-Meteo Air Quality API)

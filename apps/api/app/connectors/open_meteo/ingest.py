@@ -55,7 +55,7 @@ DAILY_CALL_LIMIT = settings.open_meteo_daily_call_limit  # env, ADR-022
 # hourly forecast ones: HOURLY_REQUEST_PARAMS is the union (each hourly variable once),
 # counted here too so the estimate cannot silently undercount again. Conservative: a
 # variable that is in both `current` and `hourly` (e.g. temperature_2m) counts twice.
-# ADR-030: 12 current + 10 hourly + 6 daily = 28 variables -> 3 units (was 19 -> 2).
+# ADR-030: 12 current + 10 hourly + 4 daily = 26 variables -> 3 units (was 19 -> 2).
 _TOTAL_VARIABLES = (
     len(CURRENT_PARAMS.split(","))
     + len(HOURLY_REQUEST_PARAMS.split(","))
@@ -118,7 +118,7 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)  # SQLite returns naive
 
 
-def _store_hourly_forecast(records: list[dict], db) -> int:
+def _store_hourly_forecast(records: list[dict], db, errors: list[str] | None = None) -> int:
     """ADR-030: all-or-nothing, and only the NEWEST model run is kept per area (the hourly
     window is re-fetched every cycle; keeping every run would add ~3.5k rows/area/day).
 
@@ -157,10 +157,11 @@ def _store_hourly_forecast(records: list[dict], db) -> int:
             base_params = {row[2] for row in base_relevant}
             new_slots = {r["valid_from"] for r in records}
             new_params = {r["param_code"] for r in records}
-            baseline_old = max(_utc(row[3]) for row in base) < (
+            baseline_old = max(_utc(row[3]) for row in base) <= (
                 records[0]["fetched_at"] - HOURLY_BASELINE_MAX_AGE
             )
-            degraded = len(new_slots) * 2 < len(base_slots) or not base_params <= new_params
+            # by values (rows), not slots: a run with every slot but few params is degraded too
+            degraded = len(records) * 2 < len(base_relevant) or not base_params <= new_params
             if base_relevant and not baseline_old and degraded:
                 logger.warning(
                     "geo_area %s: degraded hourly forecast run (%s slots / %s params vs "
@@ -171,6 +172,8 @@ def _store_hourly_forecast(records: list[dict], db) -> int:
                     len(base_slots),
                     len(base_params),
                 )
+                if errors is not None:
+                    errors.append("hourly forecast degraded run kept previous run")
                 return 0
         db.execute(
             delete(Forecast).where(
@@ -299,7 +302,7 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
     stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
     stored += _store_forecast_batch(forecasts, db)
     if hourly_forecasts:
-        stored += _store_hourly_forecast(hourly_forecasts, db)
+        stored += _store_hourly_forecast(hourly_forecasts, db, errors)
 
     logger.info(
         "geo_area %s (%s): stored %s new row(s) (%s current + %s hourly + %s forecast"
