@@ -91,11 +91,11 @@ describe("alertPreview", () => {
     expect(r).toMatchObject({ kind: "local", count: 1 });
     expect(r && "title" in r && r.title).toContain("Wezbranie");
   });
-  it("tone follows the source severity, not the local relevance", () => {
-    const low = alert("1", "voivodeship"); // stopień 2
-    const high = { ...alert("3", "voivodeship"), severity_raw: "3" };
-    expect(alertPreview(block([low]), [low], NOW, false, false)).toMatchObject({ kind: "local", tone: "warning" });
-    expect(alertPreview(block([low, high]), [low, high], NOW, false, false)).toMatchObject({ kind: "local", tone: "danger" });
+  it("keeps the source's own degree text and derives no severity tone (rule #10, ADR-009)", () => {
+    const a = alert("1", "voivodeship"); // stopień 2
+    const r = alertPreview(block([a]), [a], NOW, false, false);
+    expect(r).toMatchObject({ kind: "local", detail: expect.stringContaining("Stopień 2") });
+    expect(r).not.toHaveProperty("tone");
   });
   it("nationwide warnings elsewhere do NOT appear on Start; the confirmed all-clear does", () => {
     const elsewhere = alert("9", null);

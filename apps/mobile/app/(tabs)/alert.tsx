@@ -29,7 +29,6 @@ export default function AlertDetails() {
   const styles = useThemedStyles(createStyles);
   const alert = findAlert(key, area?.local_alerts, d.alerts?.items);
   const regions = alert ? areaNames(alert.areas) : [];
-  const local = alert?.geo_match === "voivodeship";
   return (
     <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh} gap={16}>
       <PageHeader title="Ostrzeżenie" />
@@ -42,9 +41,9 @@ export default function AlertDetails() {
         )
       ) : (
         <>
-          <HeroSurface tint={local ? colors.dangerBg : alert.geo_match === "unresolved" ? colors.warningBg : colors.neutralBg} minHeight={120}>
+          <HeroSurface tint={colors.infoBg} minHeight={120}>
             <View style={styles.heroRow} accessible accessibilityRole="header" accessibilityLabel={`${alert.event_type}, stopień ${alert.severity_raw}`}>
-              <IconBox name="warning" fg={local ? colors.danger : colors.warning} bg={colors.surface} size={56} iconSize={30} rounded={18} />
+              <IconBox name="alert-circle" fg={colors.info} bg={colors.surface} size={56} iconSize={30} rounded={18} />
               <View style={styles.heroTexts}>
                 <Text style={styles.headline}>
                   {alert.event_type} (stopień {alert.severity_raw})

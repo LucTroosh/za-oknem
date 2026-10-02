@@ -459,7 +459,7 @@ Header:
 Optional filters only for categories that exist in production.
 
 Each alert card:
-- severity icon
+- alert icon (neutral/info styling; the source's "stopień X" is shown verbatim and is NOT mapped to our own red/yellow until a source-approved mapping exists - ADR-009, rule #10)
 - source (IMGW / RCB / GIOŚ etc.)
 - event title
 - location scope
