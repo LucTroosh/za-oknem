@@ -95,3 +95,19 @@ się starzeje). Funkcja jest deterministyczna, testowalna i nie wymaga migracji.
 - Mobile nie korzysta jeszcze z `local_alerts`/`geo_match` (ekran Alerty to TASK-9.7).
 - Nadal otwarte: Event (źródło), Alert Engine 9.6, Notification (klucze), meteo,
   filtrowanie `/hydro/latest` po lokalizacji (osobna część TASK-9.5).
+
+## Addendum (2026-10-02): kody TERYT dla seedowych miast (migracja 0016)
+
+Stan faktyczny: seedowe miasta (ADR-005) miały `teryt_code = NULL` do czasu importu granic PRG (ADR-019,
+gate #15 otwarty), a `match_alert` dla obszaru bez TERYT zwraca `unresolved`. Skutek zaobserwowany
+na telefonie: użytkownik z Wrocławiem widział ostrzeżenia dla dolnośląskiego tylko w „Do sprawdzenia”,
+a „Dla Twojej lokalizacji” było puste i mówiło „nie udało się sprawdzić”.
+
+Decyzja: migracja `0016` nadaje siedmiu seedom oficjalne 7-cyfrowe kody gmin GUS (Kłodzko = gmina
+MIEJSKA `0208021`, Warszawa `1465011`, Kraków `1261011`, Wrocław `0264011`, Gdańsk `2261011`,
+Poznań `3064011`, Łódź `1061011`). Reguła dopasowania bez zmian (deterministyczna, prefiks
+województwa). Zgodne z importem PRG: wiersz z właściwym kodem jest aktualizowany po kodzie
+(nazwa i współrzędne seeda zachowane), błędny kod byłby ponownie adoptowany; migracja jest
+idempotentna i nie narusza UNIQUE (istniejący wiersz z tym kodem wygrywa). Nadal obowiązuje:
+alert, którego obszaru nie umiemy zmapować, jest `unresolved` i pokazany (reguła #10).
+Miejscowości z rejestru `places` (ADR-029) mają kody z własnego importu, poza zakresem tej zmiany.
