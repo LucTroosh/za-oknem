@@ -39,6 +39,11 @@ export default function TabsLayout() {
         {/* Start draws its own header (location, date, temperature). */}
         <Tabs.Screen name="index" options={{ title: "Start", headerShown: false, tabBarIcon: icon("home-outline", "home") }} />
         <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("notifications-outline", "notifications") }} />
+        {/* Detail screens (S5/S6): reachable from the Start cards only, no tab of their own. */}
+        <Tabs.Screen name="air" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="weather" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="alert" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="rivers" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
       </Tabs>
     </DashboardProvider>

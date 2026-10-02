@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "./api";
-import { alertsArt, isNetworkFailure, loadErrorArt, verdictArt } from "./stateArt";
+import { alertsArt, localAlertsArt, isNetworkFailure, loadErrorArt, verdictArt } from "./stateArt";
 
 describe("verdictArt", () => {
   it("maps verdict levels, UNKNOWN is no-data and never good", () => {
@@ -40,5 +40,16 @@ describe("network failure", () => {
   it("picks offline vs no-data", () => {
     expect(loadErrorArt(true)).toBe("offline");
     expect(loadErrorArt(false)).toBe("noData");
+  });
+});
+
+describe("localAlertsArt", () => {
+  it("no-alerts only for the confirmed local zero", () => {
+    expect(localAlertsArt("none-confirmed", false)).toBe("noAlerts");
+  });
+  it("unknown and nothing listed is no-data; a list has no illustration", () => {
+    expect(localAlertsArt("unknown", false)).toBe("noData");
+    expect(localAlertsArt("unknown", true)).toBeNull();
+    expect(localAlertsArt("has-local", true)).toBeNull();
   });
 });

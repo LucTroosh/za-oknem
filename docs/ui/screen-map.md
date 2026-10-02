@@ -48,14 +48,14 @@ Root Stack (app/_layout.tsx)
 │   ├── Start           S1   🟡 jest jako „Dziś” (app/(tabs)/index.tsx) — do przebudowy TASK-12.18
 │   │     [nagłówek] nazwa miejscowości ⌄ ──────────► S4 Zmiana lokalizacji ✅
 │   │     karta werdyktu „Na dwór” ─────────────────► szczegóły werdyktu (reasons[]) ⬜
-│   │     karta Powietrze ──────────────────────────► S5 Szczegóły: Powietrze          ⬜ TASK-12.12
-│   │     karta Pogoda ─────────────────────────────► S6 Szczegóły: Pogoda             ⬜ TASK-12.12
+│   │     karta Powietrze ──────────────────────────► S5 Szczegóły: Powietrze          ✅ TASK-12.12
+│   │     karta Pogoda ─────────────────────────────► S6 Szczegóły: Pogoda             ✅ TASK-12.12
 │   │     karta Pyłki ──────────────────────────────► S7 Szczegóły: Pyłki              🧪 TASK-12.14
 │   │     karty aktywności ─────────────────────────► powód po tapnięciu               ⬜ TASK-7.9 + 12.18
 │   │     podgląd alertu ───────────────────────────► S3 Szczegół alertu
 │   │
 │   ├── Alerty          S2   🟡 jest (app/(tabs)/alerts.tsx; cała Polska)
-│   │     pozycja alertu ───────────────────────────► S3 Szczegół alertu               ⬜ TASK-9.7
+│   │     pozycja alertu ───────────────────────────► S3 Szczegół alertu               ✅ TASK-9.7
 │   │     stacje wodowskazowe (rzeki) ──────────────► S8 Stany rzek
 │   │
 │   └── Ustawienia      S9   🟡 jest jako placeholder (app/(tabs)/settings.tsx)
@@ -97,18 +97,18 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 |---|---|---|---|
 | 1 Welcome | S0 | 🟡 (kod z asset packiem v2: tło JPG + natywny znak/tekst/CTA, scrim jasny/ciemny; rastry do zainstalowania skryptem, PR #90) | TASK-12.17 |
 | 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; bez GPS (TASK-12.3) | TASK-12.7, 12.17 |
-| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ⬜ (świadomie poza PR onboardingu: wymaga ekranu w Ustawieniach i ukrywania kart na Start) | TASK-12.13 |
+| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ✅ | TASK-12.13 |
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
 | 5 Dashboard | S1 | 🟡 | TASK-12.18 |
 | 6 Hero Verdict | S1 | ✅ dane i karta (LIVE, bez mocka) | TASK-7.8 ✅ |
-| 7 Powietrze | S1/S5 | ✅ / ⬜ szczegóły | TASK-12.12 |
-| 8 Pogoda | S1/S6 | ✅ / ⬜ szczegóły | TASK-12.12 |
+| 7 Powietrze | S1/S5 | ✅ / ✅ szczegóły | TASK-12.12 |
+| 8 Pogoda | S1/S6 | ✅ / ✅ szczegóły | TASK-12.12 |
 | 9 Pyłki | S1/S7 | ✅ (prognoza CAMS) / 🧪 wykres | TASK-12.14 |
 | 10 Rekomendacje aktywności | S1 | ⬜ **backend nie istnieje** (nie ma endpointu ani silnika) | **TASK-7.9** + 12.18 |
-| 11 Alerty | S2/S3 | 🟡 | TASK-9.7 |
+| 11 Alerty | S2/S3 | ✅ | TASK-9.7 |
 | 12 Settings | S9 | 🟡 | TASK-12.6, 12.19 |
 | 13 Light/Dark/System | S9 | 🟡 (dziś tylko wg systemu; brak przełącznika) | TASK-12.19 |
-| 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; brak Dynamic Type/Reduce Motion — niesprawdzone) | TASK-12.19 |
+| 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; przegląd kodu Dynamic Type/Reduce Motion: [`a11y-review.md`](a11y-review.md); **TalkBack i skalowanie na urządzeniu niezweryfikowane**) | TASK-12.19 |
 | 15 Loading/error/unavailable | wszystkie | 🟡 (spinner globalny; skeleton per moduł ⬜) | TASK-12.18 |
 
 ### S0. Welcome — ✅ (statyczny)
@@ -141,12 +141,12 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Stan ekranu: ładowanie / błąd / pusty / częściowa awaria | stan `DashboardProvider` | 🟡 (globalny spinner; każdy moduł ma własny stan, ekran nie blokuje się przy awarii jednego — spec §42) | TASK-12.18 | skeleton per moduł; „Nie udało się pobrać aktualnych danych. Spróbuj ponownie” bez błędów technicznych |
 | Sekcja Woda / Kąpieliska | — | **poza UI** (nie rysujemy, nie „wkrótce”) | — | — |
 
-### S2. Alerty — 🟡 istnieje (cała Polska)
+### S2. Alerty — ✅ lista wg lokalizacji (województwo, ADR-013) / 🟡 bez chipów kategorii (jedna kategoria)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
 | Ostrzeżenia hydrologiczne IMGW (lista) | `GET /dashboard/latest` · `alerts.items[]` (`event_type`, `severity_raw`, `areas[]`, `valid_until`, `issuing_office`, `freshness`), `alerts.scope="national"`, `alerts.source_status` | ✅ ogólnokrajowe, treść źródłowa (reguła #10) | TASK-7.2 ✅ | „Brak aktywnych ostrzeżeń” TYLKO gdy źródło FRESH/RECENT; inaczej „lista może być nieaktualna” / „niedostępne”; L, Er |
-| Filtr „dla mojej lokalizacji” | `areas[].local_alerts[]`, `AlertOut.geo_match` (`voivodeship` / `unresolved`); alternatywnie `GET /alerts/latest?geo_area_id=` | 🟡 backend ✅ (województwo, ADR-013), mobile nieużyte; obszary `unresolved` mają być **pokazane, nie ukryte** | TASK-9.7, 9.5 | etykieta zakresu („Twoje województwo” / „cała Polska” / „obszar nierozpoznany”) |
+| Filtr „dla mojej lokalizacji” | `areas[].local_alerts[]`, `AlertOut.geo_match` (`voivodeship` / `unresolved`); alternatywnie `GET /alerts/latest?geo_area_id=` | ✅ mobile: „Dla Twojej lokalizacji” (`local_alerts`, `voivodeship`), „Do sprawdzenia” (`unresolved`, zawsze widoczne), „Pozostałe w Polsce”; brak `local_alerts` (starszy backend) ⇒ lista krajowa z jawną etykietą | TASK-9.7, 9.5 | etykieta zakresu („Twoje województwo” / „cała Polska” / „obszar nierozpoznany”) |
 | Ostrzeżenia meteorologiczne | brak (`imgw_warningsmeteo` bez `normalize()`) | ⛔ BLOCKED — czeka na żywy przykład aktywnego ostrzeżenia (TASK-9.2) | TASK-9.2 | sekcji nie rysujemy jako „0 ostrzeżeń”; zob. sekcja 3 (zakaz mocka) |
 | Zamknięcia kąpielisk | brak | ⛔ BLOCKED (zależy od źródła, ADR-021; TASK-11.3) | TASK-11.3 | j.w. |
 | „Stany wody” (stacje WARNING/ALARM) | `GET /hydro/latest` · `stations[]` (`status` NORMAL/WARNING/ALARM/UNKNOWN, `water_level_cm`, `warning_level_cm`, `alarm_level_cm`, `observed_at`, `freshness`), `source_status` | ✅ cała Polska, limit 5 + „i N więcej” | TASK-7.2 ✅ | niezależne stany od ostrzeżeń (rule #1); stacje bez progów nie są oceniane (jest informacja) |
@@ -155,19 +155,19 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Filtry (chipy) Wszystkie / Pogoda / Powietrze / Woda / Inne | `AlertOut` nie ma pola kategorii (`event_type`, `source`) — kategoria wynikałaby z `source` po stronie klienta | ⬜ dziś jeden rodzaj alertów (hydro) | TASK-9.7 | pokazujemy tylko kategorie z danymi; przy jednej kategorii bez chipów; nazwa kategorii dla ostrzeżeń hydrologicznych — decyzja (sekcja 5) |
 | Karta alertu (źródło, ważność, stopień) | `event_type`, `severity_raw`, `valid_until`, `issuing_office`, `fetched_at`, `source` | 🟡 (dziś: typ, stopień, obszary, „do”, biuro, freshness; brak „Źródło: IMGW” jako osobnej linii i godziny wydania) | TASK-9.7 | S: „Dane mogą być nieaktualne” |
 
-### S3. Szczegół alertu — ⬜
+### S3. Szczegół alertu — ✅ (bez „Co to oznacza?”: brak treści od właściciela)
 
 Wszystkie pola potrzebne do szczegółu **już są** w `AlertOut` — to praca czysto UI (bez mocka, bez nowego
 endpointu; wyszukiwanie po `external_id` dojdzie dopiero z deep linkiem, TASK-10.4).
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Tytuł: typ + stopień | `event_type`, `severity_raw` (surowe, bez tłumaczenia stopni własnym tekstem) | ⬜ (dane ✅) | TASK-9.7 | — |
-| Treść źródłowa, komentarz | `description`, `comment` — **dosłownie**, bez streszczenia LLM (reguła #10) | ⬜ (dane ✅) | TASK-9.7 | pole `null` = nie rysujemy wiersza |
-| Obszary | `areas[]` + `geo_match` | ⬜ (dane ✅) | TASK-9.7 | `unresolved` = jawna informacja |
-| Ważność, wydano, pobrano | `valid_from`, `valid_until`, `published_at`, `fetched_at`, `freshness` | ⬜ (dane ✅) | TASK-9.7 | S (alert wygasły/nieaktualny) |
-| Prawdopodobieństwo | `probability_pct` (nullable) | ⬜ (dane ✅) | TASK-9.7 | `null` = pomijamy |
-| Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ⬜ (dane ✅) | TASK-9.7 | — |
+| Tytuł: typ + stopień | `event_type`, `severity_raw` (surowe, bez tłumaczenia stopni własnym tekstem) | ✅ | TASK-9.7 | — |
+| Treść źródłowa, komentarz | `description`, `comment` — **dosłownie**, bez streszczenia LLM (reguła #10) | ✅ | TASK-9.7 | pole `null` = nie rysujemy wiersza |
+| Obszary | `areas[]` + `geo_match` | ✅ | TASK-9.7 | `unresolved` = jawna informacja |
+| Ważność, wydano, pobrano | `valid_from`, `valid_until`, `published_at`, `fetched_at`, `freshness` | ✅ | TASK-9.7 | S (alert wygasły/nieaktualny) |
+| Prawdopodobieństwo | `probability_pct` (nullable) | ✅ | TASK-9.7 | `null` = pomijamy |
+| Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ✅ | TASK-9.7 | — |
 | „Co to oznacza?” — interpretacja Za Oknem (spec §20) | **brak**: nie ma pola ani źródła treści | ⬜ wymaga decyzji o treści (statyczne teksty per rodzaj ostrzeżenia, redagowane przez ludzi; **bez LLM**, reguła #10) | decyzja w sekcji 5 → osobny task po decyzji | wizualnie i słownie oddzielona od „Oficjalny komunikat”; nigdy jako komunikat urzędowy; bez tekstu = sekcji nie ma |
 
 ### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ✅ wyszukiwarka i lista / ⬜ GPS
@@ -188,24 +188,24 @@ ADR-029 (PR #85, `main`): wyszukiwanie dowolnej miejscowości (`GET /places?q=`,
 
 Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 
-### S5. Szczegóły: Powietrze — ⬜ (dane ✅, bez mocka)
+### S5. Szczegóły: Powietrze — ✅ (live, bez mocka; niezweryfikowane na urządzeniu)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Pełna lista parametrów z wiekiem pomiaru | `areas[].air.params{}` (wartość, jednostka, `observed_at`, `freshness`) | ⬜ (dane ✅) | TASK-12.12 | S per parametr, brak parametru = „brak”, nie 0 |
-| Indeks EAQI: składowe i decydujący parametr | `air.index` · `level`, `params`, `dominant[]`, `missing{}`, `complete`, `valid_until` | ⬜ (dane ✅) | TASK-12.12 | `complete=false` ⇒ jawnie „niepełny”; U/S ⇒ bez indeksu |
-| Stacja: nazwa, odległość, metoda | `station_name`, `distance_km`, `assignment_method` | ⬜ (dane ✅) | TASK-12.12 | — |
-| Źródło, atrybucja, status źródła | `source`, `attribution`, `source_status{freshness,last_success_at}` | ⬜ (dane ✅) | TASK-12.12 | Er/U źródła |
+| Pełna lista parametrów z wiekiem pomiaru | `areas[].air.params{}` (wartość, jednostka, `observed_at`, `freshness`) | ✅ | TASK-12.12 | S per parametr, brak parametru = „brak”, nie 0 |
+| Indeks EAQI: składowe i decydujący parametr | `air.index` · `level`, `params`, `dominant[]`, `missing{}`, `complete`, `valid_until` | ✅ | TASK-12.12 | `complete=false` ⇒ jawnie „niepełny”; U/S ⇒ bez indeksu |
+| Stacja: nazwa, odległość, metoda | `station_name`, `distance_km`, `assignment_method` | ✅ | TASK-12.12 | — |
+| Źródło, atrybucja, status źródła | `source`, `attribution`, `source_status{freshness,last_success_at}` | ✅ | TASK-12.12 | Er/U źródła |
 | Trend / historia 24 h | brak w kontrakcie | poza MVP (Master Plan §11: pełna historia) | — | nie rysujemy |
 
-### S6. Szczegóły: Pogoda i prognoza — ⬜ (dane ✅ dobowe)
+### S6. Szczegóły: Pogoda i prognoza — ✅ (live: pola bieżące + prognoza dobowa; niezweryfikowane na urządzeniu)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Wszystkie pola pogody z jednostkami | `weather.params{}` | ⬜ (dane ✅) | TASK-12.12 | S per pole |
-| Prognoza dobowa (dni) | `forecast.days[].params`, `valid_from/until`, `freshness`, `fetched_at` | ⬜ (dane ✅) | TASK-12.12 | S, E |
+| Wszystkie pola pogody z jednostkami | `weather.params{}` | ✅ | TASK-12.12 | S per pole |
+| Prognoza dobowa (dni) | `forecast.days[].params`, `valid_from/until`, `freshness`, `fetched_at` | ✅ | TASK-12.12 | S, E |
 | Prognoza godzinowa / wykres | brak — Open-Meteo `hourly` jest pobierane, ale zapisywana jest tylko godzina zgodna z `current` | ⬜ wymaga backendu (nowa tabela/migracja); NIE mockujemy, dopóki właściciel nie zdecyduje, że chce | brak taska — decyzja, sekcja 5 | — |
-| Źródło, atrybucja | `weather.attribution`, `forecast.attribution` | ⬜ (dane ✅) | TASK-12.12 | — |
+| Źródło, atrybucja | `weather.attribution`, `forecast.attribution` | ✅ | TASK-12.12 | — |
 
 ### S7. Szczegóły: Pyłki — 🧪 (część live)
 
@@ -217,7 +217,7 @@ Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 | Kalendarz pylenia | `GET /pollen/calendar` | ✅ (jak na S1) | — | — |
 | Atrybucja CAMS + Open-Meteo, `forecast_reference_time` | `pollen.attribution`, `forecast_reference_time`, `model` | ✅ | — | — |
 
-### S8. Stany rzek (hydrologia) — ✅ / 🟡 (bez kąpielisk i wody pitnej)
+### S8. Stany rzek (hydrologia) — ✅ pełna lista (bez kąpielisk i wody pitnej) / ⬜ stacja najbliższa lokalizacji
 
 Kąpieliska i woda pitna **nie występują w UI** (spec §8, §48): brak sekcji, „wkrótce”, nieaktywnego kafelka i placeholdera; kąpieliska wracają
 przed sezonem jako osobny etap. Tabela dotyczy wyłącznie rzek.
@@ -225,7 +225,7 @@ przed sezonem jako osobny etap. Tabela dotyczy wyłącznie rzek.
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
 | Stacje w stanie ostrzegawczym/alarmowym | `GET /hydro/latest` · `stations[]` | ✅ cała Polska | TASK-7.2 ✅ | jak S2 |
-| Pełna lista stacji z poziomem i progami | to samo (`water_level_cm`, `warning_level_cm`, `alarm_level_cm`) — kontrakt zwraca WSZYSTKIE stacje, UI pokazuje tylko WARNING/ALARM | 🟡 dane ✅, brak ekranu | TASK-12.16 | stacje bez progów = „nie oceniamy” |
+| Pełna lista stacji z poziomem i progami | `GET /hydro/latest` · `stations[]` (`water_level_cm`, `warning_level_cm`, `alarm_level_cm`, `status`, `observed_at`, `freshness`) | ✅ `app/(tabs)/rivers.tsx` (wejście: „Wszystkie stacje” w Alertach): grupy alarm / ostrzegawczy / poniżej progów / odczyt nieaktualny / bez progów („nie oceniamy”), wyszukiwanie po nazwie (bez diakrytyków), paginacja | TASK-12.16 | stary odczyt NORMAL nie mówi „poniżej progów”; stary ALARM/WARNING dalej widoczny z wiekiem; źródło milczące ⇒ baner |
 | Stacja najbliższa wybranej lokalizacji | brak parametru lokalizacji w `/hydro/latest` | ⬜ wymaga backendu | TASK-9.5 | — |
 | Kąpieliska (status, E. coli, enterokoki, sinice, daty badań), woda pitna | brak `/water`; ADR-021 (⛔), `sanepid_water` ⛔ | ⛔ **poza UI** | TASK-11.x | nie renderować |
 
@@ -244,16 +244,16 @@ Dziś: trzy karty (O aplikacji + wersja, Źródła danych z `attribution`, Prywa
 | O aplikacji | S14 | 🟡 | TASK-12.6 |
 | Powiadomienia | — | **ukryte w produkcji** (spec §25 wariant A, preferowany; brak FCM/APNs) | TASK-12.15 |
 
-### S10. Obserwowane tematy — ⬜ (lokalne, bez backendu, bez mocka)
+### S10. Obserwowane tematy — ✅ (lokalne, bez backendu, bez mocka; Aktywność dopiero po TASK-7.9)
 
 To NIE jest profil (spec §3). Lokalna preferencja urządzenia: które moduły widać na Start. Nie zmienia faktów źródłowych (Master Plan §61)
 i **nie może ukryć alertów/danych bezpieczeństwa** poza wyborem „Alerty”. Ten sam komponent kafelków w onboardingu („Co chcesz śledzić?”) i w Ustawieniach.
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ⬜ (zapis w pamięci lokalnej) | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
-| Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ⬜ | TASK-12.18 | „Aktywność” pojawia się dopiero po TASK-7.9 |
-| Skutek na Start | lokalne | ⬜ | TASK-12.18 | wyłączony temat = brak karty, nie „0” |
+| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ✅ `TopicsPicker` w onboardingu (`app/topics.tsx`, po pierwszym wyborze lokalizacji) i w Ustawieniach; zapis lokalny `Settings.topics` | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
+| Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ✅ (kafelka Aktywność nie ma) | TASK-12.13 | „Aktywność” pojawia się dopiero po TASK-7.9 |
+| Skutek na Start | lokalne | ✅ `lib/topics.ts` (`visibleCards`, `showAlertsStatus`, `showPollenCalendar`) | TASK-12.13 | wyłączony temat = brak karty, nie „0”; **baner realnego ostrzeżenia nigdy nie jest ukrywany** (decyzja do pkt 9 z sekcji 5.2: temat „Alerty” steruje tylko cichą linią „brak/nie sprawdzono”) |
 | Dawny zakres „profil alergika” (gatunki pyłków, „rodzina”, „outdoor” jako profil; TASK-12.4 v1) | **SUPERSEDED** przez spec UI v1: zostają wyłącznie tematy | wycofane | — | brak decyzji do podjęcia |
 
 ### S11. Powiadomienia — ukryte w produkcji
@@ -386,8 +386,8 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 
 | Obszar | Backend / API | UI mobile dziś | Docelowo |
 |---|---|---|---|
-| Powietrze: parametry GIOŚ + EAQI | ✅ | ✅ (bez nazwy stacji/odległości) | ⬜ szczegóły S5 (live) |
-| Pogoda bieżąca (15 pól MVP) | ✅ | ✅ | ⬜ szczegóły S6 (live) |
+| Powietrze: parametry GIOŚ + EAQI | ✅ | ✅ (bez nazwy stacji/odległości) | ✅ szczegóły S5 (live) |
+| Pogoda bieżąca (15 pól MVP) | ✅ | ✅ | ✅ szczegóły S6 (live) |
 | Prognoza dobowa (3 dni) | ✅ (dostępność z `source_status.weather`) | 🟡 (tylko etykieta freshness) | max/min w nagłówku Start |
 | Prognoza godzinowa pogody / powietrza | ⬜ | ⬜ | decyzja właściciela |
 | Werdykt „Na dwór” | ✅ (progi do kalibracji) | ✅ | tap → powody |
@@ -406,7 +406,7 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 | Lokalizacja: GPS jednorazowy | ✅ `POST /geo/locate` | ⬜ | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
 | Welcome + onboarding (lokalizacja) | — | ✅ | TASK-12.17 |
 | Tematy „Co chcesz śledzić?” (lokalne) | — | ⬜ | TASK-12.13 |
-| Motyw Systemowy/Jasny/Ciemny, dostępność | — | 🟡 (tylko wg systemu) | TASK-12.19 |
+| Motyw Systemowy/Jasny/Ciemny, dostępność | — | ✅ wybór w Ustawieniach → Wygląd (zapis lokalny); dostępność wg [`a11y-review.md`](a11y-review.md) | TASK-12.19 |
 | Powiadomienia push | 🟡 rejestracja urządzeń; ⛔ klucze | ⬜ | **ukryte** (TASK-12.15) |
 | Źródła i licencje | ✅ `attribution` | 🟡 | TASK-12.6 |
 | Polityka prywatności | — | ⛔ brak dokumentu | TASK-14.2 |
@@ -427,7 +427,7 @@ powiadomienia ukryte; loading = skeleton per moduł; „profil” zastąpiony te
 6. **„Co to oznacza?” w szczegółach alertu:** statyczne teksty per rodzaj ostrzeżenia redagowane przez ludzi (bez LLM) — czy tak, i kto pisze?
 7. **Trend w szczegółach powietrza** (spec §2.2) — brak danych historycznych w API; pomijamy w v1?
 8. **Gatunki pyłków do śledzenia** — spec UI ich nie przewiduje (tylko temat „Pyłki”). Zostaje bez wyboru gatunków?
-9. **Tematy a bezpieczeństwo:** czy wyłączenie tematu „Alerty” ma w ogóle być możliwe? Rekomendacja: baner istotnego ostrzeżenia zawsze widoczny.
+9. ~~**Tematy a bezpieczeństwo**~~ — **rozstrzygnięte w kodzie (TASK-12.13)**: temat „Alerty” można wyłączyć, ale baner istotnego ostrzeżenia na Start jest zawsze widoczny (wyłączenie ukrywa tylko ciche „brak aktywnych ostrzeżeń / nie udało się sprawdzić”); zakładka Alerty zawsze istnieje. Zgodne z AC TASK-12.13 i rekomendacją.
 10. **Ekran startowy po Welcome bez GPS i bez wyboru:** dziś to lista 7 miast (+ wyszukiwarka dopiero po PR #85); czy dopuszczamy domyślny obszar?
 11. **Preview-build z `EXPO_PUBLIC_UI_MOCKS=1`:** dla Ciebie czy dla testerów; które mocki chcesz zobaczyć (wyszukiwarka, GPS-stub, wykres pyłków)?
 12. **Etykieta „Niskie” na karcie pyłków:** spec używa „Niskie”; dane to „poniżej progu sezonu” wg modelu CAMS (nie ryzyko objawów, ADR-020). Dopuszczasz „Niskie (prognoza modelu)”?

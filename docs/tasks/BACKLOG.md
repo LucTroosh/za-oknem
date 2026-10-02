@@ -596,6 +596,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       „Oficjalny komunikat” (treść źródłowa dosłownie) od „Co to oznacza?” (statyczny tekst
       redagowany przez ludzi, bez LLM — wymaga decyzji właściciela; bez treści sekcja nie
       istnieje); lokalne ostrzeżenia z `local_alerts`, `unresolved` zawsze pokazane.
+      **Stan (kolejny PR):** ✅ lista wg lokalizacji (`lib/alertsScreen.ts` + testy: „Dla Twojej lokalizacji” / „Do sprawdzenia” (unresolved zawsze widoczne) / „Pozostałe w Polsce”; „Brak ostrzeżeń dla Twojego województwa” tylko przy zdrowym źródle, braku unresolved i udanym odświeżeniu) i szczegół (`app/(tabs)/alert.tsx`: treść źródłowa i komentarz dosłownie pod „Oficjalny komunikat”, obszary, ważność, wydano/pobrano, atrybucja). Bez chipów (jedna kategoria) i bez „Co to oznacza?” (czeka na treść od właściciela). Niezweryfikowane na urządzeniu.
 - [ ] ⛔ Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 
@@ -849,6 +850,20 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       użycie resolvera z TASK-6.2(5) (współrzędne GPS → `geo_area_id`) jako
       źródła domyślnej/aktualizowanej lokalizacji w selektorze TASK-12.2,
       nie tylko jako danych wejściowych do TASK-12.5.
+      **Ocena (kolejka frontowa, bez implementacji): GPS dziś NIE daje sensu — decyzja właściciela.**
+      `POST /geo/locate` bez granic PRG (gate #15 otwarty, `prg_gminy` bez danych) sprowadza się do
+      kroku 2: najbliższy AKTYWNY obszar z seedu (`place_id IS NULL`, czyli 7 miast) w promieniu
+      `NEAREST_AREA_MAX_KM = 25 km`. Rejestr miejscowości (ADR-029) jest świadomie wyłączony z tego
+      zapytania. Skutek: poza ~25 km od jednego z 7 miast odpowiedź to `out_of_range`, więc
+      przycisk „Użyj mojej lokalizacji” działałby dla garstki użytkowników i zawodził dla reszty
+      (martwe CTA jest zabronione, spec UI §46). Dodawanie go teraz wymagałoby też zgody systemowej
+      i obsługi odmowy bez realnej korzyści.
+      **Opcje:** (A) poczekać na import PRG (wtedy point-in-polygon pokrywa cały kraj, bez zmian
+      w mobile poza przyciskiem i zgodą); (B) nowy endpoint „najbliższa miejscowość z rejestru
+      `places`” (ADR-029, dokładniejszy niż 25 km od 7 miast; wymaga ADR/addendum, POST bez
+      logowania współrzędnych jak w ADR-002, brak migracji) — daje GPS bez PRG, ale to zmiana
+      backendu poza kolejką frontową. **Rekomendacja:** (A) jeśli PRG będzie w najbliższych
+      tygodniach, inaczej (B). Do decyzji nie ruszam; frontend zostaje przy ręcznym wyborze.
 - [ ] **TASK-12.5:** Wysyłka `observed_area_code` do `POST /api/v1/devices`
       przy każdym otwarciu appki z aktywną lokalizacją (foreground) i przy
       ręcznej zmianie lokalizacji w Settings (ADR-002, sekcja Decision) —
@@ -951,6 +966,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       opisana jako „w Twoim mieście”; U/S ⇒ bez indeksu i bez „dobrych” wartości
       (reguła #8); testy czystych modułów `lib/*`. **Non-goals:** trend/historia 24 h,
       prognoza godzinowa, nowe pola API. **Dependencies:** brak (dane ✅).
+      **Stan (kolejny PR):** ✅ ekrany `app/(tabs)/air.tsx` i `weather.tsx` (ukryte zakładki, wejście z kart Start; pyłki nadal inline do TASK-12.14); logika w `lib/details.ts` z testami: stacja (nazwa, odległość, metoda tylko ze znanej mapy, opis pasma bez „w Twoim mieście” dla nearby/regional), składowe EAQI + `dominant` + `missing` + `complete` + ważność, brak indeksu z powodem dla regional/none/źródła milczącego/wygasłego, parametry z wiekiem, prognoza dobowa (maks/min, opady, stan), status źródła ze starzeniem na zegarze urządzenia, atrybucje. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.13:** Obserwowane tematy (S10) — lokalne, **bez mocka** (spec UI §3, §8).
       **Goal:** wybór tematów widocznych na Start; NIE „profil”. **Scope:** wspólny
       komponent kafelków multi-select dla onboardingu i Ustawień: Powietrze, Pogoda,
@@ -962,6 +978,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       ostrzeżenia (decyzja w screen-map 5.2); test czystej funkcji „które moduły
       pokazać”. **Non-goals:** wybór gatunków pyłków, wiek/płeć/zdrowie/rodzina,
       konto, wpływ na silnik „Na dwór”. **Dependencies:** TASK-12.17 (magazyn i onboarding).
+      **Stan (kolejny PR):** ✅ `lib/topics.ts` (testy: czysta funkcja „które moduły pokazać”, pusty wybór = wszystko, tapnięcie działa na efektywnym wyborze, zły zapis odfiltrowany, baner ostrzeżenia nigdy ukryty), `TopicsPicker` (checkbox: Powietrze/Pogoda/Pyłki/Alerty — bez Woda/Kąpieliska/Aktywność), krok „Co chcesz śledzić?” po pierwszym wyborze lokalizacji (`app/topics.tsx`) i w Ustawieniach, `Settings.topics` bez podnoszenia `v`. Werdykt „Na dwór” nie zależy od wyboru. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.14 (UI-MOCK-3):** Szczegóły pyłków z wykresem godzinowym (S7; poza P0, spec UI §56).
       **Goal:** struktura ekranu pyłków z przebiegiem godzinowym, zawsze jako prognoza
       modelu. **Scope:** `current` i `days[]` **live**; szereg godzinowy z fixture'a
@@ -994,6 +1011,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Non-goals:** `/water`, connector, nearest-station hydro (TASK-9.5).
       **Dependencies:** brak (dane ✅); kąpieliska wracają jako osobny etap przed sezonem
       (TASK-11.x ⛔).
+      **Stan (kolejny PR):** ✅ `app/(tabs)/rivers.tsx` + `lib/rivers.ts` (testy) + `StationRow`; test regresji `lib/noWaterUi.test.ts` pilnuje braku kąpielisk/wody pitnej w `app/` i `components/`; brak `lib/mock/**`. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.17:** Welcome + onboarding (lokalizacja i tematy, jeden ekran) + lokalny
       magazyn ustawień (spec UI §5–8, P0 #1–3). **Goal:** pierwsze uruchomienie
       Welcome → Lokalizacja + tematy → Start, kolejne od razu Start. **Scope:** ekran
@@ -1046,8 +1064,8 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Stan (PR #86):** zrobione: zakładki, nagłówek (nazwa, data, temperatura FRESH), werdykt,
       karty Powietrze/Pogoda/Prognoza pyłków (data-driven), status ostrzeżeń (brak ≠ nie
       sprawdzono; realny alert pod nagłówkiem), skeletony, partial failure, testy `lib/home.test.ts`.
-      Zostaje: max/min z `forecast.days[0]`, karty aktywności (TASK-7.9), tap werdyktu → powody,
-      chevron lokalizacji (TASK-12.7), tematy (TASK-12.17).
+      **Stan (kolejny PR):** + max/min dnia z `forecast.days[0]` w nagłówku (`todayRange`: tylko bieżący dzień UTC, FRESH/RECENT po `forecast.freshness` + wiek na zegarze urządzenia + `source_status.weather`; inaczej nic), tap werdyktu → powody (UNKNOWN bez przełącznika, uwaga o brakach i zastrzeżenie zawsze widoczne), skeleton kalendarza pylenia. Zostaje: karty aktywności (TASK-7.9), tematy (TASK-12.13).
+      (chevron lokalizacji zrobiony w TASK-12.7.)
 - [ ] **TASK-12.19:** Wygląd i dostępność (spec UI §26–27, §34–39; P0 #13–14). **Goal:**
       wybór motywu Systemowy | Jasny | Ciemny (domyślnie Systemowy) i respektowanie
       ustawień dostępności systemu. **Scope:** wiersz „Wygląd” w Ustawieniach zapisany w
@@ -1058,6 +1076,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       (`theme.test.ts`); minimalny dotyk 44; test wyboru motywu. **Non-goals:** nowa
       paleta/wygląd (właściciel), ikony. **Dependencies:** TASK-12.17; follow-up (a) z
       Phase 12 (przełączanie motywu na Androidzie).
+      **Stan (kolejny PR):** ✅ wybór motywu (`Settings.theme`, `ThemePicker`, `Appearance.setColorScheme`, bez podnoszenia `v`: brak pola = „system”), testy wyboru/zapisu; przegląd a11y kodu w `docs/ui/a11y-review.md`. Zostaje: weryfikacja TalkBack / skalowania czcionek / Reduce Motion / zmiany motywu na żywo **na urządzeniu**.
 ### Phase 13 — Data Quality / Observability
 
 - [ ] 🟡 **TASK-13.1** (PR #69: `GET /api/v1/health/sources` + logi zmian stanu; zostaje historia runów i telemetria §44 — osobny ADR + migracja): Source health / stale monitoring — rozszerzenie

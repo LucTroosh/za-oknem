@@ -1,19 +1,15 @@
-import { StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text } from "react-native";
 
 import { type LoadState, formatObservedAt } from "../lib/dashboardTypes";
-import {
-  HYDRO_FRESHNESS_LABEL,
-  HYDRO_STATUS_LABEL,
-  type HydroBlock,
-  hydroLevelLine,
-  summarizeHydro,
-} from "../lib/hydro";
-import { type Theme, space, typo } from "../lib/theme";
+import { type HydroBlock, summarizeHydro } from "../lib/hydro";
+import { MIN_TOUCH, type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
-import FreshnessBadge from "./FreshnessBadge";
+import StationRow from "./StationRow";
 import useNow from "./useNow";
 import { LoadingState } from "./EmptyState";
-import { useThemedStyles } from "./useTheme";
+import useTheme, { useThemedStyles } from "./useTheme";
 
 const lastSuccess = (at: string | null) =>
   at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`;
@@ -23,6 +19,8 @@ const lastSuccess = (at: string | null) =>
 // backend (IMGW's own thresholds); nothing here classifies a level (rule #10).
 export default function HydroSection({ state, hydro }: { state: LoadState; hydro: HydroBlock | null }) {
   const styles = useThemedStyles(createStyles);
+  const router = useRouter();
+  const { colors } = useTheme();
   // Labels age on the device without a refetch.
   const now = useNow();
   const summary = hydro ? summarizeHydro(hydro, now) : null;
@@ -57,21 +55,20 @@ export default function HydroSection({ state, hydro }: { state: LoadState; hydro
       {summary?.kind === "list" && summary.outdated && (
         <Text style={styles.warn}>Lista może być nieaktualna ({lastSuccess(summary.lastSuccessAt)}).</Text>
       )}
-      {summary?.kind === "list" &&
-        summary.items.map(({ station, freshness }) => (
-          <View key={station.station_id} style={styles.item}>
-            <Text style={styles.strong}>
-              {station.station_name} —{" "}
-              <Text style={station.status === "ALARM" ? styles.alarm : styles.warning}>
-                {HYDRO_STATUS_LABEL[station.status]}
-              </Text>
-            </Text>
-            <Text style={styles.body}>{hydroLevelLine(station)}</Text>
-            <Text style={styles.meta}>{formatObservedAt(station.observed_at)}</Text>
-            <FreshnessBadge state={freshness} label={HYDRO_FRESHNESS_LABEL[freshness]} />
-          </View>
-        ))}
+      {summary?.kind === "list" && summary.items.map((item) => <StationRow key={item.station.station_id} item={item} />)}
       {summary?.kind === "list" && summary.more > 0 && <Text style={styles.meta}>i {summary.more} więcej</Text>}
+      {hydro && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Zobacz wszystkie stacje wodowskazowe"
+          accessibilityHint="Otwiera listę stanów rzek"
+          onPress={() => router.push("/rivers")}
+          style={styles.link}
+        >
+          <Text style={styles.linkText}>Wszystkie stacje</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.accent} importantForAccessibility="no" />
+        </Pressable>
+      )}
       {hydro && <Text style={styles.micro}>{hydro.attribution}</Text>}
     </Card>
   );
@@ -87,13 +84,6 @@ const createStyles = (t: Theme) =>
     micro: { ...typo.micro, color: t.colors.textSecondary, marginTop: space.xs },
     warn: { ...typo.caption, color: t.colors.warning, fontWeight: "600" },
     error: { ...typo.caption, color: t.colors.danger, fontWeight: "600" },
-    alarm: { color: t.colors.danger, fontWeight: "700" },
-    warning: { color: t.colors.warning, fontWeight: "700" },
-    item: {
-      gap: 2,
-      paddingTop: space.md,
-      marginTop: space.xs,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: t.colors.border,
-    },
+    link: { flexDirection: "row", alignItems: "center", minHeight: MIN_TOUCH, alignSelf: "flex-start", gap: space.xs },
+    linkText: { ...typo.strong, color: t.colors.accent },
   });

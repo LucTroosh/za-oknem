@@ -35,6 +35,15 @@ export function alertsArt(summary: AlertsSummary | null, refreshFailed = false):
   }
 }
 
+// Alerts tab, split by location (TASK-9.7): `localStatus` from lib/alertsScreen.ts. The confirmed
+// zero for the user's area -> no-alerts; no answer we can stand behind and nothing listed -> no-data.
+// Anything listed (local or unresolved) has no illustration: the list is the content.
+export function localAlertsArt(localStatus: "has-local" | "none-confirmed" | "unknown", anythingListed: boolean): StateArt | null {
+  if (localStatus === "none-confirmed") return "noAlerts";
+  if (localStatus === "unknown" && !anythingListed) return "noData";
+  return null;
+}
+
 // Shown with "could not load": offline only for a genuine connectivity failure. An HTTP answer
 // (any status) proves the network works, and a timeout is ambiguous, so both are no-data.
 export function loadErrorArt(networkFailure: boolean): StateArt {
