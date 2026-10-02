@@ -26,6 +26,10 @@ from app.models import GeoArea, GiosStation
 
 logger = logging.getLogger(__name__)
 
+# ADR-025 (amended): poll the N nearest catalog stations per area, so when the nearest has no
+# sensors/data the API can use the next one that does. Small on purpose (rate limits).
+AIR_STATIONS_PER_AREA = 3
+
 CATALOG_MAX_AGE = timedelta(hours=24)
 # Last failed refresh while a cached catalog exists: the hourly job must not re-walk the
 # rate-limited catalog every hour during an outage - retry once per CATALOG_MAX_AGE.
@@ -158,7 +162,13 @@ def assigned_station_ids(db: Session) -> list[str]:
         {
             m.station_id
             for area in air_areas(db)
-            for m in select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
+            for m in select_stations(
+                area.latitude,
+                area.longitude,
+                points,
+                max_km=REGIONAL_MAX_KM,
+                limit=AIR_STATIONS_PER_AREA,
+            )
         }
     )
 

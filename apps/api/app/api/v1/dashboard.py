@@ -24,7 +24,7 @@ from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
-from app.geo import REGIONAL_MAX_KM, classify_air_coverage, coverage_radius_km, select_stations
+from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
 from app.models import GeoArea, Measurement, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
 from app.source_status import source_freshness
@@ -344,16 +344,16 @@ def dashboard_latest(
     areas_out = []
     for area in areas:
         # ADR-006/ADR-025/ADR-029: deterministic nearest station within REGIONAL_MAX_KM
-        # (geo.select_stations), classified exact/nearby/regional; none in range = no air
+        # (geo.pick_air_station), classified exact/nearby/regional; none in range = no air
         # block (coverage "none"), never a farther fallback.
-        match = next(
-            iter(select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)),
-            None,
-        )
-        air_coverage = classify_air_coverage(match.distance_km if match else None)
+        # ADR-025 (amended): nearest station WITH data; coverage reflects the station actually
+        # used. With none having data, geography (nearest catalog station) still says "exists".
+        match, geo_match = pick_air_station(area.latitude, area.longitude, points, set(stations))
+        shown = match or geo_match
+        air_coverage = classify_air_coverage(shown.distance_km if shown else None)
 
         air = None
-        if match is not None and air_coverage != "none" and match.station_id in stations:
+        if match is not None and air_coverage != "none":
             nearest = stations[match.station_id]
             # source+observed_at+freshness together, not source alone (Principle 2 /
             # TASK-7.1) - observed_at here is the latest across this station's params,

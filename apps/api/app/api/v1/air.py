@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.air_index import air_index
 from app.connectors.gios.discovery import assignment_candidates
 from app.db import get_db
-from app.geo import REGIONAL_MAX_KM, classify_air_coverage, coverage_radius_km, select_stations
+from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
 from app.models import GeoArea, Measurement
 
 router = APIRouter()
@@ -90,8 +90,8 @@ def latest_air_quality(
     top-level `pm25` field.
 
     ADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area
-    (nearest within REGIONAL_MAX_KM = 100 km, with `distance_km`, `assignment_method` and the
-    ADR-029 `coverage` band); no station in range = empty list ("brak danych dla obszaru"),
+    (nearest WITH data within REGIONAL_MAX_KM = 100 km, with `distance_km`,
+    `assignment_method` and the ADR-029 `coverage` band); no station in range = empty list ("brak danych dla obszaru"),
     unknown area = 404."""
     area = None
     if geo_area_id is not None:
@@ -148,22 +148,23 @@ def latest_air_quality(
     if area is None:
         return {"stations": list(stations.values())}
     # ADR-025: catalog = authority for who may be assigned and at which coordinates.
-    points = assignment_candidates(db, stations, unmeasured=True)
+    points = assignment_candidates(db, stations)
     coords = {sid: (lat, lon) for sid, lat, lon in points}
-    matches = select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
+    match, _ = pick_air_station(area.latitude, area.longitude, points, set(stations))
+    if match is None:  # no station WITH data in range (ADR-025 amended)
+        return {"stations": []}
+    level = classify_air_coverage(match.distance_km)
     return {
         "stations": [
             {
-                **stations[m.station_id],
-                "coverage": classify_air_coverage(m.distance_km),
-                "coverage_radius_km": coverage_radius_km(classify_air_coverage(m.distance_km)),
+                **stations[match.station_id],
+                "coverage": level,
+                "coverage_radius_km": coverage_radius_km(level),
                 # the position the distance was computed from (catalog), not the measured one
-                "latitude": coords[m.station_id][0],
-                "longitude": coords[m.station_id][1],
-                "distance_km": round(m.distance_km, 1),
-                "assignment_method": m.method,
+                "latitude": coords[match.station_id][0],
+                "longitude": coords[match.station_id][1],
+                "distance_km": round(match.distance_km, 1),
+                "assignment_method": match.method,
             }
-            for m in matches
-            if m.station_id in stations  # nearest catalog station may not have data yet
         ]
     }
