@@ -11,16 +11,23 @@ export const WELCOME_COPY = {
   privacy: "Bez konta. Bez reklam.",
 } as const;
 
-// Welcome typography: Nunito (rounded terminals, soft and friendly; OFL-1.1) for the two brand lines
-// and the four domain labels only - the rest of the app keeps the system font. A small semibold
-// eyebrow above, the brand name below as the strongest text on the screen. Family names are the ones
-// @expo-google-fonts/nunito registers; weights come from the family, not fontWeight.
+// Welcome typography: Nunito Sans (OFL-1.1) for the two brand lines and the four domain labels only -
+// the rest of the app keeps the system font. A lighter 18 px semibold eyebrow above, the 40 px
+// extrabold brand name below as the strongest text on the screen. Family names are the ones
+// @expo-google-fonts/nunito-sans registers; weights come from the family, not fontWeight.
 export const WELCOME_TYPE = {
-  eyebrow: { fontFamily: "Nunito_600SemiBold", fontSize: 17, lineHeight: 24 },
-  brand: { fontFamily: "Nunito_800ExtraBold", fontSize: 42, lineHeight: 50 },
-  label: { fontFamily: "Nunito_700Bold", fontSize: 13, lineHeight: 18 },
+  eyebrow: { fontFamily: "NunitoSans_600SemiBold", fontSize: 18, lineHeight: 26 },
+  brand: { fontFamily: "NunitoSans_800ExtraBold", fontSize: 40, lineHeight: 48 },
+  label: { fontFamily: "NunitoSans_700Bold", fontSize: 13, lineHeight: 18 },
 } as const;
-export const BRAND_GAP = 10; // eyebrow -> brand (was 4)
+
+// Text colours of the two brand lines (fixed values, tested for AA over the veils).
+export const WELCOME_TEXT = {
+  light: { brand: "#102A3A", intro: "#3F5563" },
+  dark: { brand: "#F4F7F8", intro: "#D7E0E4" },
+} as const;
+export const BRAND_GAP = 16; // eyebrow -> brand (+6 over the previous 10)
+export const LOGO_SIZE = 71; // ~6.5% smaller than 76
 
 // Four domain cues in one soft capsule (no water: no source yet). Labels are PRESENTATION only:
 // "Alergeny" is the Welcome wording of the pollen domain, nothing in the logic is renamed. Icons
@@ -39,14 +46,15 @@ export type WelcomeTint = (typeof WELCOME_DOMAINS)[number]["tint"];
 // so Welcome uses a stronger foreground (dark green / dark amber-brown) on a slightly stronger soft
 // background. Same semantic palette; alerts keep the red treatment; dark mode keeps the shared tints.
 const LIGHT_TINTS = {
-  air: { fg: "#0f5223", bg: "#cdeedb" },
-  weather: { fg: "#6b3f00", bg: "#ffe19a" },
-  pollen: { fg: "#264a00", bg: "#d9efb0" },
+  air: { fg: "#0b4a1e", bg: "#c2e8d2" },
+  weather: { fg: "#5c3500", bg: "#ffd770" },
+  pollen: { fg: "#204000", bg: "#d2eca0" },
+  danger: { fg: "#86100a", bg: "#ffd7d2" }, // red foreground on a soft red
 } as const;
 
 export function welcomeTintColors(p: Palette, tint: WelcomeTint, scheme: "light" | "dark" = "dark"): { fg: string; bg: string } {
-  if (tint === "danger") return toneColors(p, "danger");
-  return scheme === "light" ? LIGHT_TINTS[tint] : domainColors(p, tint);
+  if (scheme === "light") return LIGHT_TINTS[tint];
+  return tint === "danger" ? toneColors(p, "danger") : domainColors(p, tint);
 }
 
 // One row of four at normal font size; 2 x 2 once the system font is enlarged so labels never clip.
@@ -79,15 +87,18 @@ export function heroFrame(screenW: number, screenH: number): HeroFrame {
 // brand text (over the sky) and a short bottom one that only blends the photo into the screen edge.
 // Capsule and CTA are solid surfaces, the footer sits on its own translucent chip, so the panorama
 // stays visible. Veils are stacks of strips (no gradient dependency).
-export const TOP_VEIL = { light: 0.38, dark: 0.57 } as const; // plateau alpha behind the brand text
+export const TOP_VEIL = { light: 0.34, dark: 0.485 } as const; // plateau alpha behind the brand text
 export const TOP_VEIL_HEIGHT = 320;
 export const TOP_VEIL_PLATEAU = 0.6; // fraction of the height at full alpha, then a smooth fade
-export const BOTTOM_VEIL = { light: 0.3, dark: 0.45 } as const;
+export const BOTTOM_VEIL = { light: 0.3, dark: 0.38 } as const;
+// A very light LOCAL scrim, only behind the two brand lines (soft edges, no blur of the photo).
+export const LOCAL_SCRIM = { light: 0.36, dark: 0.29 } as const;
+export const LOCAL_SCRIM_LAYERS = 14;
 export const BOTTOM_VEIL_HEIGHT = 240;
 export const VEIL_STEPS = 64;
-export const FOOTER_CHIP_ALPHA = 0.7; // a hint of a backing, not a button
+export const FOOTER_CHIP_ALPHA = 0.62; // a hint of a backing (small radius, no pill), not a button
 // Light capsule: slightly translucent white; dark: the opaque elevated surface.
-export const CAPSULE_ALPHA = { light: 0.92, dark: 1 } as const;
+export const CAPSULE_ALPHA = { light: 0.86, dark: 1 } as const;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
@@ -106,7 +117,7 @@ export function scrimColor(p: Palette, alpha: number): string {
 }
 
 export function capsuleColor(p: Palette, scheme: "light" | "dark"): string {
-  const hex = scheme === "dark" ? p.elevated : p.surface;
+  const hex = scheme === "dark" ? p.elevated : p.bg; // light: milky (#f4f8fa), not pure white
   const n = (i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
   return `rgba(${n(0)}, ${n(1)}, ${n(2)}, ${CAPSULE_ALPHA[scheme]})`;
 }
@@ -117,6 +128,11 @@ export const WELCOME_CTA = {
   light: (p: Palette) => ({ bg: p.accent, fg: p.onAccent }),
   dark: (p: Palette) => ({ bg: "#3fae9a", fg: p.onAccent }),
 } as const;
+
+// Per-layer alpha so that LOCAL_SCRIM_LAYERS stacked layers add up to `total` at the centre; the
+// layers grow outward, so the edge of the scrim fades out softly (no blur needed).
+export const localScrimLayerAlpha = (total: number, layers = LOCAL_SCRIM_LAYERS): number =>
+  Math.round((1 - (1 - total) ** (1 / layers)) * 10000) / 10000;
 
 // The footer chip: the theme surface at FOOTER_CHIP_ALPHA (translucent, so it belongs to the photo).
 export function footerChipColor(p: Palette): string {
@@ -142,17 +158,19 @@ export const FOOTER_ZONE_EXTREMES = { darkest: "#000000", brightest: "#d9d9d9" }
 // Every (text, background) contrast the screen relies on, worst case.
 export function welcomeContrasts(p: Palette, scheme: "light" | "dark"): { name: string; ratio: number }[] {
   const out: { name: string; ratio: number }[] = [];
-  const veil = TOP_VEIL[scheme];
+  // Behind the two brand lines the global top veil and the local scrim stack.
+  const behindText = 1 - (1 - TOP_VEIL[scheme]) * (1 - LOCAL_SCRIM[scheme]);
+  const text = WELCOME_TEXT[scheme];
   for (const px of Object.values(SKY_EXTREMES)) {
-    const bg = mix(p.bg, px, veil);
-    out.push({ name: `brand over sky ${px}`, ratio: contrastRatio(p.text, bg) });
-    out.push({ name: `headline over sky ${px}`, ratio: contrastRatio(p.text, bg) });
+    const bg = mix(p.bg, px, behindText);
+    out.push({ name: `brand over sky ${px}`, ratio: contrastRatio(text.brand, bg) });
+    out.push({ name: `intro over sky ${px}`, ratio: contrastRatio(text.intro, bg) });
   }
   for (const px of Object.values(FOOTER_ZONE_EXTREMES)) {
     out.push({ name: `footer over chip ${px}`, ratio: contrastRatio(p.text, mix(p.surface, px, FOOTER_CHIP_ALPHA)) });
   }
   for (const px of [...Object.values(FOOTER_ZONE_EXTREMES), ...Object.values(SKY_EXTREMES)]) {
-    const cap = scheme === "dark" ? p.elevated : p.surface;
+    const cap = scheme === "dark" ? p.elevated : p.bg;
     out.push({ name: `capsule label over ${px}`, ratio: contrastRatio(p.text, mix(cap, px, CAPSULE_ALPHA[scheme])) });
   }
   const cta = WELCOME_CTA[scheme](p);
