@@ -4,7 +4,7 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.0.102:8000" }
+      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.0.102:8000", "EXPO_PUBLIC_DEBUG_FONTS": "1" }
     }
   }
 }
