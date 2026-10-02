@@ -39,9 +39,9 @@ export type WelcomeTint = (typeof WELCOME_DOMAINS)[number]["tint"];
 // so Welcome uses a stronger foreground (dark green / dark amber-brown) on a slightly stronger soft
 // background. Same semantic palette; alerts keep the red treatment; dark mode keeps the shared tints.
 const LIGHT_TINTS = {
-  air: { fg: "#14622a", bg: "#cdeedb" },
+  air: { fg: "#0f5223", bg: "#cdeedb" },
   weather: { fg: "#6b3f00", bg: "#ffe19a" },
-  pollen: { fg: "#2f5d00", bg: "#d9efb0" },
+  pollen: { fg: "#264a00", bg: "#d9efb0" },
 } as const;
 
 export function welcomeTintColors(p: Palette, tint: WelcomeTint, scheme: "light" | "dark" = "dark"): { fg: string; bg: string } {
