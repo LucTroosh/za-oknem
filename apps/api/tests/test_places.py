@@ -238,3 +238,35 @@ def test_place_label(name, a1, a2, label):
 
 def test_every_geonames_voivodeship_has_a_polish_name():
     assert len(places.VOIVODESHIP_PL) == 16
+
+
+def test_voivodeship_code_maps_geonames_names_and_rejects_unknown():
+    assert places.voivodeship_code("Lower Silesia") == "02"
+    assert places.voivodeship_code("Pomerania") == "22"
+    assert places.voivodeship_code("Łódź Voivodeship") == "10"
+    assert places.voivodeship_code("Atlantis") is None
+    assert places.voivodeship_code(None) is None
+
+
+def test_alert_match_codes_use_gmina_teryt_else_the_places_voivodeship(db_session):
+    from app.alert_geo import match_alert
+
+    dolny = _place(db_session, "Oleśnica", lat=51.2, lon=17.4)
+    dolny.admin1_name = "Lower Silesia"
+    nameless = _place(db_session, "Gdzieś", lat=51.0, lon=17.0)
+    db_session.commit()
+    seeded = GeoArea(slug="wroclaw", name="Wrocław", latitude=51.1, longitude=17.0,
+                     teryt_code="0264011")  # fmt: skip
+    a1 = GeoArea(slug="place-1", name="Oleśnica", latitude=51.2, longitude=17.4, place_id=dolny.id)
+    a2 = GeoArea(slug="place-2", name="Gdzieś", latitude=51.0, longitude=17.0, place_id=nameless.id)
+    db_session.add_all([seeded, a1, a2])
+    db_session.commit()
+
+    codes = places.alert_match_codes(db_session, [seeded, a1, a2])
+
+    assert codes == {seeded.id: "0264011", a1.id: "02", a2.id: None}
+    dolnoslaskie = [{"wojewodztwo": "dolnośląskie"}]
+    assert match_alert(dolnoslaskie, codes[a1.id]) == "voivodeship"
+    assert match_alert([{"wojewodztwo": "pomorskie"}], codes[a1.id]) is None
+    # unknown voivodeship of the place: flagged, never hidden (rule #10)
+    assert match_alert(dolnoslaskie, codes[a2.id]) == "unresolved"

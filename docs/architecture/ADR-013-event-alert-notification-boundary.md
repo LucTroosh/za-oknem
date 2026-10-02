@@ -111,3 +111,12 @@ województwa). Zgodne z importem PRG: wiersz z właściwym kodem jest aktualizow
 idempotentna i nie narusza UNIQUE (istniejący wiersz z tym kodem wygrywa). Nadal obowiązuje:
 alert, którego obszaru nie umiemy zmapować, jest `unresolved` i pokazany (reguła #10).
 Miejscowości z rejestru `places` (ADR-029) mają kody z własnego importu, poza zakresem tej zmiany.
+
+## Addendum 2026-10-02: miejscowości z rejestru places (bez TERYT gminy)
+
+Obszar aktywowany z rejestru `places` (ADR-029) nie ma `teryt_code` (brak zaimportowanych granic gmin),
+więc każde ostrzeżenie było dla niego „do sprawdzenia”. Dla takiego obszaru dopasowanie używa
+2-cyfrowego kodu województwa wyznaczonego deterministycznie z `places.admin1_name` (GeoNames →
+nazwa polska → kod TERC, `places.alert_match_codes`) - to ta sama granulacja, jaką mają ostrzeżenia
+IMGW (województwo), i `teryt_covers` już ją przyjmuje. Nieznane województwo = `None` = „unresolved”
+(nigdy ukryte, reguła #10). Gmina z TERYT ma pierwszeństwo. Bez zmian schematu bazy.
