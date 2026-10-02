@@ -1,12 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold";
-import { Manrope_800ExtraBold } from "@expo-google-fonts/manrope/800ExtraBold";
+import { NunitoSans_600SemiBold } from "@expo-google-fonts/nunito-sans/600SemiBold";
+import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
 import { useFonts } from "expo-font";
 import { Redirect, useNavigation, useRouter } from "expo-router";
-import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Button from "../components/Button";
 import useLocation from "../components/LocationProvider";
 import useTheme, { useThemedStyles } from "../components/useTheme";
 import { entryRedirect } from "../lib/location";
@@ -14,12 +13,15 @@ import { type Theme, elevation, radius, space, typo } from "../lib/theme";
 import {
   BOTTOM_VEIL,
   BOTTOM_VEIL_HEIGHT,
+  BRAND_GAP,
   TOP_VEIL,
   TOP_VEIL_HEIGHT,
   TOP_VEIL_PLATEAU,
   WELCOME_COPY,
+  WELCOME_CTA,
   WELCOME_DOMAINS,
   WELCOME_TYPE,
+  capsuleColor,
   footerChipColor,
   heroFrame,
   scrimColor,
@@ -35,7 +37,7 @@ import {
 // text readable over the sky and blend the bottom edge; dark mode only changes the veils and
 // surfaces, not the photo. Says nothing about water (no source yet).
 const HERO = require("../assets/za-oknem/backgrounds/welcome-hero-1242x2688.jpg");
-const LOGO = require("../assets/za-oknem/brand/logo-mark-512.png");
+const LOGO = require("../assets/za-oknem/brand/logo-mark-flat-512.png");
 
 function Veil({ color, alphas, style }: { color: (a: number) => string; alphas: number[]; style: object }) {
   return (
@@ -56,7 +58,7 @@ export default function Welcome() {
   const { settings, startOnboarding } = useLocation();
   const navigation = useNavigation();
   // Local font files: loads in a few ms; until then (or if it fails) the plain background / system font.
-  const [fontsLoaded, fontError] = useFonts({ Manrope_600SemiBold, Manrope_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ NunitoSans_600SemiBold, NunitoSans_800ExtraBold });
   const redirect = entryRedirect(settings, "welcome");
   // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
   // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the
@@ -64,6 +66,7 @@ export default function Welcome() {
   if (redirect !== null) return navigation.isFocused() ? <Redirect href={redirect} /> : null;
   if (!fontsLoaded && !fontError) return <View style={styles.screen} />; // no font flash
   const frame = heroFrame(width, height);
+  const cta = WELCOME_CTA[scheme](colors);
   const color = (a: number) => scrimColor(colors, a);
   return (
     <View style={styles.screen}>
@@ -91,7 +94,7 @@ export default function Welcome() {
         </View>
         <View style={[styles.bottom, { paddingBottom: Math.max(space.xl, insets.bottom + space.md) }]}>
           {/* One soft capsule, four domains; read as one line by TalkBack (icons are decorative). */}
-          <View style={styles.capsule} accessible accessibilityLabel={WELCOME_DOMAINS.map((d) => d.label).join(", ")}>
+          <View style={[styles.capsule, { backgroundColor: capsuleColor(colors, scheme) }]} accessible accessibilityLabel={WELCOME_DOMAINS.map((d) => d.label).join(", ")}>
             {WELCOME_DOMAINS.map((d) => {
               const c = welcomeTintColors(colors, d.tint);
               return (
@@ -106,17 +109,21 @@ export default function Welcome() {
           </View>
           {/* push, not replace: Back (header or Android) from the picker returns to Welcome. */}
           <View style={styles.cta}>
-            <Button
-              label={WELCOME_COPY.cta}
-              hint={WELCOME_COPY.ctaHint}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={WELCOME_COPY.cta}
+              accessibilityHint={WELCOME_COPY.ctaHint}
               onPress={() => {
                 startOnboarding();
                 router.push("/location");
               }}
-            />
+              style={[styles.ctaButton, { backgroundColor: cta.bg }]}
+            >
+              <Text style={[styles.ctaText, { color: cta.fg }]}>{WELCOME_COPY.cta}</Text>
+            </Pressable>
           </View>
           <View style={[styles.chip, { backgroundColor: footerChipColor(colors) }]}>
-            <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} importantForAccessibility="no" />
+            <Ionicons name="lock-closed-outline" size={13} color={colors.text} importantForAccessibility="no" />
             <Text style={styles.privacyText}>{WELCOME_COPY.privacy}</Text>
           </View>
         </View>
@@ -134,11 +141,11 @@ const createStyles = (t: Theme) =>
     // The gap between the two groups is the panorama.
     content: { flexGrow: 1, justifyContent: "space-between" },
     top: { alignItems: "center", paddingHorizontal: space.xl },
-    logo: { width: 84, height: 84, marginBottom: space.lg },
-    // Weight comes from the font family (Manrope), so no fontWeight; the system font is the fallback
+    logo: { width: 76, height: 76, marginBottom: space.lg },
+    // Weight comes from the font family (Nunito Sans), so no fontWeight; the system font is the fallback
     // when the font fails to load.
     eyebrow: { ...WELCOME_TYPE.eyebrow, color: t.colors.text, textAlign: "center" },
-    brand: { ...WELCOME_TYPE.brand, color: t.colors.text, textAlign: "center", marginTop: space.xs },
+    brand: { ...WELCOME_TYPE.brand, color: t.colors.text, textAlign: "center", marginTop: BRAND_GAP },
     bottom: { paddingHorizontal: space.xl, paddingTop: space.xxl },
     capsule: {
       flexDirection: "row",
@@ -148,13 +155,14 @@ const createStyles = (t: Theme) =>
       paddingVertical: space.lg,
       paddingHorizontal: space.sm,
       borderRadius: radius.hero,
-      backgroundColor: t.scheme === "dark" ? t.colors.elevated : t.colors.surface,
-      ...elevation(t.scheme, 2),
+      ...elevation(t.scheme, 1),
     },
     domain: { alignItems: "center", gap: space.xs },
     iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
     domainText: { ...typo.caption, fontWeight: "600", color: t.colors.text, textAlign: "center" },
     cta: { marginTop: space.xl },
+    ctaButton: { minHeight: 52, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", paddingHorizontal: space.xl },
+    ctaText: { ...typo.cardTitle, textAlign: "center" },
     chip: {
       flexDirection: "row",
       alignItems: "center",
@@ -165,5 +173,5 @@ const createStyles = (t: Theme) =>
       paddingHorizontal: space.md,
       borderRadius: radius.pill,
     },
-    privacyText: { ...typo.caption, color: t.colors.textSecondary, flexShrink: 1 },
+    privacyText: { ...typo.caption, fontWeight: "500", color: t.colors.text, flexShrink: 1 },
   });

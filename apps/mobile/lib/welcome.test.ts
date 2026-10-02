@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { DARK, LIGHT } from "./theme";
 import {
   BOTTOM_VEIL,
+  BRAND_GAP,
+  CAPSULE_ALPHA,
+  WELCOME_CTA,
   FOOTER_CHIP_ALPHA,
   TOP_VEIL,
   VEIL_STEPS,
@@ -33,11 +36,22 @@ describe("welcome copy", () => {
     expect(welcomeDomainColumns(1.3)).toBe(2);
     expect(welcomeDomainColumns(2)).toBe(2);
   });
-  it("every domain has its own tint; alerts use the neutral info tint, not a severity colour", () => {
+  it("domain colours: air green, weather amber, allergens light green, alerts red (never blue: reserved for Water)", () => {
     for (const p of [LIGHT, DARK]) {
       expect(welcomeTintColors(p, "air")).toEqual({ fg: p.airFg, bg: p.airBg });
-      expect(welcomeTintColors(p, "info")).toEqual({ fg: p.info, bg: p.infoBg });
+      expect(welcomeTintColors(p, "weather")).toEqual({ fg: p.weatherFg, bg: p.weatherBg });
+      expect(welcomeTintColors(p, "pollen")).toEqual({ fg: p.pollenFg, bg: p.pollenBg });
+      expect(welcomeTintColors(p, "danger")).toEqual({ fg: p.danger, bg: p.dangerBg });
     }
+    expect(WELCOME_DOMAINS).toHaveLength(4); // no Water on Welcome yet
+  });
+  it("dark CTA is calmer than the mint accent but keeps a dark label", () => {
+    expect(WELCOME_CTA.dark(DARK).bg).not.toBe(DARK.accent);
+    expect(WELCOME_CTA.light(LIGHT).bg).toBe(LIGHT.accent);
+  });
+  it("light capsule is slightly translucent, dark is the opaque elevated surface", () => {
+    expect(CAPSULE_ALPHA.light).toBeLessThan(1);
+    expect(CAPSULE_ALPHA.dark).toBe(1);
   });
 });
 
@@ -48,8 +62,9 @@ describe("welcome typography", () => {
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeGreaterThanOrEqual(16);
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeLessThanOrEqual(18);
     expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThan(WELCOME_TYPE.eyebrow.fontSize * 2);
-    expect(WELCOME_TYPE.brand.fontFamily).toContain("800");
-    expect(WELCOME_TYPE.eyebrow.fontFamily).toContain("600");
+    expect(WELCOME_TYPE.brand.fontFamily).toBe("NunitoSans_800ExtraBold");
+    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("NunitoSans_600SemiBold");
+    expect(BRAND_GAP).toBe(10); // +6 over the previous 4
   });
 });
 
@@ -82,6 +97,11 @@ describe("veils", () => {
       expect(a[0]).toBe(max);
       expect(a.at(-1)).toBeLessThan(0.01);
     }
+  });
+  it("dark veils are ~15-20% lighter than before (warm sunset kept)", () => {
+    expect(TOP_VEIL.dark).toBeLessThanOrEqual(0.66 * 0.87);
+    expect(TOP_VEIL.dark).toBeGreaterThanOrEqual(0.66 * 0.78);
+    expect(BOTTOM_VEIL.dark).toBeLessThanOrEqual(0.55 * 0.85);
   });
   it("stay subtle: no big white patch over the panorama", () => {
     expect(BOTTOM_VEIL.light).toBeLessThanOrEqual(0.35);
