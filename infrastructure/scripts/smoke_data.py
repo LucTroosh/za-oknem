@@ -11,6 +11,8 @@ OK = data there and not stale; WARN = there but old / partial; FAIL = missing.
 Exit code 1 when anything FAILs. It only reads our own API; no secrets, nothing is written.
 """
 
+from __future__ import annotations  # macOS ships Python 3.9: no `X | None` at runtime
+
 import json
 import sys
 import urllib.error
