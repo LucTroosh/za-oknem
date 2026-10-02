@@ -112,6 +112,13 @@ describe("air detail view models", () => {
     expect(lines.join(" ")).toContain("O3: nieaktualne");
     expect(airMeaning(null)).toEqual([]);
   });
+  it("a complete index still discloses a pollutant the station does not send (e.g. PM10)", () => {
+    const complete = air({ params: { "PM2.5": pm(18.6) }, index: { level: "MODERATE", complete: true, params: { PM2_5: "MODERATE", NO2: "FAIR", O3: "GOOD" }, missing: { PM10: "MISSING" }, dominant: ["PM2_5"], valid_until: null } });
+    const text = airMeaning(airIndexDetail(complete, { air: "exact" }, false, NOW, rt)).join(" ");
+    expect(text).toContain("PM10: brak");
+    expect(text).toContain("indeks jest pełny");
+    expect(text).not.toContain("Nie uwzględniono");
+  });
   it("metrics: value, unit, age; an old one dimmed; empty for a silent block", () => {
     const m = airMetrics(withParams(), NOW, { freshness: "FRESH", last_success_at: new Date(NOW - 600_000).toISOString() });
     expect(m.find((x) => x.key === "PM2.5")).toMatchObject({ value: "12,4", dim: false });

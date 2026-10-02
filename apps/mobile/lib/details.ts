@@ -185,7 +185,15 @@ export function airMeaning(detail: AirIndexDetail | null): string[] {
   if (!detail) return [];
   const lines: string[] = ["Indeks liczymy z pomiarów GIOŚ według europejskiej skali EEA."];
   if (detail.dominant.length > 0) lines.push(`O poziomie decyduje: ${detail.dominant.join(", ")}.`);
-  if (!detail.complete && detail.gaps.length > 0) lines.push(`Nie uwzględniono: ${detail.gaps.join(", ")}.`);
+  if (detail.gaps.length > 0) {
+    // Incomplete: the gap may hide a worse reading ("co najmniej"). Complete: the EEA minimum set is
+    // met, so a missing pollutant (e.g. PM10 on a station that does not measure it) is only disclosed.
+    lines.push(
+      detail.complete
+        ? `Ta stacja nie przekazuje świeżych pomiarów: ${detail.gaps.join(", ")}. Zestaw minimalny EEA jest spełniony, więc indeks jest pełny.`
+        : `Nie uwzględniono: ${detail.gaps.join(", ")}.`,
+    );
+  }
   return lines;
 }
 
