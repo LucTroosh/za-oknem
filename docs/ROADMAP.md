@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-01 (po PR #89; stan main = 88de885)
+**Ostatnia aktualizacja:** 2026-10-02 (po PR #117; stan main = 210396a)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -15,16 +15,15 @@ Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 
 ## 1. Gdzie jesteśmy (jednym zdaniem)
 
-Pierwszy cel z CLAUDE.md — **Vertical Slice: GIOŚ → Connector → PostgreSQL →
-FastAPI → React Native → PM2.5 na ekranie** — jest zrobiony i rozszerzony o
-kolejne źródła (pogoda, poziom wody, ostrzeżenia hydrologiczne) i warstwy
-pochodne (EAQI, outdoor). Backend ma też pyłki (CAMS Europe przez Open-Meteo, bez
-karty mobile i bez agregatu), fundament Geo Engine (PostGIS + resolver, **bez
-załadowanych granic gmin**), rejestrację urządzeń pod push (bez kluczy FCM/APNs)
-i `GET /api/v1/health/sources`. Nie jesteśmy jeszcze przy pełnym zakresie danych
-z §4 Master Planu (kąpieliska: tylko research i ADR-021, źródło ZABLOKOWANE — patrz
-2.4 i sekcja 6) ani przy pełnym MVP mobile (tylko jeden ekran, bez
-Alerts/Settings/push/profilu).
+Vertical Slice z CLAUDE.md (GIOŚ → connector → PostgreSQL → FastAPI → React Native) działa end-to-end i
+jest rozszerzony o pogodę, prognozę godzinową, pyłki (CAMS przez Open-Meteo), poziomy wody i
+ostrzeżenia hydrologiczne IMGW, EAQI i ocenę „Na dwór”. Backend wybiera dla każdej lokalizacji
+najbliższą stację GIOŚ **z danymi**, dopasowuje alerty do lokalizacji (kod TERYT gminy albo województwo
+miejscowości) i ma rejestr dowolnych miejscowości (GeoNames) oraz „najbliższą miejscowość” dla GPS.
+Mobile (Android, produkcyjny UI v1): Welcome → Lokalizacja (wyszukiwarka, lista miast, GPS jednorazowy) →
+Start / Alerty / Ustawienia plus ekrany Pogoda, Powietrze, Pyłki, Alert, Rzeki. **Niezweryfikowane na
+urządzeniu** (brak zrzutów, TalkBack, 130/200% fontu, APK po stronie właściciela). Nie ma jeszcze:
+push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowane — sekcja 6), wdrożenia na VPS.
 
 ---
 
@@ -121,7 +120,7 @@ Alerts/Settings/push/profilu).
 | Alerts (ekran) | 🟡 PARTIAL — zakładka Alerty: ostrzeżenia IMGW + stany wody, **cała Polska** (bez geo-filtra do czasu lokalizacji/TASK-9.5+9.7; `local_alerts` i `?geo_area_id=` z backendu jeszcze nieużyte), brak szczegółu pojedynczego alertu |
 | Settings | 🟡 PARTIAL — wiersz „Lokalizacja” (bieżąca miejscowość → wybór), wersja, lista źródeł z `attribution` backendu, informacja o braku konta/lokalizacji urządzenia; brak tematów, motywu i dostępności (TASK-12.13/12.19), brak strony polityki prywatności (nie ma jej w `docs/`) |
 | foreground location (GPS) | 🟡 PARTIAL — „Użyj mojej lokalizacji” na ekranie Lokalizacja: jednorazowy odczyt foreground (`expo-location`, tylko coarse; FINE/background/foreground-service zablokowane w `app.config.js`) → `POST /api/v1/places/nearest` (najbliższa miejscowość z rejestru `places` w 30 km, bez zapisu współrzędnych) → użytkownik potwierdza wybór. Wymaga zaimportowanych GeoNames; poza zasięgiem/bez importu = uczciwy komunikat. **Niezweryfikowane na urządzeniu** |
-| ręczny wybór lokalizacji + Welcome | 🟡 PARTIAL — Welcome (pierwsze uruchomienie, copy wg kontraktu asset packu v2: tło-zdjęcie + natywny znak/tekst/CTA/scrim; rastry zainstalowane, PR #90) → „Ustaw lokalizację” (wyszukiwarka `/places` + lista miast z `/areas`, aktywacja, jedna lokalizacja w AsyncStorage) → Start; zmiana z nagłówka Start / Ustawień; zapamiętany obszar wygasły/404 → wybór z komunikatem (TASK-12.7, 12.17, PR #88). **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR). Brak: GPS; tematy „Co chcesz śledzić?” usunięte decyzją production-ui-v1 (TASK-12.13 SUPERSEDED), heartbeat instalacji (TASK-12.2), dane miejscowości na serwerze do czasu importu GeoNames |
+| ręczny wybór lokalizacji + Welcome | 🟡 PARTIAL — Welcome (pierwsze uruchomienie, copy wg kontraktu asset packu v2: tło-zdjęcie + natywny znak/tekst/CTA/scrim; rastry zainstalowane, PR #90) → „Ustaw lokalizację” (wyszukiwarka `/places` + lista miast z `/areas`, aktywacja, jedna lokalizacja w AsyncStorage) → Start; zmiana z nagłówka Start / Ustawień; zapamiętany obszar wygasły/404 → wybór z komunikatem (TASK-12.7, 12.17, PR #88); Back z Lokalizacji do Welcome i reset historii po pierwszym wyborze (PR #110); finalny Welcome (PR #111–#117); GPS: patrz wiersz niżej. **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR). Brak: heartbeat instalacji (TASK-12.2); tematy „Co chcesz śledzić?” usunięte decyzją production-ui-v1 (TASK-12.13 SUPERSEDED), dane miejscowości na serwerze do czasu importu GeoNames (`geonames_places.ingest --download`) |
 | push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
@@ -152,7 +151,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 
 | Do zrobienia | Czego dotyczy | Task / źródło |
 |---|---|---|
-| Zatwierdzić licencję PRG (GUGiK) w Source Approval Gate i pobrać `00_jednostki_administracyjne.zip` → GeoJSON gmin → import (`python -m app.connectors.prg_gminy.ingest`) | Bez tego `POST /geo/resolve` zwraca `None`, a 6.2 zostaje 🟡 | TASK-6.2, `docs/tasks/TASK-6.2-geo-engine-foundation.md` |
+| Zatwierdzić licencję PRG (GUGiK) w Source Approval Gate i pobrać `00_jednostki_administracyjne.zip` → GeoJSON gmin → import (`python -m app.connectors.prg_gminy.ingest`). **Po co:** granice gmin pozwalają zamienić współrzędne (GPS/miejscowość) na dokładną gminę (point-in-polygon, reguła #9) i nadać miejscowościom z rejestru kod TERYT gminy; dziś alerty dla nich dopasowujemy tylko po województwie (PR #105), a to jedyny poziom, który IMGW hydro i tak podaje. Plik trzeba przygotować i przekonwertować (SHP/GML → GeoJSON WGS84) | Bez tego `POST /geo/resolve` zwraca `None`, a 6.2 zostaje 🟡; dopasowanie alertów zostaje na poziomie województwa | TASK-6.2, `docs/tasks/TASK-6.2-geo-engine-foundation.md` |
 | Na VPS uruchomić import GeoNames (`docker compose exec api python -m app.connectors.geonames_places.ingest --download`) i formalnie przejść Source Approval Gate (`geonames_pl`, CC BY 4.0) | Bez tego `GET /places` zwraca pustą listę (wybór dowolnej miejscowości nie działa); układ pliku zweryfikowany na prawdziwym zrzucie | TASK-6.3, ADR-029, `source-registry.md` |
 | Kontakt z GIS ws. udostępnienia API/danych o kąpieliskach (albo wybór innego zatwierdzonego źródła); potwierdzić licencję EEA 2025, jeśli wystarczy rejestr + klasyfikacja roczna | Odblokowanie 2.4 | TASK-11.1/11.2, ADR-021, `docs/tasks/TASK-11-bathing-water.md` |
 | IMGW: ustalić, czy hydro/ostrzeżenia to dane o wysokiej wartości (HVD, rozp. UE 2023/138) i jak ma się CC BY-NC-ND 4.0 zbioru plikowego do API; w razie potrzeby umowa (biznes@imgw.pl) | Przed monetyzacją (checklista ADR-003) | ADR-003, `source-registry.md` |
@@ -221,9 +220,16 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #87 | Silnik „Na dwór”: NO₂/O₃ (opcjonalne grupy, progi z `air_index.BANDS`) i burza (`weather_code` ≥95 → POOR); addendum ADR-016; kontrakt bez zmian |
 | #89 | Prognoza godzinowa 48 h (TASK-5.6, ADR-030): `forecast.hours[]` w dashboardzie, `forecasts.granularity` (migracja `0015`), jedno żądanie Open-Meteo, retencja „najnowszy przebieg”, parser odporny na `null`; estymata budżetu 2→3 jedn. (`max_active_areas` 411→280) — zależny od #87 |
 | #99 | Mobile: profil EAS `preview` (test APK z ikoną/splashem, `eas.json`) + `app.config.js` włączający HTTP (cleartext) tylko dla tego profilu; nowa zależność `expo-build-properties` (SDK 52, uzasadnienie: lokalny backend po HTTP w teście bez VPS); bez zmian w produkcji — 🟡 (build niezweryfikowany) |
-| #102 | Alerty ↔ seedowe miasta: migracja `0016` nadaje 7 miastom z seeda kody TERYT gmin (potwierdzone w rejestrze GUS), bo bez nich KAŻDY alert był `unresolved` (Wrocław nie widział ostrzeżeń dla dolnośląskiego jako lokalnych); test danych; addendum ADR-013; bez zmiany reguły dopasowania — 🟡 (migracja SQL weryfikowana w CI/Postgres) |
-| #97 | Mobile: tematy „Co chcesz śledzić?” (TASK-12.13): `lib/topics.ts`, `TopicsPicker`, krok w onboardingu i w Ustawieniach, lokalny zapis (`Settings.topics`, kompatybilny wstecz); wyłączony temat = brak karty, baner realnego ostrzeżenia nigdy ukryty; bez zmian backendu — 🟡 (bez weryfikacji na urządzeniu) |
+| #103 | Alerty ↔ seedowe miasta: migracja `0016` nadaje 7 miastom z seeda kody TERYT gmin (potwierdzone w rejestrze GUS), bo bez nich KAŻDY alert był `unresolved` (Wrocław nie widział ostrzeżeń dla dolnośląskiego jako lokalnych); test danych; addendum ADR-013; bez zmiany reguły dopasowania — 🟡 (migracja SQL weryfikowana w CI/Postgres) |
+| #97 | **(zastąpione w #102: Topics usunięte)** Mobile: tematy „Co chcesz śledzić?” (TASK-12.13): `lib/topics.ts`, `TopicsPicker`, krok w onboardingu i w Ustawieniach, lokalny zapis (`Settings.topics`, kompatybilny wstecz); wyłączony temat = brak karty, baner realnego ostrzeżenia nigdy ukryty; bez zmian backendu — 🟡 (bez weryfikacji na urządzeniu) |
 | #102 | Mobile: Production UI v1 — pełna przebudowa warstwy wizualnej wg `docs/ui/production-ui-v1.md` + `production-components-v1.md`: tokeny/prymitywy, Start (HeroVerdict, QuickStatusGrid, podgląd alertów), Pogoda/Powietrze/Pyłki/Alerty/Ustawienia, nawigacja Start/Alerty/Ustawienia, usunięte Topics; bez zmian backendu — 🟡 (lint/typecheck/379 testów/bundle Android OK; screenshoty z urządzenia i APK po stronie właściciela) |
+| #104 | API: najbliższa stacja GIOŚ **z danymi** (ADR-025 addendum): `geo.pick_air_station`, `/dashboard` i `/air/latest?geo_area_id=` używają stacji z pomiarami w 100 km (dystans i pasmo pokrycia dotyczą stacji faktycznie użytej), polling 3 najbliższych stacji na obszar; naprawia „Brak stacji” (Wrocław) — ✅ (CI) |
+| #105 | API: alerty dla miejscowości z rejestru `places` (ADR-013 addendum): `places.alert_match_codes` — kod gminy, a bez niego województwo z `admin1_name`; wcześniej każdy alert był dla nich „do sprawdzenia” — ✅ (CI) |
+| #106 | GPS: „Użyj mojej lokalizacji” (`POST /api/v1/places/nearest`, 30 km, bez zapisu współrzędnych; `expo-location`, tylko coarse, FINE/background/foreground-service zablokowane) — 🟡 (bez weryfikacji na urządzeniu) |
+| #107, #108 | `infrastructure/scripts/smoke_data.py` — test, czy backend dociągnął dane dla miasta (działa na Pythonie 3.9) — ✅ |
+| #109 | Docs: pisemne potwierdzenie Open-Meteo (ADR-031), source registry `open_meteo*` APPROVED dla obecnej architektury, `docs/release/business-gates.md`, `docs/business/provider-licensing.md` — ✅ (daty korespondencji do uzupełnienia przez właściciela) |
+| #110 | Mobile: nawigacja pierwszego uruchomienia — Wstecz z Lokalizacji do Welcome, reset historii po wyborze, zmiana lokalizacji wraca do źródła (`lib/navigation.ts`) — 🟡 (Back na urządzeniu niezweryfikowany) |
+| #111–#117 | Mobile: Welcome — seria iteracji wizualnych do finalnej wersji (kapsuła 4 domen, panorama w kadrze, welony i lokalny scrim, Nunito, kolory domen z czerwonymi Alertami, logo oryginalne, układ wg mockupu); tylko `app/welcome.tsx`, `lib/welcome.ts` — 🟡 (wygląd na urządzeniu niezweryfikowany) |
 | #96 | Mobile: wybór motywu Systemowy/Jasny/Ciemny (TASK-12.19): zapis lokalny (`theme` w ustawieniach, kompatybilny wstecz), `Appearance.setColorScheme`, pasek stanu wg efektywnego schematu; przegląd a11y kodu (`docs/ui/a11y-review.md`); bez zmian backendu — 🟡 (TalkBack/czcionki/zmiana na żywo niezweryfikowane na urządzeniu) |
 | #95 | Mobile: ekran Stany rzek (TASK-12.16): pełna lista stacji IMGW z progami, grupy, wyszukiwanie, paginacja; stary odczyt nie twierdzi „poniżej progów”; test pilnujący braku kąpielisk/wody pitnej w UI; bez zmian backendu — 🟡 (bez weryfikacji na urządzeniu) |
 | #94 | Mobile: ekran Alerty wg lokalizacji + szczegół alertu (TASK-9.7): `local_alerts`/`unresolved` (nigdy ukryte)/pozostałe, treść źródłowa dosłownie (reguła #10), „brak ostrzeżeń” tylko przy potwierdzeniu; bez zmian backendu — 🟡 (bez weryfikacji na urządzeniu) |
