@@ -81,7 +81,9 @@ na bieżąco.
 - Nie wprowadzaj mikroserwisów, mapy, kont użytkowników, PWA, Green Index — to poza MVP
   (sekcja 11 Master Planu).
 - Nie zmieniaj providera pogody/pyłków bez aktualizacji ADR-001 i Source Registry.
-- Nie publikuj/nie włączaj monetyzacji (reklamy, subskrypcje, Patronite) — patrz ADR-003.
+- Nie publikuj/nie włączaj monetyzacji (reklamy, subskrypcje/premium, Patronite) bez pytania — patrz
+  ADR-003 i ADR-031. Reklamy i płatne/premium funkcje wymagają PRZED włączeniem planu komercyjnego
+  Open-Meteo (`docs/release/business-gates.md`); darowizny na Free dozwolone, ale to decyzja właściciela.
 
 ## Pierwszy cel: Vertical Slice
 
