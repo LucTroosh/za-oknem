@@ -997,7 +997,9 @@ placeholderze.
       Caddy w sieci Dockera (nie `*`), a Caddy przekazywać `X-Forwarded-For`. Bez tego
       `request.client` = proxy i `device_writes` oraz `place_activations` mają jeden bucket dla
       wszystkich. **Acceptance:** test na stagingu — dwa różne IP mają osobne liczniki;
-      `/dashboard/latest` bez zmian po aktywacji miejscowości.
+      `/dashboard/latest` bez zmian po aktywacji miejscowości; log Caddy nie zawiera query
+      `/api/v1/places?q=` (usunąć `query` z formatu logu / filtr `delete`), bo to miejscowość
+      użytkownika (obraz API ma `--no-access-log`).
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**

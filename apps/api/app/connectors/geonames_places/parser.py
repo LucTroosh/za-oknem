@@ -48,6 +48,8 @@ class PlaceRecord:
 class ParseResult:
     records: list[PlaceRecord] = field(default_factory=list)
     rejected: list[str] = field(default_factory=list)  # human-readable reasons
+    # admin name files actually supplied (a name with no match then means "gone", not "unknown")
+    admin_given: frozenset[str] = frozenset()
     skipped: int = 0  # valid lines that are not places we import (other class/code/country)
 
 

@@ -249,6 +249,23 @@ def test_refresh_without_admin_files_clears_admin2_name_when_only_admin1_changed
     assert (row.admin1_name, row.admin2_name) == (None, None)
 
 
+def test_supplied_admin_file_without_a_match_clears_the_old_name(tmp_path, db_session):
+    txt = tmp_path / "PL.txt"
+    txt.write_text(_line(3099230, "Gliwice", 50.3, 18.67, a1="83", a2="2466"), encoding="utf-8")
+    f1, f2 = tmp_path / "a1.txt", tmp_path / "a2.txt"
+    f1.write_text("".join(ADMIN1), encoding="utf-8")
+    f2.write_text("".join(ADMIN2), encoding="utf-8")
+    first = ingest.load(txt, f1, f2)
+    ingest.import_records(first.records, db_session, admin_given=first.admin_given)
+    f2.write_text("", encoding="utf-8")  # the powiat vanished from the catalogue
+
+    again = ingest.load(txt, f1, f2)
+    ingest.import_records(again.records, db_session, admin_given=again.admin_given)
+
+    row = db_session.query(Place).one()
+    assert (row.admin1_name, row.admin2_name) == ("Silesia", None)
+
+
 def _transport(handler):
     return httpx.MockTransport(handler)
 

@@ -84,7 +84,11 @@ class ImportReport:
 
 
 def import_records(
-    records: list[PlaceRecord], db: Session, *, imported_at: datetime | None = None
+    records: list[PlaceRecord],
+    db: Session,
+    *,
+    imported_at: datetime | None = None,
+    admin_given: frozenset[str] = frozenset(),
 ) -> ImportReport:
     imported_at = imported_at or datetime.now(UTC)
     report = ImportReport()
@@ -113,6 +117,7 @@ def import_records(
                     if not (
                         row is not None
                         and f in _ADMIN_NAMES
+                        and f not in admin_given  # file supplied: no match = clear
                         and getattr(rec, f) is None
                         and all(getattr(row, c) == getattr(rec, c) for c in _ADMIN_NAMES[f])
                     )
@@ -191,6 +196,9 @@ def load(path: Path, admin1: Path | None = None, admin2: Path | None = None) -> 
             return parse_admin_names(p.read_text(encoding="utf-8").splitlines()) if p else {}
 
         result.records = attach_admin_names(result.records, names(admin1), names(admin2))
+        result.admin_given = frozenset(
+            n for n, p in (("admin1_name", admin1), ("admin2_name", admin2)) if p
+        )
     return result
 
 
@@ -258,7 +266,7 @@ def _run(args, parsed: ParseResult) -> None:
             fetched_at=datetime.now(UTC),
             parser_version=PARSER_VERSION,
         )
-        report = import_records(parsed.records, db)
+        report = import_records(parsed.records, db, admin_given=parsed.admin_given)
         provenance.set_validation_status(
             db, fetch_id, provenance.batch_status(total, len(parsed.rejected) + report.failed)
         )

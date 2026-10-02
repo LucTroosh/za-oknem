@@ -114,8 +114,10 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
 - `GET /api/v1/places?q=&limit=` — `q` 2–100 znaków, `limit` 1–20 (domyślnie 10); sortowanie:
   dokładne dopasowanie znormalizowane, potem populacja malejąco (brak = 0), potem nazwa i id (remisy
   deterministyczne). Zapytanie normalizujące się do < 2 znaków → pusta lista. 422 **bez**
-  `input`/`ctx` (rozszerzenie handlera: ścieżki `/api/v1/places*`), aplikacja nie loguje `q`
-  (middleware loguje tylko ścieżkę). `Cache-Control: public, max-age=300`.
+  `input`/`ctx` (rozszerzenie handlera: ścieżki `/api/v1/places*`), aplikacja nie loguje `q`.
+  `q` trafia jednak do query stringu, więc access log serwera by go zawierał: obraz API startuje
+  z `uvicorn --no-access-log`, a logi reverse proxy (Caddy) nie mogą zapisywać query dla
+  `/api/v1/places` (TASK-15.6). `Cache-Control: public, max-age=300`.
 - `GET /api/v1/places/{place_id}` — miejscowość + stan jej obszaru; **nie tworzy ani nie odświeża**
   obszaru (id jest publiczne i wyliczalne — odczyt nie może podtrzymywać pollingu, ADR-026).
 - `POST /api/v1/places/{place_id}/activate` — tworzy `geo_area` (`slug=place-<id>`, nazwa i
