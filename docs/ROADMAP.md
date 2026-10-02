@@ -44,7 +44,7 @@ Alerts/Settings/push/profilu).
 |---|---|
 | temperatura, wilgotność, wiatr (prędkość+kierunek+porywy), kod warunków, odczuwalna, ciśnienie, zachmurzenie, opady/deszcz/śnieg | ✅ DONE — Open-Meteo, `GET /api/v1/weather/latest` + dashboard (12/15 pól MVP, PR #41); na mobile `WeatherCard` pokazuje wszystkie zwracane pola z jednostkami (TASK-5.4, PR #78) |
 | punkt rosy, widoczność, UV | ✅ DONE — Open-Meteo `hourly` (osobny fetch nie był potrzebny, jeden request z `current`+`hourly`+`daily`), dopasowanie do godziny `current` w parserze (TASK-5.4) |
-| prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46); widoczna dla użytkownika w `dashboard_latest()` + mobile, 3 dni max/min z atrybucją i freshness (TASK-5.5) |
+| prognoza (forecast, nie tylko current) | ✅ DONE — model `Forecast` (§30, ADR-010), `GET /api/v1/weather/forecast`, dzienna prognoza (temp max/min, opady, kod pogody) (TASK-5.3, PR #46); widoczna dla użytkownika w `dashboard_latest()` + mobile, 3 dni max/min z atrybucją i freshness (TASK-5.5); prognoza godzinowa 48 h w `forecast.hours[]` (TASK-5.6, ADR-030, PR #88; niewyświetlana w UI, silnik „najlepszego okna” = TASK-7.10, godzinowe powietrze = TASK-7.11) |
 
 ### 2.3. Pylenie (§6)
 
@@ -218,6 +218,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #85 | Dowolna miejscowość w Polsce (TASK-6.3, ADR-029): rejestr `places` (migracja `0014`, import GeoNames PL z lokalnego pliku), `GET /places`, `POST /places/{id}/activate` (limit z budżetu Open-Meteo, TTL 7 dni, pierwszy fetch w minuty), jawny `coverage` powietrza `exact/nearby/regional/none` + `grid` dla pogody/pyłków, polling GIOŚ do 100 km, `regional` poza werdyktem „Na dwór”, kontrakt zregenerowany; bez klienta mobile i bez danych (plik GeoNames do zaimportowania) — 🟡 |
 
 | #87 | Silnik „Na dwór”: NO₂/O₃ (opcjonalne grupy, progi z `air_index.BANDS`) i burza (`weather_code` ≥95 → POOR); addendum ADR-016; kontrakt bez zmian |
+| #88 | Prognoza godzinowa 48 h (TASK-5.6, ADR-030): `forecast.hours[]` w dashboardzie, `forecasts.granularity` (migracja `0015`), jedno żądanie Open-Meteo, retencja „najnowszy przebieg”, parser odporny na `null`; estymata budżetu 2→3 jedn. (`max_active_areas` 411→280) — zależny od #87 |
 ---
 
 ## Jak utrzymywać ten plik

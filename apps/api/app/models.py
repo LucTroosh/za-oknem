@@ -263,6 +263,13 @@ class Forecast(Base):
     source_fetch_id: Mapped[int | None] = mapped_column(
         ForeignKey("source_fetches.id"), nullable=True, index=True
     )
+    # ADR-030: "daily" (one row per day, append-only history, ADR-010) or "hourly" (the next
+    # 48 h; only the newest model run is kept). A column, not a param_code convention: both
+    # granularities carry `weather_code`, and a daily and an hourly row for 00:00 would
+    # otherwise collide on (param, valid_from).
+    granularity: Mapped[str] = mapped_column(
+        String(10), default="daily", server_default="daily", index=True
+    )
 
 
 class PollenSnapshot(Base):

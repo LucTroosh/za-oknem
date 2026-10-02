@@ -39,12 +39,32 @@ CURRENT_PARAMS = (
 
 # Daily forecast fields (ADR-010, Master Plan §30). Deliberately narrow MVP set,
 # not Open-Meteo's full daily catalog (YAGNI, same spirit as CURRENT_PARAMS).
-DAILY_PARAMS = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
+DAILY_PARAMS_CORE = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
+# ADR-030: models do not always provide these (probability is often null), so the parser
+# skips them when absent instead of failing the whole daily block (rule #1).
+DAILY_PARAMS_OPTIONAL = "precipitation_probability_max,uv_index_max"
+DAILY_PARAMS = f"{DAILY_PARAMS_CORE},{DAILY_PARAMS_OPTIONAL}"
 
 # Last three §5 MVP fields (dew point, visibility, UV index): Open-Meteo's docs
 # only list them under `hourly`, not `current` (TASK-5.4) - parser.py picks the
 # entry matching current's hour out of this array instead of a second request.
 HOURLY_PARAMS = "dew_point_2m,visibility,uv_index"
+
+# Hourly FORECAST for the next HOURLY_FORECAST_HOURS (ADR-030): same request, more `hourly`
+# variables. `visibility`/`uv_index` are already requested above (no extra variable).
+HOURLY_FORECAST_PARAMS = (
+    "temperature_2m,apparent_temperature,precipitation,precipitation_probability,"
+    "wind_speed_10m,wind_gusts_10m,uv_index,weather_code,visibility"
+)
+HOURLY_FORECAST_HOURS = 48
+# What is actually sent as `hourly`: the union, each variable once (billing counts them).
+HOURLY_REQUEST_PARAMS = ",".join(
+    dict.fromkeys([*HOURLY_PARAMS.split(","), *HOURLY_FORECAST_PARAMS.split(",")])
+)
+# Explicit (ADR-030): the daily forecast keeps its 7 days (Open-Meteo's default, now
+# pinned). `forecast_hours` is deliberately NOT used: it makes `hourly` start at the next
+# whole hour and would drop the current-hour slot that TASK-5.4 (UV/visibility) looks up.
+FORECAST_DAYS = 7
 
 
 class OpenMeteoApiError(Exception):
@@ -111,8 +131,9 @@ def fetch_weather(
         "latitude": latitude,
         "longitude": longitude,
         "current": CURRENT_PARAMS,
-        "hourly": HOURLY_PARAMS,
+        "hourly": HOURLY_REQUEST_PARAMS,
         "daily": DAILY_PARAMS,
+        "forecast_days": FORECAST_DAYS,
         "timezone": "UTC",
     }
     return get_json(

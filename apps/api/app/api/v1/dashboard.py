@@ -125,12 +125,25 @@ class DashboardForecastDay(BaseModel):
     params: dict[str, WeatherParam]
 
 
+class DashboardForecastHour(BaseModel):
+    """ADR-030: one hour of the model forecast (NOT a measurement). `params` holds only the
+    values the model provided for that hour - a missing one is absent, never 0."""
+
+    valid_from: str
+    valid_until: str
+    params: dict[str, WeatherParam]
+
+
 class DashboardForecast(BaseModel):
     source: Literal["open_meteo"]
     attribution: str
     fetched_at: str
     freshness: Freshness3
     days: list[DashboardForecastDay]
+    # ADR-030: the next up to 48 h, a separate list from `days` (never mixed). Empty when
+    # the hourly block has not been fetched/parsed; its staleness is `freshness` +
+    # `source_status.weather` like everything else from Open-Meteo.
+    hours: list[DashboardForecastHour]
 
 
 class OutdoorReasonOut(BaseModel):
@@ -317,7 +330,7 @@ def dashboard_latest(
 
     # TASK-5.5: forecast was only reachable via /weather/forecast, which nothing
     # consumed - the user never saw it. Same helper, so both show one prediction.
-    forecasts = forecasts_by_area(db, geo_area_id)
+    forecasts = forecasts_by_area(db, geo_area_id, hourly=True)
 
     # TASK-7.3 / ADR-012: source-level status for air and weather, like hydro/pollen.
     # Isolated (rule #1): a failing read degrades these blocks to UNAVAILABLE instead of
@@ -520,5 +533,13 @@ def _forecast_block(forecast: dict | None) -> dict | None:
                 "params": day["params"],
             }
             for day in forecast["days"]
+        ],
+        "hours": [
+            {
+                "valid_from": hour["valid_from"].isoformat(),
+                "valid_until": hour["valid_until"].isoformat(),
+                "params": hour["params"],
+            }
+            for hour in forecast["hours"]
         ],
     }

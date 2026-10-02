@@ -9,7 +9,14 @@ import pytest
 
 import app.scheduler as scheduler
 from app.connectors.open_meteo_pollen import client as pollen_client
-from app.models import Alert, GeoArea, PollenSnapshot, SourceFetch, WeatherSnapshot
+from app.models import (
+    Alert,
+    Forecast,
+    GeoArea,
+    PollenSnapshot,
+    SourceFetch,
+    WeatherSnapshot,
+)
 
 
 def _make_area(db, slug="klodzko") -> GeoArea:
@@ -622,6 +629,33 @@ class TestRunRawRetention:
         scheduler.run_raw_retention()
 
         assert db_session.query(SourceFetch).one().payload is None
+
+    def test_also_drops_stale_hourly_forecast_rows(self, monkeypatch, db_session):
+        # ADR-030: an area that stopped being polled keeps its last hourly run until here.
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        now = datetime.now(UTC)
+        for rid, ended in (("old", now - timedelta(days=3)), ("recent", now - timedelta(hours=2))):
+            db_session.add(
+                Forecast(
+                    source_id="open_meteo",
+                    source_record_id=rid,
+                    geo_area_id=1,
+                    param_code="temperature_2m",
+                    value=1.0,
+                    unit="°C",
+                    model="auto",
+                    forecast_reference_time=now,
+                    valid_from=ended - timedelta(hours=1),
+                    valid_until=ended,
+                    fetched_at=now,
+                    granularity="hourly",
+                )
+            )
+        db_session.commit()
+
+        scheduler.run_raw_retention()
+
+        assert [r.source_record_id for r in db_session.query(Forecast)] == ["recent"]
 
     def test_failure_does_not_record_source_status_or_raise(self, monkeypatch):
         # Housekeeping is not a data source: no source_status row (ADR-012), and
