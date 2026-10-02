@@ -1,0 +1,15 @@
+# Reverse proxy for the API (HTTPS certificates are obtained and renewed automatically by Caddy).
+# {$API_DOMAIN} comes from .env.prod (e.g. api.example.pl); DNS A record must point at the VPS.
+#
+# Privacy: NO `log` directive on purpose, so Caddy writes no access log (the query string of
+# /places?q= carries a place name, ADR-029; see docs/privacy/privacy-policy-draft.md 3.3). If access
+# logs are ever enabled, strip the query string first and set a short retention.
+{$API_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	reverse_proxy api:8000
+}
