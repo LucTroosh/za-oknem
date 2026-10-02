@@ -136,6 +136,13 @@ Szkic polityki prywatności: [`privacy/privacy-policy-draft.md`](privacy/privacy
 przeglądu właściciela (pola administratora, hostingu i logów do uzupełnienia; wymagana publikacja pod stałym
 adresem https przed Google Play).
 
+## 4b. Wdrożenie (VPS)
+
+Zestaw gotowy, **niewdrożony** (brak VPS): [`../docker-compose.prod.yml`](../docker-compose.prod.yml),
+`.env.prod.example`, `infrastructure/caddy/Caddyfile`, runbook [`release/vps-runbook.md`](release/vps-runbook.md).
+Statyczna walidacja compose OK; Caddyfile i całość niezweryfikowane na serwerze. Wejście na produkcję
+nadal wymaga TASK-15.0 (wszystkie źródła `APPROVED`) i decyzji właściciela (VPS, domena, hosting).
+
 ## 5. Poza MVP (§11) — celowo nietykane
 
 Zgodnie z Master Planem, świadomie NIE robimy: mapy, uniwersalnego Green

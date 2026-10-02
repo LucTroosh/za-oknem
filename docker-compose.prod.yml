@@ -1,0 +1,88 @@
+# Production stack for a single VPS (ready-to-deploy kit; nothing is deployed yet - no VPS).
+# Runbook: docs/release/vps-runbook.md. Secrets only in `.env.prod` (never committed, see
+# `.env.prod.example`). Differences from the dev compose: no code mounts, no published DB port,
+# no Redis (not used by the code yet - ROADMAP), a one-shot migration step, HTTPS via Caddy.
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: za_oknem
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: za_oknem
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U za_oknem -d za_oknem"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  # One-shot: applies Alembic migrations (rule #4) before the api and scheduler start.
+  migrate:
+    build: ./apps/api
+    env_file: .env.prod
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [internal]
+
+  api:
+    build: ./apps/api
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      # Only Caddy (fixed address below) may set X-Forwarded-For - ADR-029, rate limiting by client IP.
+      FORWARDED_ALLOW_IPS: 172.28.0.2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose: ["8000"]
+    networks:
+      internal: {}
+      edge: {}
+
+  # ADR-007: same image, loop-based scheduler instead of uvicorn.
+  scheduler:
+    build: ./apps/api
+    restart: unless-stopped
+    env_file: .env.prod
+    command: ["python", "-m", "app.scheduler"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env.prod}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    networks:
+      edge:
+        ipv4_address: 172.28.0.2
+
+networks:
+  internal: {}
+  edge:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
