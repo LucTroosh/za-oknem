@@ -13,12 +13,15 @@ export default function HomeHeader({
   loading,
   dateText,
   temperature,
+  range,
   onChangeLocation,
 }: {
   name: string | null;
   loading: boolean;
   dateText: string;
   temperature: string | null;
+  // "Dziś maks. 18° / min. 9°" from forecast.days[0]; null = not usable (never a stale/foreign day).
+  range?: string | null;
   onChangeLocation: () => void;
 }) {
   const { colors } = useTheme();
@@ -44,10 +47,15 @@ export default function HomeHeader({
         )}
         <Text style={styles.date}>{dateText}</Text>
       </View>
-      {temperature !== null && (
-        <Text style={styles.temp} accessibilityLabel={`Teraz ${temperature}`}>
-          {temperature}
-        </Text>
+      {(temperature !== null || range) && (
+        <View style={styles.right}>
+          {temperature !== null && (
+            <Text style={styles.temp} accessibilityLabel={`Teraz ${temperature}`}>
+              {temperature}
+            </Text>
+          )}
+          {range ? <Text style={styles.range}>{range}</Text> : null}
+        </View>
       )}
     </View>
   );
@@ -60,5 +68,7 @@ const createStyles = (t: Theme) =>
     nameRow: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: MIN_TOUCH, alignSelf: "flex-start" },
     name: { ...typo.display, color: t.colors.text, flexShrink: 1 },
     date: { ...typo.body, color: t.colors.textSecondary },
+    right: { alignItems: "flex-end", flexShrink: 1 },
+    range: { ...typo.caption, color: t.colors.textSecondary },
     temp: { ...typo.title, color: t.colors.text },
   });
