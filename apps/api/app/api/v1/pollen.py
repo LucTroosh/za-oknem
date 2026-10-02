@@ -116,6 +116,10 @@ def latest_pollen(db: Session, geo_area_id: int | None = None) -> list[dict]:
     )
     if geo_area_id is not None:
         newest_stmt = newest_stmt.where(PollenSnapshot.geo_area_id == geo_area_id)
+    else:  # default list: no place areas (ADR-029) - filtered before rows are loaded
+        newest_stmt = newest_stmt.where(
+            PollenSnapshot.geo_area_id.in_(select(GeoArea.id).where(GeoArea.place_id.is_(None)))
+        )
     newest = newest_stmt.group_by(PollenSnapshot.geo_area_id).subquery()
     rows = (
         db.execute(

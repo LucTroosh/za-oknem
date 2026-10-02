@@ -90,6 +90,11 @@ class WeatherForecastResponse(BaseModel):
     areas: list[ForecastArea]
 
 
+def _seed_area_ids():
+    """Areas of the default lists: seed/PRG, never user-chosen places (ADR-029)."""
+    return select(GeoArea.id).where(GeoArea.place_id.is_(None))
+
+
 @router.get("/weather/latest", response_model=WeatherLatestResponse)
 def latest_weather(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) — never calls Open-Meteo on request.
@@ -97,6 +102,7 @@ def latest_weather(db: Session = Depends(get_db)) -> dict:
     # Latest reading per (geo_area, param) — same DISTINCT ON idiom as air.py.
     stmt = (
         select(WeatherSnapshot)
+        .where(WeatherSnapshot.geo_area_id.in_(_seed_area_ids()))  # not place areas (ADR-029)
         .distinct(WeatherSnapshot.geo_area_id, WeatherSnapshot.param_code)
         .order_by(
             WeatherSnapshot.geo_area_id,
@@ -171,6 +177,8 @@ def forecasts_by_area(db: Session, geo_area_id: int | None = None) -> dict[int, 
     where = [Forecast.valid_until > now]
     if geo_area_id is not None:
         where.append(Forecast.geo_area_id == geo_area_id)
+    else:  # default list: filter before loading, place areas keep history after expiry
+        where.append(Forecast.geo_area_id.in_(_seed_area_ids()))
     stmt = (
         select(Forecast)
         .where(*where)
