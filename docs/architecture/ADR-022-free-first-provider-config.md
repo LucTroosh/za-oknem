@@ -131,6 +131,12 @@ Darmowy tier Open-Meteo jest wyłącznie niekomercyjny. Checklista „przed mone
 subskrypcje, Patronite, premium) jest w ADR-003; pierwszy punkt: plan komercyjny Open-Meteo
 aktywny i skonfigurowany przez env (ten ADR, pkt 2).
 
+**Uzupełnienie 2026-10-02 (ADR-031):** wg pisemnego potwierdzenia Open-Meteo darowizny/Patronite
+są dozwolone na Free; plan komercyjny jest wymagany przed **reklamami** i **płatnymi/premium
+funkcjami**. Bramka wydaniowa: `docs/release/business-gates.md`. Zmienne env bez zmian
+(`OPEN_METEO_FORECAST_BASE_URL`, `OPEN_METEO_AIR_QUALITY_BASE_URL` — osobne, bo różne hosty — oraz
+opcjonalny `OPEN_METEO_API_KEY`); kodu nie zmieniamy.
+
 ## Consequences
 
 - Free → Paid to zmiana `.env` na VPS (+ jedno żądanie testowe), bez deployu kodu.

@@ -1,6 +1,6 @@
 # ADR-003: Open-Meteo (darmowy, niekomercyjny tier) jako dostawca pogody w fazie social-impact
 
-**Status:** Accepted — do rewizji przed jakąkolwiek monetyzacją
+**Status:** Accepted — częściowo uzupełniony przez ADR-031 (pisemne potwierdzenie Open-Meteo, 2026-10-02): darowizny/Patronite dozwolone na Free; reklamy i płatne/premium funkcje nadal wymagają planu komercyjnego PRZED włączeniem
 **Data:** 2026-09-28
 
 ## Context
@@ -82,3 +82,13 @@ włączana, dopóki wszystkie punkty nie są odhaczone w PR rewizji tego ADR:
       ceny planów zweryfikowane u źródła (w registry NIEZWERYFIKOWANE).
 - [ ] Atrybucje (Open-Meteo, CAMS, GIOŚ, IMGW…) nadal widoczne w ekranie Źródła.
 - [ ] ADR-003 zmieniony na Superseded z nową decyzją.
+
+## Addendum 2026-10-02 (ADR-031)
+
+Pisemne potwierdzenie OpenMeteo GmbH rozstrzyga „szarą strefę”: dobrowolne darowizny (Patronite) są
+dozwolone na Free API; reklamy i płatne/premium funkcje czynią użycie komercyjnym. Trigger 1 powyżej
+(Patronite) nie wymusza już zmiany planu Open-Meteo; triggery 2 i 3 (reklamy, premium) bez zmian i
+mają bramkę w `docs/release/business-gates.md`. Zakaz „Patronite ani innej formy stałego wsparcia”
+z sekcji Decision dotyczył ryzyka licencyjnego Open-Meteo, które potwierdzenie usuwa; decyzja o samym
+włączeniu darowizn pozostaje decyzją produktową właściciela. Punkty checklisty o IMGW i innych źródłach
+nie są objęte potwierdzeniem Open-Meteo.

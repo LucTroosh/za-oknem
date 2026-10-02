@@ -34,11 +34,19 @@ PRODUCTION, alternatywnie BLOCKED. Uzupełniać przy każdym nowym connectorze
   5000/h, 10000/dzień, 300000/mies.; bez gwarancji uptime. Plany płatne: Standard 1M /
   Professional 5M / Enterprise 50M+ wywołań/mies. (pricing, audyt 2026-10-01). Ceny planów:
   NIEZWERYFIKOWANE (blog substack podaje $29/$99 — nie przyjmować jako fakt). Host
-  `customer-air-quality-api…` wywnioskowany z reguły prefiksu. Patronite = szara strefa →
-  pisemne potwierdzenie od Open-Meteo PRZED użyciem.
-- **commercial_use:** NIE na darmowym tierze (Free = wyłącznie niekomercyjny) — patrz ADR-003.
-  Przed jakąkolwiek monetyzacją: plan komercyjny (Standard+) + checklista w ADR-003; przejście
-  = wyłącznie zmiana env (base URL + klucz), ADR-022.
+  `customer-air-quality-api…` wywnioskowany z reguły prefiksu. **Patronite/darowizny: dozwolone
+  na Free (pisemne potwierdzenie, ADR-031).**
+- **commercial_use:** Free API wystarcza dla darmowej aplikacji bez reklam i bez płatnych/premium
+  funkcji (ADR-031). **Reklamy lub płatne/premium funkcje = komercyjne** → plan komercyjny (Standard+)
+  + `docs/release/business-gates.md` + checklista ADR-003; przejście = wyłącznie zmiana env
+  (base URL + klucz), ADR-022.
+- **approval (Source Approval Gate, ADR-031, 2026-10-02):** **APPROVED** dla obecnej architektury —
+  darmowa aplikacja, bez reklam, bez płatnych/premium funkcji; serwerowy zaplanowany fetch →
+  snapshot w bazie → API Za Oknem → wielu użytkowników (pisemne potwierdzenie OpenMeteo GmbH,
+  `docs/business/provider-licensing.md`). JDG sama w sobie nie wymaga planu komercyjnego;
+  dobrowolne darowizny (Patronite) dozwolone na Free; **reklamy i płatne/premium funkcje = użycie
+  komercyjne** → plan Standard PRZED włączeniem (`docs/release/business-gates.md`). Rabat 50% na
+  pierwszy rok komercyjny to metadane biznesowe (nie config).
 - **redistribution:** dozwolona pod CC BY 4.0 z atrybucją
 - **caching:** wymagany snapshot w bazie (ADR-001), zero zapytań on-demand per użytkownik
 - **rate_limit:** 600/min, 5000/h, 10000/dzień, 300000/miesiąc (darmowy tier)
@@ -95,17 +103,19 @@ Decyzja i pełna lista tego, co zweryfikowane/niezweryfikowane: ADR-020.
   **access_terms (DOSTĘP do API):** jak w `open_meteo` — darmowe wyłącznie niekomercyjnie
   („komercyjne” m.in. aplikacje z subskrypcjami lub reklamami), 600/min, 5000/h, 10000/dzień,
   300000/mies., bez gwarancji uptime; plany Standard 1M / Professional 5M / Enterprise 50M+
-  /mies.; ceny NIEZWERYFIKOWANE; Patronite = szara strefa → pisemne potwierdzenie od
-  Open-Meteo przed użyciem. **Sezonowość (audyt 2026-10-01):** CAMS Regional deklaruje pyłki
+  /mies.; ceny NIEZWERYFIKOWANE; **Patronite/darowizny dozwolone na Free (ADR-031)**.
+  **Sezonowość (audyt 2026-10-01):** CAMS Regional deklaruje pyłki
   cały rok od 11.2023, a Open-Meteo pisze „tylko w sezonie” — rozbieżność wpływa na
   interpretację null vs 0 (NIEROZSTRZYGNIĘTE; parser zachowuje oba wiernie). Wcześniejszy
   wpis `cams_ads` mówił „bez ograniczeń użycia” — strona datasetu podaje CC-BY, więc
   atrybucja jest obowiązkowa
-- **commercial_use:** NIE na darmowym tierze Open-Meteo (Free = wyłącznie niekomercyjny) — ta
-  sama zasada co ADR-003 (subskrypcja/reklamy = komercyjne; Patronite nieopisane). Przed
-  jakąkolwiek monetyzacją: plan komercyjny (Air Quality API jest w „Basic APIs” każdego planu,
-  pricing 2026-10-01) + checklista ADR-003, zmiana tylko env (ADR-022); alternatywa: płatny plan Open-Meteo albo CAMS ADS
-  bezpośrednio (klucz — blokada człowieka)
+- **commercial_use:** Free API wystarcza dla darmowej aplikacji bez reklam i bez płatnych/premium
+  funkcji (ADR-031); reklamy lub płatne/premium funkcje = komercyjne → plan komercyjny (Air Quality
+  API jest w „Basic APIs” każdego planu, pricing 2026-10-01) + `docs/release/business-gates.md` +
+  checklista ADR-003, zmiana tylko env (ADR-022); alternatywa: CAMS ADS bezpośrednio (klucz —
+  blokada człowieka)
+- **approval (Source Approval Gate, ADR-031, 2026-10-02):** **APPROVED** dla obecnej architektury
+  (jak `open_meteo`: ten sam dostawca i klucz; Air Quality API; atrybucja CAMS obowiązkowa)
 - **redistribution:** dozwolona pod CC BY 4.0 z atrybucją
 - **caching:** snapshot w bazie (ADR-001, `pollen_snapshots`), zero zapytań on-demand
 - **rate_limit:** 600/min, 5000/h, 10000/dzień, 300000/mies. (darmowy tier; pricing page
