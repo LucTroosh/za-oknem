@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { DARK, LIGHT } from "./theme";
+import { DARK, LIGHT, contrastRatio } from "./theme";
 import {
   BOTTOM_VEIL,
+  BRAND_GAP,
+  CAPSULE_ALPHA,
+  WELCOME_CTA,
   FOOTER_CHIP_ALPHA,
   TOP_VEIL,
   VEIL_STEPS,
@@ -33,11 +36,32 @@ describe("welcome copy", () => {
     expect(welcomeDomainColumns(1.3)).toBe(2);
     expect(welcomeDomainColumns(2)).toBe(2);
   });
-  it("every domain has its own tint; alerts use the neutral info tint, not a severity colour", () => {
+  it("domain colours: air green, weather amber, allergens light green, alerts red (never blue: reserved for Water)", () => {
     for (const p of [LIGHT, DARK]) {
-      expect(welcomeTintColors(p, "air")).toEqual({ fg: p.airFg, bg: p.airBg });
-      expect(welcomeTintColors(p, "info")).toEqual({ fg: p.info, bg: p.infoBg });
+      expect(welcomeTintColors(p, "danger", p === LIGHT ? "light" : "dark")).toEqual({ fg: p.danger, bg: p.dangerBg });
     }
+    // dark mode keeps the shared tints
+    expect(welcomeTintColors(DARK, "air", "dark")).toEqual({ fg: DARK.airFg, bg: DARK.airBg });
+    expect(welcomeTintColors(DARK, "weather", "dark")).toEqual({ fg: DARK.weatherFg, bg: DARK.weatherBg });
+    expect(WELCOME_DOMAINS).toHaveLength(4); // no Water on Welcome yet
+  });
+  it("light mode icons are stronger than the shared pastel tints (Weather above all)", () => {
+    for (const tint of ["air", "weather", "pollen"] as const) {
+      const strong = contrastRatio(welcomeTintColors(LIGHT, tint, "light").fg, welcomeTintColors(LIGHT, tint, "light").bg);
+      const shared = welcomeTintColors(LIGHT, tint, "dark");
+      expect(strong, tint).toBeGreaterThan(contrastRatio(shared.fg, shared.bg));
+      expect(strong, tint).toBeGreaterThanOrEqual(7); // AAA for the symbol on its circle
+    }
+    const w = welcomeTintColors(LIGHT, "weather", "light");
+    expect(contrastRatio(w.bg, LIGHT.surface)).toBeGreaterThan(contrastRatio(LIGHT.weatherBg, LIGHT.surface));
+  });
+  it("dark CTA is calmer than the mint accent but keeps a dark label", () => {
+    expect(WELCOME_CTA.dark(DARK).bg).not.toBe(DARK.accent);
+    expect(WELCOME_CTA.light(LIGHT).bg).toBe(LIGHT.accent);
+  });
+  it("light capsule is slightly translucent, dark is the opaque elevated surface", () => {
+    expect(CAPSULE_ALPHA.light).toBeLessThan(1);
+    expect(CAPSULE_ALPHA.dark).toBe(1);
   });
 });
 
@@ -48,8 +72,10 @@ describe("welcome typography", () => {
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeGreaterThanOrEqual(16);
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeLessThanOrEqual(18);
     expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThan(WELCOME_TYPE.eyebrow.fontSize * 2);
-    expect(WELCOME_TYPE.brand.fontFamily).toContain("800");
-    expect(WELCOME_TYPE.eyebrow.fontFamily).toContain("600");
+    expect(WELCOME_TYPE.brand.fontFamily).toBe("Nunito_800ExtraBold");
+    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("Nunito_600SemiBold");
+    expect(WELCOME_TYPE.label.fontFamily).toBe("Nunito_700Bold");
+    expect(BRAND_GAP).toBe(10); // +6 over the previous 4
   });
 });
 
@@ -82,6 +108,11 @@ describe("veils", () => {
       expect(a[0]).toBe(max);
       expect(a.at(-1)).toBeLessThan(0.01);
     }
+  });
+  it("dark veils are ~15-20% lighter than before (warm sunset kept)", () => {
+    expect(TOP_VEIL.dark).toBeLessThanOrEqual(0.66 * 0.87);
+    expect(TOP_VEIL.dark).toBeGreaterThanOrEqual(0.66 * 0.78);
+    expect(BOTTOM_VEIL.dark).toBeLessThanOrEqual(0.55 * 0.85);
   });
   it("stay subtle: no big white patch over the panorama", () => {
     expect(BOTTOM_VEIL.light).toBeLessThanOrEqual(0.35);
