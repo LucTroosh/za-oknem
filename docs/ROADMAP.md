@@ -130,6 +130,12 @@ push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowan
 
 ---
 
+## 4a. Prywatność / sklepy
+
+Szkic polityki prywatności: [`privacy/privacy-policy-draft.md`](privacy/privacy-policy-draft.md) — 🟡 szkic do
+przeglądu właściciela (pola administratora, hostingu i logów do uzupełnienia; wymagana publikacja pod stałym
+adresem https przed Google Play).
+
 ## 5. Poza MVP (§11) — celowo nietykane
 
 Zgodnie z Master Planem, świadomie NIE robimy: mapy, uniwersalnego Green
