@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { NunitoSans_600SemiBold } from "@expo-google-fonts/nunito-sans/600SemiBold";
-import { NunitoSans_700Bold } from "@expo-google-fonts/nunito-sans/700Bold";
-import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
+import { Nunito_600SemiBold } from "@expo-google-fonts/nunito/600SemiBold";
+import { Nunito_700Bold } from "@expo-google-fonts/nunito/700Bold";
+import { Nunito_800ExtraBold } from "@expo-google-fonts/nunito/800ExtraBold";
 import { useFonts } from "expo-font";
 import { Redirect, useNavigation, useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -78,7 +78,7 @@ export default function Welcome() {
   const { settings, startOnboarding } = useLocation();
   const navigation = useNavigation();
   // Local font files: loads in a few ms; until then (or if it fails) the plain background / system font.
-  const [fontsLoaded, fontError] = useFonts({ NunitoSans_600SemiBold, NunitoSans_700Bold, NunitoSans_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold });
   const redirect = entryRedirect(settings, "welcome");
   // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
   // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the

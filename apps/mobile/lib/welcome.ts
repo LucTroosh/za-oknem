@@ -11,19 +11,20 @@ export const WELCOME_COPY = {
   privacy: "Bez konta. Bez reklam.",
 } as const;
 
-// Welcome typography: Nunito Sans (OFL-1.1) for the two brand lines and the four domain labels only -
+// Welcome typography: Nunito (rounded terminals, soft and friendly; OFL-1.1) for the two brand lines and the four domain labels only -
 // the rest of the app keeps the system font. A lighter 18 px semibold eyebrow above, the 40 px
 // extrabold brand name below as the strongest text on the screen. Family names are the ones
-// @expo-google-fonts/nunito-sans registers; weights come from the family, not fontWeight.
+// @expo-google-fonts/nunito registers; weights come from the family, not fontWeight.
 export const WELCOME_TYPE = {
-  eyebrow: { fontFamily: "NunitoSans_600SemiBold", fontSize: 18, lineHeight: 26 },
-  brand: { fontFamily: "NunitoSans_800ExtraBold", fontSize: 40, lineHeight: 48 },
-  label: { fontFamily: "NunitoSans_700Bold", fontSize: 13, lineHeight: 18 },
+  eyebrow: { fontFamily: "Nunito_600SemiBold", fontSize: 18, lineHeight: 26 },
+  brand: { fontFamily: "Nunito_800ExtraBold", fontSize: 40, lineHeight: 48 },
+  label: { fontFamily: "Nunito_700Bold", fontSize: 13, lineHeight: 18 },
 } as const;
 
-// Text colours of the two brand lines (fixed values, tested for AA over the veils).
+// Text colours of the two brand lines (fixed values, tested for AA over the veils). Light mode is a
+// clear navy blue (not the near-black slate used before); dark mode stays a cool near-white.
 export const WELCOME_TEXT = {
-  light: { brand: "#102A3A", intro: "#3F5563" },
+  light: { brand: "#0F2F5C", intro: "#2F5385" },
   dark: { brand: "#F4F7F8", intro: "#D7E0E4" },
 } as const;
 export const BRAND_GAP = 16; // eyebrow -> brand (+6 over the previous 10)

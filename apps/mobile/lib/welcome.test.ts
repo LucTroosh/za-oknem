@@ -77,15 +77,15 @@ describe("welcome typography", () => {
     expect(WELCOME_TYPE.brand.fontSize).toBe(40);
     expect(WELCOME_TYPE.eyebrow.fontSize).toBe(18);
     expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThan(WELCOME_TYPE.eyebrow.fontSize * 2);
-    expect(WELCOME_TYPE.brand.fontFamily).toBe("NunitoSans_800ExtraBold");
-    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("NunitoSans_600SemiBold");
-    expect(WELCOME_TYPE.label.fontFamily).toBe("NunitoSans_700Bold");
+    expect(WELCOME_TYPE.brand.fontFamily).toBe("Nunito_800ExtraBold");
+    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("Nunito_600SemiBold");
+    expect(WELCOME_TYPE.label.fontFamily).toBe("Nunito_700Bold");
     expect(BRAND_GAP).toBe(16); // +6 over the previous 10
     expect(LOGO_SIZE).toBeGreaterThanOrEqual(76 * 0.92);
     expect(LOGO_SIZE).toBeLessThanOrEqual(76 * 0.95); // ~5-8% smaller than 76
   });
   it("text colours are the specified ones", () => {
-    expect(WELCOME_TEXT.light).toEqual({ brand: "#102A3A", intro: "#3F5563" });
+    expect(WELCOME_TEXT.light).toEqual({ brand: "#0F2F5C", intro: "#2F5385" });
     expect(WELCOME_TEXT.dark).toEqual({ brand: "#F4F7F8", intro: "#D7E0E4" });
   });
   it("the local scrim layers add up to the target alpha at the centre", () => {
