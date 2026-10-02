@@ -108,7 +108,7 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 | 11 Alerty | S2/S3 | ✅ | TASK-9.7 |
 | 12 Settings | S9 | 🟡 | TASK-12.6, 12.19 |
 | 13 Light/Dark/System | S9 | 🟡 (dziś tylko wg systemu; brak przełącznika) | TASK-12.19 |
-| 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; brak Dynamic Type/Reduce Motion — niesprawdzone) | TASK-12.19 |
+| 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; przegląd kodu Dynamic Type/Reduce Motion: [`a11y-review.md`](a11y-review.md); **TalkBack i skalowanie na urządzeniu niezweryfikowane**) | TASK-12.19 |
 | 15 Loading/error/unavailable | wszystkie | 🟡 (spinner globalny; skeleton per moduł ⬜) | TASK-12.18 |
 
 ### S0. Welcome — ✅ (statyczny)
@@ -406,7 +406,7 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 | Lokalizacja: GPS jednorazowy | ✅ `POST /geo/locate` | ⬜ | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
 | Welcome + onboarding (lokalizacja) | — | ✅ | TASK-12.17 |
 | Tematy „Co chcesz śledzić?” (lokalne) | — | ⬜ | TASK-12.13 |
-| Motyw Systemowy/Jasny/Ciemny, dostępność | — | 🟡 (tylko wg systemu) | TASK-12.19 |
+| Motyw Systemowy/Jasny/Ciemny, dostępność | — | ✅ wybór w Ustawieniach → Wygląd (zapis lokalny); dostępność wg [`a11y-review.md`](a11y-review.md) | TASK-12.19 |
 | Powiadomienia push | 🟡 rejestracja urządzeń; ⛔ klucze | ⬜ | **ukryte** (TASK-12.15) |
 | Źródła i licencje | ✅ `attribution` | 🟡 | TASK-12.6 |
 | Polityka prywatności | — | ⛔ brak dokumentu | TASK-14.2 |

@@ -15,7 +15,7 @@ import {
 } from "./location";
 
 const loc = { geoAreaId: 7, placeId: 42, name: "Nowa Wieś", label: "Nowa Wieś, pow. gliwicki, woj. śląskie", latitude: 50.3, longitude: 18.7, attribution: "Nazwy miejscowości: GeoNames (CC BY 4.0)" };
-const done: Settings = { onboardingDone: true, location: loc };
+const done: Settings = { onboardingDone: true, location: loc, theme: "system" as const };
 
 describe("settings storage", () => {
   it("round-trips", () => {
@@ -24,7 +24,7 @@ describe("settings storage", () => {
   });
   it("stores one location and no user coordinates, only the place centre", () => {
     const keys = Object.keys(JSON.parse(serializeSettings(done)));
-    expect(keys.sort()).toEqual(["location", "onboardingDone", "v"]);
+    expect(keys.sort()).toEqual(["location", "onboardingDone", "theme", "v"]);
   });
   it("missing / corrupt / foreign-version records give the defaults", () => {
     for (const raw of [null, undefined, "", "{", "[]", "42", "null", JSON.stringify({ v: 2, onboardingDone: true, location: loc }), JSON.stringify({ onboardingDone: true })]) {
@@ -34,7 +34,7 @@ describe("settings storage", () => {
   it("a damaged location is dropped but the finished onboarding stays", () => {
     const bad = (l: unknown) => parseSettings(JSON.stringify({ v: 1, onboardingDone: true, location: l }));
     for (const l of [null, "x", { ...loc, geoAreaId: 0 }, { ...loc, geoAreaId: 1.5 }, { ...loc, name: "" }, { ...loc, label: 3 }, { ...loc, latitude: 91 }, { ...loc, longitude: "18" }, { ...loc, placeId: -1 }]) {
-      expect(bad(l)).toEqual({ onboardingDone: true, location: null });
+      expect(bad(l)).toEqual({ onboardingDone: true, location: null, theme: "system" as const });
     }
   });
   it("onboardingDone must be literally true", () => {
@@ -66,10 +66,10 @@ describe("entryRedirect", () => {
     expect(entryRedirect(DEFAULT_SETTINGS, "location")).toBe("/welcome");
     expect(entryRedirect(DEFAULT_SETTINGS, "location", true)).toBeNull();
     expect(entryRedirect(done, "location")).toBeNull();
-    expect(entryRedirect({ onboardingDone: true, location: null }, "location")).toBeNull();
+    expect(entryRedirect({ onboardingDone: true, location: null, theme: "system" as const }, "location")).toBeNull();
   });
   it("finished onboarding but no usable location: the picker, not Welcome", () => {
-    const s = { onboardingDone: true, location: null };
+    const s = { onboardingDone: true, location: null, theme: "system" as const };
     expect(entryRedirect(s, "tabs")).toBe("/location");
     expect(entryRedirect(s, "welcome")).toBe("/location");
   });
@@ -77,11 +77,11 @@ describe("entryRedirect", () => {
 
 describe("dropLocationIf", () => {
   it("forgets the location only when it is still the one that was reported gone", () => {
-    expect(dropLocationIf(done, 7)).toEqual({ onboardingDone: true, location: null });
+    expect(dropLocationIf(done, 7)).toEqual({ onboardingDone: true, location: null, theme: "system" as const });
   });
   it("a late answer for an earlier place changes nothing (same object)", () => {
     expect(dropLocationIf(done, 3)).toBe(done);
-    const none = { onboardingDone: true, location: null };
+    const none = { onboardingDone: true, location: null, theme: "system" as const };
     expect(dropLocationIf(none, 7)).toBe(none);
   });
 });
@@ -94,12 +94,12 @@ describe("attribution and refreshLocation", () => {
   });
   it("the activation answer replaces a stale name / area id of the same place", () => {
     const next = { ...loc, geoAreaId: 99, label: "Nowa Wieś, pow. gliwicki, woj. śląskie (poprawka)" };
-    expect(refreshLocation(done, 42, next)).toEqual({ onboardingDone: true, location: next });
+    expect(refreshLocation(done, 42, next)).toEqual({ onboardingDone: true, location: next, theme: "system" as const });
   });
   it("same data or another place: the very same object back", () => {
     expect(refreshLocation(done, 42, { ...loc })).toBe(done);
     expect(refreshLocation(done, 5, { ...loc, geoAreaId: 99 })).toBe(done);
-    const seeded = { onboardingDone: true, location: { ...loc, placeId: null } };
+    const seeded = { ...done, location: { ...loc, placeId: null } };
     expect(refreshLocation(seeded, 42, loc)).toBe(seeded);
   });
 });
@@ -126,5 +126,22 @@ describe("shouldReactivate", () => {
     expect(shouldReactivate(null, 1000)).toBe(true);
     expect(shouldReactivate(0, 59 * 60_000)).toBe(false);
     expect(shouldReactivate(0, 60 * 60_000)).toBe(true);
+  });
+});
+
+describe("theme preference (TASK-12.19)", () => {
+  it("is saved and read back", () => {
+    for (const theme of ["system", "light", "dark"] as const) {
+      expect(parseSettings(serializeSettings({ ...done, theme })).theme).toBe(theme);
+    }
+  });
+  it("an older record without `theme` follows the system and keeps the rest", () => {
+    const old = JSON.stringify({ v: 1, onboardingDone: true, location: loc });
+    expect(parseSettings(old)).toEqual({ ...done, theme: "system" });
+  });
+  it("garbage falls back to system, never to a forced theme", () => {
+    for (const bad of ["blue", 3, null, {}]) {
+      expect(parseSettings(JSON.stringify({ v: 1, onboardingDone: true, location: null, theme: bad })).theme).toBe("system");
+    }
   });
 });

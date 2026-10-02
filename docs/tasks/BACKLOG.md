@@ -1061,6 +1061,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       (`theme.test.ts`); minimalny dotyk 44; test wyboru motywu. **Non-goals:** nowa
       paleta/wygląd (właściciel), ikony. **Dependencies:** TASK-12.17; follow-up (a) z
       Phase 12 (przełączanie motywu na Androidzie).
+      **Stan (kolejny PR):** ✅ wybór motywu (`Settings.theme`, `ThemePicker`, `Appearance.setColorScheme`, bez podnoszenia `v`: brak pola = „system”), testy wyboru/zapisu; przegląd a11y kodu w `docs/ui/a11y-review.md`. Zostaje: weryfikacja TalkBack / skalowania czcionek / Reduce Motion / zmiany motywu na żywo **na urządzeniu**.
 ### Phase 13 — Data Quality / Observability
 
 - [ ] 🟡 **TASK-13.1** (PR #69: `GET /api/v1/health/sources` + logi zmian stanu; zostaje historia runów i telemetria §44 — osobny ADR + migracja): Source health / stale monitoring — rozszerzenie

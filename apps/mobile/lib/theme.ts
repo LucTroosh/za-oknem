@@ -8,6 +8,21 @@ import type { FreshnessState } from "./freshness";
 
 export type Scheme = "light" | "dark";
 
+// TASK-12.19: the user's choice. "system" = follow the phone live (the default).
+export type ThemePref = "system" | "light" | "dark";
+export const THEME_PREFS: readonly ThemePref[] = ["system", "light", "dark"];
+export const THEME_LABEL: Record<ThemePref, string> = { system: "Systemowy", light: "Jasny", dark: "Ciemny" };
+
+// Unknown/garbage from storage -> "system" (fail safe: never a surprise forced theme).
+export function parseThemePref(x: unknown): ThemePref {
+  return x === "light" || x === "dark" ? x : "system";
+}
+
+// What to hand to Appearance.setColorScheme: null clears the override (follows the system).
+export function themeOverride(p: ThemePref): Scheme | null {
+  return p === "light" || p === "dark" ? p : null;
+}
+
 export type Palette = {
   bg: string;
   surface: string;

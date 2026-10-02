@@ -17,10 +17,16 @@ function RootStack() {
   return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />;
 }
 
+// Light icons on a dark theme and vice versa - from the effective scheme (system or chosen).
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === "dark" ? "light" : "dark"} />;
+}
+
 export default function RootLayout() {
   return (
     <LocationProvider>
-      <StatusBar style="auto" />
+      <ThemedStatusBar />
       <RootStack />
     </LocationProvider>
   );
