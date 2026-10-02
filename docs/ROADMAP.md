@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-01 (po PR #83; stan main = f6d7ece)
+**Ostatnia aktualizacja:** 2026-10-01 (po PR #89; stan main = 88de885)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -121,7 +121,7 @@ Alerts/Settings/push/profilu).
 | Alerts (ekran) | 🟡 PARTIAL — zakładka Alerty: ostrzeżenia IMGW + stany wody, **cała Polska** (bez geo-filtra do czasu lokalizacji/TASK-9.5+9.7; `local_alerts` i `?geo_area_id=` z backendu jeszcze nieużyte), brak szczegółu pojedynczego alertu |
 | Settings | 🟡 PARTIAL — wiersz „Lokalizacja” (bieżąca miejscowość → wybór), wersja, lista źródeł z `attribution` backendu, informacja o braku konta/lokalizacji urządzenia; brak tematów, motywu i dostępności (TASK-12.13/12.19), brak strony polityki prywatności (nie ma jej w `docs/`) |
 | foreground location (GPS) | ⬜ TODO — brak geolokalizacji urządzenia (TASK-12.3); ekran lokalizacji nie pokazuje „Użyj mojej lokalizacji”, dopóki nie działa |
-| ręczny wybór lokalizacji + Welcome | 🟡 PARTIAL — Welcome (pierwsze uruchomienie, copy ze spec §6, hero = placeholder) → „Ustaw lokalizację” (wyszukiwarka `/places` + lista miast z `/areas`, aktywacja, jedna lokalizacja w AsyncStorage) → Start; zmiana z nagłówka Start / Ustawień; zapamiętany obszar wygasły/404 → wybór z komunikatem (TASK-12.7, 12.17, PR #88). **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR). Brak: GPS, tematy „Co chcesz śledzić?” (TASK-12.13), heartbeat instalacji (TASK-12.2), dane miejscowości na serwerze do czasu importu GeoNames |
+| ręczny wybór lokalizacji + Welcome | 🟡 PARTIAL — Welcome (pierwsze uruchomienie, copy wg kontraktu asset packu v2: tło-zdjęcie + natywny znak/tekst/CTA/scrim; **rastry wymagają instalacji paczki**, PR #90) → „Ustaw lokalizację” (wyszukiwarka `/places` + lista miast z `/areas`, aktywacja, jedna lokalizacja w AsyncStorage) → Start; zmiana z nagłówka Start / Ustawień; zapamiętany obszar wygasły/404 → wybór z komunikatem (TASK-12.7, 12.17, PR #88). **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR). Brak: GPS, tematy „Co chcesz śledzić?” (TASK-12.13), heartbeat instalacji (TASK-12.2), dane miejscowości na serwerze do czasu importu GeoNames |
 | push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |
 | profil użytkownika | ⬜ TODO |
 | podstawowe preferencje | ⬜ TODO |
@@ -220,6 +220,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 
 | #87 | Silnik „Na dwór”: NO₂/O₃ (opcjonalne grupy, progi z `air_index.BANDS`) i burza (`weather_code` ≥95 → POOR); addendum ADR-016; kontrakt bez zmian |
 | #89 | Prognoza godzinowa 48 h (TASK-5.6, ADR-030): `forecast.hours[]` w dashboardzie, `forecasts.granularity` (migracja `0015`), jedno żądanie Open-Meteo, retencja „najnowszy przebieg”, parser odporny na `null`; estymata budżetu 2→3 jedn. (`max_active_areas` 411→280) — zależny od #87 |
+| #90 | Mobile: UI asset pack v2 (`docs/ui/asset-pack-v1.md`, `asset-implementation-v2.md`): Welcome z zatwierdzonym tłem JPG + natywny znak/tekst/wskaźniki domen/CTA/scrim (jasny/ciemny, `lib/welcome.ts` z testem kontrastu AA na scrimie), `app.json` (ikona, adaptive, monochrome), ilustracje stanów PNG (lazy `require`, `lib/stateArt.ts`: `no-alerts` tylko przy potwierdzonym zerze, `offline` tylko przy odrzuconym `fetch`, UNKNOWN → `no-data`); **bez rastrów w repo**: dostarczony ZIP to nieoptymalizowane mastery, instalator wymaga paczki `-q` (hashe) — 🟡 do czasu instalacji; bez weryfikacji na urządzeniu |
 ---
 
 ## Jak utrzymywać ten plik

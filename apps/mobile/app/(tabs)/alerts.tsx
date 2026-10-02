@@ -4,6 +4,7 @@ import EmptyState, { LoadingState } from "../../components/EmptyState";
 import HydroSection from "../../components/HydroSection";
 import Notice from "../../components/Notice";
 import Screen from "../../components/Screen";
+import { loadErrorArt } from "../../lib/stateArt";
 
 // Alerts = IMGW warnings + water levels, both nationwide until the location screen brings
 // geo matching (backend `local_alerts` / `?geo_area_id=` exist but are not used here yet).
@@ -17,11 +18,12 @@ export default function Alerts() {
         <Notice tone="danger" text="Nie udało się odświeżyć. Pokazane dane mogą być nieaktualne." />
       )}
       {d.alerts ? (
-        <AlertsSection alerts={d.alerts} />
+        <AlertsSection alerts={d.alerts} refreshFailed={d.state === "error"} />
       ) : d.state === "loading" ? (
         <LoadingState label="Ładowanie ostrzeżeń…" />
       ) : (
         <EmptyState
+          art={loadErrorArt(d.networkFailure)}
           title="Ostrzeżenia są niedostępne"
           message="Nie udało się pobrać ostrzeżeń. Nie oznacza to, że ich nie ma. Spróbuj ponownie."
           actionLabel="Spróbuj ponownie"

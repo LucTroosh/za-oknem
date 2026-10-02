@@ -6,6 +6,7 @@ import { ApiError, apiGet } from "../lib/api";
 import type { DashboardArea, DashboardSourceStatus, LoadState } from "../lib/dashboardTypes";
 import type { HydroBlock } from "../lib/hydro";
 import { createLatestGuard } from "../lib/latest";
+import { isNetworkFailure } from "../lib/stateArt";
 import { pollingOff, pollingPending } from "../lib/home";
 import { EXPIRED_AREA_MESSAGE } from "../lib/places";
 import type { PollenCalendarBlock } from "../lib/pollenCalendar";
@@ -21,6 +22,8 @@ import usePollenCalendar from "./usePollenCalendar";
 // show both. Responses of superseded requests are ignored (latest wins).
 export type DashboardContext = {
   state: LoadState;
+  // The last dashboard failure never reached a server (fetch rejected): the only case "offline" may be shown.
+  networkFailure: boolean;
   dashboard: DashboardResponse | null;
   areas: DashboardArea[];
   alerts: AlertsBlock | null;
@@ -42,6 +45,7 @@ const Ctx = createContext<DashboardContext | null>(null);
 export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; children: ReactNode }) {
   const { invalidate, activations, latestActivation } = useLocation();
   const [state, setState] = useState<LoadState>("loading");
+  const [networkFailure, setNetworkFailure] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [hydroState, setHydroState] = useState<LoadState>("loading");
   const [hydro, setHydro] = useState<HydroBlock | null>(null);
@@ -66,6 +70,7 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
         if (!isLatest()) return;
         setDashboard(body);
         setLoadedAt(Date.now());
+        setNetworkFailure(false);
         setState("ready");
       })
       .catch((err: unknown) => {
@@ -73,7 +78,10 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
         // Any other failure is a failed refresh (older data stays, flagged as such).
         if (!isLatest()) return;
         if (err instanceof ApiError && err.status === 404) invalidate(geoAreaId, EXPIRED_AREA_MESSAGE);
-        else setState("error");
+        else {
+          setNetworkFailure(isNetworkFailure(err));
+          setState("error");
+        }
       });
   }, [geoAreaId, invalidate, latestActivation]);
 
@@ -118,6 +126,7 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
   const value = useMemo<DashboardContext>(
     () => ({
       state,
+      networkFailure,
       dashboard,
       areas: dashboard?.areas ?? [],
       alerts: dashboard?.alerts ?? null,
@@ -131,7 +140,7 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
       refreshing,
       refresh,
     }),
-    [state, dashboard, hydroState, hydro, calendar.data, calendar.error, loadedAt, refreshing, refresh],
+    [state, networkFailure, dashboard, hydroState, hydro, calendar.data, calendar.error, loadedAt, refreshing, refresh],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

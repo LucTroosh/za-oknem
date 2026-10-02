@@ -3,9 +3,11 @@ import { StyleSheet, Text, View } from "react-native";
 import { type AlertsBlock, alertAreasLabel, alertKey, summarizeAlerts } from "../lib/alerts";
 import { formatObservedAt } from "../lib/dashboardTypes";
 import { FRESHNESS_LABEL } from "../lib/freshness";
+import { alertsArt } from "../lib/stateArt";
 import { type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
 import FreshnessBadge from "./FreshnessBadge";
+import StateIllustration from "./StateIllustration";
 import useNow from "./useNow";
 import { useThemedStyles } from "./useTheme";
 
@@ -16,21 +18,28 @@ const lastSuccess = (at: string | null) =>
 // an unfiltered alert must never look like it concerns the user's location (geo matching
 // arrives with the location screen). ADR-012: "brak ostrzeżeń" only when every alert
 // source is FRESH/RECENT; otherwise the source is silent and we say so.
-export default function AlertsSection({ alerts }: { alerts: AlertsBlock }) {
+export default function AlertsSection({ alerts, refreshFailed = false }: { alerts: AlertsBlock; refreshFailed?: boolean }) {
   const styles = useThemedStyles(createStyles);
   // Ages on the device clock: a FRESH status that crosses the bound stops claiming "brak
   // ostrzeżeń" without user action.
   const summary = summarizeAlerts(alerts, useNow());
+  // A zero from cached data after a failed refresh is not a confirmed all-clear.
+  const unconfirmedZero = refreshFailed && summary.kind === "none-confirmed";
+  const art = alertsArt(summary, refreshFailed);
   return (
     <Card>
+      {art ? <StateIllustration art={art} /> : null}
       <Text style={styles.title} accessibilityRole="header">
         Ostrzeżenia hydrologiczne
       </Text>
       <Text style={styles.scope}>Cała Polska — lista nie jest jeszcze dopasowana do Twojej lokalizacji.</Text>
       {summary.kind === "unavailable" && (
-        <Text style={styles.body}>Ostrzeżenia chwilowo niedostępne ({lastSuccess(summary.lastSuccessAt)}).</Text>
+        <Text style={styles.body}>Nie udało się sprawdzić ostrzeżeń. Ostrzeżenia chwilowo niedostępne ({lastSuccess(summary.lastSuccessAt)}).</Text>
       )}
-      {summary.kind === "none-confirmed" && (
+      {unconfirmedZero && (
+        <Text style={styles.body}>Nie udało się odświeżyć ostrzeżeń, więc nie potwierdzamy ich braku.</Text>
+      )}
+      {summary.kind === "none-confirmed" && !unconfirmedZero && (
         <Text style={styles.body}>Brak aktywnych ostrzeżeń: {summary.sources.join(", ")}.</Text>
       )}
       {summary.kind === "list-maybe-outdated" && (

@@ -5,10 +5,16 @@
     "version": "0.1.0",
     "scheme": "za-oknem",
     "orientation": "portrait",
+    "icon": "./assets/za-oknem/android/app-icon-1024.png",
     "userInterfaceStyle": "automatic",
     "plugins": ["expo-router"],
     "android": {
-      "package": "pl.zaoknem.app"
+      "package": "pl.zaoknem.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/za-oknem/android/adaptive-icon-foreground-1024.png",
+        "backgroundColor": "#F4FAF7",
+        "monochromeImage": "./assets/za-oknem/android/adaptive-icon-monochrome-1024.png"
+      }
     },
     "ios": {
       "bundleIdentifier": "pl.zaoknem.app",
