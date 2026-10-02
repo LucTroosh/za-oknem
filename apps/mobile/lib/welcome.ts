@@ -21,14 +21,14 @@ export const WELCOME_TYPE = {
   label: { fontFamily: "Nunito_700Bold", fontSize: 13, lineHeight: 18 },
 } as const;
 
-// Text colours of the two brand lines (fixed values, tested for AA over the veils). Light mode is a
-// clear navy blue (not the near-black slate used before); dark mode stays a cool near-white.
+// Text colours of the two brand lines (fixed values, tested for AA over the veils).
 export const WELCOME_TEXT = {
-  light: { brand: "#0F2F5C", intro: "#2F5385" },
+  light: { brand: "#0A2B66", intro: "#1D4380" }, // navy blues sampled from the reference mockup
   dark: { brand: "#F4F7F8", intro: "#D7E0E4" },
 } as const;
 export const BRAND_GAP = 16; // eyebrow -> brand (+6 over the previous 10)
 export const LOGO_SIZE = 71; // ~6.5% smaller than 76
+export const TOP_GROUP_SHIFT = 42; // logo + text block sit this much lower than the original (px); matches the reference mockup
 
 // Four domain cues in one soft capsule (no water: no source yet). Labels are PRESENTATION only:
 // "Alergeny" is the Welcome wording of the pollen domain, nothing in the logic is renamed. Icons

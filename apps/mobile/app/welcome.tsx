@@ -18,6 +18,7 @@ import {
   LOCAL_SCRIM,
   LOCAL_SCRIM_LAYERS,
   LOGO_SIZE,
+  TOP_GROUP_SHIFT,
   TOP_VEIL,
   TOP_VEIL_HEIGHT,
   TOP_VEIL_PLATEAU,
@@ -104,11 +105,12 @@ export default function Welcome() {
         style={[styles.veil, { bottom: 0, height: BOTTOM_VEIL_HEIGHT }]}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} bounces={false}>
-        <View style={[styles.top, { paddingTop: insets.top + space.xxl }]}>
-          {/* Decorative: "Za Oknem" is announced by the text right below. */}
-          <Image source={LOGO} style={styles.logo} accessible={false} importantForAccessibility="no" />
+        <View style={[styles.top, { paddingTop: insets.top + space.xxl + TOP_GROUP_SHIFT }]}>
           <View style={styles.textBlock}>
+            {/* Very light local scrim under the logo and the two text lines only. */}
             <LocalScrim color={color} total={LOCAL_SCRIM[scheme]} />
+            {/* Decorative: "Za Oknem" is announced by the text right below. */}
+            <Image source={LOGO} style={styles.logo} accessible={false} importantForAccessibility="no" />
             <Text style={[styles.eyebrow, { color: WELCOME_TEXT[scheme].intro }]}>{WELCOME_COPY.headline}</Text>
             <Text style={[styles.brand, { color: WELCOME_TEXT[scheme].brand }]} accessibilityRole="header">
               {WELCOME_COPY.brand}
