@@ -421,3 +421,78 @@ def test_weather_forecast_response_rejects_missing_required_field():
                 ]
             }
         )
+
+
+# --- forecasts_by_area against a real (SQLite) session: one RUN per period (Codex, PR #89) ---
+# The query no longer uses Postgres DISTINCT ON, so it runs here for real.
+
+
+def _run_row(db, area_id, ref, param, value, *, valid_from, granularity="daily", **kw):
+    span = timedelta(days=1) if granularity == "daily" else timedelta(hours=1)
+    db.add(
+        Forecast(
+            source_id="open_meteo",
+            source_record_id=f"{granularity}:{area_id}:{param}:{valid_from}:{ref}",
+            geo_area_id=area_id,
+            param_code=param,
+            value=value,
+            unit="u",
+            model="auto",
+            forecast_reference_time=ref,
+            valid_from=valid_from,
+            valid_until=valid_from + span,
+            fetched_at=ref,
+            granularity=granularity,
+            **kw,
+        )
+    )
+
+
+def _area_in(db) -> GeoArea:
+    area = GeoArea(slug="k", name="K", latitude=50.4, longitude=16.6)
+    db.add(area)
+    db.commit()
+    return area
+
+
+def test_forecasts_by_area_takes_all_params_from_the_newest_run_only(db_session, monkeypatch):
+    from app.api.v1.weather import forecasts_by_area
+
+    monkeypatch.setattr("app.api.v1.weather.freshness", lambda _dt: "FRESH")  # SQLite is naive
+    area = _area_in(db_session)
+    day = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    old, new = datetime.now(UTC) - timedelta(hours=6), datetime.now(UTC) - timedelta(hours=3)
+    # old run supplied the optional probability; the new run (null from the model) did not.
+    for param, value in (("temperature_2m_max", 18.0), ("precipitation_probability_max", 70.0)):
+        _run_row(db_session, area.id, old, param, value, valid_from=day)
+    _run_row(db_session, area.id, new, "temperature_2m_max", 19.5, valid_from=day)
+    db_session.commit()
+
+    result = forecasts_by_area(db_session)[area.id]
+
+    assert [d["params"] for d in result["days"]] == [
+        {"temperature_2m_max": {"value": 19.5, "unit": "u"}}  # no stale probability alongside
+    ]
+
+
+def test_forecasts_by_area_hours_and_days_are_independent_runs(db_session, monkeypatch):
+    from app.api.v1.weather import forecasts_by_area
+
+    monkeypatch.setattr("app.api.v1.weather.freshness", lambda _dt: "FRESH")
+    area = _area_in(db_session)
+    now = datetime.now(UTC)
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    ref = now - timedelta(hours=1)
+    _run_row(db_session, area.id, ref, "weather_code", 3.0, valid_from=midnight)
+    _run_row(
+        db_session, area.id, ref, "weather_code", 61.0, valid_from=midnight, granularity="hourly"
+    )
+    db_session.commit()
+
+    only_days = forecasts_by_area(db_session)[area.id]
+    both = forecasts_by_area(db_session, hourly=True)[area.id]
+
+    assert only_days["hours"] == []  # hourly rows are not even loaded without hourly=True
+    assert [d["params"]["weather_code"]["value"] for d in both["days"]] == [3.0]
+    assert [h["params"]["weather_code"]["value"] for h in both["hours"]] == [61.0]
+    assert both["hours"][0]["valid_until"] - both["hours"][0]["valid_from"] == timedelta(hours=1)

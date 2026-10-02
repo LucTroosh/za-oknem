@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -172,8 +172,8 @@ def forecasts_by_area(
     freshness, days, hours}}. Shared by /weather/forecast and /dashboard/latest (TASK-5.5)
     so both present the same prediction. `forecasts` is append-only (ADR-010) -
     several ingest runs can each hold a prediction for the same future day, so
-    this picks the freshest one per (geo_area, granularity, period, param) via ORDER BY
-    forecast_reference_time DESC. Only periods that haven't ended yet. `geo_area_id`
+    this picks the freshest run per (geo_area, granularity, period) and returns all
+    params of that one run. Only periods that haven't ended yet. `geo_area_id`
     narrows the read to one area (TASK-6.2(8)).
 
     ADR-030: `hours` (granularity "hourly") are loaded ONLY with `hourly=True` and stay a
@@ -188,18 +188,37 @@ def forecasts_by_area(
         where.append(Forecast.geo_area_id == geo_area_id)
     else:  # default list: filter before loading, place areas keep history after expiry
         where.append(Forecast.geo_area_id.in_(_seed_area_ids()))
+    # ONE model run per (area, granularity, period): the newest forecast_reference_time, and
+    # all of that run's params - not "the newest row per param". An optional param (daily
+    # probability/UV max) that a newer run did not supply must not be filled in from an
+    # older run and shown under the newer run's reference time / fetched_at (Codex, PR #89).
+    latest_run = (
+        select(
+            Forecast.geo_area_id,
+            Forecast.granularity,
+            Forecast.valid_from,
+            func.max(Forecast.forecast_reference_time).label("run"),
+        )
+        .where(*where)
+        .group_by(Forecast.geo_area_id, Forecast.granularity, Forecast.valid_from)
+        .subquery()
+    )
     stmt = (
         select(Forecast)
-        .where(*where)
-        .distinct(
-            Forecast.geo_area_id, Forecast.granularity, Forecast.valid_from, Forecast.param_code
+        .join(
+            latest_run,
+            and_(
+                Forecast.geo_area_id == latest_run.c.geo_area_id,
+                Forecast.granularity == latest_run.c.granularity,
+                Forecast.valid_from == latest_run.c.valid_from,
+                Forecast.forecast_reference_time == latest_run.c.run,
+            ),
         )
         .order_by(
             Forecast.geo_area_id,
             Forecast.granularity,
             Forecast.valid_from,
             Forecast.param_code,
-            Forecast.forecast_reference_time.desc(),
         )
     )
     # (area, "days" | "hours") -> {valid_from -> rows}. Rows predating ADR-030 / built
