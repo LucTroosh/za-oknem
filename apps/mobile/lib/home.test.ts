@@ -108,6 +108,19 @@ describe("statusCards (data-driven, partial failure)", () => {
     expect(currentTemperature(w, undefined, NOW)).toBe("16°C");
     expect(currentTemperature(w, undefined, NOW, true)).toBeNull();
   });
+  it("SEASON with a missing species is still partial (could be PEAK); PEAK stays definitive", () => {
+    const season = pollen({ alder: 0, birch: 20, grass: null as unknown as number, mugwort: 0, ragweed: 0 });
+    const [, , c] = statusCards({ air: null, weather: null, pollen: season }, null, NOW, NOW);
+    expect(c).toMatchObject({ headline: "Dane częściowe", level: "UNKNOWN" });
+    expect(c.supporting).toContain("Co najmniej");
+    const peak = pollen({ alder: 0, birch: 200, grass: null as unknown as number, mugwort: 0, ragweed: 0 });
+    expect(statusCards({ air: null, weather: null, pollen: peak }, null, NOW, NOW)[2]).toMatchObject({ headline: "Szczyt pylenia" });
+  });
+  it("an incomplete AQI set reads 'Co najmniej …'", () => {
+    const a = air();
+    (a.index as { complete: boolean }).complete = false;
+    expect(statusCards({ air: a, weather: null }, null, NOW, NOW)[0].headline).toBe("Co najmniej dobra");
+  });
   it("pollen recent note compares with the screen clock (another day shows the date)", () => {
     const p = { ...pollen({ birch: 1 }, "RECENT"), source_status: src, fetched_at: ago(40 * 60), current: { alder: 0, birch: 1, grass: 1, mugwort: 0, ragweed: 0 } };
     const [, , c] = statusCards({ air: null, weather: null, pollen: p }, null, NOW, NOW);

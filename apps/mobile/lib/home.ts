@@ -148,7 +148,12 @@ function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: n
     title,
     state: "ready",
     level,
-    headline: index?.level ? index.label : "Brak oceny",
+    // An incomplete pollutant set is only a lower bound (airIndexView's own wording).
+    headline: index?.level
+      ? isObject(air) && isObject(air.index) && air.index.complete === true
+        ? index.label
+        : `Co najmniej ${index.label.toLowerCase()}`
+      : "Brak oceny",
     supporting: pmUsable ? `PM2.5: ${pm.text}` : null,
     freshnessNote: pm ? freshnessNote(pm.state, paramIso(air, pm.key), now) : null,
   };
@@ -236,9 +241,10 @@ function pollenCard(pollen: unknown, now: number): StatusCardModel | null {
   const driving = levels.filter((l) => l.level === top && top !== "BELOW_SEASON").map((l) => POLLEN_NAME[l.species]);
   // A species without a value could be higher: all-below-season with gaps is not "Niskie".
   const missing = view.lines.filter((l) => l.level === null).map((l) => POLLEN_NAME[l.species]);
-  const partial = missing.length > 0 && top === "BELOW_SEASON";
+  // Any gap below a known PEAK: the missing species could be higher, so the aggregate is a lower bound.
+  const partial = missing.length > 0 && top !== "PEAK";
   const parts = [
-    driving.length > 0 ? driving.join(", ") : null,
+    driving.length > 0 ? `${partial ? "Co najmniej: " : ""}${POLLEN_HEADLINE[top].toLowerCase()} (${driving.join(", ")})` : null,
     missing.length > 0 ? `Brak danych: ${missing.join(", ")}` : null,
     POLLEN_FORECAST_NOTE,
   ].filter(Boolean);

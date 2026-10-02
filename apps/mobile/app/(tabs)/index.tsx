@@ -43,6 +43,13 @@ export default function Start() {
   const verdict = area ? verdictModel(area.outdoor, now, d.loadedAt) : null;
   const cards = area ? statusCards(area, d.sourceStatus, now, d.loadedAt) : [];
 
+  // Failed refresh while older data is on screen: right under the header, before the cached
+  // sections, so it does not look like a fresh screen.
+  const notice =
+    d.state === "error" && area ? (
+      <Notice key="notice" tone="danger" text="Nie udało się pobrać aktualnych danych. Pokazane dane mogą być nieaktualne." />
+    ) : null;
+
   const sections = {
     header: (
       <HomeHeader
@@ -87,11 +94,7 @@ export default function Start() {
 
   return (
     <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh}>
-      {sectionOrder(alerts).map((s) => sections[s])}
-      {/* Failed refresh while older data is on screen: it must not look like a fresh screen. */}
-      {d.state === "error" && area && (
-        <Notice tone="danger" text="Nie udało się pobrać aktualnych danych. Pokazane dane mogą być nieaktualne." />
-      )}
+      {sectionOrder(alerts).flatMap((s) => (s === "header" ? [sections.header, notice] : [sections[s]]))}
     </Screen>
   );
 }
