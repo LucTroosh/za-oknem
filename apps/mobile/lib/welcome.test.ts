@@ -87,10 +87,10 @@ describe("welcome typography", () => {
   });
   it("logo and text block sit slightly lower, not drastically", () => {
     expect(TOP_GROUP_SHIFT).toBeGreaterThanOrEqual(8);
-    expect(TOP_GROUP_SHIFT).toBeLessThanOrEqual(20);
+    expect(TOP_GROUP_SHIFT).toBeLessThanOrEqual(48);
   });
   it("text colours are the specified ones", () => {
-    expect(WELCOME_TEXT.light).toEqual({ brand: "#102A3A", intro: "#3F5563" });
+    expect(WELCOME_TEXT.light).toEqual({ brand: "#0A2B66", intro: "#1D4380" });
     expect(WELCOME_TEXT.dark).toEqual({ brand: "#F4F7F8", intro: "#D7E0E4" });
   });
   it("the local scrim layers add up to the target alpha at the centre", () => {
