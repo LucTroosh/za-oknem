@@ -505,8 +505,10 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
   NIE zweryfikowano formalnego tekstu licencji/warunków (np. czy wymagana jest atrybucja)
   — do potwierdzenia przez człowieka przed użyciem produkcyjnym
 - **commercial_use:** TAK wg brzmienia strony PRG („bezpłatnie i do dowolnego wykorzystania”);
-  formalnego tekstu licencji brak — Source Approval Gate (#15) otwarty
-- **attribution:** UNKNOWN — do ustalenia razem z licencją
+  formalnego tekstu licencji nie sprawdzono
+- **attribution:** brak wymogu na stronie PRG; **jako środek ostrożności** w „Źródłach” i metadanych
+  podajemy: „Granice administracyjne: Państwowy Rejestr Granic (GUGiK)”. Dane służą tylko po stronie
+  serwera (wyznaczanie gminy), nie są pokazywane ani redystrybuowane użytkownikom
 - **format/rozmiar/układ:** SHP i GML zgodnie ze stroną; rozmiar pliku NIE ustalony; układ
   współrzędnych: strona wspomina PL-1992 (EPSG:2180) w przykładach, nie potwierdzono wprost
   — parser odrzuca pliki nie-WGS84 (walidacja bbox), więc błąd układu nie przejdzie cicho.
@@ -515,7 +517,12 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
 - **dostępność z tego środowiska:** NIE — próba `curl -I` na powyższy URL z sandboxa dała
   `CONNECT tunnel failed, response 403` (egress proxy); nic nie pobrano ani nie
   sprawdzono na próbce danych
-- **status:** DISCOVERY
+- **approval (Source Approval Gate, decyzja właściciela 2026-10-02):** **APPROVED do importu** na podstawie
+  brzmienia strony PRG („bezpłatnie i do dowolnego wykorzystania”). Świadome ryzyko rezydualne:
+  formalny tekst licencji nie został zweryfikowany; użycie wyłącznie serwerowe (wynik: kod TERYT i
+  nazwa gminy, nie sama geometria). Do ponownego sprawdzenia, jeśli zmieni się sposób użycia
+  (np. udostępnianie granic klientom). Procedura importu: `docs/data/prg-import.md`
+- **status:** APPROVED (import ręczny, raz w roku; dane jeszcze NIE zaimportowane)
 - **last_verified_at:** 2026-09-30 (tylko treść strony PRG; nie same dane)
 
 ## teryt (GUS — rejestr TERYT, wykaz jednostek TERC)
