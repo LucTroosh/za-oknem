@@ -7,7 +7,7 @@ import { type AirIndexView, airIndexView } from "./aqi";
 import { type OutdoorLevel, outdoorView } from "./outdoor";
 import { type HomeBanner } from "./alertsBanner";
 import { POLLEN_NAME, type PollenLevel, pollenView } from "./pollen";
-import { type LineState, type ReadingsView, airView, formatNumber } from "./readings";
+import { type LineState, type ReadingLine, type ReadingsView, airView, formatNumber } from "./readings";
 import { weatherCodeText, weatherView } from "./weather";
 
 // Spec §15. Never colour alone: every level has a glyph and a word.
@@ -120,6 +120,23 @@ function paramIso(block: unknown, key: string): unknown {
   return isObject(p) ? p.observed_at : undefined;
 }
 
+const STATE_RANK: Record<LineState, number> = { ok: 0, missing: 0, recent: 1, stale: 2 };
+
+// The card's freshness is that of its WORST usable input (an index depends on several
+// pollutants, not just PM2.5); ties: the oldest observation.
+function worstLine(block: unknown, lines: ReadingLine[]): ReadingLine | undefined {
+  const at = (l: ReadingLine) => {
+    const t = Date.parse(String(paramIso(block, l.key)));
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return lines
+    .filter((l) => l.state !== "missing")
+    .reduce<ReadingLine | undefined>(
+      (a, l) => (!a || STATE_RANK[l.state] > STATE_RANK[a.state] || (STATE_RANK[l.state] === STATE_RANK[a.state] && at(l) < at(a)) ? l : a),
+      undefined,
+    );
+}
+
 const AQI_GLYPH: Record<string, GlyphLevel> = { GOOD: "GOOD", FAIR: "GOOD", MODERATE: "CAUTION" };
 
 function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: number): StatusCardModel {
@@ -155,7 +172,7 @@ function airCard(air: unknown, sourceStatus: unknown, now: number, receivedAt: n
         : `Co najmniej ${index.label.toLowerCase()}`
       : "Brak oceny",
     supporting: pmUsable ? `PM2.5: ${pm.text}` : null,
-    freshnessNote: pm ? freshnessNote(pm.state, paramIso(air, pm.key), now) : null,
+    freshnessNote: ((w) => (w ? freshnessNote(w.state, paramIso(air, w.key), now) : null))(worstLine(air, view.lines)),
   };
 }
 
@@ -206,7 +223,11 @@ function weatherCard(weather: unknown, sourceStatus: unknown, now: number): Stat
   if (temp === null && condition === null) {
     return { ...unavailable("weather", title, STALE_NOTE), freshnessNote: null };
   }
-  const worst = [tempLine, codeLine].find((l) => l?.state === "recent") ?? tempLine ?? codeLine;
+  // Only the parts actually shown count (a stale temperature that is hidden is not the note).
+  const shown = [temp !== null ? tempLine : undefined, condition !== null ? codeLine : undefined].filter(
+    (l): l is ReadingLine => l !== undefined,
+  );
+  const worst = worstLine(weather, shown);
   return {
     key: "weather",
     title,

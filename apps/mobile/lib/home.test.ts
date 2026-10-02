@@ -94,6 +94,17 @@ describe("statusCards (data-driven, partial failure)", () => {
     const stale = statusCards({ air: air(param(12, "µg/m³", 600, "STALE")), weather: weather() }, null, NOW, NOW)[0];
     expect(stale.freshnessNote).toContain(STALE_NOTE);
   });
+  it("air freshness is the worst of ALL inputs, not only PM2.5", () => {
+    const a = air();
+    (a.params as Record<string, unknown>).NO2 = param(20, "µg/m³", 180, "RECENT");
+    expect(statusCards({ air: a, weather: null }, null, NOW, NOW)[0].freshnessNote).toMatch(/^Dane z \d\d:\d\d$/);
+    (a.params as Record<string, unknown>).O3 = param(50, "µg/m³", 600, "STALE");
+    expect(statusCards({ air: a, weather: null }, null, NOW, NOW)[0].freshnessNote).toContain(STALE_NOTE);
+  });
+  it("weather note follows the shown parts (recent condition, fresh temperature)", () => {
+    const w = weather({ weather_code: param(0, "wmo code", 180, "RECENT") });
+    expect(statusCards({ air: null, weather: w }, null, NOW, NOW)[1].freshnessNote).toMatch(/^Dane z /);
+  });
   it("an old temperature is not the headline of the current-weather card", () => {
     const w = weather({ temperature_2m: param(16, "°C", 9 * 60, "STALE"), weather_code: param(0, "wmo code", 9 * 60, "STALE") });
     const c = statusCards({ air: null, weather: w }, null, NOW, NOW)[1];
