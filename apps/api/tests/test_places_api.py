@@ -255,3 +255,34 @@ def test_database_failure_on_lookup_is_503_not_500(client, monkeypatch):
 
     assert client.get("/api/v1/places/1").status_code == 503
     assert client.post("/api/v1/places/1/activate").status_code == 503
+
+
+def test_nearest_returns_the_closest_place_with_distance(client):
+    # fixture places sit on lon 19.4: Łódź 51.75, Łódź Mała 50.0, Nowa Wieś 50.1 / 52.9
+    resp = client.post("/api/v1/places/nearest", json={"latitude": 51.76, "longitude": 19.4})
+
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["status"] == "found" and body["place"]["name"] == "Łódź"
+    assert 0.9 < body["distance_km"] < 1.4
+    assert resp.headers["cache-control"] == "no-store"
+    assert "GeoNames" in body["attribution"]
+
+
+def test_nearest_is_out_of_range_never_a_far_guess(client):
+    resp = client.post("/api/v1/places/nearest", json={"latitude": 54.5, "longitude": 19.4})
+
+    assert resp.json() == {
+        "status": "out_of_range",
+        "place": None,
+        "distance_km": None,
+        "attribution": resp.json()["attribution"],
+    }
+
+
+def test_nearest_rejects_invalid_coordinates(client):
+    assert (
+        client.post("/api/v1/places/nearest", json={"latitude": 91, "longitude": 0}).status_code
+        == 422
+    )
+    assert client.post("/api/v1/places/nearest", json={"latitude": 51}).status_code == 422

@@ -21,7 +21,7 @@ export default function Privacy() {
         <Text style={styles.title} accessibilityRole="header">
           Lokalizacja
         </Text>
-        <Text style={styles.body}>Aplikacja nie korzysta z lokalizacji urządzenia. Wybraną miejscowość zapamiętujemy tylko na tym telefonie.</Text>
+        <Text style={styles.body}>Lokalizację urządzenia odczytujemy tylko wtedy, gdy dotkniesz „Użyj mojej lokalizacji”: jednorazowo, bez śledzenia w tle, a wynik (najbliższa miejscowość) nie jest zapisywany na serwerze. Wybraną miejscowość zapamiętujemy tylko na tym telefonie.</Text>
         <Text style={styles.body}>Do naszego serwera trafia identyfikator wybranej miejscowości, żeby pobrać dla niej dane.</Text>
       </Card>
     </InfoPage>

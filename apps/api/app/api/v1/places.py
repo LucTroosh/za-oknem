@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.v1.geo import AreaOut, _area_out
+from app.api.v1.geo import AreaOut, GeoResolveRequest, _area_out
 from app.db import get_db
 from app.models import Place
 from app.places import (
@@ -14,6 +14,7 @@ from app.places import (
     SEARCH_MIN_CHARS,
     activate_place,
     area_for_place,
+    nearest_place,
     place_label,
     search_places,
 )
@@ -76,6 +77,42 @@ def list_places(
         logger.error("places search failed: database error (details withheld)")
         raise HTTPException(status_code=503, detail="Places unavailable") from None
     return PlacesResponse(places=[_place_out(p) for p in found], attribution=PLACES_ATTRIBUTION)
+
+
+class NearestPlaceResponse(BaseModel):
+    # found: `place` = the closest registry place within NEAREST_PLACE_MAX_KM, `distance_km` how
+    # far it is. out_of_range: nothing close (outside Poland / registry not imported) - the
+    # client says so and offers manual search; never a far-away guess.
+    status: Literal["found", "out_of_range"]
+    place: PlaceOut | None
+    distance_km: float | None
+    attribution: str
+
+
+@router.post("/places/nearest", response_model=NearestPlaceResponse)
+def nearest(
+    body: GeoResolveRequest, response: Response, db: Session = Depends(get_db)
+) -> NearestPlaceResponse:
+    """lat/lon (one-off, from the phone's foreground location) -> the nearest place of our own
+    registry, for "Pokaż najbliższą miejscowość". POST body so coordinates never reach URL/access
+    logs; nothing is stored, logged or echoed back beyond the place (ADR-002, like /geo/locate)."""
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        found = nearest_place(db, body.latitude, body.longitude)
+    except SQLAlchemyError:
+        logger.error("nearest place failed: database error (details withheld)")
+        raise HTTPException(status_code=503, detail="Places unavailable") from None
+    if found is None:
+        return NearestPlaceResponse(
+            status="out_of_range", place=None, distance_km=None, attribution=PLACES_ATTRIBUTION
+        )
+    place, km = found
+    return NearestPlaceResponse(
+        status="found",
+        place=_place_out(place),
+        distance_km=round(km, 1),
+        attribution=PLACES_ATTRIBUTION,
+    )
 
 
 class PlaceAreaResponse(BaseModel):

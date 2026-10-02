@@ -1,3 +1,4 @@
+import * as ExpoLocation from "expo-location";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -18,6 +19,7 @@ import usePlaceSearch from "../components/usePlaceSearch";
 import { useThemedStyles } from "../components/useTheme";
 import { apiGet } from "../lib/api";
 import { entryRedirect, locationFromArea, locationFromPlace } from "../lib/location";
+import { NEAREST_PRIVACY, type NearestState, distanceText, findNearestPlace, lookupNearest, nearestMessage } from "../lib/nearest";
 import { SEARCH_ERROR, SEARCH_HINT, activatePlace, emptyResultMessage } from "../lib/places";
 import { LOCATION_REQUIRED_ART } from "../lib/stateArt";
 import { type Theme, space, typo } from "../lib/theme";
@@ -25,7 +27,8 @@ import { type Theme, space, typo } from "../lib/theme";
 // "Ustaw lokalizację" (spec §7): onboarding (first run) and change (from Start / Settings) in
 // one screen - ONE active location. Search = our own /places (ADR-029); with no query it lists
 // the big cities from /areas, so the screen is useful even before places are imported.
-// No "use my location" button: GPS (TASK-12.3) does not exist yet, and a dead CTA is forbidden.
+// "Użyj mojej lokalizacji": one foreground read -> nearest place of our registry, shown for the
+// user to confirm (never auto-selected). No background location, nothing stored (rule #11).
 export default function LocationScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
@@ -40,6 +43,8 @@ export default function LocationScreen() {
   // A ref, not state: two quick taps in one frame both see the old state value.
   const pending = useRef(false);
   const changing = settings.onboardingDone && router.canGoBack();
+  const [nearest, setNearest] = useState<NearestState>({ kind: "idle" });
+  const locating = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -49,6 +54,7 @@ export default function LocationScreen() {
     return () => {
       ctrl.abort();
       picking.current?.abort();
+      locating.current?.abort();
     };
   }, []);
 
@@ -78,6 +84,27 @@ export default function LocationScreen() {
       // aborted (screen closed): nothing to do
       pending.current = false;
     }
+  };
+
+  const useMyLocation = async () => {
+    if (pending.current || nearest.kind === "locating") return;
+    locating.current?.abort();
+    const ctrl = new AbortController();
+    locating.current = ctrl;
+    setNearest({ kind: "locating" });
+    const result = await findNearestPlace({
+      requestPermission: async () => {
+        const r = await ExpoLocation.requestForegroundPermissionsAsync();
+        return { granted: r.granted, canAskAgain: r.canAskAgain };
+      },
+      getPosition: async () => {
+        // Balanced accuracy = coarse is enough for a town; one read, no watching.
+        const p = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced });
+        return { latitude: p.coords.latitude, longitude: p.coords.longitude };
+      },
+      lookup: (position) => lookupNearest(position, ctrl.signal),
+    });
+    if (!ctrl.signal.aborted) setNearest(result);
   };
 
   const pickCity = (area: AreaOut) => {
@@ -110,6 +137,34 @@ export default function LocationScreen() {
       {failure && <Notice tone="danger" text={failure} />}
 
       <SearchField value={text} onChangeText={setText} placeholder="Wpisz miejscowość" editable={!busy} />
+
+      {search.status === "idle" && (
+        <View style={styles.gps}>
+          <Button
+            label={nearest.kind === "locating" ? "Szukam…" : "Użyj mojej lokalizacji"}
+            variant="secondary"
+            disabled={busy || nearest.kind === "locating"}
+            hint="Jednorazowo sprawdza, jaka miejscowość jest najbliżej Ciebie"
+            onPress={useMyLocation}
+          />
+          {nearest.kind === "found" && (
+            <>
+              <SectionHeader title="Najbliższa miejscowość" />
+              <SettingsGroup>
+                <LocationRow title={nearest.place.label} busy={busyId === nearest.place.place_id} disabled={busy} last onPress={() => pickPlace(nearest.place)} />
+              </SettingsGroup>
+              <Text style={styles.hint}>{distanceText(nearest.distanceKm)}. Dotknij, aby ją wybrać.</Text>
+              <Text style={styles.micro}>Nazwy miejscowości: {nearest.attribution}</Text>
+            </>
+          )}
+          {nearestMessage(nearest) && (
+            <Text style={styles.body} accessibilityRole="alert">
+              {nearestMessage(nearest)}
+            </Text>
+          )}
+          <Text style={styles.micro}>{NEAREST_PRIVACY}</Text>
+        </View>
+      )}
 
       {search.status === "idle" && (
         <>
@@ -176,6 +231,7 @@ const createStyles = (t: Theme) =>
     title: { ...typo.display, color: t.colors.text },
     supporting: { ...typo.supporting, color: t.colors.textSecondary },
     hint: { ...typo.caption, color: t.colors.textSecondary },
+    gps: { gap: space.sm },
     message: { gap: space.md, paddingVertical: space.sm },
     body: { ...typo.body, color: t.colors.text },
     dev: { ...typo.caption, color: t.colors.dim, fontStyle: "italic" },
