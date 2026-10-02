@@ -18,6 +18,7 @@ import { todayRange } from "../../lib/forecast";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
 import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, pollingPending, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
+import { showAlertsStatus, showPollenCalendar, visibleCards } from "../../lib/topics";
 import { POLLING_OFF_NOTICE, POLLING_PENDING_NOTICE } from "../../lib/places";
 
 // Start (spec §9-§17): header -> verdict -> status cards -> alerts (-> pollen calendar).
@@ -49,7 +50,10 @@ export default function Start() {
   );
 
   const verdict = area ? verdictModel(area.outdoor, now, d.loadedAt) : null;
-  const cards = area ? statusCards(area, d.sourceStatus, now, d.loadedAt) : [];
+  const topics = settings.topics;
+  // Local topic choice (TASK-12.13): a hidden topic is a missing card. The verdict stays (it needs
+  // air + weather itself) and a real warning banner is never hidden (lib/topics.ts).
+  const cards = area ? visibleCards(statusCards(area, d.sourceStatus, now, d.loadedAt), topics) : [];
 
   // Failed refresh while older data is on screen: right under the header, before the cached
   // sections, so it does not look like a fresh screen.
@@ -106,8 +110,8 @@ export default function Start() {
         devHint="uruchom ingest na backendzie (README), potem odśwież."
       />
     ),
-    alerts: <AlertsStatus key="alerts" status={alerts} />,
-    calendar: d.calendar === null && !d.calendarError ? (
+    alerts: showAlertsStatus(alerts, topics) ? <AlertsStatus key="alerts" status={alerts} /> : null,
+    calendar: !showPollenCalendar(topics) ? null : d.calendar === null && !d.calendarError ? (
       <SkeletonCard key="calendar" label="Ładowanie kalendarza pylenia" lines={2} />
     ) : (
       <PollenCalendarCard key="calendar" calendar={d.calendar} error={d.calendarError} />

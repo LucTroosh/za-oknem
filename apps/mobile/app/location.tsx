@@ -49,6 +49,8 @@ export default function LocationScreen() {
   }, []);
 
   const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  // First run only: one more onboarding step ("Co chcesz śledzić?"), then Start.
+  const done = () => (changing ? leave() : router.replace("/topics"));
 
   const pickPlace = async (place: PlaceOut) => {
     if (pending.current) return;
@@ -67,7 +69,7 @@ export default function LocationScreen() {
         return;
       }
       choose(locationFromPlace(result.place, result.area, result.attribution));
-      leave();
+      done();
     } catch {
       // aborted (screen closed): nothing to do
       pending.current = false;
@@ -78,7 +80,7 @@ export default function LocationScreen() {
     if (pending.current) return;
     pending.current = true;
     choose(locationFromArea(area));
-    leave();
+    done();
   };
 
   // A fresh install opened straight on this route (deep link) goes through Welcome first.

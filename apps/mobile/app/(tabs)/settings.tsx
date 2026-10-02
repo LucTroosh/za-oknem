@@ -8,6 +8,7 @@ import useDashboard from "../../components/DashboardProvider";
 import useLocation from "../../components/LocationProvider";
 import Screen from "../../components/Screen";
 import ThemePicker from "../../components/ThemePicker";
+import TopicsPicker from "../../components/TopicsPicker";
 import useTheme, { useThemedStyles } from "../../components/useTheme";
 import { collectAttributions, withPlaceSource } from "../../lib/sources";
 import { MIN_TOUCH, type Theme, space, typo } from "../../lib/theme";
@@ -19,7 +20,7 @@ export default function Settings() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { settings, setTheme } = useLocation();
+  const { settings, setTheme, setTopics } = useLocation();
   const { dashboard, hydro, calendar } = useDashboard();
   const sources = withPlaceSource(collectAttributions(dashboard, hydro, calendar), settings.location?.attribution);
   return (
@@ -38,6 +39,15 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </Pressable>
+      </Card>
+      <Card>
+        <Text style={styles.heading} accessibilityRole="header">
+          Co chcesz śledzić?
+        </Text>
+        <TopicsPicker value={settings.topics} onChange={setTopics} />
+        <Text style={styles.meta}>
+          Wpływa tylko na to, co widać na ekranie Start. Bez wyboru pokazujemy wszystko. Ostrzeżenia o zagrożeniu zawsze są widoczne.
+        </Text>
       </Card>
       <Card>
         <Text style={styles.heading} accessibilityRole="header">

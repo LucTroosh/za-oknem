@@ -97,7 +97,7 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 |---|---|---|---|
 | 1 Welcome | S0 | ✅ (hero = neutralny placeholder z tokenów; grafika po stronie właściciela) | TASK-12.17 |
 | 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; bez GPS (TASK-12.3) | TASK-12.7, 12.17 |
-| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ⬜ (świadomie poza PR onboardingu: wymaga ekranu w Ustawieniach i ukrywania kart na Start) | TASK-12.13 |
+| 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ✅ | TASK-12.13 |
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
 | 5 Dashboard | S1 | 🟡 | TASK-12.18 |
 | 6 Hero Verdict | S1 | ✅ dane i karta (LIVE, bez mocka) | TASK-7.8 ✅ |
@@ -244,16 +244,16 @@ Dziś: trzy karty (O aplikacji + wersja, Źródła danych z `attribution`, Prywa
 | O aplikacji | S14 | 🟡 | TASK-12.6 |
 | Powiadomienia | — | **ukryte w produkcji** (spec §25 wariant A, preferowany; brak FCM/APNs) | TASK-12.15 |
 
-### S10. Obserwowane tematy — ⬜ (lokalne, bez backendu, bez mocka)
+### S10. Obserwowane tematy — ✅ (lokalne, bez backendu, bez mocka; Aktywność dopiero po TASK-7.9)
 
 To NIE jest profil (spec §3). Lokalna preferencja urządzenia: które moduły widać na Start. Nie zmienia faktów źródłowych (Master Plan §61)
 i **nie może ukryć alertów/danych bezpieczeństwa** poza wyborem „Alerty”. Ten sam komponent kafelków w onboardingu („Co chcesz śledzić?”) i w Ustawieniach.
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ⬜ (zapis w pamięci lokalnej) | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
-| Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ⬜ | TASK-12.18 | „Aktywność” pojawia się dopiero po TASK-7.9 |
-| Skutek na Start | lokalne | ⬜ | TASK-12.18 | wyłączony temat = brak karty, nie „0” |
+| Kafelki multi-select: Powietrze, Pogoda, Pyłki, Alerty (i zagrożenia), Aktywność na zewnątrz | lokalne | ✅ `TopicsPicker` w onboardingu (`app/topics.tsx`, po pierwszym wyborze lokalizacji) i w Ustawieniach; zapis lokalny `Settings.topics` | TASK-12.13, 12.17 | pusty wybór = wszystkie dostępne; brak kafelków dla Woda pitna/Kąpieliska |
+| Dostępność tematu zależy od danych | dostępność modułu (dane/flaga) | ✅ (kafelka Aktywność nie ma) | TASK-12.13 | „Aktywność” pojawia się dopiero po TASK-7.9 |
+| Skutek na Start | lokalne | ✅ `lib/topics.ts` (`visibleCards`, `showAlertsStatus`, `showPollenCalendar`) | TASK-12.13 | wyłączony temat = brak karty, nie „0”; **baner realnego ostrzeżenia nigdy nie jest ukrywany** (decyzja do pkt 9 z sekcji 5.2: temat „Alerty” steruje tylko cichą linią „brak/nie sprawdzono”) |
 | Dawny zakres „profil alergika” (gatunki pyłków, „rodzina”, „outdoor” jako profil; TASK-12.4 v1) | **SUPERSEDED** przez spec UI v1: zostają wyłącznie tematy | wycofane | — | brak decyzji do podjęcia |
 
 ### S11. Powiadomienia — ukryte w produkcji
@@ -427,7 +427,7 @@ powiadomienia ukryte; loading = skeleton per moduł; „profil” zastąpiony te
 6. **„Co to oznacza?” w szczegółach alertu:** statyczne teksty per rodzaj ostrzeżenia redagowane przez ludzi (bez LLM) — czy tak, i kto pisze?
 7. **Trend w szczegółach powietrza** (spec §2.2) — brak danych historycznych w API; pomijamy w v1?
 8. **Gatunki pyłków do śledzenia** — spec UI ich nie przewiduje (tylko temat „Pyłki”). Zostaje bez wyboru gatunków?
-9. **Tematy a bezpieczeństwo:** czy wyłączenie tematu „Alerty” ma w ogóle być możliwe? Rekomendacja: baner istotnego ostrzeżenia zawsze widoczny.
+9. ~~**Tematy a bezpieczeństwo**~~ — **rozstrzygnięte w kodzie (TASK-12.13)**: temat „Alerty” można wyłączyć, ale baner istotnego ostrzeżenia na Start jest zawsze widoczny (wyłączenie ukrywa tylko ciche „brak aktywnych ostrzeżeń / nie udało się sprawdzić”); zakładka Alerty zawsze istnieje. Zgodne z AC TASK-12.13 i rekomendacją.
 10. **Ekran startowy po Welcome bez GPS i bez wyboru:** dziś to lista 7 miast (+ wyszukiwarka dopiero po PR #85); czy dopuszczamy domyślny obszar?
 11. **Preview-build z `EXPO_PUBLIC_UI_MOCKS=1`:** dla Ciebie czy dla testerów; które mocki chcesz zobaczyć (wyszukiwarka, GPS-stub, wykres pyłków)?
 12. **Etykieta „Niskie” na karcie pyłków:** spec używa „Niskie”; dane to „poniżej progu sezonu” wg modelu CAMS (nie ryzyko objawów, ADR-020). Dopuszczasz „Niskie (prognoza modelu)”?
