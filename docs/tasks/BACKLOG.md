@@ -596,6 +596,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       „Oficjalny komunikat” (treść źródłowa dosłownie) od „Co to oznacza?” (statyczny tekst
       redagowany przez ludzi, bez LLM — wymaga decyzji właściciela; bez treści sekcja nie
       istnieje); lokalne ostrzeżenia z `local_alerts`, `unresolved` zawsze pokazane.
+      **Stan (kolejny PR):** ✅ lista wg lokalizacji (`lib/alertsScreen.ts` + testy: „Dla Twojej lokalizacji” / „Do sprawdzenia” (unresolved zawsze widoczne) / „Pozostałe w Polsce”; „Brak ostrzeżeń dla Twojego województwa” tylko przy zdrowym źródle, braku unresolved i udanym odświeżeniu) i szczegół (`app/(tabs)/alert.tsx`: treść źródłowa i komentarz dosłownie pod „Oficjalny komunikat”, obszary, ważność, wydano/pobrano, atrybucja). Bez chipów (jedna kategoria) i bez „Co to oznacza?” (czeka na treść od właściciela). Niezweryfikowane na urządzeniu.
 - [ ] ⛔ Ostrzeżenia meteo (TASK-9.2) — pozostaje BLOCKED, sprawdzane przy
       okazji (patrz sekcja blokad).
 

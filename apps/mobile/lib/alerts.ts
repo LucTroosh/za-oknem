@@ -15,8 +15,12 @@ export type AlertItem = Pick<
   | "description"
   | "areas"
   | "valid_until"
+  | "valid_from"
   | "fetched_at"
   | "freshness"
+  | "comment"
+  | "probability_pct"
+  | "geo_match"
 >;
 
 export type SourceFreshness = SourceStatusOut["freshness"];
