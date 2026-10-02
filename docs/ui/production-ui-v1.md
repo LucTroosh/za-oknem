@@ -69,7 +69,7 @@ The first thing the user should understand is:
 - surface: #FFFFFF
 - primary text: #102A3A
 - secondary text: #5E7180
-- subtle text: #7E8D98
+- subtle text: #5F6F7C (AA on surface and background; the earlier #7E8D98 was ~3.4:1 and is not allowed for text)
 - primary teal: #087B69
 - primary teal dark: #046253
 - good: #3FAE52

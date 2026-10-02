@@ -1,6 +1,7 @@
 // Production UI v1: pure view models of the Start screen. Everything here is derived from data the
 // app already has (statusCards, weather block, local alerts); no module is faked. A domain with no
 // production source is simply absent (no empty tile), an unavailable one says so in words.
+import { severityTone } from "./alertSeverity";
 import { type AlertItem, type AlertsBlock } from "./alerts";
 import { type AlertsScreenModel, buildAlertsScreen } from "./alertsScreen";
 import { type StatusCardModel, currentTemperature, statusCards } from "./home";
@@ -136,7 +137,8 @@ export function alertPreview(
     const n = m.local.length;
     return {
       kind: "local",
-      tone: "danger",
+      // Severity from the source degree (worst of the local alerts), not from relevance.
+      tone: m.local.some((a) => severityTone(a.severity_raw) === "danger") ? "danger" : "warning",
       title: n === 1 ? (/^ostrze/i.test(first.event_type) ? first.event_type : `Ostrzeżenie: ${first.event_type}`) : `Ostrzeżenia w Twoim województwie: ${n}`,
       detail: n === 1 ? `Stopień ${first.severity_raw}. Źródło: IMGW.` : "Zobacz szczegóły i treść komunikatów.",
       count: n,

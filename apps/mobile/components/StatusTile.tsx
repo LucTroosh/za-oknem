@@ -29,9 +29,11 @@ export default function StatusTile({
   const { colors, scheme } = useTheme();
   const styles = useThemedStyles(createStyles);
   const d = domainColors(colors, domain);
-  const bg = unavailable ? colors.neutralBg : scheme === "dark" ? colors.elevated : colors.surface;
+  // Available tiles carry the domain tint across the whole tile in light mode (AA pairs are in
+  // theme.test); dark keeps the elevated surface. Unavailable stays neutral.
+  const bg = unavailable ? colors.neutralBg : scheme === "dark" ? colors.elevated : d.bg;
   const fg = unavailable ? colors.textSecondary : d.fg;
-  const iconBg = unavailable ? colors.surface : d.bg;
+  const iconBg = scheme === "dark" && !unavailable ? d.bg : colors.surface;
   const label_ = [label, value, supporting].filter(Boolean).join(", ");
   const content = (
     <>

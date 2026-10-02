@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
 import { Redirect, Tabs } from "expo-router";
-import { StyleSheet } from "react-native";
+import { StyleSheet, Text, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DashboardProvider } from "../../components/DashboardProvider";
 import useLocation from "../../components/LocationProvider";
@@ -17,11 +18,24 @@ const icon = (name: IconName, focusedName: IconName) =>
     return <Ionicons name={focused ? focusedName : name} size={24} color={color} />;
   };
 
+// Label scales with the system font (200% contract); one line that shrinks to fit its third of the
+// bar instead of being clipped, and the bar itself grows with the font scale.
+const tabLabel = (title: string) =>
+  function TabLabel({ color }: { color: string; focused: boolean }) {
+    return (
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} maxFontSizeMultiplier={2} style={{ color, fontSize: typo.meta.fontSize, fontWeight: "600" }}>
+        {title}
+      </Text>
+    );
+  };
+
 const HIDDEN = ["air", "weather", "pollen", "alert", "rivers", "appearance", "accessibility", "privacy", "sources", "about"] as const;
 
 export default function TabsLayout() {
   const { colors, scheme } = useTheme();
   const { settings } = useLocation();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const redirect = entryRedirect(settings, "tabs");
   if (redirect !== null || settings.location === null) return <Redirect href={redirect ?? "/location"} />;
   return (
@@ -35,23 +49,20 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: colors.textSecondary,
           // Elevated surface + a soft top shadow instead of a hard border; safe-area aware by the navigator.
           tabBarStyle: {
+            height: 16 + 24 + Math.ceil(typo.meta.lineHeight * Math.min(fontScale, 2)) + insets.bottom,
             backgroundColor: scheme === "dark" ? colors.elevated : colors.surface,
             borderTopWidth: scheme === "dark" ? StyleSheet.hairlineWidth : 0,
             borderTopColor: colors.border,
             ...elevation(scheme, 2),
             shadowOffset: { width: 0, height: -3 },
           },
-          tabBarLabelStyle: { fontSize: typo.meta.fontSize, fontWeight: "600" },
           tabBarItemStyle: { minHeight: 48 },
-          // The bar has a fixed height: scaled labels would be clipped at 200% font. Icon + word stay
-          // readable; every screen BODY scales with the system font.
-          tabBarAllowFontScaling: false,
         }}
       >
         {/* Exactly three tabs (locked architecture): Start / Alerty / Ustawienia. */}
-        <Tabs.Screen name="index" options={{ title: "Start", tabBarIcon: icon("home-outline", "home") }} />
-        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("notifications-outline", "notifications") }} />
-        <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
+        <Tabs.Screen name="index" options={{ title: "Start", tabBarLabel: tabLabel("Start"), tabBarIcon: icon("home-outline", "home") }} />
+        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarLabel: tabLabel("Alerty"), tabBarIcon: icon("notifications-outline", "notifications") }} />
+        <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarLabel: tabLabel("Ustawienia"), tabBarIcon: icon("settings-outline", "settings") }} />
         {/* Detail screens are hidden tabs (they need this layout's DashboardProvider): no tab of their own. */}
         {HIDDEN.map((name) => (
           <Tabs.Screen key={name} name={name} options={{ href: null }} />

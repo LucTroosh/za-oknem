@@ -6,7 +6,8 @@ import { type AlertItem, alertKey } from "../lib/alerts";
 import { GEO_MATCH_TEXT, areaNames } from "../lib/alertsScreen";
 import { formatObservedAt } from "../lib/dashboardTypes";
 import { FRESHNESS_LABEL } from "../lib/freshness";
-import { type Theme, elevation, radius, space, typo } from "../lib/theme";
+import { severityTone } from "../lib/alertSeverity";
+import { type Theme, elevation, radius, space, toneColors, typo } from "../lib/theme";
 import FreshnessBadge from "./FreshnessBadge";
 import IconBox from "./IconBox";
 import useTheme, { useThemedStyles } from "./useTheme";
@@ -15,27 +16,39 @@ const SOURCE_NAME: Record<string, string> = { imgw_warningshydro: "IMGW · ostrz
 
 // One alert in the feed (production UI v1 §12): severity glyph in a 36 dp container, source meta,
 // the source's own headline (rule #10: never rewritten), scope, validity, freshness, chevron.
-// `emphasis` is RELEVANCE to the user, not our own severity rating: "local" gets a soft danger
-// tint, "check" (unresolved) a soft warning tint, "other" the plain surface.
+// SEVERITY (card tint + glyph colour) comes only from the source's degree; `emphasis` is RELEVANCE
+// to the user and is shown as a separate labelled chip, never as a danger colour.
+const RELEVANCE = {
+  local: { icon: "location", text: "Dotyczy Twojej lokalizacji" },
+  check: { icon: "help-circle", text: "Do sprawdzenia" },
+} as const;
+
 export default function AlertCard({ alert, emphasis }: { alert: AlertItem; emphasis: "local" | "check" | "other" }) {
   const router = useRouter();
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const regions = areaNames(alert.areas).join(", ");
   const geo = alert.geo_match ? GEO_MATCH_TEXT[alert.geo_match] : null;
-  const tint = emphasis === "local" ? colors.dangerBg : emphasis === "check" ? colors.warningBg : scheme === "dark" ? colors.elevated : colors.surface;
-  const fg = emphasis === "local" ? colors.danger : emphasis === "check" ? colors.warning : colors.textSecondary;
+  const tone = severityTone(alert.severity_raw);
+  const { fg, bg: tint } = toneColors(colors, tone);
+  const relevance = emphasis === "other" ? null : RELEVANCE[emphasis];
   const source = SOURCE_NAME[alert.source] ?? alert.source;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[`${alert.event_type}, stopień ${alert.severity_raw}`, source, regions || null, geo, `ważne do ${formatObservedAt(alert.valid_until)}`].filter(Boolean).join(", ")}
+      accessibilityLabel={[`${alert.event_type}, stopień ${alert.severity_raw}`, relevance?.text ?? null, source, regions || null, geo, `ważne do ${formatObservedAt(alert.valid_until)}`].filter(Boolean).join(", ")}
       accessibilityHint="Otwiera szczegóły ostrzeżenia"
       onPress={() => router.push({ pathname: "/alert", params: { key: alertKey(alert) } })}
-      style={[styles.card, { backgroundColor: tint }]}
+      style={[styles.card, { backgroundColor: tone === "neutral" ? colors.surface : tint }]}
     >
-      <IconBox name={emphasis === "other" ? "alert-circle" : "warning"} fg={fg} bg={colors.surface} size={36} iconSize={20} rounded={12} />
+      <IconBox name={tone === "neutral" ? "alert-circle" : "warning"} fg={fg} bg={colors.surface} size={36} iconSize={20} rounded={12} />
       <View style={styles.body}>
+        {relevance && (
+          <View style={styles.chip}>
+            <Ionicons name={relevance.icon} size={14} color={colors.accent} importantForAccessibility="no" />
+            <Text style={styles.chipText}>{relevance.text}</Text>
+          </View>
+        )}
         <Text style={styles.source}>{source}</Text>
         <Text style={styles.headline}>
           {alert.event_type} (stopień {alert.severity_raw})
@@ -55,6 +68,8 @@ const createStyles = (t: Theme) =>
   StyleSheet.create({
     card: { flexDirection: "row", alignItems: "center", gap: space.md, padding: 14, borderRadius: radius.card, minHeight: 72, ...elevation(t.scheme) },
     body: { flex: 1, gap: 4 },
+    chip: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", backgroundColor: t.colors.surface, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+    chipText: { ...typo.meta, fontWeight: "700", color: t.colors.accent },
     source: { ...typo.meta, color: t.colors.textSecondary },
     headline: { ...typo.cardTitle, color: t.colors.text },
     scope: { ...typo.caption, color: t.colors.text },
