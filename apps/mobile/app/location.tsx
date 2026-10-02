@@ -10,11 +10,13 @@ import useLocation from "../components/LocationProvider";
 import LocationRow from "../components/LocationRow";
 import Notice from "../components/Notice";
 import Screen from "../components/Screen";
+import StateIllustration from "../components/StateIllustration";
 import usePlaceSearch from "../components/usePlaceSearch";
 import useTheme, { useThemedStyles } from "../components/useTheme";
 import { apiGet } from "../lib/api";
 import { entryRedirect, locationFromArea, locationFromPlace } from "../lib/location";
 import { SEARCH_ERROR, SEARCH_HINT, activatePlace, emptyResultMessage } from "../lib/places";
+import { LOCATION_REQUIRED_ART } from "../lib/stateArt";
 import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
 
 // "Ustaw lokalizację" (spec §7): onboarding (first run) and change (from Start / Settings) in
@@ -102,6 +104,8 @@ export default function LocationScreen() {
           <Text style={styles.backText}>Wróć</Text>
         </Pressable>
       )}
+      {/* No location chosen yet (first run): the only state where this illustration is true. */}
+      {settings.location === null && <StateIllustration art={LOCATION_REQUIRED_ART} height={120} />}
       <Text style={styles.title} accessibilityRole="header">
         {changing ? "Zmień lokalizację" : "Ustaw lokalizację"}
       </Text>

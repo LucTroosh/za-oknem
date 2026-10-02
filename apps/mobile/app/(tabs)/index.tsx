@@ -18,6 +18,7 @@ import { todayRange } from "../../lib/forecast";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
 import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, pollingPending, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
+import { loadErrorArt } from "../../lib/stateArt";
 import { showAlertsStatus, showPollenCalendar, visibleCards } from "../../lib/topics";
 import { POLLING_OFF_NOTICE, POLLING_PENDING_NOTICE } from "../../lib/places";
 
@@ -96,6 +97,7 @@ export default function Start() {
         key="cards"
         title="Nie udało się pobrać aktualnych danych"
         message="Sprawdź połączenie z internetem."
+        art={loadErrorArt(d.networkFailure)}
         actionLabel="Spróbuj ponownie"
         onAction={d.refresh}
         devHint="serwer API niedostępny? Sprawdź EXPO_PUBLIC_API_URL (README, sekcja Mobile)."
@@ -103,6 +105,7 @@ export default function Start() {
     ) : (
       <EmptyState
         key="cards"
+        art="noData"
         title="Brak danych do pokazania"
         message="Dane dla Twojej lokalizacji nie są jeszcze dostępne. Odśwież widok za chwilę."
         actionLabel="Odśwież"

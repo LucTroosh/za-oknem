@@ -13,9 +13,11 @@ import {
 } from "../lib/alertsScreen";
 import { formatObservedAt } from "../lib/dashboardTypes";
 import { FRESHNESS_LABEL } from "../lib/freshness";
+import { alertsArt, localAlertsArt } from "../lib/stateArt";
 import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
 import Card from "./Card";
 import FreshnessBadge from "./FreshnessBadge";
+import StateIllustration from "./StateIllustration";
 import useNow from "./useNow";
 import { useThemedStyles } from "./useTheme";
 
@@ -68,9 +70,14 @@ export default function AlertsSection({
   const now = useNow();
   const summary = summarizeAlerts(alerts, now);
   const model = buildAlertsScreen(alerts, localAlerts, now, refreshFailed);
+  // Decorative art next to native text (rule #8): a confirmed zero only, never after a failed refresh.
+  const art = model.located
+    ? localAlertsArt(model.localStatus, model.local.length + model.unresolved.length > 0)
+    : alertsArt(summary, refreshFailed);
   return (
     <>
       <Card>
+        {art ? <StateIllustration art={art} /> : null}
         <Text style={styles.title} accessibilityRole="header">
           {model.located ? "Dla Twojej lokalizacji" : "Ostrzeżenia hydrologiczne"}
         </Text>

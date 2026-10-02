@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "repositoryPath": "apps/mobile/assets/za-oknem",
+  "rasterPackage": "za_oknem_asset_pack_v2.zip",
+  "approvedAt": "2026-10-02",
+  "runtime": {
+    "welcomeHero": "backgrounds/welcome-hero-1242x2688.jpg",
+    "appIcon": "android/app-icon-1024.png",
+    "playStoreIcon": "android/play-store-icon-512.png"
+  },
+  "sources": {
+    "brand": "brand/logo-mark.svg",
+    "good": "illustrations/condition-good.svg",
+    "caution": "illustrations/condition-caution.svg",
+    "bad": "illustrations/condition-bad.svg",
+    "noAlerts": "illustrations/no-alerts.svg",
+    "noData": "illustrations/no-data.svg",
+    "offline": "illustrations/offline.svg",
+    "locationRequired": "illustrations/location-required.svg"
+  }
+}

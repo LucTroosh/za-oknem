@@ -1,7 +1,9 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
+import type { StateArt } from "../lib/stateArt";
 import Card from "./Card";
+import StateIllustration from "./StateIllustration";
 import useTheme, { useThemedStyles } from "./useTheme";
 
 // One place for "nothing here yet" / "could not load": say what happened and what to do.
@@ -12,16 +14,20 @@ export default function EmptyState({
   actionLabel,
   onAction,
   devHint,
+  art,
 }: {
   title: string;
   message: string;
   actionLabel?: string;
   onAction?: () => void;
   devHint?: string;
+  // Decorative illustration above the text; the text still says everything.
+  art?: StateArt;
 }) {
   const styles = useThemedStyles(createStyles);
   return (
     <Card>
+      {art ? <StateIllustration art={art} /> : null}
       <Text style={styles.title} accessibilityRole="header">
         {title}
       </Text>

@@ -5,6 +5,7 @@ import HydroSection from "../../components/HydroSection";
 import Notice from "../../components/Notice";
 import Screen from "../../components/Screen";
 import useArea from "../../components/useArea";
+import { loadErrorArt } from "../../lib/stateArt";
 
 // Alerts = IMGW warnings split by the backend's location matching (`area.local_alerts`, ADR-013:
 // "Dla Twojej lokalizacji" / "Do sprawdzenia" (unresolved, never hidden) / "Pozostałe w Polsce")
@@ -24,6 +25,7 @@ export default function Alerts() {
         <LoadingState label="Ładowanie ostrzeżeń…" />
       ) : (
         <EmptyState
+          art={loadErrorArt(d.networkFailure)}
           title="Ostrzeżenia są niedostępne"
           message="Nie udało się pobrać ostrzeżeń. Nie oznacza to, że ich nie ma. Spróbuj ponownie."
           actionLabel="Spróbuj ponownie"

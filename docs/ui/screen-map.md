@@ -95,7 +95,7 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 
 | P0 | Ekran | Status dziś | Task |
 |---|---|---|---|
-| 1 Welcome | S0 | ✅ (hero = neutralny placeholder z tokenów; grafika po stronie właściciela) | TASK-12.17 |
+| 1 Welcome | S0 | 🟡 (asset pack v2 zainstalowany: tło JPG + natywny znak/tekst/CTA, scrim jasny/ciemny; niezweryfikowane na urządzeniu, PR #90) | TASK-12.17 |
 | 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; bez GPS (TASK-12.3) | TASK-12.7, 12.17 |
 | 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ✅ | TASK-12.13 |
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
