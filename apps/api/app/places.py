@@ -12,6 +12,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.alert_geo import VOIVODESHIP_TERYT
 from app.config import settings
 from app.connectors.open_meteo.ingest import ESTIMATED_BILLABLE_UNITS_PER_CALL
 from app.connectors.open_meteo_pollen.ingest import UNITS_PER_CALL as POLLEN_UNITS_PER_CALL
@@ -56,6 +57,31 @@ VOIVODESHIP_PL = {
     "Greater Poland": "wielkopolskie",
     "West Pomerania": "zachodniopomorskie",
 }
+
+
+def voivodeship_code(admin1_name: str | None) -> str | None:
+    """2-digit TERC voivodeship code from GeoNames' admin1 name, or None when unknown."""
+    if not admin1_name:
+        return None
+    return VOIVODESHIP_TERYT.get(VOIVODESHIP_PL.get(admin1_name, admin1_name).casefold())
+
+
+def alert_match_codes(db: Session, areas: list[GeoArea]) -> dict[int, str | None]:
+    """area id -> the administrative code alerts are matched against (ADR-013). A gmina TERYT
+    when the area has one; otherwise, for an area activated from a place (ADR-029, no gmina
+    boundary imported), the 2-digit voivodeship of the place - the granularity IMGW hydro
+    warnings have anyway, and exactly what `teryt_covers` already accepts. Neither = None
+    (alerts stay 'unresolved', never hidden)."""
+    codes: dict[int, str | None] = {a.id: a.teryt_code for a in areas}
+    need = {a.id: a.place_id for a in areas if not a.teryt_code and a.place_id is not None}
+    if need:
+        rows = db.execute(
+            select(Place.id, Place.admin1_name).where(Place.id.in_(set(need.values())))
+        ).all()
+        by_place = {pid: voivodeship_code(name) for pid, name in rows}
+        for area_id, place_id in need.items():
+            codes[area_id] = by_place.get(place_id)
+    return codes
 
 
 def place_label(place: Place) -> str:

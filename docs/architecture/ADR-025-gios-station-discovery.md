@@ -76,3 +76,20 @@ Opcja **B**.
 - Przynależność administracyjna (alerty, push) nadal wyłącznie point-in-polygon (ADR-019).
 - Niezweryfikowane na żywym `findAll` (API 403 ze środowiska autora): test na fixturze
   o kształcie z istniejących testów; pierwszy realny dowód to pierwszy run po wdrożeniu.
+
+## Addendum 2026-10-02: najbliższa stacja Z DANYMI (Status: Accepted, zatwierdził właściciel)
+
+**Problem:** najbliższa stacja katalogowa bywa bez czujników/pomiarów (np. Wrocław: Start pokazywał
+„Brak stacji”), a ADR-029 celowo nie „przeskakiwał” do dalszej, więc użytkownik nie dostawał
+żadnych danych o powietrzu mimo stacji w zasięgu.
+
+**Decyzja:**
+- API (`/dashboard`, `/air/latest?geo_area_id=`) wybiera najbliższą stację **z pomiarami** w
+  `REGIONAL_MAX_KM` (100 km) — `geo.pick_air_station`. `distance_km`, `coverage` i
+  `assignment_method` opisują stację faktycznie użytą (nigdy pusty, bliższy „exact”).
+  Bez żadnej stacji z danymi `coverage.air` dalej opisuje geografię (najbliższa stacja katalogowa),
+  a blok `air` = `null` („stacja jest, brak danych”).
+- Polling odpytuje `AIR_STATIONS_PER_AREA = 3` najbliższe stacje katalogowe na obszar (zamiast 1),
+  żeby było z czego wybrać. Koszt: do 3× więcej stacji na run (limity GIOŚ: `station/sensors`
+  2/min); przy dziś 7 miastach akceptowalne, przy setkach obszarów wrócić do cache listy sensorów.
+- Bez zmian: pasmo `regional` nie decyduje o „Na dwór” (ADR-029), limit 100 km, brak dalszego fallbacku.

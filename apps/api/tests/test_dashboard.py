@@ -1143,9 +1143,9 @@ def test_dashboard_geo_area_id_not_int_is_422():
     assert client.get("/api/v1/dashboard/latest?geo_area_id=abc").status_code == 422
 
 
-def test_dashboard_coverage_follows_the_catalog_even_before_the_first_measurement():
-    # Nearest catalog station (~2 km) has no measurement yet; a measured one sits ~55 km away.
-    # Polling assigned the near one, so: no air block, coverage "exact" - not the far station.
+def test_dashboard_uses_the_nearest_station_with_data_and_labels_its_real_distance():
+    # ADR-025 (amended): the nearest catalog station (~2 km) has no data; the measured one ~55 km
+    # away is used - with ITS distance and "regional" coverage, never the empty station's "exact".
     far = _station(station_id="40", latitude=50.93)
     client = _client(
         [GeoArea(**KLODZKO)],
@@ -1156,8 +1156,18 @@ def test_dashboard_coverage_follows_the_catalog_even_before_the_first_measuremen
 
     area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
 
+    assert area["air"]["station_id"] == "40"
+    assert area["air"]["distance_km"] > 40
+    assert area["air"]["coverage"] == area["coverage"]["air"] == "regional"
+
+
+def test_dashboard_without_any_station_data_keeps_geographic_coverage_and_no_air_block():
+    client = _client([GeoArea(**KLODZKO)], [], [], catalog=[_cat("41", 50.45, 16.65)])
+
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
     assert area["air"] is None
-    assert area["coverage"]["air"] == "exact"
+    assert area["coverage"]["air"] == "exact"  # a station exists, it just has no data yet
 
 
 def test_default_area_list_excludes_user_chosen_places(monkeypatch):

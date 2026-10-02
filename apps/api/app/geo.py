@@ -76,6 +76,22 @@ def select_stations(
     return [StationMatch(sid, km) for km, sid in scored[:limit]]
 
 
+def pick_air_station(
+    latitude: float,
+    longitude: float,
+    points: Iterable[tuple[str, float, float]],
+    measured_ids: set[str],
+) -> tuple[StationMatch | None, StationMatch | None]:
+    """ADR-025 (amended): (nearest station WITH data, nearest catalog station at all), both within
+    REGIONAL_MAX_KM. The air block uses the first - its own distance/coverage, never the nearer
+    empty station's; the second only says "a station exists but has no data" (geography)."""
+    points = list(points)
+    nearest_any = select_stations(latitude, longitude, points, max_km=REGIONAL_MAX_KM)
+    with_data = [p for p in points if p[0] in measured_ids]
+    nearest_data = select_stations(latitude, longitude, with_data, max_km=REGIONAL_MAX_KM)
+    return (nearest_data[0] if nearest_data else None, nearest_any[0] if nearest_any else None)
+
+
 def classify_air_coverage(distance_km: float | None) -> AirCoverage:
     """Pure ladder (rule #9): None (no station within REGIONAL_MAX_KM) or > 100 km = none."""
     if distance_km is None:

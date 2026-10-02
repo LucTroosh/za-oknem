@@ -59,9 +59,7 @@ def test_ingest_station_skips_when_no_current_reading(db_session):
 
 
 def test_ingest_station_isolates_parse_failure(db_session, monkeypatch):
-    monkeypatch.setattr(
-        ingest, "normalize", MagicMock(side_effect=ImgwHydroParseError("boom"))
-    )
+    monkeypatch.setattr(ingest, "normalize", MagicMock(side_effect=ImgwHydroParseError("boom")))
     stored = ingest.ingest_station(STATION, db_session, fetched_at=datetime.now(UTC))
 
     assert stored == 0
@@ -81,11 +79,7 @@ def test_ingest_station_updates_threshold_even_without_a_new_water_reading(db_se
     stored = ingest.ingest_station(changed_station, db_session, fetched_at=datetime.now(UTC))
 
     assert stored == 1  # the threshold changed; the water level didn't
-    row = (
-        db_session.query(Measurement)
-        .filter_by(param_code="water_level_warn_cm")
-        .one()
-    )
+    row = db_session.query(Measurement).filter_by(param_code="water_level_warn_cm").one()
     assert row.value == 310.0
 
 
@@ -194,9 +188,7 @@ class TestMain:
 
     def test_one_bad_station_does_not_abort_the_rest(self, monkeypatch, db_session):
         other = {**STATION, "id_stacji": "999", "lat": "not-a-number"}
-        monkeypatch.setattr(
-            client, "fetch_stations", MagicMock(return_value=[other, STATION])
-        )
+        monkeypatch.setattr(client, "fetch_stations", MagicMock(return_value=[other, STATION]))
         monkeypatch.setattr(ingest, "SessionLocal", lambda: db_session)
 
         with pytest.raises(RuntimeError, match="1/2 failed"):

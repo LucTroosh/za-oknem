@@ -2719,7 +2719,7 @@
   "paths": {
     "/api/v1/air/latest": {
       "get": {
-        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest within REGIONAL_MAX_KM = 100 km, with `distance_km`, `assignment_method` and the\nADR-029 `coverage` band); no station in range = empty list (\"brak danych dla obszaru\"),\nunknown area = 404.",
+        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest WITH data within REGIONAL_MAX_KM = 100 km, with `distance_km`,\n`assignment_method` and the ADR-029 `coverage` band); no station in range = empty list\n(\"brak danych dla obszaru\"), unknown area = 404.",
         "operationId": "latest_air_quality_api_v1_air_latest_get",
         "parameters": [
           {

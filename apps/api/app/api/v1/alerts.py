@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.alert_geo import filter_alerts_for_area
 from app.db import get_db
 from app.models import Alert, GeoArea
+from app.places import alert_match_codes
 from app.source_status import source_freshness
 
 router = APIRouter()
@@ -125,5 +126,5 @@ def latest_alerts(
         area = db.get(GeoArea, geo_area_id)
         if area is None:
             raise HTTPException(status_code=404, detail="geo_area not found")
-        alerts = filter_alerts_for_area(alerts, area.teryt_code)
+        alerts = filter_alerts_for_area(alerts, alert_match_codes(db, [area])[area.id])
     return {"alerts": alerts, "source_status": alerts_source_status(db)}

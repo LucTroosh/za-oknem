@@ -447,12 +447,21 @@ def test_air_latest_for_area_reports_the_catalog_coordinates_used_for_assignment
     assert station["distance_km"] > 5  # measured position would have said ~0 km
 
 
-def test_air_latest_for_area_does_not_fall_back_past_a_nearer_unmeasured_station():
-    # Nearest catalog station (41) has no data yet; the farther measured one (40) is not the
-    # assigned one (same as dashboard / polling) -> empty, not stale data from 40.
+def test_air_latest_for_area_uses_the_nearest_station_with_data_not_an_empty_nearer_one():
+    # ADR-025 (amended): nearest catalog station (41) has no data; the next one that does (40)
+    # is assigned, with ITS OWN distance (never the empty station's).
     far = _measurement(station_id="40", latitude=50.9, longitude=16.7)
     client = _client_for_area(
         [far], {1: _area()}, catalog=[_cat("40", 50.9, 16.7), _cat("41", 50.5, 16.7)]
     )
+
+    [station] = client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"]
+
+    assert station["station_id"] == "40"
+    assert station["distance_km"] > 40
+
+
+def test_air_latest_for_area_is_empty_when_no_station_with_data_is_in_range():
+    client = _client_for_area([], {1: _area()}, catalog=[_cat("41", 50.5, 16.7)])
 
     assert client.get("/api/v1/air/latest?geo_area_id=1").json()["stations"] == []

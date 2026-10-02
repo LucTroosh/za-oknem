@@ -234,9 +234,7 @@ class TestMain:
     so here we just verify main() calls it with the right stations and handles
     the --list / no-args paths without touching a real DB or network."""
 
-    def test_list_prints_stations_and_exits_without_touching_db(
-        self, monkeypatch, capsys
-    ):
+    def test_list_prints_stations_and_exits_without_touching_db(self, monkeypatch, capsys):
         monkeypatch.setattr(sys, "argv", ["ingest", "--list"])
         page = {
             "Lista stacji pomiarowych": [{"Identyfikator stacji": 38, "Nazwa stacji": "Kłodzko"}],

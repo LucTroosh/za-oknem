@@ -108,9 +108,7 @@ def test_fetch_all_stations_walks_every_page(monkeypatch):
 
 
 def test_iter_station_pages_raises_gios_api_error_on_unexpected_shape(monkeypatch):
-    monkeypatch.setattr(
-        client, "fetch_station_page", MagicMock(return_value={"totalPages": 1})
-    )
+    monkeypatch.setattr(client, "fetch_station_page", MagicMock(return_value={"totalPages": 1}))
     with pytest.raises(client.GiosApiError):
         list(client._iter_station_pages())
 
@@ -118,9 +116,7 @@ def test_iter_station_pages_raises_gios_api_error_on_unexpected_shape(monkeypatc
 def test_find_stations_stops_as_soon_as_all_ids_found(monkeypatch):
     """Finding known stations shouldn't pay for walking the whole (rate-limited)
     catalog — must stop after the page containing all wanted ids."""
-    page_1 = _page(
-        [{"Identyfikator stacji": 1}, {"Identyfikator stacji": 2}], total_pages=5
-    )
+    page_1 = _page([{"Identyfikator stacji": 1}, {"Identyfikator stacji": 2}], total_pages=5)
     fetch = MagicMock(return_value=page_1)
     monkeypatch.setattr(client, "fetch_station_page", fetch)
 
