@@ -8,6 +8,8 @@ import {
   locationFromArea,
   locationFromPlace,
   parseSettings,
+  readSettings,
+  shouldReactivate,
   refreshLocation,
   serializeSettings,
 } from "./location";
@@ -99,5 +101,28 @@ describe("attribution and refreshLocation", () => {
     expect(refreshLocation(done, 5, { ...loc, geoAreaId: 99 })).toBe(done);
     const seeded = { onboardingDone: true, location: { ...loc, placeId: null } };
     expect(refreshLocation(seeded, 42, loc)).toBe(seeded);
+  });
+});
+
+describe("readSettings", () => {
+  it("reads a valid record", async () => {
+    expect(await readSettings(() => Promise.resolve(serializeSettings(done)), 50)).toEqual({ settings: done, ok: true });
+  });
+  it("no record is a normal first run (ok)", async () => {
+    expect(await readSettings(() => Promise.resolve(null), 50)).toEqual({ settings: DEFAULT_SETTINGS, ok: true });
+  });
+  it("a read error is flagged, with defaults to start on", async () => {
+    expect(await readSettings(() => Promise.reject(new Error("io")), 50)).toEqual({ settings: DEFAULT_SETTINGS, ok: false });
+  });
+  it("a hanging read times out with the defaults, flagged", async () => {
+    expect(await readSettings(() => new Promise<string | null>(() => undefined), 20)).toEqual({ settings: DEFAULT_SETTINGS, ok: false });
+  });
+});
+
+describe("shouldReactivate", () => {
+  it("first time, then at most hourly", () => {
+    expect(shouldReactivate(null, 1000)).toBe(true);
+    expect(shouldReactivate(0, 59 * 60_000)).toBe(false);
+    expect(shouldReactivate(0, 60 * 60_000)).toBe(true);
   });
 });

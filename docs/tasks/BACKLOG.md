@@ -976,6 +976,12 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       ekranu w Ustawieniach i ukrywania kart na Start, poza zakresem tego PR. Nowa zależność:
       `@react-native-async-storage/async-storage` 1.23.1 (wersja z Expo SDK 52, działa w Expo Go;
       `expo-secure-store` odrzucone: nic sekretnego, limity rozmiaru, prosty klucz-wartość wystarcza).
+      **Do rozważenia (review #88):** copy Welcome ze spec §6 obiecuje „lokalne alerty”, a w
+      aplikacji alerty są dziś krajowe, a dla miejscowości z `places` `local_alerts` daje
+      `unresolved` (brak granic PRG, ADR-029) — decyzja właściciela: doprecyzować copy albo
+      dowieźć TASK-9.7 + PRG. Reaktywacja miejscowości: przy starcie i przy powrocie aplikacji
+      na pierwszy plan (max raz na godzinę; TTL 7 dni); regional (50–100 km) na karcie
+      powietrza jest „orientacyjnie” (poziom neutralny, nagłówek = stacja), nie ocena.
 - [ ] **TASK-12.18:** Przebudowa ekranu Start (spec UI §10–17, §40–44, §50; P0 #4–10, #15).
       **Goal:** Start odpowiada na „co dzieje się wokół mnie i co mogę robić” w kilka
       sekund. **Scope:** zakładki Start | Alerty | Ustawienia (ikony Home/Bell/Settings);

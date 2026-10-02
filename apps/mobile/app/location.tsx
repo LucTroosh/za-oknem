@@ -33,6 +33,8 @@ export default function LocationScreen() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const picking = useRef<AbortController | null>(null);
+  // A ref, not state: two quick taps in one frame both see the old state value.
+  const pending = useRef(false);
   const changing = settings.onboardingDone && router.canGoBack();
 
   useEffect(() => {
@@ -49,7 +51,8 @@ export default function LocationScreen() {
   const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
   const pickPlace = async (place: PlaceOut) => {
-    if (busyId !== null) return;
+    if (pending.current) return;
+    pending.current = true;
     setFailure(null);
     setBusyId(place.place_id);
     const ctrl = new AbortController();
@@ -60,16 +63,20 @@ export default function LocationScreen() {
       if (result.kind === "failed") {
         setFailure(result.message);
         setBusyId(null);
+        pending.current = false;
         return;
       }
       choose(locationFromPlace(result.place, result.area, result.attribution));
       leave();
     } catch {
       // aborted (screen closed): nothing to do
+      pending.current = false;
     }
   };
 
   const pickCity = (area: AreaOut) => {
+    if (pending.current) return;
+    pending.current = true;
     choose(locationFromArea(area));
     leave();
   };

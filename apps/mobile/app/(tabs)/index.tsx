@@ -15,9 +15,9 @@ import StatusCards from "../../components/StatusCards";
 import useNow from "../../components/useNow";
 import { summarizeAlerts } from "../../lib/alerts";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
-import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
+import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, pollingPending, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
-import { POLLING_OFF_NOTICE } from "../../lib/places";
+import { POLLING_OFF_NOTICE, POLLING_PENDING_NOTICE } from "../../lib/places";
 
 // Start (spec §9-§17): header -> verdict -> status cards -> alerts (-> pollen calendar).
 // The "what can I do today" section is not rendered: no backend for it yet. Modules load and
@@ -59,7 +59,11 @@ export default function Start() {
 
   // No weather polling for this place (capacity / budget / expired): say why the weather and
   // pollen cards are empty, instead of leaving it looking broken (ADR-026/029).
-  const pollingNotice = pollingOff(area) ? <Notice key="polling" tone="warning" text={POLLING_OFF_NOTICE} /> : null;
+  const pollingNotice = pollingOff(area) ? (
+    <Notice key="polling" tone="warning" text={POLLING_OFF_NOTICE} />
+  ) : pollingPending(area) ? (
+    <Notice key="polling" tone="warning" text={POLLING_PENDING_NOTICE} />
+  ) : null;
 
   const sections = {
     header: (

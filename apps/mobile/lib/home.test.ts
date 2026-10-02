@@ -7,6 +7,7 @@ import {
   UNAVAILABLE_HEADLINE,
   alertsStatus,
   pollingOff,
+  pollingPending,
   selectArea,
   currentTemperature,
   formatHeaderDate,
@@ -194,6 +195,15 @@ describe("selectArea", () => {
   });
 });
 
+describe("pollingPending", () => {
+  it("polling on but no first weather yet = data on its way, not unavailable", () => {
+    expect(pollingPending({ weather_polling_active: true, weather: null, forecast: null })).toBe(true);
+    expect(pollingPending({ weather_polling_active: true, weather: {}, forecast: null })).toBe(false);
+    expect(pollingPending({ weather_polling_active: false, weather: null, forecast: null })).toBe(false);
+    expect(pollingPending(null)).toBe(false);
+  });
+});
+
 describe("pollingOff", () => {
   it("is true only for an explicit false (older backends omit the field)", () => {
     expect(pollingOff({ weather_polling_active: false })).toBe(true);
@@ -218,6 +228,18 @@ describe("air card coverage (ADR-029)", () => {
     expect(withAir({ air: "regional", air_radius_km: 100 }, { distance_km: 71 }).coverageNote).toBe(
       "Stan dla obszaru w promieniu ok. 100 km — stacja Gliwice, ul. Mewy, 71 km.",
     );
+  });
+  it("regional is orientation: neutral level, the station as headline, never \"Dobra\" / green", () => {
+    const c = withAir({ air: "regional", air_radius_km: 100 }, { distance_km: 71 });
+    expect(c.level).toBe("UNKNOWN");
+    expect(c.headline).toBe("Stacja Gliwice, ul. Mewy, 71 km");
+    expect(c.supporting).toBe("Orientacyjnie, PM2.5: 12 µg/m³");
+    expect(c.headline).not.toMatch(/Dobra|Co najmniej/);
+  });
+  it("weather and pollen cards say model, not measurement", () => {
+    const cards = statusCards({ air: air(), weather: weather(), pollen: pollen({ alder: 0, birch: 1, grass: 1, mugwort: 0, ragweed: 0 }) }, null, NOW, NOW);
+    expect(cards[1].coverageNote).toContain("nie pomiar");
+    expect(cards[2].coverageNote).toContain("nie pomiar");
   });
   it("none: unavailable, never good, even if a block is present", () => {
     const c = withAir({ air: "none", air_radius_km: null });

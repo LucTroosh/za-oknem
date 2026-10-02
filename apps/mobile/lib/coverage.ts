@@ -6,7 +6,10 @@ import type { DashboardCoverage } from "../../../packages/api-contract/schema";
 export const NO_STATION_HEADLINE = "Brak stacji pomiarowej w okolicy";
 export const GRID_FALLBACK = "Pogoda i pyłki to wartości z modelu dla tego obszaru, nie pomiar w miejscowości.";
 
-export type AirCoverage = { band: DashboardCoverage["air"] | null; note: string | null; unavailable: boolean };
+export const MODEL_NOTE = "Wartość z modelu dla obszaru, nie pomiar w miejscowości.";
+
+// `headline`: regional only - a distant station is an orientation, never a verdict about "here".
+export type AirCoverage = { band: DashboardCoverage["air"] | null; note: string | null; unavailable: boolean; headline?: string };
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 
@@ -35,7 +38,12 @@ export function airCoverage(coverage: unknown, air: unknown): AirCoverage {
       };
     case "regional": {
       const r = isObject(coverage) && typeof coverage.air_radius_km === "number" ? coverage.air_radius_km : 100;
-      return { band, note: `Stan dla obszaru w promieniu ok. ${r} km — ${where}.`, unavailable: false };
+      return {
+        band,
+        note: `Stan dla obszaru w promieniu ok. ${r} km — ${where}.`,
+        unavailable: false,
+        headline: station ? `Stacja ${station}${dist ? `, ${dist} km` : ""}` : "Stacja w okolicy",
+      };
     }
     case "none":
       return { band, note: NO_STATION_HEADLINE, unavailable: true };

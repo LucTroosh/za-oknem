@@ -1,6 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AppState } from "react-native";
 
-import { type ActiveLocation, DEFAULT_SETTINGS, type Settings, dropLocationIf, locationFromPlace, refreshLocation } from "../lib/location";
+import {
+  type ActiveLocation,
+  DEFAULT_SETTINGS,
+  type Settings,
+  dropLocationIf,
+  locationFromPlace,
+  refreshLocation,
+  shouldReactivate,
+} from "../lib/location";
 import { activatePlace } from "../lib/places";
 import { loadSettings, saveSettings } from "../lib/storage";
 
@@ -17,6 +26,9 @@ export type LocationContext = {
   // The Welcome CTA was pressed in this run (memory only): the first run may enter the picker.
   welcomeSeen: boolean;
   startOnboarding: () => void;
+  // Resolves when the activation started at app launch has finished (or failed / timed out).
+  // A dashboard 404 for a place may only mean "not re-created yet": wait for this first.
+  startupActivation: () => Promise<void>;
   // Choosing a place finishes the onboarding as well.
   choose: (location: ActiveLocation) => void;
   // The remembered area is gone/unavailable: forget it (Welcome stays done), explain in the picker.
@@ -29,48 +41,75 @@ const Ctx = createContext<LocationContext | null>(null);
 
 type State = { ready: boolean; settings: Settings; notice: string | null };
 
+const ACTIVATION_TIMEOUT_MS = 10_000;
+
 export function LocationProvider({ children }: { children: ReactNode }) {
   const [{ ready, settings, notice }, setState] = useState<State>({ ready: false, settings: DEFAULT_SETTINGS, notice: null });
-  // Bumped when the activation of the remembered place succeeded: the dashboard read that raced
-  // with it may have seen the not-yet-reactivated area, so it reloads (DashboardProvider).
+  // Bumped when an activation of the remembered place succeeded: the dashboard read that raced
+  // with it may have seen the not-yet-reactivated area (DashboardProvider decides to reload).
   const [activations, setActivations] = useState(0);
   const [welcomeSeen, setWelcomeSeen] = useState(false);
   const startOnboarding = useCallback(() => setWelcomeSeen(true), []);
+  // The settings object that came from storage: never written back as is (a failed or foreign
+  // read returns defaults that must not overwrite a record that may still be there).
+  const loaded = useRef<Settings | null>(null);
+  const lastActivation = useRef<number | null>(null);
+  const startup = useRef<Promise<void>>(Promise.resolve());
+
+  // Activates the remembered place (TTL, ADR-029) and takes the answer as the authority on its
+  // name / label / area id. Best effort with a timeout: a failure changes nothing.
+  const reactivate = useCallback(async (placeId: number) => {
+    lastActivation.current = Date.now();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ACTIVATION_TIMEOUT_MS);
+    try {
+      const r = await activatePlace(placeId, ctrl.signal);
+      if (r.kind !== "proceed") return;
+      const next = locationFromPlace(r.place, r.area, r.attribution);
+      setState((cur) => {
+        const settings = refreshLocation(cur.settings, placeId, next);
+        return settings === cur.settings ? cur : { ...cur, settings };
+      });
+      setActivations((n) => n + 1);
+    } catch {
+      // aborted / offline: the dashboard reads our database either way
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    loadSettings().then((s) => {
+    loadSettings().then(({ settings: s }) => {
       if (cancelled) return;
-      setState((cur) => ({ ...cur, ready: true, settings: s }));
-      // Opening the app with a chosen place refreshes its activation TTL (ADR-029). Best effort:
-      // the dashboard reads our database either way, a failure here changes nothing.
+      loaded.current = s;
       const placeId = s.location?.placeId;
-      if (placeId != null) {
-        activatePlace(placeId)
-          .then((r) => {
-            if (cancelled || r.kind !== "proceed") return;
-            // The answer is the authority: refresh name / label / area id before the reload.
-            const next = locationFromPlace(r.place, r.area, r.attribution);
-            setState((cur) => {
-              const settings = refreshLocation(cur.settings, placeId, next);
-              return settings === cur.settings ? cur : { ...cur, settings };
-            });
-            setActivations((n) => n + 1);
-          })
-          .catch(() => undefined);
-      }
+      // Set BEFORE `ready`: the dashboard provider mounts right after and may need it.
+      if (placeId != null) startup.current = reactivate(placeId);
+      setState((cur) => ({ ...cur, ready: true, settings: s }));
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reactivate]);
 
-  // Persist every change after the first read (not before: that would overwrite the record).
+  // A long-open app: re-activate when it returns to the foreground, at most once per hour.
+  const placeId = settings.location?.placeId ?? null;
   useEffect(() => {
-    if (ready) void saveSettings(settings);
+    if (placeId === null) return;
+    const sub = AppState.addEventListener("change", (st) => {
+      if (st === "active" && shouldReactivate(lastActivation.current, Date.now())) void reactivate(placeId);
+    });
+    return () => sub.remove();
+  }, [placeId, reactivate]);
+
+  // Persist every deliberate change (not the object read from storage, see `loaded`).
+  useEffect(() => {
+    if (ready && settings !== loaded.current) void saveSettings(settings);
   }, [ready, settings]);
 
   const choose = useCallback((location: ActiveLocation) => {
+    lastActivation.current = Date.now(); // the picker has just activated it
     setState((cur) => ({ ...cur, settings: { onboardingDone: true, location }, notice: null }));
   }, []);
 
@@ -83,9 +122,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const startupActivation = useCallback(() => startup.current, []);
+
   const value = useMemo(
-    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, choose, invalidate }),
-    [ready, settings, notice, activations, welcomeSeen, startOnboarding, choose, invalidate],
+    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, startupActivation, choose, invalidate }),
+    [ready, settings, notice, activations, welcomeSeen, startOnboarding, startupActivation, choose, invalidate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

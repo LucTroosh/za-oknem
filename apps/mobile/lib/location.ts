@@ -59,6 +59,35 @@ export function parseSettings(raw: string | null | undefined): Settings {
   return { onboardingDone: data.onboardingDone === true, location: parseLocation(data.location) };
 }
 
+// Reads through `read` with a time limit. A read ERROR or a timeout is not "no record": the
+// result is flagged `ok:false` and the caller must not overwrite what may still be stored
+// (the defaults are returned only so the app can start, rule #1).
+export async function readSettings(
+  read: () => Promise<string | null>,
+  timeoutMs: number,
+): Promise<{ settings: Settings; ok: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const raw = await Promise.race([
+      read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      }),
+    ]);
+    return { settings: parseSettings(raw), ok: true };
+  } catch {
+    return { settings: DEFAULT_SETTINGS, ok: false };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Re-activate at most once per `minMs` (TTL is days; this only keeps a long-open app alive).
+export const REACTIVATE_MIN_MS = 60 * 60 * 1000;
+export function shouldReactivate(last: number | null, now: number, minMs = REACTIVATE_MIN_MS): boolean {
+  return last === null || now - last >= minMs;
+}
+
 export function locationFromPlace(place: PlaceOut, area: AreaOut, attribution: string | null): ActiveLocation {
   return {
     geoAreaId: area.geo_area_id,

@@ -6,6 +6,7 @@ import { ApiError, apiGet } from "../lib/api";
 import type { DashboardArea, DashboardSourceStatus, LoadState } from "../lib/dashboardTypes";
 import type { HydroBlock } from "../lib/hydro";
 import { createLatestGuard } from "../lib/latest";
+import { pollingOff, pollingPending } from "../lib/home";
 import { EXPIRED_AREA_MESSAGE } from "../lib/places";
 import type { PollenCalendarBlock } from "../lib/pollenCalendar";
 import useLocation from "./LocationProvider";
@@ -39,7 +40,7 @@ const Ctx = createContext<DashboardContext | null>(null);
 // Mounted with `key={geoAreaId}`: another location = a fresh provider, so nothing of the
 // previous place stays on screen under the new name.
 export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; children: ReactNode }) {
-  const { invalidate, activations } = useLocation();
+  const { invalidate, activations, startupActivation } = useLocation();
   const [state, setState] = useState<LoadState>("loading");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [hydroState, setHydroState] = useState<LoadState>("loading");
@@ -52,7 +53,15 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
 
   const loadDashboard = useCallback(() => {
     const isLatest = guards.current.dashboard();
-    return apiGet<DashboardResponse>(`/api/v1/dashboard/latest?geo_area_id=${geoAreaId}`)
+    const url = `/api/v1/dashboard/latest?geo_area_id=${geoAreaId}`;
+    // A 404 at app start may only mean the place is not re-created yet by the activation that
+    // is still running: wait for it and ask once more before giving the place up.
+    return apiGet<DashboardResponse>(url)
+      .catch(async (err: unknown) => {
+        if (!(err instanceof ApiError && err.status === 404)) throw err;
+        await startupActivation();
+        return apiGet<DashboardResponse>(url);
+      })
       .then((body) => {
         if (!isLatest()) return;
         setDashboard(body);
@@ -65,7 +74,7 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
         if (err instanceof ApiError && err.status === 404) invalidate(geoAreaId, EXPIRED_AREA_MESSAGE);
         else if (isLatest()) setState("error");
       });
-  }, [geoAreaId, invalidate]);
+  }, [geoAreaId, invalidate, startupActivation]);
 
   const loadHydro = useCallback(() => {
     const isLatest = guards.current.hydro();
@@ -83,11 +92,18 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
     loadHydro();
   }, [loadDashboard, loadHydro]);
 
-  // The place was (re)activated after this provider mounted: re-read, the first read may have
-  // raced with it. Latest-wins guard keeps the older response from overwriting this one.
+  // The place was (re)activated after this provider mounted. Re-read only if the first read may
+  // have raced with it: nothing loaded yet, or the area showed no weather polling. Otherwise the
+  // data on screen is already right and a second request is waste.
+  const shown = useRef(dashboard);
   useEffect(() => {
-    if (activations > 0) void loadDashboard();
-  }, [activations, loadDashboard]);
+    shown.current = dashboard;
+  }, [dashboard]);
+  useEffect(() => {
+    if (activations === 0) return;
+    const area = shown.current?.areas.find((a) => a.geo_area_id === geoAreaId) ?? null;
+    if (shown.current === null || pollingOff(area) || pollingPending(area)) void loadDashboard();
+  }, [activations, geoAreaId, loadDashboard]);
 
   const refresh = useCallback(() => {
     const isLatest = guards.current.refresh();

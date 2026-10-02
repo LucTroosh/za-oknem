@@ -4,7 +4,7 @@
 // (outdoor verdict, EAQI, pollen thresholds); this maps them to copy and decides what a
 // card may CLAIM when data is old or missing (rule #8, ADR-012).
 import { type AirIndexView, airIndexView } from "./aqi";
-import { NO_STATION_HEADLINE, airCoverage } from "./coverage";
+import { MODEL_NOTE, NO_STATION_HEADLINE, airCoverage } from "./coverage";
 import { type OutdoorLevel, outdoorView } from "./outdoor";
 import { type HomeBanner } from "./alertsBanner";
 import { POLLEN_NAME, type PollenLevel, pollenView } from "./pollen";
@@ -165,6 +165,20 @@ function airCard(air: unknown, coverage: unknown, sourceStatus: unknown, now: nu
       coverageNote: cov.note,
     };
   }
+  // Regional (50-100 km): orientation only. Neutral level, the station as the headline - never
+  // "Dobra" and no green glyph (the verdict engine ignores it too, ADR-029).
+  if (cov.band === "regional") {
+    return {
+      key: "air",
+      title,
+      state: "ready",
+      level: "UNKNOWN",
+      headline: cov.headline ?? "Stacja w okolicy",
+      supporting: pmUsable ? `Orientacyjnie, PM2.5: ${pm.text}` : null,
+      freshnessNote: ((w) => (w ? freshnessNote(w.state, paramIso(air, w.key), now) : null))(worstLine(air, view.lines)),
+      coverageNote: cov.note,
+    };
+  }
   const index: AirIndexView | null = airIndexView(isObject(air) ? air.index : undefined, now, receivedAt);
   const level = index?.level ? (AQI_GLYPH[index.level] ?? "AVOID") : "UNKNOWN";
   return {
@@ -244,7 +258,7 @@ function weatherCard(weather: unknown, sourceStatus: unknown, now: number): Stat
     headline: temp ?? (condition as string),
     supporting: temp !== null ? condition : null,
     freshnessNote: worst ? freshnessNote(worst.state, paramIso(weather, worst.key), now) : null,
-    coverageNote: null,
+    coverageNote: MODEL_NOTE,
   };
 }
 
@@ -286,7 +300,7 @@ function pollenCard(pollen: unknown, now: number): StatusCardModel | null {
     headline: partial ? "Dane częściowe" : POLLEN_HEADLINE[top],
     supporting: `${parts.join(". ")}`,
     freshnessNote: view.state === "recent" ? (dataFrom(view.fetchedAt, now) ?? STALE_NOTE) : null,
-    coverageNote: null,
+    coverageNote: MODEL_NOTE,
   };
 }
 
@@ -349,6 +363,12 @@ export function selectArea<T extends { geo_area_id: number }>(areas: T[], geoAre
 // `weather_polling_active === false`: nobody collects weather for this place right now
 // (capacity, budget or expired activation). Strictly false - an older backend without the
 // field must not trigger it.
+// Freshly activated place: polling is on but the first fetch has not landed yet (ADR-029:
+// minutes). Not "unavailable" - the data is on its way.
+export function pollingPending(area: { weather_polling_active?: boolean; weather?: unknown; forecast?: unknown } | null): boolean {
+  return area !== null && area.weather_polling_active === true && !area.weather && !area.forecast;
+}
+
 export function pollingOff(area: { weather_polling_active?: boolean } | null): boolean {
   return area !== null && area.weather_polling_active === false;
 }

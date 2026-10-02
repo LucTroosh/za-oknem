@@ -3,15 +3,10 @@
 // keep working with the choice held in memory (rule #1).
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { DEFAULT_SETTINGS, SETTINGS_KEY, type Settings, parseSettings, serializeSettings } from "./location";
+import { SETTINGS_KEY, type Settings, readSettings, serializeSettings } from "./location";
 
-export async function loadSettings(): Promise<Settings> {
-  try {
-    return parseSettings(await AsyncStorage.getItem(SETTINGS_KEY));
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
+export const loadSettings = (): Promise<{ settings: Settings; ok: boolean }> =>
+  readSettings(() => AsyncStorage.getItem(SETTINGS_KEY), 4000);
 
 export async function saveSettings(s: Settings): Promise<void> {
   try {
