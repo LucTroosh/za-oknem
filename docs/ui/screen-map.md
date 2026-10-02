@@ -217,7 +217,7 @@ Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 | Kalendarz pylenia | `GET /pollen/calendar` | ✅ (jak na S1) | — | — |
 | Atrybucja CAMS + Open-Meteo, `forecast_reference_time` | `pollen.attribution`, `forecast_reference_time`, `model` | ✅ | — | — |
 
-### S8. Stany rzek (hydrologia) — ✅ / 🟡 (bez kąpielisk i wody pitnej)
+### S8. Stany rzek (hydrologia) — ✅ pełna lista (bez kąpielisk i wody pitnej) / ⬜ stacja najbliższa lokalizacji
 
 Kąpieliska i woda pitna **nie występują w UI** (spec §8, §48): brak sekcji, „wkrótce”, nieaktywnego kafelka i placeholdera; kąpieliska wracają
 przed sezonem jako osobny etap. Tabela dotyczy wyłącznie rzek.
@@ -225,7 +225,7 @@ przed sezonem jako osobny etap. Tabela dotyczy wyłącznie rzek.
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
 | Stacje w stanie ostrzegawczym/alarmowym | `GET /hydro/latest` · `stations[]` | ✅ cała Polska | TASK-7.2 ✅ | jak S2 |
-| Pełna lista stacji z poziomem i progami | to samo (`water_level_cm`, `warning_level_cm`, `alarm_level_cm`) — kontrakt zwraca WSZYSTKIE stacje, UI pokazuje tylko WARNING/ALARM | 🟡 dane ✅, brak ekranu | TASK-12.16 | stacje bez progów = „nie oceniamy” |
+| Pełna lista stacji z poziomem i progami | `GET /hydro/latest` · `stations[]` (`water_level_cm`, `warning_level_cm`, `alarm_level_cm`, `status`, `observed_at`, `freshness`) | ✅ `app/(tabs)/rivers.tsx` (wejście: „Wszystkie stacje” w Alertach): grupy alarm / ostrzegawczy / poniżej progów / odczyt nieaktualny / bez progów („nie oceniamy”), wyszukiwanie po nazwie (bez diakrytyków), paginacja | TASK-12.16 | stary odczyt NORMAL nie mówi „poniżej progów”; stary ALARM/WARNING dalej widoczny z wiekiem; źródło milczące ⇒ baner |
 | Stacja najbliższa wybranej lokalizacji | brak parametru lokalizacji w `/hydro/latest` | ⬜ wymaga backendu | TASK-9.5 | — |
 | Kąpieliska (status, E. coli, enterokoki, sinice, daty badań), woda pitna | brak `/water`; ADR-021 (⛔), `sanepid_water` ⛔ | ⛔ **poza UI** | TASK-11.x | nie renderować |
 

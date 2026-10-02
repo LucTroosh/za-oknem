@@ -43,6 +43,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="air" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="weather" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="alert" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="rivers" options={{ href: null, headerShown: false }} />
         <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
       </Tabs>
     </DashboardProvider>
