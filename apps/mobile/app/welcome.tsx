@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Nunito_600SemiBold } from "@expo-google-fonts/nunito/600SemiBold";
-import { Nunito_700Bold } from "@expo-google-fonts/nunito/700Bold";
-import { Nunito_800ExtraBold } from "@expo-google-fonts/nunito/800ExtraBold";
+import { NunitoSans_600SemiBold } from "@expo-google-fonts/nunito-sans/600SemiBold";
+import { NunitoSans_700Bold } from "@expo-google-fonts/nunito-sans/700Bold";
+import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
 import { useFonts } from "expo-font";
 import { Redirect, useNavigation, useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -15,16 +15,21 @@ import {
   BOTTOM_VEIL,
   BOTTOM_VEIL_HEIGHT,
   BRAND_GAP,
+  LOCAL_SCRIM,
+  LOCAL_SCRIM_LAYERS,
+  LOGO_SIZE,
   TOP_VEIL,
   TOP_VEIL_HEIGHT,
   TOP_VEIL_PLATEAU,
   WELCOME_COPY,
   WELCOME_CTA,
   WELCOME_DOMAINS,
+  WELCOME_TEXT,
   WELCOME_TYPE,
   capsuleColor,
   footerChipColor,
   heroFrame,
+  localScrimLayerAlpha,
   scrimColor,
   veilAlphas,
   welcomeDomainColumns,
@@ -50,6 +55,20 @@ function Veil({ color, alphas, style }: { color: (a: number) => string; alphas: 
   );
 }
 
+// Very light local scrim behind the text block only: stacked rounded layers growing outward, so the
+// edge fades softly. Nothing is blurred; the photo outside the block is untouched.
+function LocalScrim({ color, total }: { color: (a: number) => string; total: number }) {
+  const alpha = localScrimLayerAlpha(total);
+  return (
+    <View pointerEvents="none" importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
+      {Array.from({ length: LOCAL_SCRIM_LAYERS }, (_, i) => {
+        const grow = i * 4;
+        return <View key={i} style={{ position: "absolute", top: -grow, bottom: -grow, left: -grow, right: -grow, borderRadius: 36 + grow, backgroundColor: color(alpha) }} />;
+      })}
+    </View>
+  );
+}
+
 export default function Welcome() {
   const { colors, scheme } = useTheme();
   const { fontScale, width, height } = useWindowDimensions();
@@ -59,7 +78,7 @@ export default function Welcome() {
   const { settings, startOnboarding } = useLocation();
   const navigation = useNavigation();
   // Local font files: loads in a few ms; until then (or if it fails) the plain background / system font.
-  const [fontsLoaded, fontError] = useFonts({ Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ NunitoSans_600SemiBold, NunitoSans_700Bold, NunitoSans_800ExtraBold });
   const redirect = entryRedirect(settings, "welcome");
   // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
   // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the
@@ -88,10 +107,13 @@ export default function Welcome() {
         <View style={[styles.top, { paddingTop: insets.top + space.xxl }]}>
           {/* Decorative: "Za Oknem" is announced by the text right below. */}
           <Image source={LOGO} style={styles.logo} accessible={false} importantForAccessibility="no" />
-          <Text style={styles.eyebrow}>{WELCOME_COPY.headline}</Text>
-          <Text style={styles.brand} accessibilityRole="header">
-            {WELCOME_COPY.brand}
-          </Text>
+          <View style={styles.textBlock}>
+            <LocalScrim color={color} total={LOCAL_SCRIM[scheme]} />
+            <Text style={[styles.eyebrow, { color: WELCOME_TEXT[scheme].intro }]}>{WELCOME_COPY.headline}</Text>
+            <Text style={[styles.brand, { color: WELCOME_TEXT[scheme].brand }]} accessibilityRole="header">
+              {WELCOME_COPY.brand}
+            </Text>
+          </View>
         </View>
         <View style={[styles.bottom, { paddingBottom: Math.max(space.xl, insets.bottom + space.md) }]}>
           {/* One soft capsule, four domains; read as one line by TalkBack (icons are decorative). */}
@@ -142,11 +164,12 @@ const createStyles = (t: Theme) =>
     // The gap between the two groups is the panorama.
     content: { flexGrow: 1, justifyContent: "space-between" },
     top: { alignItems: "center", paddingHorizontal: space.xl },
-    logo: { width: 76, height: 76, marginBottom: space.lg },
+    logo: { width: LOGO_SIZE, height: LOGO_SIZE, marginBottom: space.lg },
     // Weight comes from the font family (Nunito), so no fontWeight; the system font is the fallback
     // when the font fails to load.
-    eyebrow: { ...WELCOME_TYPE.eyebrow, color: t.colors.text, textAlign: "center" },
-    brand: { ...WELCOME_TYPE.brand, color: t.colors.text, textAlign: "center", marginTop: BRAND_GAP },
+    textBlock: { alignItems: "center", paddingHorizontal: space.xl, paddingVertical: space.md },
+    eyebrow: { ...WELCOME_TYPE.eyebrow, textAlign: "center" },
+    brand: { ...WELCOME_TYPE.brand, textAlign: "center", marginTop: BRAND_GAP },
     bottom: { paddingHorizontal: space.xl, paddingTop: space.xxl },
     capsule: {
       flexDirection: "row",
@@ -170,9 +193,9 @@ const createStyles = (t: Theme) =>
       alignSelf: "center",
       gap: space.sm,
       marginTop: space.lg,
-      paddingVertical: space.xs + 2,
-      paddingHorizontal: space.md,
-      borderRadius: radius.pill,
+      paddingVertical: space.xs,
+      paddingHorizontal: space.sm,
+      borderRadius: 12, // a faint backing for the text, not a pill
     },
     privacyText: { ...typo.caption, fontWeight: "500", color: t.colors.text, flexShrink: 1 },
   });
