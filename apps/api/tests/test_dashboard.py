@@ -1034,3 +1034,18 @@ def test_default_area_list_excludes_user_chosen_places(monkeypatch):
     _client([GeoArea(**KLODZKO)], [], []).get("/api/v1/dashboard/latest")
 
     assert "place_id IS NULL" in seen[0] and "weather_polling_active" in seen[0]
+
+
+def test_weather_query_is_scoped_to_the_listed_areas(monkeypatch):
+    seen = []
+    original = _FakeSession.execute
+
+    def spy(self, stmt):
+        seen.append(str(stmt))
+        return original(self, stmt)
+
+    monkeypatch.setattr(_FakeSession, "execute", spy)
+    _client([GeoArea(**KLODZKO)], [], []).get("/api/v1/dashboard/latest")
+
+    weather = next(q for q in seen if "FROM weather_snapshots" in q)
+    assert "weather_snapshots.geo_area_id IN" in weather

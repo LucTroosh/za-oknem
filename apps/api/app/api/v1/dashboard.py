@@ -293,9 +293,10 @@ def dashboard_latest(
     # that already have measurements. A nearer station without data is not skipped.
     points = assignment_candidates(db, stations, unmeasured=True)
 
-    weather_stmt = select(WeatherSnapshot)
-    if geo_area_id is not None:
-        weather_stmt = weather_stmt.where(WeatherSnapshot.geo_area_id == geo_area_id)
+    # Only the listed areas: history of other (e.g. place) areas must not be scanned.
+    weather_stmt = select(WeatherSnapshot).where(
+        WeatherSnapshot.geo_area_id.in_([a.id for a in areas])
+    )
     weather_stmt = weather_stmt.distinct(
         WeatherSnapshot.geo_area_id, WeatherSnapshot.param_code
     ).order_by(
