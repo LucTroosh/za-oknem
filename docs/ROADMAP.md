@@ -220,6 +220,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 
 | #87 | Silnik „Na dwór”: NO₂/O₃ (opcjonalne grupy, progi z `air_index.BANDS`) i burza (`weather_code` ≥95 → POOR); addendum ADR-016; kontrakt bez zmian |
 | #89 | Prognoza godzinowa 48 h (TASK-5.6, ADR-030): `forecast.hours[]` w dashboardzie, `forecasts.granularity` (migracja `0015`), jedno żądanie Open-Meteo, retencja „najnowszy przebieg”, parser odporny na `null`; estymata budżetu 2→3 jedn. (`max_active_areas` 411→280) — zależny od #87 |
+| #92 | Mobile: dokończenie Start (TASK-12.18): max/min z `forecast.days[0]` (`todayRange`, fail-safe), tap werdyktu → powody, skeleton kalendarza pylenia; bez mocków, bez zmian backendu — 🟡 (bez weryfikacji na urządzeniu) |
 ---
 
 ## Jak utrzymywać ten plik
