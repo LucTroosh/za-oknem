@@ -42,7 +42,7 @@ Dziś w kodzie jest wspólny zestaw: `LoadingState`, `EmptyState`, `Notice`, `Fr
 Root Stack (app/_layout.tsx)
 │
 ├── Welcome (S0)            ← tylko pierwsze uruchomienie              ✅ TASK-12.17
-├── Lokalizacja (S4)        ← onboarding i zmiana, JEDEN ekran         ✅ TASK-12.17/12.7 (tematy S10: ⬜ TASK-12.13)
+├── Lokalizacja (S4)        ← onboarding i zmiana, JEDEN ekran         ✅ TASK-12.17/12.7 (tematy S10: ⛔ usunięte w production-ui-v1)
 │
 ├── (tabs)                  ← dolna nawigacja, dokładnie 3 zakładki: Start | Alerty | Ustawienia
 │   ├── Start           S1   🟡 jest jako „Dziś” (app/(tabs)/index.tsx) — do przebudowy TASK-12.18
@@ -95,8 +95,8 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 
 | P0 | Ekran | Status dziś | Task |
 |---|---|---|---|
-| 1 Welcome | S0 | 🟡 (asset pack v2 zainstalowany: tło JPG + natywny znak/tekst/CTA, scrim jasny/ciemny; niezweryfikowane na urządzeniu, PR #90) | TASK-12.17 |
-| 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; bez GPS (TASK-12.3) | TASK-12.7, 12.17 |
+| 1 Welcome | S0 | 🟡 finalny układ wg mockupu (PR #111–#117): panorama w kadrze, logo + intro + „Za Oknem” (Nunito), kapsuła 4 domen, CTA, stopka; lokalny scrim; niezweryfikowane na urządzeniu | TASK-12.17 |
+| 2 Lokalizacja | S4 | ✅ wyszukiwarka `/places` + aktywacja + lista miast z `/areas`, jedna lokalizacja w pamięci urządzenia; **GPS: „Użyj mojej lokalizacji” → najbliższa miejscowość do potwierdzenia (PR #106, `POST /places/nearest`)**; Back do Welcome na pierwszym uruchomieniu (PR #110) | TASK-12.7, 12.17 |
 | 3 Wybór zainteresowań | S10 (w onboardingu i Ustawieniach) | ✅ | TASK-12.13 |
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
 | 5 Dashboard | S1 | 🟡 | TASK-12.18 |
@@ -170,7 +170,7 @@ endpointu; wyszukiwanie po `external_id` dojdzie dopiero z deep linkiem, TASK-10
 | Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ✅ | TASK-9.7 | — |
 | „Co to oznacza?” — interpretacja Za Oknem (spec §20) | **brak**: nie ma pola ani źródła treści | ⬜ wymaga decyzji o treści (statyczne teksty per rodzaj ostrzeżenia, redagowane przez ludzi; **bez LLM**, reguła #10) | decyzja w sekcji 5 → osobny task po decyzji | wizualnie i słownie oddzielona od „Oficjalny komunikat”; nigdy jako komunikat urzędowy; bez tekstu = sekcji nie ma |
 
-### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ✅ wyszukiwarka i lista / ⬜ GPS
+### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ✅ wyszukiwarka i lista / 🟡 GPS (PR #106, bez weryfikacji na urządzeniu)
 
 Jedna aktywna lokalizacja. Ten sam ekran w onboardingu (razem z tematami, S10) i jako Ustawienia → Lokalizacja / tap w nagłówku Start.
 Backend na `main` (ADR-026): `GET /areas`, `POST /geo/locate`, `GET /dashboard/latest?geo_area_id=` — dziś **7 miast**; granice PRG niezaładowane.
@@ -403,7 +403,7 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 | Kąpieliska, woda pitna | ⛔ | **poza UI** | po decyzji o źródle, przed sezonem |
 | Lokalizacja: 7 miast | ✅ `/areas`, `?geo_area_id=` | ✅ lista „Większe miasta” | TASK-12.11 |
 | Lokalizacja: dowolna miejscowość | ✅ `main` (PR #85) | ✅ | TASK-12.7 |
-| Lokalizacja: GPS jednorazowy | ✅ `POST /geo/locate` | ⬜ | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
+| Lokalizacja: GPS jednorazowy | ✅ `POST /places/nearest` (PR #106; `POST /geo/locate` czeka na granice PRG) | 🟡 (PR #106) | 🧪 dev/preview → TASK-12.3 (bez CTA w produkcji do czasu live) |
 | Welcome + onboarding (lokalizacja) | — | ✅ | TASK-12.17 |
 | Tematy „Co chcesz śledzić?” (lokalne) | — | ⛔ zastąpione przez production-ui-v1 | TASK-12.13 |
 | Motyw Systemowy/Jasny/Ciemny, dostępność | — | ✅ wybór w Ustawieniach → Wygląd (zapis lokalny); dostępność wg [`a11y-review.md`](a11y-review.md) | TASK-12.19 |
@@ -432,3 +432,6 @@ powiadomienia ukryte; loading = skeleton per moduł; „profil” zastąpiony te
 11. **Preview-build z `EXPO_PUBLIC_UI_MOCKS=1`:** dla Ciebie czy dla testerów; które mocki chcesz zobaczyć (wyszukiwarka, GPS-stub, wykres pyłków)?
 12. **Etykieta „Niskie” na karcie pyłków:** spec używa „Niskie”; dane to „poniżej progu sezonu” wg modelu CAMS (nie ryzyko objawów, ADR-020). Dopuszczasz „Niskie (prognoza modelu)”?
 
+> **Aktualizacja 2026-10-02 (po PR #117):** stan ekranów Welcome, Lokalizacja (GPS, nawigacja) i usunięcie tematów
+> odzwierciedla kod na `main`; reszta dokumentu to wcześniejsza mapa (część wierszy o mockach jest historyczna —
+> produkcyjny UI nie używa mocków danych bezpieczeństwa). Źródło prawdy dla UI: `production-ui-v1.md`.
