@@ -1,5 +1,7 @@
 // TASK-5.5: compact daily forecast line ("śr 18°/9°"). Values come straight from
 // the server (dashboard.py forecast block) - nothing is estimated here.
+import { ageFreshness, worstFreshness } from "./freshness";
+import { WEATHER_AGE } from "./readings";
 import type {
   DashboardForecastDay,
   DashboardForecastHour,
@@ -33,4 +35,35 @@ export function forecastLine(days: ForecastDay[], limit = 3): string | null {
     .filter((label): label is string => label !== null)
     .slice(0, limit);
   return labels.length > 0 ? labels.join("   ") : null;
+}
+
+// Header line under the date: today's max/min from `forecast.days[0]` (spec §10). Only when
+// that day is the one running NOW (valid_from <= now < valid_until: days are UTC calendar
+// days, see above) and the forecast is usable: the worst of its own label, its age on the
+// device clock and the weather source status must be FRESH/RECENT (ADR-012). Otherwise null:
+// the header shows nothing rather than an old or foreign day's numbers.
+export type ForecastLike = {
+  days?: ForecastDay[];
+  fetched_at?: string;
+  freshness?: unknown;
+} | null;
+
+export function todayRange(forecast: ForecastLike, weatherSource: unknown, now: number): string | null {
+  const day = forecast?.days?.[0];
+  if (!forecast || !day) return null;
+  const from = Date.parse(day.valid_from);
+  const until = Date.parse(day.valid_until);
+  if (!Number.isFinite(from) || !Number.isFinite(until) || now < from || now >= until) return null;
+  const src = typeof weatherSource === "object" && weatherSource !== null ? (weatherSource as Record<string, unknown>) : null;
+  const state = worstFreshness(
+    forecast.freshness,
+    ageFreshness(forecast.fetched_at, now, WEATHER_AGE),
+    src ? src.freshness : "FRESH",
+    src ? ageFreshness(src.last_success_at, now, WEATHER_AGE) : "FRESH",
+  );
+  if (state !== "FRESH" && state !== "RECENT") return null;
+  const max = day.params.temperature_2m_max;
+  const min = day.params.temperature_2m_min;
+  if (!max || !min || !Number.isFinite(max.value) || !Number.isFinite(min.value)) return null;
+  return `Dziś maks. ${Math.round(max.value)}° / min. ${Math.round(min.value)}°`;
 }
