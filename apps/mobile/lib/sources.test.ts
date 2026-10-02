@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectAttributions } from "./sources";
+import { collectAttributions, withPlaceSource } from "./sources";
 
 describe("collectAttributions", () => {
   it("collects unique attributions in first-seen order, verbatim", () => {
@@ -26,5 +26,18 @@ describe("collectAttributions", () => {
     expect(collectAttributions(null)).toEqual([]);
     expect(collectAttributions({ alerts: { attribution: "  " }, areas: [null, 3, { air: { attribution: 5 } }] })).toEqual([]);
     expect(collectAttributions({ areas: "x" })).toEqual([]);
+  });
+});
+
+describe("withPlaceSource", () => {
+  it("appends the GeoNames attribution verbatim, once", () => {
+    expect(withPlaceSource(["IMGW"], "GeoNames (CC BY 4.0)")).toEqual(["IMGW", "GeoNames (CC BY 4.0)"]);
+    expect(withPlaceSource(["GeoNames (CC BY 4.0)"], "GeoNames (CC BY 4.0)")).toEqual(["GeoNames (CC BY 4.0)"]);
+  });
+  it("nothing to add for seeded cities / old records", () => {
+    const list = ["IMGW"];
+    expect(withPlaceSource(list, null)).toBe(list);
+    expect(withPlaceSource(list, undefined)).toBe(list);
+    expect(withPlaceSource(list, " ")).toBe(list);
   });
 });

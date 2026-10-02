@@ -1,7 +1,9 @@
+import { useRouter } from "expo-router";
 import { useMemo } from "react";
 
 import AlertsStatus from "../../components/AlertsStatus";
 import useDashboard from "../../components/DashboardProvider";
+import useLocation from "../../components/LocationProvider";
 import EmptyState from "../../components/EmptyState";
 import HeroVerdict from "../../components/HeroVerdict";
 import HomeHeader from "../../components/HomeHeader";
@@ -13,8 +15,9 @@ import StatusCards from "../../components/StatusCards";
 import useNow from "../../components/useNow";
 import { summarizeAlerts } from "../../lib/alerts";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
-import { alertsStatus, currentTemperature, defaultArea, formatHeaderDate, sectionOrder, statusCards, verdictModel } from "../../lib/home";
+import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, pollingPending, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
+import { POLLING_OFF_NOTICE, POLLING_PENDING_NOTICE } from "../../lib/places";
 
 // Start (spec §9-§17): header -> verdict -> status cards -> alerts (-> pollen calendar).
 // The "what can I do today" section is not rendered: no backend for it yet. Modules load and
@@ -22,7 +25,10 @@ import { summarizeHydro } from "../../lib/hydro";
 export default function Start() {
   const d = useDashboard();
   const now = useNow();
-  const area = useMemo(() => defaultArea(d.areas), [d.areas]);
+  const router = useRouter();
+  const { settings } = useLocation();
+  const location = settings.location;
+  const area = useMemo(() => (location ? selectArea(d.areas, location.geoAreaId) : null), [d.areas, location]);
   const loading = d.state === "loading" && area === null;
 
   const alertsLoaded = d.state !== "loading";
@@ -51,12 +57,21 @@ export default function Start() {
       <Notice key="notice" tone="danger" text="Nie udało się pobrać aktualnych danych. Pokazane dane mogą być nieaktualne." />
     ) : null;
 
+  // No weather polling for this place (capacity / budget / expired): say why the weather and
+  // pollen cards are empty, instead of leaving it looking broken (ADR-026/029).
+  const pollingNotice = pollingOff(area) ? (
+    <Notice key="polling" tone="warning" text={POLLING_OFF_NOTICE} />
+  ) : pollingPending(area) ? (
+    <Notice key="polling" tone="warning" text={POLLING_PENDING_NOTICE} />
+  ) : null;
+
   const sections = {
     header: (
       <HomeHeader
         key="header"
-        name={area?.name ?? null}
+        name={location?.name ?? area?.name ?? null}
         loading={loading}
+        onChangeLocation={() => router.push("/location")}
         dateText={formatHeaderDate(now)}
         temperature={area ? currentTemperature(area.weather, d.sourceStatus?.weather, now, true) : null}
       />
@@ -95,7 +110,7 @@ export default function Start() {
 
   return (
     <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh}>
-      {sectionOrder(alerts).flatMap((s) => (s === "header" ? [sections.header, notice] : [sections[s]]))}
+      {sectionOrder(alerts).flatMap((s) => (s === "header" ? [sections.header, notice, pollingNotice] : [sections[s]]))}
     </Screen>
   );
 }
