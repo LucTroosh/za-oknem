@@ -55,7 +55,7 @@ Root Stack (app/_layout.tsx)
 │   │     podgląd alertu ───────────────────────────► S3 Szczegół alertu
 │   │
 │   ├── Alerty          S2   🟡 jest (app/(tabs)/alerts.tsx; cała Polska)
-│   │     pozycja alertu ───────────────────────────► S3 Szczegół alertu               ⬜ TASK-9.7
+│   │     pozycja alertu ───────────────────────────► S3 Szczegół alertu               ✅ TASK-9.7
 │   │     stacje wodowskazowe (rzeki) ──────────────► S8 Stany rzek
 │   │
 │   └── Ustawienia      S9   🟡 jest jako placeholder (app/(tabs)/settings.tsx)
@@ -105,7 +105,7 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 | 8 Pogoda | S1/S6 | ✅ / ✅ szczegóły | TASK-12.12 |
 | 9 Pyłki | S1/S7 | ✅ (prognoza CAMS) / 🧪 wykres | TASK-12.14 |
 | 10 Rekomendacje aktywności | S1 | ⬜ **backend nie istnieje** (nie ma endpointu ani silnika) | **TASK-7.9** + 12.18 |
-| 11 Alerty | S2/S3 | 🟡 | TASK-9.7 |
+| 11 Alerty | S2/S3 | ✅ | TASK-9.7 |
 | 12 Settings | S9 | 🟡 | TASK-12.6, 12.19 |
 | 13 Light/Dark/System | S9 | 🟡 (dziś tylko wg systemu; brak przełącznika) | TASK-12.19 |
 | 14 Accessibility fundamentals | wszystkie | 🟡 (role/labele, min. dotyk 44, glif + słowo + kolor, kontrast testowany; brak Dynamic Type/Reduce Motion — niesprawdzone) | TASK-12.19 |
@@ -141,12 +141,12 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Stan ekranu: ładowanie / błąd / pusty / częściowa awaria | stan `DashboardProvider` | 🟡 (globalny spinner; każdy moduł ma własny stan, ekran nie blokuje się przy awarii jednego — spec §42) | TASK-12.18 | skeleton per moduł; „Nie udało się pobrać aktualnych danych. Spróbuj ponownie” bez błędów technicznych |
 | Sekcja Woda / Kąpieliska | — | **poza UI** (nie rysujemy, nie „wkrótce”) | — | — |
 
-### S2. Alerty — 🟡 istnieje (cała Polska)
+### S2. Alerty — ✅ lista wg lokalizacji (województwo, ADR-013) / 🟡 bez chipów kategorii (jedna kategoria)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
 | Ostrzeżenia hydrologiczne IMGW (lista) | `GET /dashboard/latest` · `alerts.items[]` (`event_type`, `severity_raw`, `areas[]`, `valid_until`, `issuing_office`, `freshness`), `alerts.scope="national"`, `alerts.source_status` | ✅ ogólnokrajowe, treść źródłowa (reguła #10) | TASK-7.2 ✅ | „Brak aktywnych ostrzeżeń” TYLKO gdy źródło FRESH/RECENT; inaczej „lista może być nieaktualna” / „niedostępne”; L, Er |
-| Filtr „dla mojej lokalizacji” | `areas[].local_alerts[]`, `AlertOut.geo_match` (`voivodeship` / `unresolved`); alternatywnie `GET /alerts/latest?geo_area_id=` | 🟡 backend ✅ (województwo, ADR-013), mobile nieużyte; obszary `unresolved` mają być **pokazane, nie ukryte** | TASK-9.7, 9.5 | etykieta zakresu („Twoje województwo” / „cała Polska” / „obszar nierozpoznany”) |
+| Filtr „dla mojej lokalizacji” | `areas[].local_alerts[]`, `AlertOut.geo_match` (`voivodeship` / `unresolved`); alternatywnie `GET /alerts/latest?geo_area_id=` | ✅ mobile: „Dla Twojej lokalizacji” (`local_alerts`, `voivodeship`), „Do sprawdzenia” (`unresolved`, zawsze widoczne), „Pozostałe w Polsce”; brak `local_alerts` (starszy backend) ⇒ lista krajowa z jawną etykietą | TASK-9.7, 9.5 | etykieta zakresu („Twoje województwo” / „cała Polska” / „obszar nierozpoznany”) |
 | Ostrzeżenia meteorologiczne | brak (`imgw_warningsmeteo` bez `normalize()`) | ⛔ BLOCKED — czeka na żywy przykład aktywnego ostrzeżenia (TASK-9.2) | TASK-9.2 | sekcji nie rysujemy jako „0 ostrzeżeń”; zob. sekcja 3 (zakaz mocka) |
 | Zamknięcia kąpielisk | brak | ⛔ BLOCKED (zależy od źródła, ADR-021; TASK-11.3) | TASK-11.3 | j.w. |
 | „Stany wody” (stacje WARNING/ALARM) | `GET /hydro/latest` · `stations[]` (`status` NORMAL/WARNING/ALARM/UNKNOWN, `water_level_cm`, `warning_level_cm`, `alarm_level_cm`, `observed_at`, `freshness`), `source_status` | ✅ cała Polska, limit 5 + „i N więcej” | TASK-7.2 ✅ | niezależne stany od ostrzeżeń (rule #1); stacje bez progów nie są oceniane (jest informacja) |
@@ -155,19 +155,19 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Filtry (chipy) Wszystkie / Pogoda / Powietrze / Woda / Inne | `AlertOut` nie ma pola kategorii (`event_type`, `source`) — kategoria wynikałaby z `source` po stronie klienta | ⬜ dziś jeden rodzaj alertów (hydro) | TASK-9.7 | pokazujemy tylko kategorie z danymi; przy jednej kategorii bez chipów; nazwa kategorii dla ostrzeżeń hydrologicznych — decyzja (sekcja 5) |
 | Karta alertu (źródło, ważność, stopień) | `event_type`, `severity_raw`, `valid_until`, `issuing_office`, `fetched_at`, `source` | 🟡 (dziś: typ, stopień, obszary, „do”, biuro, freshness; brak „Źródło: IMGW” jako osobnej linii i godziny wydania) | TASK-9.7 | S: „Dane mogą być nieaktualne” |
 
-### S3. Szczegół alertu — ⬜
+### S3. Szczegół alertu — ✅ (bez „Co to oznacza?”: brak treści od właściciela)
 
 Wszystkie pola potrzebne do szczegółu **już są** w `AlertOut` — to praca czysto UI (bez mocka, bez nowego
 endpointu; wyszukiwanie po `external_id` dojdzie dopiero z deep linkiem, TASK-10.4).
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Tytuł: typ + stopień | `event_type`, `severity_raw` (surowe, bez tłumaczenia stopni własnym tekstem) | ⬜ (dane ✅) | TASK-9.7 | — |
-| Treść źródłowa, komentarz | `description`, `comment` — **dosłownie**, bez streszczenia LLM (reguła #10) | ⬜ (dane ✅) | TASK-9.7 | pole `null` = nie rysujemy wiersza |
-| Obszary | `areas[]` + `geo_match` | ⬜ (dane ✅) | TASK-9.7 | `unresolved` = jawna informacja |
-| Ważność, wydano, pobrano | `valid_from`, `valid_until`, `published_at`, `fetched_at`, `freshness` | ⬜ (dane ✅) | TASK-9.7 | S (alert wygasły/nieaktualny) |
-| Prawdopodobieństwo | `probability_pct` (nullable) | ⬜ (dane ✅) | TASK-9.7 | `null` = pomijamy |
-| Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ⬜ (dane ✅) | TASK-9.7 | — |
+| Tytuł: typ + stopień | `event_type`, `severity_raw` (surowe, bez tłumaczenia stopni własnym tekstem) | ✅ | TASK-9.7 | — |
+| Treść źródłowa, komentarz | `description`, `comment` — **dosłownie**, bez streszczenia LLM (reguła #10) | ✅ | TASK-9.7 | pole `null` = nie rysujemy wiersza |
+| Obszary | `areas[]` + `geo_match` | ✅ | TASK-9.7 | `unresolved` = jawna informacja |
+| Ważność, wydano, pobrano | `valid_from`, `valid_until`, `published_at`, `fetched_at`, `freshness` | ✅ | TASK-9.7 | S (alert wygasły/nieaktualny) |
+| Prawdopodobieństwo | `probability_pct` (nullable) | ✅ | TASK-9.7 | `null` = pomijamy |
+| Biuro wydające, źródło, atrybucja | `issuing_office`, `source`, `GET /dashboard/latest · alerts.attribution` | ✅ | TASK-9.7 | — |
 | „Co to oznacza?” — interpretacja Za Oknem (spec §20) | **brak**: nie ma pola ani źródła treści | ⬜ wymaga decyzji o treści (statyczne teksty per rodzaj ostrzeżenia, redagowane przez ludzi; **bez LLM**, reguła #10) | decyzja w sekcji 5 → osobny task po decyzji | wizualnie i słownie oddzielona od „Oficjalny komunikat”; nigdy jako komunikat urzędowy; bez tekstu = sekcji nie ma |
 
 ### S4. Lokalizacja: onboarding i zmiana (S4a: uprawnienie GPS) — ✅ wyszukiwarka i lista / ⬜ GPS
