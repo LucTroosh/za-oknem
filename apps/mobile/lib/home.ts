@@ -313,14 +313,27 @@ export const ALERTS_UNKNOWN_TEXT = "Nie udało się sprawdzić ostrzeżeń";
 
 // `banners`: what homeAlertsBanner / homeHydroBanner returned for the loaded blocks (null = a
 // confirmed all-clear OR not loaded yet - hence the loaded flags).
+// `failed`: the LAST request of that source failed. The provider keeps the previous block, so
+// a cached "nothing active" must not be re-confirmed after a failed refresh: that is
+// "could not check" (a cached real warning still shows, it is not a false all-clear).
 export function alertsStatus(
   banners: (HomeBanner | null)[],
   loaded: { alerts: boolean; hydro: boolean },
+  failed: { alerts: boolean; hydro: boolean } = { alerts: false, hydro: false },
 ): AlertsStatus {
   const shown = banners.filter((b): b is HomeBanner => b !== null);
   if (shown.some((b) => b.tone !== "neutral")) return { kind: "active", banners: shown };
   if (!loaded.alerts || !loaded.hydro) return { kind: "loading" };
+  if (shown.length === 0 && (failed.alerts || failed.hydro)) {
+    return { kind: "unavailable", banners: [{ tone: "neutral", text: `${ALERTS_UNKNOWN_TEXT}.` }] };
+  }
   return shown.length > 0 ? { kind: "unavailable", banners: shown } : { kind: "none" };
+}
+
+// TODO(TASK-12.7): the chosen location replaces this. Until then a deterministic default
+// (smallest geo_area_id) - the order of the response is not part of the API contract.
+export function defaultArea<T extends { geo_area_id: number }>(areas: T[]): T | null {
+  return areas.reduce<T | null>((a, x) => (a === null || x.geo_area_id < a.geo_area_id ? x : a), null);
 }
 
 // ---- order --------------------------------------------------------------------------------

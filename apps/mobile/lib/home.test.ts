@@ -6,6 +6,7 @@ import {
   STALE_NOTE,
   UNAVAILABLE_HEADLINE,
   alertsStatus,
+  defaultArea,
   currentTemperature,
   formatHeaderDate,
   sectionOrder,
@@ -153,6 +154,13 @@ describe("alertsStatus (empty != unavailable, §44)", () => {
   it("could-not-check is a different state", () => {
     expect(alertsStatus([neutral, null], loaded).kind).toBe("unavailable");
   });
+  it("a failed refresh never re-confirms a cached all-clear", () => {
+    expect(alertsStatus([null, null], loaded, { alerts: false, hydro: true }).kind).toBe("unavailable");
+    expect(alertsStatus([null, null], loaded, { alerts: true, hydro: false }).kind).toBe("unavailable");
+  });
+  it("a cached real warning still shows after a failed refresh", () => {
+    expect(alertsStatus([warn, null], loaded, { alerts: false, hydro: true }).kind).toBe("active");
+  });
   it("still loading is neither", () => {
     expect(alertsStatus([null, null], { alerts: true, hydro: false })).toEqual({ kind: "loading" });
   });
@@ -174,5 +182,12 @@ describe("sectionOrder", () => {
 describe("formatHeaderDate", () => {
   it("Polish weekday and month, capitalised", () => {
     expect(formatHeaderDate(new Date(2026, 9, 1, 12).getTime())).toBe("Czwartek, 1 października");
+  });
+});
+
+describe("defaultArea", () => {
+  it("is deterministic: smallest geo_area_id regardless of response order", () => {
+    expect(defaultArea([{ geo_area_id: 5 }, { geo_area_id: 2 }, { geo_area_id: 9 }])).toEqual({ geo_area_id: 2 });
+    expect(defaultArea([])).toBeNull();
   });
 });

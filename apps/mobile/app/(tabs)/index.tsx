@@ -13,7 +13,7 @@ import StatusCards from "../../components/StatusCards";
 import useNow from "../../components/useNow";
 import { summarizeAlerts } from "../../lib/alerts";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
-import { alertsStatus, currentTemperature, formatHeaderDate, sectionOrder, statusCards, verdictModel } from "../../lib/home";
+import { alertsStatus, currentTemperature, defaultArea, formatHeaderDate, sectionOrder, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
 
 // Start (spec §9-§17): header -> verdict -> status cards -> alerts (-> pollen calendar).
@@ -22,8 +22,7 @@ import { summarizeHydro } from "../../lib/hydro";
 export default function Start() {
   const d = useDashboard();
   const now = useNow();
-  // TODO(TASK-12.7): the chosen location; until the picker exists, the first area.
-  const area = d.areas[0] ?? null;
+  const area = useMemo(() => defaultArea(d.areas), [d.areas]);
   const loading = d.state === "loading" && area === null;
 
   const alertsLoaded = d.state !== "loading";
@@ -36,8 +35,10 @@ export default function Start() {
           hydroLoaded ? homeHydroBanner(d.hydro ? summarizeHydro(d.hydro, now, Number.MAX_SAFE_INTEGER) : null) : null,
         ],
         { alerts: alertsLoaded, hydro: hydroLoaded },
+        // A failed refresh keeps the cached blocks: never re-confirm an all-clear from them.
+        { alerts: d.state === "error", hydro: d.hydroState === "error" },
       ),
-    [alertsLoaded, hydroLoaded, d.alerts, d.hydro, now],
+    [alertsLoaded, hydroLoaded, d.alerts, d.hydro, d.state, d.hydroState, now],
   );
 
   const verdict = area ? verdictModel(area.outdoor, now, d.loadedAt) : null;
