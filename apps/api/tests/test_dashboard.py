@@ -419,6 +419,7 @@ _GOOD_WEATHER = {
     "wind_gusts_10m": (20.0, "km/h"),
     "uv_index": (2.0, ""),
     "visibility": (20000.0, "m"),
+    "weather_code": (3.0, "wmo code"),
 }
 
 
@@ -445,6 +446,18 @@ def _outdoor_air(**units) -> list[Measurement]:
             value=20.0,
             unit=units.get("PM10", "µg/m³"),
             source_record_id="rec-2",
+        ),
+        _station(
+            param_code="NO2",
+            value=10.0,
+            unit=units.get("NO2", "µg/m³"),
+            source_record_id="rec-3",
+        ),
+        _station(
+            param_code="O3",
+            value=50.0,
+            unit=units.get("O3", "µg/m³"),
+            source_record_id="rec-4",
         ),
     ]
 
@@ -515,6 +528,40 @@ def test_dashboard_outdoor_unit_mismatch_is_dropped_not_converted():
     assert [m["group"] for m in outdoor["missing"]] == ["air"]
     assert outdoor["missing"][0]["params"] == ["pm10", "pm25"]
     assert outdoor["missing"][0]["blocking"] is True
+
+
+def test_dashboard_outdoor_no2_o3_and_storm_feed_the_verdict():
+    air = _outdoor_air()
+    air[2].value = 70.0  # NO2 > 60 -> POOR
+    air[3].value = 110.0  # O3 > 100 -> MODERATE
+    outdoor = _outdoor(air, _outdoor_weather(weather_code=(96.0, "wmo code")))
+
+    assert outdoor["level"] == "POOR"
+    assert [(r["code"], r["level"]) for r in outdoor["reasons"]] == [
+        ("NO2_HIGH", "POOR"),
+        ("STORM", "POOR"),
+        ("O3_HIGH", "MODERATE"),
+    ]
+
+
+def test_dashboard_outdoor_station_without_no2_o3_is_still_good_but_reported():
+    air = _outdoor_air()[:2]  # PM only, as at many GIOŚ stations
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
+    assert [(m["group"], m["core"], m["blocking"]) for m in outdoor["missing"]] == [
+        ("no2", False, True),
+        ("o3", False, True),
+    ]
+
+
+def test_dashboard_outdoor_no2_o3_in_a_foreign_unit_are_dropped_not_converted():
+    air = _outdoor_air(**{"NO2": "mg/m³", "O3": "mg/m³"})
+    air[2].value = 500.0
+    outdoor = _outdoor(air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD" and outdoor["reasons"] == []
+    assert {m["group"] for m in outdoor["missing"]} == {"no2", "o3"}
 
 
 def test_dashboard_outdoor_one_pm_param_is_enough_but_absence_reported():
@@ -780,7 +827,11 @@ def test_dashboard_regional_air_is_shown_but_never_feeds_the_outdoor_verdict():
     assert area["air"]["coverage"] == "regional"
     assert set(area["air"]["params"]) == {"PM2.5", "PM10"}  # still disclosed
     assert area["outdoor"]["level"] == "UNKNOWN"
-    assert [m["group"] for m in area["outdoor"]["missing"]] == ["air"]
+    # air (core) blocks GOOD; the optional NO2/O3 groups are reported but never block.
+    assert [m["group"] for m in area["outdoor"]["missing"] if m["blocking"] and m["core"]] == [
+        "air"
+    ]
+    assert {m["group"] for m in area["outdoor"]["missing"]} == {"air", "no2", "o3"}
 
 
 def test_dashboard_regional_air_does_not_hide_a_bad_weather_verdict():
