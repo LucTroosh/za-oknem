@@ -848,7 +848,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       Źródła; (5) brak background location, brak konta (reguły #11). **Notatka:**
       `docs/ui/screen-map.md` (PR #84, ADR-028) w chwili pisania nie jest w `main` — po jego
       merge dopisać ten ekran do mapy ekranów. **Dependencies:** TASK-6.3, TASK-12.2/12.3.
-      **Stan (PR #NNN):** zrobione (1)–(3) i (5) w `app/location.tsx`, `lib/places.ts`,
+      **Stan (PR #88):** zrobione (1)–(3) i (5) w `app/location.tsx`, `lib/places.ts`,
       `lib/coverage.ts`, `components/usePlaceSearch.ts`: wyszukiwarka (debounce 300 ms,
       latest-wins z anulowaniem), `activate` przy wyborze i przy każdym otwarciu aplikacji,
       429/503 → odczyt `GET /places/{id}` (obszar istnieje ⇒ dalej, inaczej uczciwy błąd),
@@ -964,7 +964,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       dostępnej listy; testy czystej logiki stanu. **Non-goals:** konto, synchronizacja,
       zapisane lokalizacje, grafika hero (właściciel). **Dependencies:** TASK-12.11
       (kolejność: 12.11 → 12.17 → 12.13, bez cyklu).
-      **Stan (PR #NNN):** zrobione: Welcome (hero = neutralny placeholder z tokenów), ekran
+      **Stan (PR #88):** zrobione: Welcome (hero = neutralny placeholder z tokenów), ekran
       lokalizacji (TASK-12.7) z jedną aktywną lokalizacją, magazyn AsyncStorage
       (`lib/location.ts`, `lib/storage.ts`; `{v, onboardingDone, location}`; tryb motywu i tematy
       dojdą z TASK-12.19/12.13 jako podniesienie `v`), guard `entryRedirect` (Welcome nie wraca;
