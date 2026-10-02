@@ -264,6 +264,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #122 | Docs: odświeżony przegląd dostępności (`a11y-review.md`) i `screen-map.md` po production UI v1 |
 | #123 | Mobile: Powietrze — informacja o parametrze, którego stacja nie przekazuje (np. PM10) |
 | #124 | Docs/scripts: poprawna komenda ręcznego pobrania GIOŚ (`run_gios`, jak scheduler) |
+| #125 | Docs: naprawa tabeli „Historia PR” i audyt statusów w ROADMAP |
+| #126 | Mobile: adaptive icon — znak ×1,10 i wyśrodkowany (`*-fit-1024.png`, oryginały bez zmian); niezweryfikowane na urządzeniu |
 ---
 
 ## Jak utrzymywać ten plik
