@@ -91,8 +91,8 @@ def latest_air_quality(
 
     ADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area
     (nearest WITH data within REGIONAL_MAX_KM = 100 km, with `distance_km`,
-    `assignment_method` and the ADR-029 `coverage` band); no station in range = empty list ("brak danych dla obszaru"),
-    unknown area = 404."""
+    `assignment_method` and the ADR-029 `coverage` band); no station in range = empty list
+    ("brak danych dla obszaru"), unknown area = 404."""
     area = None
     if geo_area_id is not None:
         area = db.get(GeoArea, geo_area_id)
