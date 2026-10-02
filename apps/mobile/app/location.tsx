@@ -19,6 +19,7 @@ import usePlaceSearch from "../components/usePlaceSearch";
 import { useThemedStyles } from "../components/useTheme";
 import { apiGet } from "../lib/api";
 import { entryRedirect, locationFromArea, locationFromPlace } from "../lib/location";
+import { applyNavStep, backFromLocation, finishLocation, locationMode, showLocationBack } from "../lib/navigation";
 import { NEAREST_PRIVACY, type NearestState, distanceText, findNearestPlace, lookupNearest, nearestMessage } from "../lib/nearest";
 import { SEARCH_ERROR, SEARCH_HINT, activatePlace, emptyResultMessage } from "../lib/places";
 import { LOCATION_REQUIRED_ART } from "../lib/stateArt";
@@ -42,7 +43,7 @@ export default function LocationScreen() {
   const picking = useRef<AbortController | null>(null);
   // A ref, not state: two quick taps in one frame both see the old state value.
   const pending = useRef(false);
-  const changing = settings.onboardingDone && router.canGoBack();
+  const mode = locationMode(settings);
   const [nearest, setNearest] = useState<NearestState>({ kind: "idle" });
   const locating = useRef<AbortController | null>(null);
 
@@ -58,9 +59,10 @@ export default function LocationScreen() {
     };
   }, []);
 
-  const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
-  // Production UI v1: Welcome -> Location -> Start. The first pick goes straight to Start.
-  const done = () => (changing ? leave() : router.replace("/"));
+  // Welcome -> Location -> Start (lib/navigation.ts): first run can go Back to Welcome and finishing
+  // resets the history; a later change returns to the screen it was opened from.
+  const goBack = () => applyNavStep(router, backFromLocation(mode, router.canGoBack()));
+  const done = () => applyNavStep(router, finishLocation(mode, router.canGoBack()));
 
   const pickPlace = async (place: PlaceOut) => {
     if (pending.current) return;
@@ -122,17 +124,14 @@ export default function LocationScreen() {
   const activeAreaId = settings.location?.geoAreaId ?? null;
   return (
     <Screen padTop gap={12}>
-      {changing && <PageHeader title="Gdzie jesteś?" subtitle="Wybierz lokalizację, aby pokazać aktualne warunki w Twojej okolicy." />}
-      {!changing && (
-        <>
-          {/* No location chosen yet (first run): the only state where this illustration is true. */}
-          {settings.location === null && <StateIllustration art={LOCATION_REQUIRED_ART} height={112} />}
-          <Text style={styles.title} accessibilityRole="header">
-            Gdzie jesteś?
-          </Text>
-          <Text style={styles.supporting}>Wybierz lokalizację, aby pokazać aktualne warunki w Twojej okolicy.</Text>
-        </>
-      )}
+      <PageHeader
+        title="Gdzie jesteś?"
+        subtitle="Wybierz lokalizację, aby pokazać aktualne warunki w Twojej okolicy."
+        onBack={goBack}
+        hideBack={!showLocationBack(mode, router.canGoBack())}
+      />
+      {/* No location chosen yet (first run): the only state where this illustration is true. */}
+      {settings.location === null && <StateIllustration art={LOCATION_REQUIRED_ART} height={112} />}
       {notice && <Notice tone="warning" text={notice} />}
       {failure && <Notice tone="danger" text={failure} />}
 
@@ -228,8 +227,6 @@ export default function LocationScreen() {
 
 const createStyles = (t: Theme) =>
   StyleSheet.create({
-    title: { ...typo.display, color: t.colors.text },
-    supporting: { ...typo.supporting, color: t.colors.textSecondary },
     hint: { ...typo.caption, color: t.colors.textSecondary },
     gps: { gap: space.sm },
     message: { gap: space.md, paddingVertical: space.sm },
