@@ -7,22 +7,37 @@ import useTheme, { useThemedStyles } from "./useTheme";
 
 // Header of a sub-screen: back + large page title (28/34, 800). Detail screens are hidden tabs, so
 // there is no navigator header: back returns to where the user came from, or to Start.
-export default function PageHeader({ title, subtitle, backLabel = "Wróć" }: { title: string; subtitle?: string; backLabel?: string }) {
+export default function PageHeader({
+  title,
+  subtitle,
+  backLabel = "Wstecz",
+  onBack,
+  hideBack,
+}: {
+  title: string;
+  subtitle?: string;
+  backLabel?: string;
+  // Custom back (e.g. the location picker's first-run plan); default = back, else Start.
+  onBack?: () => void;
+  hideBack?: boolean;
+}) {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.wrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={backLabel}
-        hitSlop={8}
-        onPress={() => (router.canGoBack() ? router.back() : router.navigate("/"))}
-        style={styles.back}
-      >
-        <Ionicons name="chevron-back" size={24} color={colors.accent} />
-        <Text style={styles.backText}>{backLabel}</Text>
-      </Pressable>
+      {!hideBack && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={backLabel}
+          hitSlop={8}
+          onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.navigate("/")))}
+          style={styles.back}
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.accent} />
+          <Text style={styles.backText}>{backLabel}</Text>
+        </Pressable>
+      )}
       <Text style={styles.title} accessibilityRole="header">
         {title}
       </Text>

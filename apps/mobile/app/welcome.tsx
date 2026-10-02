@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useNavigation, useRouter } from "expo-router";
 import { Image, ImageBackground, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,8 +23,12 @@ export default function Welcome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { settings, startOnboarding } = useLocation();
+  const navigation = useNavigation();
   const redirect = entryRedirect(settings, "welcome");
-  if (redirect !== null) return <Redirect href={redirect} />;
+  // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
+  // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the
+  // background, the picker resets the history itself (lib/navigation.ts).
+  if (redirect !== null) return navigation.isFocused() ? <Redirect href={redirect} /> : null;
   return (
     <ImageBackground
       source={HERO}
@@ -61,13 +65,13 @@ export default function Welcome() {
               </View>
             ))}
           </View>
-          {/* replace, not push: Back from the picker must not return to Welcome. */}
+          {/* push, not replace: Back (header or Android) from the picker returns to Welcome. */}
           <Button
             label={WELCOME_COPY.cta}
             hint={WELCOME_COPY.ctaHint}
             onPress={() => {
               startOnboarding();
-              router.replace("/location");
+              router.push("/location");
             }}
           />
           <View style={styles.privacy}>
