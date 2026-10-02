@@ -14,6 +14,9 @@ export type LocationContext = {
   notice: string | null;
   // Count of successful activations of the remembered place at app start (see below).
   activations: number;
+  // The Welcome CTA was pressed in this run (memory only): the first run may enter the picker.
+  welcomeSeen: boolean;
+  startOnboarding: () => void;
   // Choosing a place finishes the onboarding as well.
   choose: (location: ActiveLocation) => void;
   // The remembered area is gone/unavailable: forget it (Welcome stays done), explain in the picker.
@@ -31,6 +34,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   // Bumped when the activation of the remembered place succeeded: the dashboard read that raced
   // with it may have seen the not-yet-reactivated area, so it reloads (DashboardProvider).
   const [activations, setActivations] = useState(0);
+  const [welcomeSeen, setWelcomeSeen] = useState(false);
+  const startOnboarding = useCallback(() => setWelcomeSeen(true), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,8 +74,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, settings, notice, activations, choose, invalidate }),
-    [ready, settings, notice, activations, choose, invalidate],
+    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, choose, invalidate }),
+    [ready, settings, notice, activations, welcomeSeen, startOnboarding, choose, invalidate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

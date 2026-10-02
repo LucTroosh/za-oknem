@@ -59,6 +59,12 @@ describe("entryRedirect", () => {
     expect(entryRedirect(done, "welcome")).toBe("/");
     expect(entryRedirect(done, "tabs")).toBeNull();
   });
+  it("the picker needs the Welcome CTA on the first run (no deep-link bypass), never afterwards", () => {
+    expect(entryRedirect(DEFAULT_SETTINGS, "location")).toBe("/welcome");
+    expect(entryRedirect(DEFAULT_SETTINGS, "location", true)).toBeNull();
+    expect(entryRedirect(done, "location")).toBeNull();
+    expect(entryRedirect({ onboardingDone: true, location: null }, "location")).toBeNull();
+  });
   it("finished onboarding but no usable location: the picker, not Welcome", () => {
     const s = { onboardingDone: true, location: null };
     expect(entryRedirect(s, "tabs")).toBe("/location");

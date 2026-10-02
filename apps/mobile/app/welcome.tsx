@@ -17,7 +17,7 @@ export default function Welcome() {
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { settings } = useLocation();
+  const { settings, startOnboarding } = useLocation();
   const redirect = entryRedirect(settings, "welcome");
   if (redirect !== null) return <Redirect href={redirect} />;
   return (
@@ -36,7 +36,14 @@ export default function Welcome() {
           <Text style={styles.privacyText}>Bez konta. Bez zbędnych danych.</Text>
         </View>
         {/* replace, not push: Back from the picker must not return to Welcome. */}
-        <Button label="Zaczynamy" hint="Przechodzi do wyboru lokalizacji" onPress={() => router.replace("/location")} />
+        <Button
+          label="Zaczynamy"
+          hint="Przechodzi do wyboru lokalizacji"
+          onPress={() => {
+            startOnboarding();
+            router.replace("/location");
+          }}
+        />
       </View>
     </ScrollView>
   );

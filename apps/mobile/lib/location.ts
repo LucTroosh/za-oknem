@@ -85,11 +85,14 @@ export function dropLocationIf(s: Settings, geoAreaId: number): Settings {
 
 // ---- routing guard --------------------------------------------------------------------------
 
-export type Entry = "tabs" | "welcome";
+export type Entry = "tabs" | "welcome" | "location";
 
 // Where a route must send the user instead of rendering (null = render). Welcome never comes
 // back after the onboarding; with no usable location the picker is the only way on.
-export function entryRedirect(s: Settings, entry: Entry): "/welcome" | "/location" | "/" | null {
+// `welcomeSeen` (in memory only: the user pressed the Welcome CTA in this run) lets the first
+// run into the picker; a deep link straight to /location on a fresh install still sees Welcome.
+export function entryRedirect(s: Settings, entry: Entry, welcomeSeen = false): "/welcome" | "/location" | "/" | null {
+  if (entry === "location") return s.onboardingDone || welcomeSeen ? null : "/welcome";
   if (!s.onboardingDone) return entry === "welcome" ? null : "/welcome";
   if (s.location === null) return "/location";
   return entry === "welcome" ? "/" : null;

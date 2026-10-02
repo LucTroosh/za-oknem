@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -13,7 +13,7 @@ import Screen from "../components/Screen";
 import usePlaceSearch from "../components/usePlaceSearch";
 import useTheme, { useThemedStyles } from "../components/useTheme";
 import { apiGet } from "../lib/api";
-import { locationFromArea, locationFromPlace } from "../lib/location";
+import { entryRedirect, locationFromArea, locationFromPlace } from "../lib/location";
 import { SEARCH_ERROR, SEARCH_HINT, activatePlace, emptyResultMessage } from "../lib/places";
 import { MIN_TOUCH, type Theme, radius, space, typo } from "../lib/theme";
 
@@ -25,7 +25,7 @@ export default function LocationScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const { settings, notice, choose } = useLocation();
+  const { settings, notice, choose, welcomeSeen } = useLocation();
   const [text, setText] = useState("");
   const [retry, setRetry] = useState(0);
   const search = usePlaceSearch(text, retry);
@@ -73,6 +73,10 @@ export default function LocationScreen() {
     choose(locationFromArea(area));
     leave();
   };
+
+  // A fresh install opened straight on this route (deep link) goes through Welcome first.
+  const redirect = entryRedirect(settings, "location", welcomeSeen);
+  if (redirect !== null) return <Redirect href={redirect} />;
 
   const busy = busyId !== null;
   return (
