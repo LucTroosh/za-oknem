@@ -84,7 +84,7 @@ export default function Start() {
     cards: loading ? (
       [0, 1, 2].map((i) => <SkeletonCard key={`sk${i}`} label="Ładowanie danych" />)
     ) : area ? (
-      <StatusCards key="cards" cards={cards} area={area} sourceStatus={d.sourceStatus} receivedAt={d.loadedAt} />
+      <StatusCards key="cards" cards={cards} area={area} />
     ) : d.state === "error" ? (
       <EmptyState
         key="cards"
