@@ -209,7 +209,7 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ekranie pogody) + UI (§5 Master Planu wymienia prognozę jako MVP
       field), inaczej endpoint istnieje, ale jest niewidoczny dla
       użytkownika.
-- [x] **TASK-5.6** (PR #88, ADR-030): Prognoza godzinowa 48 h — `forecast.hours[]` w
+- [x] **TASK-5.6** (PR #89, ADR-030): Prognoza godzinowa 48 h — `forecast.hours[]` w
       `dashboard_latest()` (osobno od `days`), zapis w `forecasts` z `granularity='hourly'`
       (migracja `0015`), jedno żądanie Open-Meteo (+ `precipitation_probability_max`,
       `uv_index_max` daily), tylko najnowszy przebieg per obszar + dobowe czyszczenie,
