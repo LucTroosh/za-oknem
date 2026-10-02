@@ -9,11 +9,18 @@ replica actually needs to coordinate (see ADR-007 Consequences).
 import logging
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, or_, select
 
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
-from app.connectors.gios.discovery import assigned_station_ids, ensure_catalog, stations_by_id
+from app.connectors.gios.discovery import (
+    air_areas,
+    assigned_station_ids,
+    ensure_catalog,
+    stations_by_id,
+)
 from app.connectors.gios.ingest import gios_station_ids, ingest_station, run_failure
 from app.connectors.imgw_hydro import client as imgw_hydro_client
 from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_snapshot
@@ -23,6 +30,8 @@ from app.connectors.imgw_warningshydro.ingest import ingest_raw
 from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
+from app.models import GeoArea, PollenSnapshot, WeatherSnapshot
+from app.places import expire_idle_areas
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
 from app.source_status import (
@@ -45,6 +54,13 @@ IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
 # ADR-014: payload retention is coarse (days), so once a day is plenty.
 RAW_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60
 POLL_INTERVAL_SECONDS = 60
+# ADR-029: idle place-areas are switched off once a day (TTL is days, so daily is plenty).
+PLACE_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
+# ADR-029: a freshly activated place gets its first weather/pollen fetch within a minute
+# instead of waiting for the 3 h / 24 h cycle. Bounded so a failing area cannot burn budget.
+BOOTSTRAP_MAX_ATTEMPTS = 3
+BOOTSTRAP_RETRY_SECONDS = 15 * 60
+BOOTSTRAP_BATCH = 5  # areas per tick: a burst of activations spreads over ticks, not one stall
 
 
 def _gios_station_ids() -> list[str]:
@@ -87,6 +103,82 @@ def run_open_meteo_pollen() -> bool:
         db.close()
 
 
+def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -> int:
+    """First fetch for place-based areas that are polled but have no weather or no pollen yet
+    (ADR-029).
+    `attempts` (area id -> (count, monotonic time of the last one)) lives in the scheduler
+    loop, in memory like the rest of its state (ADR-007): at most BOOTSTRAP_MAX_ATTEMPTS
+    tries, BOOTSTRAP_RETRY_SECONDS apart; after that the regular cycle takes over. Records
+    no source_status (that is the regular runs' job). Never raises (rule #1). Returns the
+    number of areas attempted."""
+    db = None
+    try:
+        db = SessionLocal()
+        # "Needs data" = none yet, or older than one regular cycle: an area re-activated
+        # after expiry keeps its old rows, which must not count as "done".
+        cutoff_w = datetime.now(UTC) - timedelta(seconds=OPEN_METEO_INTERVAL_SECONDS)
+        cutoff_p = datetime.now(UTC) - timedelta(seconds=OPEN_METEO_POLLEN_INTERVAL_SECONDS)
+        last_w = (
+            select(func.max(WeatherSnapshot.fetched_at))
+            .where(WeatherSnapshot.geo_area_id == GeoArea.id)
+            .scalar_subquery()
+        )
+        last_p = (
+            select(func.max(PollenSnapshot.fetched_at))
+            .where(PollenSnapshot.geo_area_id == GeoArea.id)
+            .scalar_subquery()
+        )
+        no_weather = or_(last_w.is_(None), last_w < cutoff_w)
+        no_pollen = or_(last_p.is_(None), last_p < cutoff_p)
+        rows = db.execute(
+            select(GeoArea, no_weather, no_pollen).where(
+                GeoArea.weather_polling_active.is_(True),
+                GeoArea.place_id.is_not(None),
+                no_weather | no_pollen,
+            )
+        ).all()
+        for stale in set(attempts) - {a.id for a, _, _ in rows}:
+            del attempts[stale]  # fresh data landed: a later re-activation may retry
+        due = [
+            (a, need_weather, need_pollen)
+            for a, need_weather, need_pollen in rows
+            if attempts.get(a.id, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
+            and now - attempts.get(a.id, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
+        ]
+        for area, need_weather, need_pollen in due[:BOOTSTRAP_BATCH]:
+            count = attempts.get(area.id, (0, 0.0))[0]
+            attempts[area.id] = (count + 1, now)
+            # Each part is retried on its own: a pollen failure after a successful weather
+            # fetch must not stop the next attempt (weather existing is not "done").
+            if need_weather:
+                ingest_geo_area(area, db)  # failure is logged inside, per area (rule #1)
+            if need_pollen:
+                try:
+                    ingest_pollen_areas([area], db)
+                except Exception:
+                    logger.exception("bootstrap: pollen for %s failed", area.slug)
+                    db.rollback()  # a DB error would poison the shared session for the next area
+        return min(len(due), BOOTSTRAP_BATCH)
+    except Exception:
+        logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
+        if db is not None:
+            db.rollback()
+        return 0
+    finally:
+        if db is not None:
+            db.close()
+
+
+def run_place_expiry() -> None:
+    """ADR-029: stop polling place-based areas nobody re-activated within the TTL."""
+    db = SessionLocal()
+    try:
+        expired = expire_idle_areas(db)
+    finally:
+        db.close()
+    logger.info("place expiry: %s idle area(s) no longer polled", expired)
+
+
 def run_gios() -> bool:
     station_ids = _gios_station_ids()
     db = SessionLocal()
@@ -99,7 +191,7 @@ def run_gios() -> bool:
         else:
             # ADR-025: stations derived from the actively polled areas (nearest within the
             # distance limit) via the cached catalog, refreshed at most daily.
-            if not polling_areas(db):  # nothing to serve: no catalog walk either
+            if not air_areas(db):  # nothing to serve: no catalog walk either
                 logger.info("no areas with active polling - skipping GIOS ingest")
                 return False
             ensure_catalog(db)
@@ -226,11 +318,16 @@ def main(*, iterations: int | None = None) -> None:
     last_open_meteo = last_open_meteo_pollen = last_gios = last_imgw_hydro = last_imgw_warnings = (
         float("-inf")
     )
-    last_retention = float("-inf")
+    last_retention = last_place_expiry = float("-inf")
+    bootstrap_attempts: dict[int, tuple[int, float]] = {}
     health_state: dict[str, str] = {}
     count = 0
     while iterations is None or count < iterations:
         now = time.monotonic()
+        # First: an area whose TTL elapsed must not be polled once more (ADR-029).
+        if now - last_place_expiry >= PLACE_EXPIRY_INTERVAL_SECONDS:
+            _run_job_safely("place_expiry", run_place_expiry, track_status=False)
+            last_place_expiry = now
         if now - last_open_meteo >= OPEN_METEO_INTERVAL_SECONDS:
             _run_job_safely("open_meteo", run_open_meteo)
             last_open_meteo = now
@@ -249,6 +346,7 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
+        run_new_area_bootstrap(bootstrap_attempts, now)
         _check_source_health(health_state)
         count += 1
         if iterations is None or count < iterations:

@@ -514,3 +514,47 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
 - **dostępność z tego środowiska:** NIE (egress proxy 403 dla eteryt.stat.gov.pl)
 - **status:** DISCOVERY (nieużywane produkcyjnie)
 - **last_verified_at:** 2026-09-30 (tylko treść strony)
+
+## geonames_pl (GeoNames — nazwy i współrzędne miejscowości PL, rejestr `places`)
+
+- **owner:** GeoNames (geonames.org, Marc Wick / GeoNames.org)
+- **connector:** `geonames_places` (ADR-029) — import z LOKALNEGO pliku (`PL.txt` lub `PL.zip`);
+  connector niczego nie pobiera (`parser` + `ingest`, bez `client`), plik przygotowuje operator
+  (`--file` albo env `GEONAMES_PL_FILE`)
+- **endpoint (źródło, nie wołane przez aplikację ani mobile):**
+  `https://download.geonames.org/export/dump/PL.zip` (zrzut `geoname` dla kraju PL, TSV, UTF-8,
+  19 kolumn — ZWERYFIKOWANE na prawdziwym pliku 2026-10-01, patrz niżej) plus `admin1CodesASCII.txt` i `admin2Codes.txt` z tego samego katalogu (nazwy województw/powiatów)
+- **frequency:** import ręczny, rzadki (nazwy miejscowości prawie się nie zmieniają; ADR-004:
+  brak schedulera, odświeżenie np. raz na kwartał/rok). GeoNames publikuje dzienny eksport
+  (strona `about.html`); częstotliwość zmian samych danych NIE podana
+- **coverage:** cała Polska; klasy `P` z kodami `PPL, PPLA, PPLA2, PPLA3, PPLA4, PPLC, PPLL`
+- **license (DANE):** Creative Commons Attribution 4.0 (strona `geonames.org/about.html`,
+  odczytana 2026-10-01 przez WebFetch: „This work is licensed under a Creative Commons
+  Attribution 4.0 License”); strona `/export` mówi o „cc-by licence” bez wersji — wersja 4.0
+  wynika z `about.html`
+- **commercial_use:** TAK, z atrybucją (wg stron GeoNames; streszczenie modelu, nie formalny tekst
+  prawny — do potwierdzenia przed monetyzacją, ADR-003)
+- **attribution:** „You should give credit to GeoNames when using data or web services with a link
+  or another reference to GeoNames.” — w API: `attribution` w `/places*` („Place names and
+  coordinates: GeoNames (geonames.org, CC BY 4.0)”); do pokazania na ekranie Źródła (TASK-12.6)
+- **redistribution/caching:** dozwolone pod CC BY 4.0 z atrybucją; dane importowane do
+  PostgreSQL (`places`), zero zapytań on-demand (reguły #2, #14)
+- **rate_limit:** nie dotyczy (jednorazowy plik); warranty: dane „as is”, bez gwarancji
+  dokładności/aktualności/kompletności (strona `/export`) — dane społecznościowe, współrzędne
+  = punkt miejscowości, nie granica
+- **ograniczenia:** brak nazw jednostek admin (tylko kody GeoNames `admin1/admin2`, nie TERYT);
+  populacja często 0/pusta dla wsi
+- **weryfikacja na prawdziwym pliku (2026-10-01, workflow `geonames-verify` na runnerze GitHub):**
+  PL.zip 2,0 MB, `PL.txt` 58 564 wierszy, wszystkie po 19 kolumn; parser: 45 415 prawidłowych,
+  0 odrzuconych, 13 149 pominiętych; „Gliwice” = PPLA3, populacja 198 835, admin1 83, admin2 2466;
+  `admin1CodesASCII.txt` (kod `PL.83`, nazwa angielska np. „Silesia”), `admin2Codes.txt`
+  (`PL.83.2466`, „Powiat będziński” / dla miast na prawach powiatu nazwa miasta)
+- **dostępność z sandboxa dewelopera:** NIE (`CONNECT tunnel failed 403`); import produkcyjny idzie
+  z VPS (`--download`), weryfikacja z GitHub Actions
+- **alternatywy rozważone (ADR-029):** PRNG/GUGiK — „free of charge and can be used for any
+  purpose” (geoportal.gov.pl, 2026-10-01), GML/SHP/XLSX, EPSG:2180, bez populacji → ścieżka
+  ulepszenia; TERYT SIMC (GUS) bez współrzędnych, wymaga rejestracji (wpis `teryt`); OSM `place=*`
+  (ODbL, share-alike) — niezweryfikowane, odrzucone na MVP
+- **status:** proposed (DISCOVERY) — Source Approval Gate (#15) otwarty: potwierdzić formalnie
+  licencję/atrybucję i pobrać prawdziwy plik; connector gotowy, nie produkcyjny do czasu importu
+- **last_verified_at:** 2026-10-01 (tylko treść stron GeoNames i PRNG; nie sam plik)

@@ -110,6 +110,7 @@ class GeoArea(Base):
         # unnoticed while CI's `| tee` swallowed the exit code.
         UniqueConstraint("slug", name="uq_geo_area_slug"),
         UniqueConstraint("teryt_code", name="uq_geo_area_teryt_code"),
+        UniqueConstraint("place_id", name="uq_geo_area_place_id"),
         Index("ix_geo_areas_boundary", "boundary", postgresql_using="gist"),
     )
 
@@ -129,6 +130,51 @@ class GeoArea(Base):
     weather_polling_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true()
     )
+    # ADR-029: the place (locality) this area was activated from; NULL for seeded cities and
+    # imported gminas. `last_requested_at` = last activation request - the only signal for
+    # idle expiry (a plain dashboard read is public/enumerable and never counts, ADR-026).
+    place_id: Mapped[int | None] = mapped_column(ForeignKey("places.id"), nullable=True)
+    last_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class Place(Base):
+    """A named locality (ADR-029): the list a user picks from. Imported from a local file
+    (rule #2: PostgreSQL is the source of truth, never queried from an external geocoder on
+    request, rule #14). Reference data, not a Measurement/Forecast/Event (rule #7).
+
+    `normalized_name` = lowercase, diacritics folded (`app.places.normalize_name`): prefix
+    search is a plain btree `LIKE 'q%'` (varchar_pattern_ops), no extension needed.
+    `kind` = the GeoNames feature code (PPL, PPLA, PPLC, ...). Admin codes are the source's
+    raw codes (GeoNames, not TERYT)."""
+
+    __tablename__ = "places"
+    __table_args__ = (
+        UniqueConstraint("source", "source_record_id", name="uq_place_source_record"),
+        Index(
+            "ix_places_normalized_name",
+            "normalized_name",
+            postgresql_ops={"normalized_name": "varchar_pattern_ops"},
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    normalized_name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10))
+    admin1_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    admin2_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # GeoNames' names for those codes (admin1CodesASCII / admin2Codes): voivodeship in
+    # English, powiat as "Powiat xyz"; `app.places.place_label` renders them for the UI.
+    admin1_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    admin2_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    population: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(String(50))
+    source_record_id: Mapped[str] = mapped_column(String(50))
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class GiosStation(Base):

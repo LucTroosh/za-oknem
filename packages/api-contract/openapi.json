@@ -222,6 +222,33 @@
             ],
             "title": "Assignment Method"
           },
+          "coverage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "exact",
+                  "nearby",
+                  "regional"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "coverage_radius_km": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Radius Km"
+          },
           "distance_km": {
             "anyOf": [
               {
@@ -517,6 +544,19 @@
             "title": "Attribution",
             "type": "string"
           },
+          "coverage": {
+            "enum": [
+              "exact",
+              "nearby",
+              "regional"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "coverage_radius_km": {
+            "title": "Coverage Radius Km",
+            "type": "integer"
+          },
           "distance_km": {
             "title": "Distance Km",
             "type": "number"
@@ -562,6 +602,8 @@
           "index",
           "distance_km",
           "assignment_method",
+          "coverage",
+          "coverage_radius_km",
           "source_status"
         ],
         "title": "DashboardAir",
@@ -618,6 +660,9 @@
                 "type": "null"
               }
             ]
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/DashboardCoverage"
           },
           "forecast": {
             "anyOf": [
@@ -689,9 +734,59 @@
           "forecast",
           "outdoor",
           "pollen",
+          "coverage",
           "local_alerts"
         ],
         "title": "DashboardArea",
+        "type": "object"
+      },
+      "DashboardCoverage": {
+        "description": "What the area's numbers represent (ADR-029): never imply a measurement in the place\nitself when it is a station kilometres away or a model grid.",
+        "properties": {
+          "air": {
+            "enum": [
+              "exact",
+              "nearby",
+              "regional",
+              "none"
+            ],
+            "title": "Air",
+            "type": "string"
+          },
+          "air_radius_km": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Air Radius Km"
+          },
+          "grid_description": {
+            "title": "Grid Description",
+            "type": "string"
+          },
+          "pollen": {
+            "const": "grid",
+            "title": "Pollen",
+            "type": "string"
+          },
+          "weather": {
+            "const": "grid",
+            "title": "Weather",
+            "type": "string"
+          }
+        },
+        "required": [
+          "air",
+          "air_radius_km",
+          "weather",
+          "pollen",
+          "grid_description"
+        ],
+        "title": "DashboardCoverage",
         "type": "object"
       },
       "DashboardForecast": {
@@ -1650,6 +1745,140 @@
         "title": "OutdoorReasonOut",
         "type": "object"
       },
+      "PlaceAreaResponse": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "place": {
+            "$ref": "#/components/schemas/PlaceOut"
+          },
+          "polling": {
+            "enum": [
+              "active",
+              "inactive",
+              "capacity_reached",
+              "budget_exhausted"
+            ],
+            "title": "Polling",
+            "type": "string"
+          }
+        },
+        "required": [
+          "place",
+          "area",
+          "polling",
+          "attribution"
+        ],
+        "title": "PlaceAreaResponse",
+        "type": "object"
+      },
+      "PlaceOut": {
+        "properties": {
+          "admin1_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1 Code"
+          },
+          "admin2_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin2 Code"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "place_id": {
+            "title": "Place Id",
+            "type": "integer"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          }
+        },
+        "required": [
+          "place_id",
+          "name",
+          "label",
+          "kind",
+          "admin1_code",
+          "admin2_code",
+          "latitude",
+          "longitude",
+          "population"
+        ],
+        "title": "PlaceOut",
+        "type": "object"
+      },
+      "PlacesResponse": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceOut"
+            },
+            "title": "Places",
+            "type": "array"
+          }
+        },
+        "required": [
+          "places",
+          "attribution"
+        ],
+        "title": "PlacesResponse",
+        "type": "object"
+      },
       "PollenArea": {
         "properties": {
           "current": {
@@ -2410,7 +2639,7 @@
   "paths": {
     "/api/v1/air/latest": {
       "get": {
-        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest within MAX_MATCH_DISTANCE_KM, with `distance_km` + `assignment_method`);\nno station in range = empty list (\"brak danych dla obszaru\"), unknown area = 404.",
+        "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest within REGIONAL_MAX_KM = 100 km, with `distance_km`, `assignment_method` and the\nADR-029 `coverage` band); no station in range = empty list (\"brak danych dla obszaru\"),\nunknown area = 404.",
         "operationId": "latest_air_quality_api_v1_air_latest_get",
         "parameters": [
           {
@@ -2561,7 +2790,7 @@
     },
     "/api/v1/dashboard/latest": {
       "get": {
-        "description": "Combined per-location view: weather (per geo_area, always) + nearest GIOŚ\nstation's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006\nnearest-station join, not a general geo engine). Reads only from our own DB\n(rule #14); the join happens in Python - three small independent result sets,\nnot worth a cross-table SQL join.\n\nTASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/\nSO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.\n\nTASK-6.2(8) / ADR-026: `?geo_area_id=N` narrows `areas` to that one area (any known\narea, also one without active polling - it then carries `weather_polling_active=false`\nand empty blocks instead of vanishing); unknown id = 404. Without it: the actively\npolled areas, as before (imported gminas must not fan out into ~2.5k areas).",
+        "description": "Combined per-location view: weather (per geo_area, always) + nearest GIOŚ\nstation's full param set (within REGIONAL_MAX_KM, classified by ADR-029 `coverage`;\nADR-006 nearest-station join, not a general geo engine). Reads only from our own DB\n(rule #14); the join happens in Python - three small independent result sets,\nnot worth a cross-table SQL join.\n\nTASK-4.1: nearest station now carries every ingested param (PM2.5/PM10/NO2/\nSO2/O3/CO/C6H6), not just PM2.5 — same `params` dict shape as /air/latest.\n\nTASK-6.2(8) / ADR-026: `?geo_area_id=N` narrows `areas` to that one area (any known\narea, also one without active polling - it then carries `weather_polling_active=false`\nand empty blocks instead of vanishing); unknown id = 404. Without it: the actively\npolled areas, as before (imported gminas must not fan out into ~2.5k areas).",
         "operationId": "dashboard_latest_api_v1_dashboard_latest_get",
         "parameters": [
           {
@@ -2887,6 +3116,144 @@
           }
         },
         "summary": "Latest Hydro"
+      }
+    },
+    "/api/v1/places": {
+      "get": {
+        "description": "Search the places registry by name prefix, diacritics-insensitive (ADR-029): any\nlocality in Poland, not only cities with a station. Exact match first, then by\npopulation. Reads only our own DB (rule #14); the app itself never logs `q` (only the path).",
+        "operationId": "list_places_api_v1_places_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Places"
+      }
+    },
+    "/api/v1/places/{place_id}": {
+      "get": {
+        "description": "A place and the state of its area. Read-only: never creates or refreshes the area\n(the id is public and enumerable, so a read must not keep polling alive, ADR-026).",
+        "operationId": "get_place_api_v1_places__place_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "place_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Place Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceAreaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Place"
+      }
+    },
+    "/api/v1/places/{place_id}/activate": {
+      "post": {
+        "description": "Choose a place: create its area on first use and (re)start collecting data for it\n(ADR-029). Idempotent; refreshes the idle-expiry clock - the client calls it when the\nuser selects the place and when the app opens with it selected. Data arrives with the\nscheduler (first fetch within minutes, not the 3 h cycle), never on this request\n(rule #14). No user data is sent or stored: the area is a public resource (rule #11).\nSwitching polling on is rate-limited per IP; refreshing an already active area is not.",
+        "operationId": "activate_api_v1_places__place_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "place_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Place Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceAreaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Activate"
       }
     },
     "/api/v1/pollen/calendar": {

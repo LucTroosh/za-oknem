@@ -134,10 +134,40 @@ def test_assigned_station_ids_nearest_per_active_area_deduplicated(monkeypatch, 
     _area(db_session, "klodzko", 50.433493, 16.65366)
     _area(db_session, "klodzko-2", 50.45, 16.66)  # same nearest station -> one id
     _area(db_session, "warszawa", 52.23, 21.01)
-    _area(db_session, "szczecin", 53.43, 14.55)  # nothing within 50 km -> no data
+    _area(db_session, "szczecin", 53.43, 14.55)  # nothing within 100 km -> no data
     _area(db_session, "inactive-krakow", 50.06, 19.94, active=False)  # not polled
 
     assert discovery.assigned_station_ids(db_session) == ["114", "38"]
+
+
+def test_assigned_station_ids_covers_recent_place_refused_weather_polling(monkeypatch, db_session):
+    # Open-Meteo capacity says no, air is still polled; an expired place (old request) is not.
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    now = datetime.now(UTC)
+    for slug, lat, lon, age in [("place-1", 50.433493, 16.65366, 1), ("place-2", 52.23, 21.01, 30)]:
+        db_session.add(
+            GeoArea(
+                slug=slug, name=slug, latitude=lat, longitude=lon, place_id=int(slug[-1]),
+                weather_polling_active=False, last_requested_at=now - timedelta(days=age),
+            )
+        )  # fmt: skip
+    db_session.commit()
+
+    assert discovery.assigned_station_ids(db_session) == ["38"]
+
+
+def test_assigned_station_ids_reaches_the_regional_band(monkeypatch, db_session):
+    # ADR-029: a station 50-100 km away is polled (so the regional band has data); one more
+    # than 100 km away is not.
+    _fetch(monkeypatch, [_st(71, 50.93, 16.65366), _st(72, 51.40, 16.65366)])  # ~55 / ~107 km
+    discovery.discover_stations(db_session)
+    _area(db_session, "klodzko", 50.433493, 16.65366)
+
+    assert discovery.assigned_station_ids(db_session) == ["71"]  # 72 is out of range
+
+    _area(db_session, "north", 52.2, 16.65366)  # ~89 km from 72, ~145 km from 71
+    assert discovery.assigned_station_ids(db_session) == ["71", "72"]
 
 
 def test_assigned_station_ids_is_stable_and_empty_without_catalog(monkeypatch, db_session):
@@ -267,3 +297,28 @@ def test_malformed_catalog_shape_keeps_the_cache(monkeypatch, db_session):
 
     assert discovery.ensure_catalog(db_session, now=now + timedelta(days=2)) is False
     assert db_session.query(GiosStation).count() == 3
+
+
+def test_unmeasured_override_station_is_a_candidate_other_catalog_ones_are_not(
+    monkeypatch, db_session
+):
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+
+    ids = [p[0] for p in discovery.assignment_candidates(db_session, {}, unmeasured=True)]
+
+    assert ids == ["38"]
+
+
+def test_unmeasured_catalog_stations_are_not_candidates_under_an_env_override(
+    monkeypatch, db_session
+):
+    _fetch(monkeypatch, CATALOG)
+    discovery.discover_stations(db_session)
+    monkeypatch.setenv("GIOS_STATION_IDS", "38")
+    measured = {"38": {"latitude": 50.433493, "longitude": 16.65366}}
+
+    ids = [p[0] for p in discovery.assignment_candidates(db_session, measured, unmeasured=True)]
+
+    assert ids == ["38"]

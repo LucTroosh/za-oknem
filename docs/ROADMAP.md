@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-01 (po PR #73; stan main = 225ec08)
+**Ostatnia aktualizacja:** 2026-10-01 (po PR #83; stan main = f6d7ece)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -98,6 +98,7 @@ Alerts/Settings/push/profilu).
 | Provenance / raw ingestion (§33-34) | ✅ DONE — `source_fetches` (surowy payload, endpoint, wersja parsera, status walidacji) + nullable FK `source_fetch_id` na `Measurement`/`Alert`/`WeatherSnapshot`/`Forecast`; wszystkie connectory istniejące w PR #65 (4; pyłki dołączyły w PR #71); retencja payloadu 7/14/30 dni, metadane zostają; zapis best-effort, awaria nie psuje ingestu (ADR-014, TASK-3.1, PR #65). Rekordy sprzed migracji 0009 mają FK NULL |
 | Outdoor Interpretation Engine (§52) | 🟡 PARTIAL — `app/outdoor.py`: deterministyczny GOOD/MODERATE/POOR/UNKNOWN + `reasons[]`/`missing[]` (ADR-016, PR #64); progi PM/UV/wiatr ze źródłami, temperatura/opady/widoczność oznaczone „do kalibracji”. Podłączony: blok `outdoor` per obszar w `dashboard_latest()` i `OutdoorCard` na mobile (TASK-7.7/7.8, PR #68); preferencje „outdoor” użytkownika (TASK-12.4) nie istnieją |
 | Geo matching | 🟡 PARTIAL — nearest-station GIOŚ↔geo_area (ADR-006, próg 50 km) oraz **point-in-polygon lat/lon → gmina** (`app/geo.py::resolve_gmina`, `POST /api/v1/geo/resolve`, TASK-6.2 punkty 1–6, PR #70, ADR-019). Resolver bez danych zwraca `None` (granice gmin niezaładowane). Odkrywanie stacji GIOŚ per aktywny obszar (6.2/7, ADR-025): katalog `gios_stations` (odświeżany ≤ 1×/dobę), przypisanie nearest ≤ 50 km z tie-breakiem po id, `assignment_method` w dashboardzie i `/air/latest?geo_area_id=`; `GIOS_STATION_IDS` nadal override. Alerty dopasowane do obszaru po TERYT (województwo, ADR-013, PR #81). Zawężenie do lokalizacji (6.2/8, ADR-026): `/dashboard/latest?geo_area_id=` (404 dla nieznanego; obszar bez pollingu → `weather_polling_active=false`, weather/forecast/pollen puste, air wg stacji z katalogu ≤ 50 km, outdoor UNKNOWN bez rdzenia), `GET /areas`, `POST /geo/locate` (point-in-polygon → najbliższy aktywny obszar ≤ 25 km jawnie jako `nearest_area` → `out_of_range`); backend, bez klienta mobile. Nie zrobione: `/hydro/latest` po lokalizacji (TASK-9.5), aktywacja pollingu wybranej gminy (TASK-12.2) |
+| Dowolna miejscowość (TASK-6.3, ADR-029) | 🟡 PARTIAL — backend gotowy: rejestr `places` (migracja `0014`, import GeoNames PL (`--download` albo plik, z nazwami powiatów/województw → `label`), `geonames_places`), `GET /api/v1/places?q=` (prefiks bez diakrytyków), `POST /places/{id}/activate` (limit aktywnych z budżetu Open-Meteo ~411, TTL 7 dni, pierwszy fetch w minuty), jawny `coverage` powietrza (`exact` ≤ 10 / `nearby` ≤ 50 / `regional` ≤ 100 km / `none`; pogoda i pyłki = `grid`), polling GIOŚ do 100 km, `regional` poza werdyktem „Na dwór”. **Brak danych w bazie** do czasu importu pliku GeoNames (gate #15 otwarty); UI wyboru → TASK-12.7 |
 | Alert Engine | ⬜ TODO |
 | Notification Engine | ⬜ TODO |
 | REST API | 🟡 PARTIAL — `/air`, `/weather`, `/hydro`, `/alerts`, `/pollen`, `/dashboard/latest` (`?geo_area_id=`), `/areas`, `/geo/resolve`, `/geo/locate`, `/devices`, `/health`, `/health/sources`; wersjonowane pod `/api/v1/`. Brak `/water` (kąpieliska ⛔). `/dashboard/latest` ma `response_model` + typy TS generowane z OpenAPI (TASK-2.1, ADR-024) |
@@ -152,6 +153,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Do zrobienia | Czego dotyczy | Task / źródło |
 |---|---|---|
 | Zatwierdzić licencję PRG (GUGiK) w Source Approval Gate i pobrać `00_jednostki_administracyjne.zip` → GeoJSON gmin → import (`python -m app.connectors.prg_gminy.ingest`) | Bez tego `POST /geo/resolve` zwraca `None`, a 6.2 zostaje 🟡 | TASK-6.2, `docs/tasks/TASK-6.2-geo-engine-foundation.md` |
+| Na VPS uruchomić import GeoNames (`docker compose exec api python -m app.connectors.geonames_places.ingest --download`) i formalnie przejść Source Approval Gate (`geonames_pl`, CC BY 4.0) | Bez tego `GET /places` zwraca pustą listę (wybór dowolnej miejscowości nie działa); układ pliku zweryfikowany na prawdziwym zrzucie | TASK-6.3, ADR-029, `source-registry.md` |
 | Kontakt z GIS ws. udostępnienia API/danych o kąpieliskach (albo wybór innego zatwierdzonego źródła); potwierdzić licencję EEA 2025, jeśli wystarczy rejestr + klasyfikacja roczna | Odblokowanie 2.4 | TASK-11.1/11.2, ADR-021, `docs/tasks/TASK-11-bathing-water.md` |
 | IMGW: ustalić, czy hydro/ostrzeżenia to dane o wysokiej wartości (HVD, rozp. UE 2023/138) i jak ma się CC BY-NC-ND 4.0 zbioru plikowego do API; w razie potrzeby umowa (biznes@imgw.pl) | Przed monetyzacją (checklista ADR-003) | ADR-003, `source-registry.md` |
 | Open-Meteo: pisemne potwierdzenie dla Patronite (szara strefa), ceny planów komercyjnych (niezweryfikowane), potwierdzenie hosta Air Quality (`customer-air-quality-api…`) i pierwsze żądanie z prawdziwym kluczem | TASK-13.4 🟡 → ✅; przed monetyzacją | ADR-003, ADR-022 |
@@ -212,6 +214,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #83 | Mobile: fundament UI — zakładki Dziś/Alerty/Ustawienia (Expo Router), tokeny designu + ciemny motyw (kontrast testowany), safe-area, a11y, stany pusty/błąd bez wskazówek deweloperskich w produkcji, rozbicie `index.tsx` na komponenty; ostrzeżenia i stany wody przeniesione na Alerty (nadal cała Polska) |
 | #84 | Docs: mapa ekranów UI (`docs/ui/screen-map.md`), ADR-028 (mocki UI, Proposed), zadania TASK-7.9, TASK-8.11, TASK-12.10–12.19 w BACKLOG — bez kodu |
 | #82 | Wybór lokalizacji w API (TASK-6.2 (8), ADR-026): `/dashboard/latest?geo_area_id=`, `GET /areas`, `POST /geo/locate` (nearest active area ≤ 25 km jawnie, `out_of_range`), `weather_polling_active` w `DashboardArea`, kontrakt zregenerowany; bez klienta mobile — 🟡 |
+| #85 | Dowolna miejscowość w Polsce (TASK-6.3, ADR-029): rejestr `places` (migracja `0014`, import GeoNames PL z lokalnego pliku), `GET /places`, `POST /places/{id}/activate` (limit z budżetu Open-Meteo, TTL 7 dni, pierwszy fetch w minuty), jawny `coverage` powietrza `exact/nearby/regional/none` + `grid` dla pogody/pyłków, polling GIOŚ do 100 km, `regional` poza werdyktem „Na dwór”, kontrakt zregenerowany; bez klienta mobile i bez danych (plik GeoNames do zaimportowania) — 🟡 |
 
 ---
 

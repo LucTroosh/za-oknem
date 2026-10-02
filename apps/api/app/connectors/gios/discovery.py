@@ -16,12 +16,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, defer
 
 from app import provenance
+from app.config import settings
 from app.connectors.gios import client
 from app.connectors.gios.ingest import gios_station_ids
 from app.connectors.gios.parser import PARSER_VERSION, GiosParseError
 from app.connectors.open_meteo.ingest import polling_areas
-from app.geo import select_stations
-from app.models import GiosStation
+from app.geo import REGIONAL_MAX_KM, select_stations
+from app.models import GeoArea, GiosStation
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +134,22 @@ def ensure_catalog(db: Session, *, now: datetime | None = None) -> bool:
         return False
 
 
+def air_areas(db: Session) -> list[GeoArea]:
+    cutoff = datetime.now(UTC) - timedelta(days=settings.place_activation_ttl_days)
+    recent = db.query(GeoArea).filter(
+        GeoArea.weather_polling_active.is_(False),
+        GeoArea.place_id.is_not(None),
+        GeoArea.last_requested_at >= cutoff,
+    )
+    return polling_areas(db) + recent.all()
+
+
 def assigned_station_ids(db: Session) -> list[str]:
-    """Station ids to poll: nearest catalog station within the limit for every actively
+    """Station ids to poll: nearest catalog station within REGIONAL_MAX_KM (ADR-029: the
+    50-100 km "regional" band is polled too, so it has data to disclose) for every actively
     polled area, de-duplicated, sorted. Areas with no station in range contribute nothing
-    ("brak danych dla obszaru")."""
+    ("brak danych dla obszaru"). Air is cheap (<= one request per catalog station), so a place
+    activated recently but refused Open-Meteo polling (capacity/budget) is polled for air too."""
     rows = db.query(GiosStation).options(defer(GiosStation.raw))  # raw JSON not needed here
     points = [(r.station_id, r.latitude, r.longitude) for r in rows]
     if not points:
@@ -144,8 +157,8 @@ def assigned_station_ids(db: Session) -> list[str]:
     return sorted(
         {
             m.station_id
-            for area in polling_areas(db)
-            for m in select_stations(area.latitude, area.longitude, points)
+            for area in air_areas(db)
+            for m in select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)
         }
     )
 
@@ -158,7 +171,9 @@ def stations_by_id(db: Session, ids: list[str]) -> list[dict]:
     return [rows[i] for i in ids if i in rows]
 
 
-def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[str, float, float]]:
+def assignment_candidates(
+    db: Session, stations: dict[str, dict], *, unmeasured: bool = False
+) -> list[tuple[str, float, float]]:
     """(id, lat, lon) points the API may assign, from `stations` (id -> row with latitude/
     longitude, i.e. the ones that have measurements). Once a catalog exists it is the
     authority: only catalog stations qualify, at their CATALOG coordinates (the ones polling
@@ -166,7 +181,9 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
     live, so even if also catalogued) at their measured coordinates.
     A station GIOŚ dropped from the catalog is therefore never
     assigned on the strength of its old measurements. No catalog yet = legacy setup:
-    measured coordinates, no filtering."""
+    measured coordinates, no filtering. `unmeasured=True` also returns catalog stations
+    without measurements yet: geographic coverage must not depend on whether the nearest
+    station already has data (ADR-029)."""
     catalog = {
         r.station_id: (r.latitude, r.longitude)
         for r in db.execute(select(GiosStation).options(defer(GiosStation.raw))).scalars().all()
@@ -179,6 +196,12 @@ def assignment_candidates(db: Session, stations: dict[str, dict]) -> list[tuple[
             points.append((sid, s["latitude"], s["longitude"]))
         elif sid in catalog:
             points.append((sid, *catalog[sid]))
+    if unmeasured:  # with an override only those ids are fetched
+        points += [
+            (sid, *c)
+            for sid, c in catalog.items()
+            if sid not in stations and (not override or sid in override)
+        ]
     return points
 
 
@@ -190,4 +213,4 @@ def polling_expected(db: Session) -> bool:
         return True
     if db.query(GiosStation.id).first() is not None:
         return bool(assigned_station_ids(db))
-    return bool(polling_areas(db))
+    return bool(air_areas(db))

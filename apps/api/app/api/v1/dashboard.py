@@ -24,7 +24,7 @@ from app.api.v1.weather import freshness as weather_freshness
 from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
-from app.geo import select_stations
+from app.geo import REGIONAL_MAX_KM, classify_air_coverage, coverage_radius_km, select_stations
 from app.models import GeoArea, Measurement, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
 from app.source_status import source_freshness
@@ -44,6 +44,13 @@ OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
 IMGW_ATTRIBUTION = (
     "Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej"
     " – Państwowy Instytut Badawczy"
+)
+
+# ADR-029: weather/pollen come from model grids (Open-Meteo, CAMS), not from a sensor in the
+# place - said explicitly, so a village never looks like it has its own weather station.
+GRID_DESCRIPTION = (
+    "Prognoza i stan pogody oraz pyłki to wartości modelu dla najbliższego punktu siatki, "
+    "nie pomiar w tej miejscowości."
 )
 
 # TASK-7.7 / ADR-016: the engine does no unit conversion, so the caller only feeds it
@@ -89,6 +96,10 @@ class DashboardAir(BaseModel):
     index: AirIndex
     distance_km: float
     assignment_method: str  # ADR-025: how the station was assigned to the area
+    # ADR-029: how far-away the station is, explicitly. `regional` (50-100 km) is a far-away
+    # station: shown with its distance, but NOT used for the outdoor verdict.
+    coverage: Literal["exact", "nearby", "regional"]
+    coverage_radius_km: int
     source_status: SourceStatusOut  # TASK-7.3 / ADR-012: the GIOŚ source, not this station
 
 
@@ -163,6 +174,20 @@ class DashboardPollen(BaseModel):
     source_status: SourceStatusOut
 
 
+class DashboardCoverage(BaseModel):
+    """What the area's numbers represent (ADR-029): never imply a measurement in the place
+    itself when it is a station kilometres away or a model grid."""
+
+    # exact <=10 km | nearby <=50 | regional <=100 | none = no GIOŚ station within 100 km
+    # (air UNAVAILABLE, never "good"). The distance/name live in `air`.
+    air: Literal["exact", "nearby", "regional", "none"]
+    air_radius_km: int | None
+    # Weather and pollen are model-grid values for the point, not measurements in the place.
+    weather: Literal["grid"]
+    pollen: Literal["grid"]
+    grid_description: str
+
+
 class DashboardArea(BaseModel):
     geo_area_id: int
     slug: str
@@ -177,6 +202,7 @@ class DashboardArea(BaseModel):
     forecast: DashboardForecast | None
     outdoor: DashboardOutdoor
     pollen: DashboardPollen
+    coverage: DashboardCoverage
     # ADR-013: the part of the national `alerts.items` that applies to THIS area (TERYT
     # prefix match, `geo_match` says how). Additive; `alerts` stays the national list.
     local_alerts: list[AlertOut]
@@ -209,8 +235,8 @@ def dashboard_latest(
     geo_area_id: int | None = Query(None, ge=1, le=2_147_483_647), db: Session = Depends(get_db)
 ) -> dict:
     """Combined per-location view: weather (per geo_area, always) + nearest GIOŚ
-    station's full param set (only within MAX_MATCH_DISTANCE_KM - ADR-006
-    nearest-station join, not a general geo engine). Reads only from our own DB
+    station's full param set (within REGIONAL_MAX_KM, classified by ADR-029 `coverage`;
+    ADR-006 nearest-station join, not a general geo engine). Reads only from our own DB
     (rule #14); the join happens in Python - three small independent result sets,
     not worth a cross-table SQL join.
 
@@ -228,7 +254,11 @@ def dashboard_latest(
             raise HTTPException(status_code=404, detail="geo_area not found")
         areas = [chosen]
     else:
-        area_stmt = select(GeoArea).where(GeoArea.weather_polling_active.is_(True))
+        # ADR-029: user-chosen places are NOT in the default list (one user's pick must not
+        # change everyone's dashboard) - they are reachable only via ?geo_area_id=.
+        area_stmt = select(GeoArea).where(
+            GeoArea.weather_polling_active.is_(True), GeoArea.place_id.is_(None)
+        )
         areas = db.execute(area_stmt).scalars().all()
 
     # source_id filter: `measurements` is shared with other connectors (e.g.
@@ -259,11 +289,14 @@ def dashboard_latest(
             "freshness": air_freshness(row.observed_at),
         }
     # ADR-025: catalog is the authority for who may be assigned and where they are.
-    points = assignment_candidates(db, stations)
+    # Geography (coverage) comes from the whole catalog; the `air` block only from stations
+    # that already have measurements. A nearer station without data is not skipped.
+    points = assignment_candidates(db, stations, unmeasured=True)
 
-    weather_stmt = select(WeatherSnapshot)
-    if geo_area_id is not None:
-        weather_stmt = weather_stmt.where(WeatherSnapshot.geo_area_id == geo_area_id)
+    # Only the listed areas: history of other (e.g. place) areas must not be scanned.
+    weather_stmt = select(WeatherSnapshot).where(
+        WeatherSnapshot.geo_area_id.in_([a.id for a in areas])
+    )
     weather_stmt = weather_stmt.distinct(
         WeatherSnapshot.geo_area_id, WeatherSnapshot.param_code
     ).order_by(
@@ -290,15 +323,17 @@ def dashboard_latest(
 
     areas_out = []
     for area in areas:
-        # ADR-006/ADR-025: deterministic nearest station within MAX_MATCH_DISTANCE_KM
-        # (geo.select_stations); none in range = no air block, never a farther fallback.
+        # ADR-006/ADR-025/ADR-029: deterministic nearest station within REGIONAL_MAX_KM
+        # (geo.select_stations), classified exact/nearby/regional; none in range = no air
+        # block (coverage "none"), never a farther fallback.
         match = next(
-            iter(select_stations(area.latitude, area.longitude, points)),
+            iter(select_stations(area.latitude, area.longitude, points, max_km=REGIONAL_MAX_KM)),
             None,
         )
+        air_coverage = classify_air_coverage(match.distance_km if match else None)
 
         air = None
-        if match is not None:
+        if match is not None and air_coverage != "none" and match.station_id in stations:
             nearest = stations[match.station_id]
             # source+observed_at+freshness together, not source alone (Principle 2 /
             # TASK-7.1) - observed_at here is the latest across this station's params,
@@ -315,6 +350,8 @@ def dashboard_latest(
                 "index": air_index(nearest["params"], air_recent_max_age),
                 "distance_km": round(match.distance_km, 1),
                 "assignment_method": match.method,
+                "coverage": air_coverage,
+                "coverage_radius_km": coverage_radius_km(air_coverage),
                 "source_status": air_status,
             }
 
@@ -356,7 +393,18 @@ def dashboard_latest(
                 "air": air,
                 "weather": weather,
                 "forecast": _forecast_block(forecasts.get(area.id)),
-                "outdoor": _outdoor_block(air["params"] if air else {}, weather_params),
+                # ADR-029: a far-away (regional) station must not decide "Na dwór" - the
+                # engine then has no air input and cannot return GOOD (air is a core group).
+                "outdoor": _outdoor_block(
+                    air["params"] if air and air_coverage != "regional" else {}, weather_params
+                ),
+                "coverage": {
+                    "air": air_coverage,
+                    "air_radius_km": coverage_radius_km(air_coverage),
+                    "weather": "grid",
+                    "pollen": "grid",
+                    "grid_description": GRID_DESCRIPTION,
+                },
                 "local_alerts": filter_alerts_for_area(national_alerts, area.teryt_code),
             }
         )

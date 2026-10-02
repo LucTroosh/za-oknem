@@ -273,6 +273,28 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       task nie dodaje kontraktu "wybrana lokalizacja" do requestu. Dodać
       parametr (np. `geo_area_id`/`observed_area_code`) zawężający agregat
       do lokalizacji z manualnego wyboru (TASK-12.2) lub GPS-resolve z (5).
+- [x] ✅ **TASK-6.3 (backend):** Dowolna miejscowość w Polsce — rejestr `places` + aktywacja
+      obszaru + jawny `coverage` (ADR-029, migracja `0014`). Wymaganie właściciela: wybór nie
+      jest ograniczony do 7 miast ani do gmin z PRG; dane dokładnie tam, gdzie są, a gdzie nie —
+      uczciwie „stan dla obszaru w promieniu ~50/~100 km”.
+      **Acceptance criteria:** (1) tabela `places` importowana z lokalnego pliku GeoNames PL
+      (`python -m app.connectors.geonames_places.ingest --download` albo `--file …`, idempotentnie,
+      timeout + ograniczony retry; test na małym fixture; zweryfikowane na prawdziwym zrzucie
+      workflow `geonames-verify`; zero sekretów w repo), z nazwami powiatu/województwa → `label`; źródło wpisane do
+      `source-registry.md` (`geonames_pl`, status proposed — gate #15 otwarty); (2)
+      `GET /api/v1/places?q=&limit=` — prefiks bez diakrytyków, sort: dokładne dopasowanie →
+      populacja, `q` ≥ 2 znaki, `limit` ≤ 20, 422 bez echa inputu; (3) `POST
+      /api/v1/places/{id}/activate` tworzy/aktywuje obszar (`weather_polling_active`), limit
+      aktywnych z budżetu Open-Meteo (`OPEN_METEO_DAILY_CALL_LIMIT`), po przekroczeniu obszar
+      bez pogody = UNAVAILABLE (nie błąd), TTL wygaszania (`PLACE_ACTIVATION_TTL_DAYS`, domyślnie
+      7 dni, job `place_expiry`), pierwszy fetch w ciągu minut, rate limit per IP; `GET
+      /places/{id}` bez efektów ubocznych; (4) `dashboard.areas[].air.coverage` /
+      `coverage_radius_km` i `areas[].coverage` (`exact` ≤ 10 km, `nearby` ≤ 50, `regional` ≤
+      100, `none`; pogoda/pyłki = `grid` z opisem), polling GIOŚ do 100 km, testy graniczne
+      49.9/50/100/100.1 km; (5) `regional` nie wchodzi do werdyktu „Na dwór” (silnik bez
+      powietrza nie da `GOOD`); (6) kontrakt `openapi.json`/`schema.ts` zregenerowany, testy
+      pytest. **Non-goals:** UI wyboru (TASK-12.7), import granic PRG, dopasowanie miejscowości do gminy/TERYT (alerty lokalne
+      `unresolved` do czasu PRG). **Dependencies:** ADR-029, TASK-6.2 (7)/(8).
 
 ### Phase 7 — Dashboard (dokończenie)
 
@@ -652,7 +674,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       dane, ekran źródeł — ten sam wzorzec `source`/`attribution` co
       TASK-7.1 — i o aplikacji) przed release, nie zostawiać jako
       placeholder.
-- [ ] **TASK-12.2:** Ręczny wybór lokalizacji (mobile) — rozszerzenie
+- [ ] **TASK-12.2:** Ręczny wybór lokalizacji (mobile) — **backend aktywacji + wyszukiwania miejscowości
+      zrobiony w TASK-6.3 (ADR-029): `GET /places`, `POST /places/{id}/activate`, limit aktywnych z
+      budżetu, TTL; heartbeat instalacji (a)–(c) poniżej pozostaje wzmocnieniem tego mechanizmu.** — rozszerzenie
       obecnej statycznej listy 7 miast o wybór przez użytkownika (bez
       background location — rule #11). **Korekta (Codex):** po TASK-6.2
       punkt (8) `dashboard_latest()` zawęża się do jednej wybranej
@@ -802,6 +826,24 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       uwzględnić allergy/family/outdoor z tego tasku; bez tej integracji
       zmiana ustawień nie ma żadnego efektu w produkcie. Dodać krok
       "zastosuj profil" po TASK-12.4 do dashboardu/kart pyłkowej/outdoor.
+- [ ] **TASK-6.4 (follow-up ADR-029, po review PR #85):** (W4) twardy bezpiecznik budżetu
+      Open-Meteo przy >90% dla obszarów z `place_id` (scheduler przycina ich pobrania, nie
+      tylko odmowa nowych aktywacji; dziś retry klienta HTTP może przekroczyć szacunek);
+      (W5) cache/limit `air_areas()` w GIOŚ (dziś każdy tick czyta wszystkie obszary z
+      `last_requested_at` w TTL, a liczba stacji rośnie z liczbą miejscowości).
+- [ ] **TASK-12.7:** Ekran wyboru dowolnej miejscowości (mobile) — UI na backendzie z
+      TASK-6.3 / ADR-029; osobny task po decyzji o designie. **Acceptance criteria:** (1)
+      wyszukiwarka z debounce na `GET /api/v1/places` (min. 2 znaki, stan pusty „Nie znaleziono”,
+      błąd sieci bez wskazówek deweloperskich); lista pokazuje `label` („Nowa Wieś, pow. gliwicki, woj. śląskie”); (2) wybór wywołuje `POST /places/{id}/activate`, a potem dashboard po
+      `geo_area_id`; to samo wywołanie przy każdym otwarciu aplikacji z wybranym miejscem
+      (odświeża TTL); obsługa `polling=capacity_reached|budget_exhausted` jako „dane pogodowe
+      chwilowo niedostępne dla tej miejscowości” (nie błąd); (3) ekran pokazuje `coverage`:
+      `exact` bez dopisku, `nearby`/`regional` „Stan dla obszaru w promieniu ~50 km / ~100 km —
+      stacja <station_name>, <distance_km> km”, `none` „Brak stacji pomiarowej w promieniu 100
+      km”, pogoda/pyłki z `grid_description`; (4) atrybucja GeoNames z `attribution` na ekranie
+      Źródła; (5) brak background location, brak konta (reguły #11). **Notatka:**
+      `docs/ui/screen-map.md` (PR #84, ADR-028) w chwili pisania nie jest w `main` — po jego
+      merge dopisać ten ekran do mapy ekranów. **Dependencies:** TASK-6.3, TASK-12.2/12.3.
 
 ### Phase 12 — UI: struktura ekranów i mocki (docs/ui/screen-map.md, ADR-028)
 
@@ -1127,6 +1169,14 @@ placeholderze.
       limiting per-device) + walidacja produkcyjna, ALBO — jeśli po
       przeanalizowaniu przy tej skali dalej nie ma uzasadnienia — formalna
       rewizja §103 przez ADR (rule #12), nie ciche pominięcie.
+- [ ] **TASK-15.6 (BLOKER PRODUKCJI, ADR-029):** Rate limit per IP za Caddy. Obraz API startuje
+      `uvicorn --proxy-headers`, ale `FORWARDED_ALLOW_IPS` musi wskazywać dokładnie adres/sieć
+      Caddy w sieci Dockera (nie `*`), a Caddy przekazywać `X-Forwarded-For`. Bez tego
+      `request.client` = proxy i `device_writes` oraz `place_activations` mają jeden bucket dla
+      wszystkich. **Acceptance:** test na stagingu — dwa różne IP mają osobne liczniki;
+      `/dashboard/latest` bez zmian po aktywacji miejscowości; log Caddy nie zawiera query
+      `/api/v1/places?q=` (usunąć `query` z formatu logu / filtr `delete`), bo to miejscowość
+      użytkownika (obraz API ma `--no-access-log`).
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**

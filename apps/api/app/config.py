@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     open_meteo_api_key: str | None = Field(default=None, repr=False)
     # Free tier cap (source-registry); raise it with a commercial plan (ADR-022).
     open_meteo_daily_call_limit: int = Field(default=10_000, gt=0)
+    # ADR-029: a place-based area stops being polled after this many days without a
+    # fresh activation (`POST /places/{id}/activate`); keeps the Open-Meteo budget bounded.
+    place_activation_ttl_days: int = Field(default=7, gt=0)
 
     @field_validator("open_meteo_api_key", mode="before")
     @classmethod

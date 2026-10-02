@@ -729,11 +729,77 @@ def test_dashboard_tie_between_stations_picks_lowest_id_regardless_of_row_order(
         assert air["station_id"] == "9"
 
 
-def test_dashboard_station_just_beyond_limit_is_not_assigned():
-    # ~55 km north of Kłodzko: the only station exists, but past MAX_MATCH_DISTANCE_KM.
-    client = _client([GeoArea(**KLODZKO)], [_station(latitude=50.93)], [])
+def test_dashboard_station_beyond_100_km_is_not_assigned_and_coverage_is_none():
+    # ~107 km north of Kłodzko: past REGIONAL_MAX_KM (ADR-029) -> no air, coverage none.
+    client = _client([GeoArea(**KLODZKO)], [_station(latitude=51.40)], [])
 
-    assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+    assert area["air"] is None
+    assert area["coverage"]["air"] == "none"
+    assert area["coverage"]["air_radius_km"] is None
+
+
+@pytest.mark.parametrize(
+    ("station_lat", "level", "radius"),
+    [(50.45, "exact", 10), (50.70, "nearby", 50), (50.93, "regional", 100)],  # ~2 / 30 / 55 km
+)
+def test_dashboard_air_coverage_levels_are_explicit(station_lat, level, radius):
+    client = _client([GeoArea(**KLODZKO)], [_station(latitude=station_lat)], [])
+
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+    assert area["air"]["coverage"] == level
+    assert area["air"]["coverage_radius_km"] == radius
+    assert area["coverage"]["air"] == level
+    assert area["coverage"]["air_radius_km"] == radius
+    assert area["air"]["station_name"] and area["air"]["distance_km"] > 0
+
+
+def test_dashboard_weather_and_pollen_are_described_as_grid():
+    cov = (
+        _client([GeoArea(**KLODZKO)], [], [])
+        .get("/api/v1/dashboard/latest")
+        .json()["areas"][0]["coverage"]
+    )
+
+    assert cov["weather"] == "grid" and cov["pollen"] == "grid"
+    assert "nie pomiar" in cov["grid_description"]
+
+
+def test_dashboard_regional_air_is_shown_but_never_feeds_the_outdoor_verdict():
+    # ADR-029: perfect PM values from a station 55 km away must not make "Na dwór" GOOD.
+    far_air = [
+        _station(latitude=50.93, param_code="PM2.5", value=8.0),
+        _station(latitude=50.93, param_code="PM10", value=20.0, source_record_id="rec-2"),
+    ]
+    client = _client([GeoArea(**KLODZKO)], far_air, _outdoor_weather())
+
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+    assert area["air"]["coverage"] == "regional"
+    assert set(area["air"]["params"]) == {"PM2.5", "PM10"}  # still disclosed
+    assert area["outdoor"]["level"] == "UNKNOWN"
+    assert [m["group"] for m in area["outdoor"]["missing"]] == ["air"]
+
+
+def test_dashboard_regional_air_does_not_hide_a_bad_weather_verdict():
+    far_air = [_station(latitude=50.93, param_code="PM2.5", value=8.0)]
+    weather = _outdoor_weather(precipitation=(3.0, "mm"))
+    client = _client([GeoArea(**KLODZKO)], far_air, weather)
+
+    outdoor = client.get("/api/v1/dashboard/latest").json()["areas"][0]["outdoor"]
+
+    assert outdoor["level"] == "POOR"
+
+
+def test_dashboard_nearby_air_still_feeds_the_outdoor_verdict():
+    near_air = _outdoor_air()
+    for row in near_air:
+        row.latitude = 50.70  # ~30 km: nearby, unchanged behaviour
+    outdoor = _outdoor(near_air, _outdoor_weather())
+
+    assert outdoor["level"] == "GOOD"
 
 
 def _cat(sid, lat, lon):
@@ -768,9 +834,9 @@ def test_dashboard_never_assigns_a_station_dropped_from_the_catalog():
 
 def test_dashboard_uses_catalog_coordinates_not_the_stale_measured_ones():
     # Measurements still carry the old position (50.43, 16.65 = on top of the area); the
-    # catalog says the station moved ~60 km away -> out of range, same as polling decides.
+    # catalog says the station moved ~119 km away -> out of range, same as polling decides.
     moved = _station(station_id="38")
-    client = _client([GeoArea(**KLODZKO)], [moved], [], catalog=[_cat("38", 50.97, 16.65)])
+    client = _client([GeoArea(**KLODZKO)], [moved], [], catalog=[_cat("38", 51.5, 16.65)])
 
     assert client.get("/api/v1/dashboard/latest").json()["areas"][0]["air"] is None
 
@@ -936,3 +1002,50 @@ def test_geo_area_id_is_range_checked_422(path, value):
 def test_dashboard_geo_area_id_not_int_is_422():
     client = _client([], [], [], lookup=[GeoArea(**KLODZKO)])
     assert client.get("/api/v1/dashboard/latest?geo_area_id=abc").status_code == 422
+
+
+def test_dashboard_coverage_follows_the_catalog_even_before_the_first_measurement():
+    # Nearest catalog station (~2 km) has no measurement yet; a measured one sits ~55 km away.
+    # Polling assigned the near one, so: no air block, coverage "exact" - not the far station.
+    far = _station(station_id="40", latitude=50.93)
+    client = _client(
+        [GeoArea(**KLODZKO)],
+        [far],
+        [],
+        catalog=[_cat("41", 50.45, 16.65), _cat("40", 50.93, 16.65)],
+    )
+
+    area = client.get("/api/v1/dashboard/latest").json()["areas"][0]
+
+    assert area["air"] is None
+    assert area["coverage"]["air"] == "exact"
+
+
+def test_default_area_list_excludes_user_chosen_places(monkeypatch):
+    # ADR-029: one user activating a place must not change everyone's default dashboard.
+    seen = []
+    original = _FakeSession.execute
+
+    def spy(self, stmt):
+        seen.append(str(stmt))
+        return original(self, stmt)
+
+    monkeypatch.setattr(_FakeSession, "execute", spy)
+    _client([GeoArea(**KLODZKO)], [], []).get("/api/v1/dashboard/latest")
+
+    assert "place_id IS NULL" in seen[0] and "weather_polling_active" in seen[0]
+
+
+def test_weather_query_is_scoped_to_the_listed_areas(monkeypatch):
+    seen = []
+    original = _FakeSession.execute
+
+    def spy(self, stmt):
+        seen.append(str(stmt))
+        return original(self, stmt)
+
+    monkeypatch.setattr(_FakeSession, "execute", spy)
+    _client([GeoArea(**KLODZKO)], [], []).get("/api/v1/dashboard/latest")
+
+    weather = next(q for q in seen if "FROM weather_snapshots" in q)
+    assert "weather_snapshots.geo_area_id IN" in weather

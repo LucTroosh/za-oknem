@@ -1,5 +1,7 @@
 """Tests for haversine_km: known-distance sanity checks."""
 
+import pytest
+
 from app.geo import haversine_km
 
 
@@ -72,3 +74,67 @@ def test_select_stations_is_deterministic_on_repeat():
     stations = [("1", 50.5, 16.7), ("2", 50.5, 16.7), ("3", 50.51, 16.7)]
 
     assert select_stations(*KLODZKO, stations) == select_stations(*KLODZKO, stations)
+
+
+# --- ADR-029: air coverage ladder ---------------------------------------------------------
+
+from app.geo import (  # noqa: E402
+    EXACT_MAX_KM,
+    NEARBY_MAX_KM,
+    REGIONAL_MAX_KM,
+    classify_air_coverage,
+    coverage_radius_km,
+)
+
+_KM_PER_DEG_LAT = 111.19492664455873  # 2*pi*6371/360, the radius haversine_km uses
+
+
+@pytest.mark.parametrize(
+    ("km", "level"),
+    [
+        (0.0, "exact"),
+        (10.0, "exact"),  # inclusive bounds
+        (10.04, "exact"),  # rounded to the 0.1 km clients see
+        (10.06, "nearby"),
+        (49.9, "nearby"),
+        (50.0, "nearby"),
+        (50.04, "nearby"),
+        (50.06, "regional"),
+        (99.9, "regional"),
+        (100.0, "regional"),
+        (100.04, "regional"),
+        (100.06, "none"),
+        (100.1, "none"),
+        (None, "none"),
+    ],
+)
+def test_classify_air_coverage_boundaries(km, level):
+    assert classify_air_coverage(km) == level
+
+
+def test_coverage_constants_and_radii():
+    assert (EXACT_MAX_KM, NEARBY_MAX_KM, REGIONAL_MAX_KM) == (10.0, 50.0, 100.0)
+    assert NEARBY_MAX_KM == MAX_MATCH_DISTANCE_KM  # ADR-006/025 limit is the "nearby" edge
+    assert [coverage_radius_km(c) for c in ("exact", "nearby", "regional", "none")] == [
+        10,
+        50,
+        100,
+        None,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("km", "level"),
+    [(49.9, "nearby"), (50.0, "nearby"), (99.9, "regional"), (100.1, None)],
+)
+def test_select_stations_plus_classification_end_to_end(km, level):
+    lat0, lon0 = KLODZKO
+    station = ("s", lat0 + km / _KM_PER_DEG_LAT, lon0)  # due north, `km` away
+
+    matches = select_stations(lat0, lon0, [station], max_km=REGIONAL_MAX_KM)
+
+    if level is None:
+        assert matches == []  # beyond 100 km: no station at all -> coverage none
+        assert classify_air_coverage(None) == "none"
+    else:
+        assert classify_air_coverage(matches[0].distance_km) == level

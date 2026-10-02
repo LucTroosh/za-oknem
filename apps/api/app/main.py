@@ -16,6 +16,7 @@ from app.api.v1 import (
     geo,
     health,
     hydro,
+    places,
     pollen,
     pollen_calendar,
     weather,
@@ -47,7 +48,8 @@ async def _validation_error(request: Request, exc: RequestValidationError) -> JS
     """FastAPI's default 422 echoes the rejected `input`. For /geo/resolve that is the
     user's coordinates, so strip it there (ADR-002); other routes keep the default shape."""
     errors = exc.errors()
-    if request.url.path in COORDINATE_PATHS:
+    # /places: the search text is the user's query, not echoed either (ADR-029).
+    if request.url.path in COORDINATE_PATHS or request.url.path.startswith("/api/v1/places"):
         errors = [{k: v for k, v in e.items() if k not in ("input", "ctx")} for e in errors]
     return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
 
@@ -68,5 +70,6 @@ app.include_router(hydro.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(geo.router, prefix="/api/v1")
+app.include_router(places.router, prefix="/api/v1")
 app.include_router(pollen.router, prefix="/api/v1")
 app.include_router(pollen_calendar.router, prefix="/api/v1")

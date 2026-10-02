@@ -9,7 +9,7 @@ import pytest
 
 import app.scheduler as scheduler
 from app.connectors.open_meteo_pollen import client as pollen_client
-from app.models import Alert, GeoArea, SourceFetch
+from app.models import Alert, GeoArea, PollenSnapshot, SourceFetch, WeatherSnapshot
 
 
 def _make_area(db, slug="klodzko") -> GeoArea:
@@ -168,6 +168,31 @@ class TestRunGios:
         assert scheduler.run_gios() is False
 
         find_stations_mock.assert_not_called()
+
+    def test_recent_place_refused_weather_polling_still_gets_air(self, monkeypatch, db_session):
+        from app.models import GiosStation
+
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        db_session.add_all(
+            [
+                GeoArea(
+                    slug="place-1", name="p", latitude=50.43, longitude=16.65, place_id=1,
+                    weather_polling_active=False, last_requested_at=datetime.now(UTC),
+                ),
+                GiosStation(
+                    station_id="38", station_name="s", latitude=50.433, longitude=16.654,
+                    raw={"Identyfikator stacji": 38}, fetched_at=datetime.now(UTC),
+                ),
+            ]
+        )  # fmt: skip
+        db_session.commit()
+        monkeypatch.setattr(scheduler, "ensure_catalog", MagicMock())
+        ingest_mock = MagicMock(return_value=1)
+        monkeypatch.setattr(scheduler, "ingest_station", ingest_mock)
+
+        assert scheduler.run_gios() is True
+        assert ingest_mock.call_args.args[0] == {"Identyfikator stacji": 38}
 
     def test_without_env_polls_stations_assigned_to_active_areas(self, monkeypatch, db_session):
         from app.models import GiosStation
@@ -411,6 +436,173 @@ class TestRunImgwWarningsHydroIncomplete:
         assert "snapshot incomplete" in record.call_args.kwargs["error"]
 
 
+class TestNewAreaBootstrap:
+    """ADR-029: a freshly activated place gets its first fetch within a tick, bounded."""
+
+    def _setup(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        weather, pollen = MagicMock(), MagicMock()
+        monkeypatch.setattr(scheduler, "ingest_geo_area", weather)
+        monkeypatch.setattr(scheduler, "ingest_pollen_areas", pollen)
+        return weather, pollen
+
+    def _area(self, db, slug, *, place_id=None, active=True):
+        a = GeoArea(
+            slug=slug, name=slug, latitude=50.0, longitude=19.0, place_id=place_id,
+            weather_polling_active=active,
+        )  # fmt: skip
+        db.add(a)
+        db.commit()
+        return a
+
+    @staticmethod
+    def _weather_row(area_id):
+        now = datetime.now(UTC)
+        return WeatherSnapshot(
+            source_id="open_meteo", source_record_id=f"w{area_id}", geo_area_id=area_id,
+            param_code="temperature_2m", value=1.0, unit="C", observed_at=now, fetched_at=now,
+        )  # fmt: skip
+
+    @staticmethod
+    def _pollen_row(area_id):
+        now = datetime.now(UTC)
+        return PollenSnapshot(
+            source_id="open_meteo_pollen", source_record_id=f"p{area_id}", geo_area_id=area_id,
+            unit="grains/m3", model="cams_europe", forecast_reference_time=now, valid_at=now,
+            fetched_at=now,
+        )  # fmt: skip
+
+    def test_missing_pollen_is_retried_on_its_own_after_weather_succeeded(
+        self, monkeypatch, db_session
+    ):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        db_session.add(self._weather_row(a.id))  # weather done, pollen failed earlier
+        db_session.commit()
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 1
+
+        weather.assert_not_called()
+        assert [x.id for x in pollen.call_args.args[0]] == [a.id]
+
+    def test_reactivated_area_with_retained_old_data_is_refetched(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        old = datetime.now(UTC) - timedelta(days=30)
+        w, p = self._weather_row(a.id), self._pollen_row(a.id)
+        w.fetched_at = p.fetched_at = old  # kept from before the expiry
+        db_session.add_all([w, p])
+        db_session.commit()
+        attempts = {a.id: (3, 0.0)}  # stale entry from the previous activation
+
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 0  # cap still holds
+        attempts.clear()
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 1
+        assert weather.call_args.args[0].id == a.id
+        assert [x.id for x in pollen.call_args.args[0]] == [a.id]
+
+    def test_attempts_of_areas_with_fresh_data_are_forgotten(self, monkeypatch, db_session):
+        self._setup(monkeypatch, db_session)
+        a = self._area(db_session, "place-1", place_id=1)
+        db_session.add_all([self._weather_row(a.id), self._pollen_row(a.id)])
+        db_session.commit()
+        attempts = {a.id: (3, 0.0)}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 10_000.0) == 0
+        assert attempts == {}
+
+    def test_fetches_only_active_place_areas_without_weather(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        new = self._area(db_session, "place-1", place_id=1)
+        self._area(db_session, "seed-city")  # seeded: regular cycle only
+        self._area(db_session, "place-2", place_id=2, active=False)
+        has_data = self._area(db_session, "place-3", place_id=3)
+        db_session.add_all([self._weather_row(has_data.id), self._pollen_row(has_data.id)])
+        db_session.commit()
+        attempts: dict = {}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 1000.0) == 1
+
+        assert weather.call_args.args[0].id == new.id
+        assert [a.id for a in pollen.call_args.args[0]] == [new.id]
+        assert attempts == {new.id: (1, 1000.0)}
+
+    def test_retries_are_spaced_and_capped(self, monkeypatch, db_session):
+        weather, _ = self._setup(monkeypatch, db_session)
+        self._area(db_session, "place-1", place_id=1)  # never gets weather (fetch mocked)
+        attempts: dict = {}
+        retry = scheduler.BOOTSTRAP_RETRY_SECONDS
+
+        assert scheduler.run_new_area_bootstrap(attempts, 0.0) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 60.0) == 0  # too soon
+        assert scheduler.run_new_area_bootstrap(attempts, retry) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 2 * retry) == 1
+        assert scheduler.run_new_area_bootstrap(attempts, 10 * retry) == 0  # cap reached
+        assert weather.call_count == scheduler.BOOTSTRAP_MAX_ATTEMPTS == 3
+
+    def test_pollen_failure_never_raises(self, monkeypatch, db_session):
+        weather, pollen = self._setup(monkeypatch, db_session)
+        pollen.side_effect = RuntimeError("pollen down")
+        self._area(db_session, "place-1", place_id=1)
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 1
+        weather.assert_called_once()
+
+    def test_pollen_db_error_is_rolled_back_before_the_next_area(self, monkeypatch, db_session):
+        _, pollen = self._setup(monkeypatch, db_session)
+        pollen.side_effect = RuntimeError("pollen db")
+        rollback = MagicMock(wraps=db_session.rollback)
+        monkeypatch.setattr(db_session, "rollback", rollback)
+        self._area(db_session, "place-1", place_id=1)
+        self._area(db_session, "place-2", place_id=2)
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 2
+        assert rollback.call_count == 2  # after each failed pollen fetch
+
+    def test_a_burst_is_spread_over_ticks(self, monkeypatch, db_session):
+        weather, _ = self._setup(monkeypatch, db_session)
+        for i in range(scheduler.BOOTSTRAP_BATCH + 2):
+            self._area(db_session, f"place-{i}", place_id=i + 1)
+        attempts: dict = {}
+
+        assert scheduler.run_new_area_bootstrap(attempts, 0.0) == scheduler.BOOTSTRAP_BATCH
+        assert weather.call_count == scheduler.BOOTSTRAP_BATCH
+        assert scheduler.run_new_area_bootstrap(attempts, 1.0) == 2  # the rest, next tick
+
+    def test_database_failure_never_raises(self, monkeypatch):
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        assert scheduler.run_new_area_bootstrap({}, 0.0) == 0
+
+
+class TestRunPlaceExpiry:
+    def test_switches_off_idle_place_areas(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        old = datetime.now(UTC) - timedelta(days=30)
+        stale = GeoArea(
+            slug="place-1", name="p", latitude=50.0, longitude=19.0, place_id=1,
+            last_requested_at=old,
+        )  # fmt: skip
+        _make_area(db_session, "seed-city")
+        db_session.add(stale)
+        db_session.commit()
+
+        scheduler.run_place_expiry()  # closes the session: re-read the rows
+
+        flags = {a.slug: a.weather_polling_active for a in db_session.query(GeoArea)}
+        assert flags == {"place-1": False, "seed-city": True}
+
+    def test_runs_daily_without_a_source_status_row(self, monkeypatch):
+        record = MagicMock()
+        monkeypatch.setattr(scheduler, "_record_run", record)
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        scheduler._run_job_safely("place_expiry", scheduler.run_place_expiry, track_status=False)
+
+        record.assert_not_called()
+        assert scheduler.PLACE_EXPIRY_INTERVAL_SECONDS == 24 * 60 * 60
+
+
 class TestRunRawRetention:
     def test_purges_expired_payloads(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
@@ -452,9 +644,12 @@ class TestMain:
             "run_imgw_hydro": MagicMock(),
             "run_imgw_warningshydro": MagicMock(),
             "run_raw_retention": MagicMock(),
+            "run_place_expiry": MagicMock(),
         }
         for name, mock in mocks.items():
             monkeypatch.setattr(scheduler, name, mock)
+        # Runs every tick (not gated by an interval), so it is not part of `mocks`.
+        monkeypatch.setattr(scheduler, "run_new_area_bootstrap", MagicMock())
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
         monkeypatch.setattr(scheduler, "_record_run", MagicMock())
         monkeypatch.setattr(scheduler, "_check_source_health", MagicMock())
@@ -467,6 +662,17 @@ class TestMain:
 
         for mock in mocks.values():
             mock.assert_called_once()
+
+    def test_place_expiry_runs_before_any_polling_job(self, monkeypatch):
+        # ADR-029: an area whose TTL elapsed must not be polled one more time first.
+        mocks = self._mock_all_jobs(monkeypatch)
+        order = MagicMock()
+        for name in ("run_place_expiry", "run_open_meteo", "run_open_meteo_pollen", "run_gios"):
+            order.attach_mock(mocks[name], name)
+
+        scheduler.main(iterations=1)
+
+        assert order.mock_calls[0] == ("run_place_expiry", (), {})
 
     def test_second_iteration_skips_jobs_before_interval_elapses(self, monkeypatch):
         mocks = self._mock_all_jobs(monkeypatch)

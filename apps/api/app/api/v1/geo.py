@@ -99,7 +99,8 @@ def list_areas(
     ponytail: `limit` only bounds the response (~2.5k gminas fit); search/pagination is
     TASK-12.2's picker. The list changes rarely, so clients/CDN may cache it 5 min."""
     response.headers["Cache-Control"] = "public, max-age=300"
-    stmt = select(GeoArea).order_by(GeoArea.name, GeoArea.id).limit(limit)
+    stmt = select(GeoArea).where(GeoArea.place_id.is_(None))  # places: /places, ADR-029
+    stmt = stmt.order_by(GeoArea.name, GeoArea.id).limit(limit)
     if active_only:
         stmt = stmt.where(GeoArea.weather_polling_active.is_(True))
     return AreasResponse(areas=[_area_out(a) for a in db.execute(stmt).scalars().all()])
@@ -137,7 +138,11 @@ def geo_locate(body: GeoResolveRequest, db: Session = Depends(get_db)) -> GeoLoc
                     assignment_method=METHOD_POINT_IN_POLYGON,
                     distance_km=None,
                 )
-        active = db.execute(select(GeoArea).where(GeoArea.weather_polling_active.is_(True)))
+        active = db.execute(
+            select(GeoArea).where(
+                GeoArea.weather_polling_active.is_(True), GeoArea.place_id.is_(None)
+            )
+        )
         by_id = {a.id: a for a in active.scalars().all()}
     except SQLAlchemyError:
         # Constant message, no exc_info: the driver error would carry the coordinates (ADR-002).

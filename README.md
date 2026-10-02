@@ -86,6 +86,19 @@ hydrologicznych IMGW (jedno wywołanie API, bez flag do wyboru stacji — ADR-00
 `imgw_warningshydro.ingest` — ostrzeżenia hydrologiczne, tym samym wzorcem
 jednego wywołania bez flag (Alert, nie Measurement — rule #7, ADR-009).
 
+### Rejestr miejscowości (wybór dowolnej miejscowości, ADR-029)
+
+Jednorazowo i potem np. raz na kwartał, na maszynie z dostępem do internetu (produkcyjny VPS):
+
+```bash
+docker compose exec api python -m app.connectors.geonames_places.ingest --download
+# albo z własnego pliku: ... --file /data/PL.zip --admin1-file ... --admin2-file ...
+# podgląd bez bazy: ... --download --validate-only --sample Gliwice
+```
+
+Źródło: GeoNames (CC BY 4.0, atrybucja w odpowiedziach `/places`), URL bazowy w
+`GEONAMES_BASE_URL`. Bez importu `GET /api/v1/places` zwraca pustą listę.
+
 ### Mobile (Expo)
 
 ```bash
