@@ -66,6 +66,15 @@ describe("missingList", () => {
     ).toBe("wiatr (nieaktualne), PM10 (brak)");
   });
 
+  it("labels the optional NO2/O3/storm groups", () => {
+    expect(
+      missingList([
+        { group: "no2", params: ["no2"], status: "MISSING", core: false, blocking: true },
+        { group: "storm", params: ["weather_code"], status: "STALE", core: false, blocking: true },
+      ]),
+    ).toBe("NO₂ (brak), burza (nieaktualne)");
+  });
+
   it("tolerates garbage", () => {
     expect(missingList(undefined)).toBe("");
     expect(missingList([null, 3])).toBe("");

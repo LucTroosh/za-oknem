@@ -8,6 +8,7 @@ import itertools
 import math
 from dataclasses import fields, replace
 
+from app.air_index import BANDS
 from app.outdoor import (
     RULES,
     SEVERITY,
@@ -28,6 +29,9 @@ GOOD_VALUES = {
     "visibility": 20000.0,
     "pm25": 8.0,
     "pm10": 20.0,
+    "no2": 10.0,
+    "o3": 50.0,
+    "weather_code": 3.0,
 }
 
 
@@ -62,8 +66,10 @@ def test_threshold_boundaries_just_below_at_and_above():
 
         for edge, level, below in (
             (rule.moderate, Rating.MODERATE, None),
-            (rule.poor, Rating.POOR, Rating.MODERATE),
+            (rule.poor, Rating.POOR, None if rule.moderate is None else Rating.MODERATE),
         ):
+            if edge is None:
+                continue
             assert own_level(edge - sign * eps) == below, (rule.code, rule.param, edge)
             assert own_level(edge + sign * eps) == level, (rule.code, rule.param, edge)
             assert (own_level(edge) == level) is inclusive or own_level(edge) == below
@@ -245,11 +251,12 @@ def test_every_rule_is_documented_and_well_formed():
         assert rule.comparison in ("gt", "gte", "lt", "lte")
         higher_is_worse = rule.comparison in ("gt", "gte")
         # poor is strictly worse than moderate in the rule's own direction
-        assert (rule.poor > rule.moderate) if higher_is_worse else (rule.poor < rule.moderate)
+        if rule.moderate is not None:
+            assert (rule.poor > rule.moderate) if higher_is_worse else (rule.poor < rule.moderate)
     # Nothing claims an official source without a date.
     for rule in RULES:
         if "PRODUCT DECISION" not in rule.basis:
-            assert "verified 2026-09-30" in rule.basis
+            assert "verified 2026-09-30" in rule.basis or "verified 2026-10-02" in rule.basis
 
 
 def test_monotonicity_worsening_any_input_never_improves_the_result():
@@ -264,6 +271,9 @@ def test_monotonicity_worsening_any_input_never_improves_the_result():
         "visibility": [24000.0, 5000.0, 4999.0, 1000.0, 999.0, 50.0],
         "pm25": [0.0, 15.0, 15.1, 50.0, 50.1, 300.0],
         "pm10": [0.0, 45.0, 45.1, 120.0, 120.1, 500.0],
+        "no2": [0.0, 25.0, 25.1, 60.0, 60.1, 400.0],
+        "o3": [0.0, 100.0, 100.1, 120.0, 120.1, 400.0],
+        "weather_code": [0.0, 61.0, 94.0, 95.0, 96.0, 99.0],
     }
     base_variants = (
         GOOD_VALUES,
@@ -285,3 +295,78 @@ def test_monotonicity_worsening_any_input_never_improves_the_result():
                 if i + da < len(grid[a]) and j + db < len(grid[b]):
                     worse = make(**{a: grid[a][i + da], b: grid[b][j + db]})
                     assert SEVERITY[evaluate(worse).rating] >= SEVERITY[evaluate(cur).rating]
+
+
+# --- PR "NO2/O3/burza": optional groups from air_index.BANDS + WMO storm ----------
+
+
+def test_no2_o3_thresholds_come_from_air_index_bands_not_a_copy():
+    by_code = {r.code: r for r in RULES}
+    for code, band in (
+        ("PM25_HIGH", "PM2.5"),
+        ("PM10_HIGH", "PM10"),
+        ("NO2_HIGH", "NO2"),
+        ("O3_HIGH", "O3"),
+    ):
+        assert (by_code[code].moderate, by_code[code].poor) == (BANDS[band][1], BANDS[band][2])
+        assert by_code[code].comparison == "gt"  # right-closed edge, like air_index.level_for
+
+
+def test_no2_o3_exact_edges():
+    assert evaluate(make(no2=25.0)).rating is Rating.GOOD
+    assert evaluate(make(no2=25.1)).rating is Rating.MODERATE
+    assert evaluate(make(no2=60.0)).rating is Rating.MODERATE
+    assert evaluate(make(no2=60.1)).rating is Rating.POOR
+    assert evaluate(make(o3=100.0)).rating is Rating.GOOD
+    assert evaluate(make(o3=100.1)).rating is Rating.MODERATE
+    assert evaluate(make(o3=120.0)).rating is Rating.MODERATE
+    assert evaluate(make(o3=120.1)).rating is Rating.POOR
+    res = evaluate(make(no2=70.0, o3=110.0))
+    assert [(c, p, lv) for c, p, lv in codes(res)] == [
+        ("NO2_HIGH", "no2", Rating.POOR),
+        ("O3_HIGH", "o3", Rating.MODERATE),
+    ]
+    assert res.reasons[0].unit == "µg/m³"
+
+
+def test_missing_no2_o3_is_optional_good_but_reported():
+    # A station without NO2/O3 sensors (common in GIOŚ) must not make every verdict UNKNOWN.
+    result = evaluate(make(no2=None, o3=None))
+    assert result.rating is Rating.GOOD
+    assert {(m.group, m.params, m.core, m.blocking) for m in result.missing} == {
+        ("no2", ("no2",), False, True),
+        ("o3", ("o3",), False, True),
+    }
+
+
+def test_stale_no2_is_not_used():
+    result = replace(make(), no2=Reading(500.0, "STALE"))
+    assert evaluate(result).rating is Rating.GOOD
+    assert [(m.group, m.status) for m in evaluate(result).missing] == [("no2", "STALE")]
+
+
+def test_no2_o3_do_not_stand_in_for_pm_in_the_core_air_group():
+    # Without PM the core air group is unusable even if NO2/O3 are present.
+    result = evaluate(make(pm25=None, pm10=None))
+    assert result.rating is Rating.UNKNOWN
+    assert [(m.group, m.blocking) for m in result.missing] == [("air", True)]
+    # ...but a bad NO2 still stands as bad news.
+    assert evaluate(make(pm25=None, pm10=None, no2=80.0)).rating is Rating.POOR
+
+
+def test_storm_codes_are_poor_only():
+    for code in (95.0, 96.0, 97.0, 99.0):
+        res = evaluate(make(weather_code=code))
+        assert res.rating is Rating.POOR, code
+        assert codes(res) == [("STORM", "weather_code", Rating.POOR)]
+        assert (res.reasons[0].threshold, res.reasons[0].comparison) == (95.0, "gte")
+    for code in (0.0, 45.0, 65.0, 82.0, 94.0):
+        assert evaluate(make(weather_code=code)).rating is Rating.GOOD, code
+
+
+def test_missing_weather_code_is_optional_and_stale_storm_is_ignored():
+    res = evaluate(make(weather_code=None))
+    assert res.rating is Rating.GOOD
+    assert [(m.group, m.core) for m in res.missing] == [("storm", False)]
+    stale = evaluate(replace(make(), weather_code=Reading(95.0, "STALE")))
+    assert stale.rating is Rating.GOOD and stale.reasons == ()

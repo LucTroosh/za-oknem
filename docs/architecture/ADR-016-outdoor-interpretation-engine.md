@@ -114,3 +114,42 @@ przy samej klasyfikacji. Wejścia już mamy: `WeatherSnapshot`
   (testy liczą się z tabeli `RULES`, więc same brzegi przesuną się razem).
 - Brak zmian w modelach, migracjach, `dashboard.py` i mobile.
 - Rozszerzenie (np. śnieg, pyłki, NO2/O3) = nowe pola `OutdoorInputs` + reguły.
+
+## Addendum 2026-10-02: NO₂, O₃ i burza (WMO 95–99) jako wejścia silnika
+
+**Context.** Audyt: GIOŚ dostarcza NO₂/O₃ i liczy je EAQI (ADR-015), ale silnik „Na dwór”
+widział tylko PM; `weather_code` (burza) leżał w `WeatherSnapshot`, a nie w silniku.
+Rozszerzenie było zapowiedziane w Consequences („nowe pola `OutdoorInputs` + reguły”).
+
+**Decision.**
+1. `OutdoorInputs` +`no2`, `o3`, `weather_code`. Reguły `NO2_HIGH`, `O3_HIGH`, `STORM` w tabeli
+   `RULES` (jedno miejsce, jak dotąd); `evaluate()` bez zmiany semantyki.
+2. **Progi NO₂/O₃ (i PM) nie są kopiowane**: `RULES` czyta `air_index.BANDS` — MODERATE powyżej
+   górnej krawędzi pasma Fair (`BANDS[p][1]`), POOR powyżej górnej krawędzi Moderate
+   (`BANDS[p][2]`), czyli tak samo jak dla PM (EAQI Poor+ → POOR). Dziś: NO₂ >25 / >60 µg/m³,
+   O₃ >100 / >120 µg/m³. Mapowanie na GOOD/MODERATE/POOR to nadal decyzja produktowa; test
+   pilnuje, że reguły = `BANDS`. Porównanie `gt` (prawostronnie domknięte, jak `level_for`).
+3. **NO₂ i O₃ to grupy OPCJONALNE (`core=False`), osobne (`no2`, `o3`), nie część `air`.**
+   Uzasadnienie: wiele stacji GIOŚ nie ma czujnika NO₂/O₃ (ADR-015 zakłada tylko, że PM jest
+   „zwykle”). Gdyby były rdzeniowe, brak jednego czujnika dawałby `UNKNOWN` dla wszystkich
+   takich obszarów — wynik bezużyteczny i niesprawiedliwy względem stacji z pełnym zestawem
+   (sprzeczne z duchem reguły #1). Opcjonalność zachowuje bezpieczeństwo: **zła wartość stoi**
+   (NO₂ >60 → POOR nawet gdy reszta brakuje), a brak/STALE/niewłaściwa jednostka trafia do
+   `missing[]` (`core=false`, `blocking=true`), więc UI mówi uczciwie „nie uwzględniono NO₂”.
+   Nie wchodzą do grupy `air`, bo wtedy obecny NO₂ odblokowywałby GOOD bez PM (grupa jest
+   spełniona przez dowolne wejście). Rdzeń powietrza = PM2.5 lub PM10, bez zmian.
+4. **`STORM`**: `weather_code` ≥ 95 → POOR (Open-Meteo, kody WMO: 95 burza, 96 z lekkim gradem,
+   99 z silnym gradem — <https://open-meteo.com/en/docs>, zweryfikowane 2026-10-02). Brak
+   poziomu MODERATE: `Rule.moderate` może być `None` (reguła tylko POOR). Grupa `storm`
+   opcjonalna (kod pogody pochodzi z `current`, który i tak jest częścią snapshotu).
+   Przypisanie „burza → POOR” = decyzja produktowa. Mgłę (45/48) świadomie pomijamy —
+   pokrywa ją `visibility`.
+5. **Jednostki**: dashboard podaje silnikowi NO₂/O₃ tylko w `µg/m³` (jak PM), `weather_code`
+   tylko z jednostką `wmo code`; inna jednostka → odrzucona, nie konwertowana.
+6. **`coverage=regional` (ADR-029)** nadal nie wchodzi do silnika: dashboard podaje pusty zestaw
+   powietrza, więc NO₂/O₃ z odległej stacji też są pominięte (`missing[]`).
+
+**Consequences.** Kształt odpowiedzi API bez zmian (`group`/`param`/`code` to stringi) — kontrakt
+OpenAPI nie wymaga regeneracji. `missing[]` dla obszarów bez NO₂/O₃/kodu pogody dostaje
+nieblokujące wpisy `no2`/`o3`/`storm` (mobile pokazuje je w „Nie uwzględniono”). Kalibracja =
+edycja `RULES` lub `air_index.BANDS`.

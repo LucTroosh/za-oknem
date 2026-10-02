@@ -12,7 +12,7 @@ Rule of the game (ADR-016):
     factors stands regardless of what is missing (bad news is not cancelled by
     absent data). Everything unusable is reported in `missing`.
 
-Expected units (Open-Meteo defaults, GIOŚ): degC, mm, km/h, UV index, m, ug/m3.
+Expected units (Open-Meteo defaults, GIOŚ): degC, mm, km/h, UV index, m, ug/m3, WMO code.
 
 THRESHOLDS: every number lives in RULES below and is labelled either with a
 verified source (+ verification date) or as a PRODUCT DECISION "do kalibracji" —
@@ -24,6 +24,8 @@ import operator
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
+
+from app.air_index import BANDS
 
 # Freshness values (rule #8) that may feed a verdict. STALE / UNAVAILABLE /
 # anything else is treated as missing.
@@ -75,6 +77,9 @@ class OutdoorInputs:
     visibility: Reading | None = None
     pm25: Reading | None = None
     pm10: Reading | None = None
+    no2: Reading | None = None
+    o3: Reading | None = None
+    weather_code: Reading | None = None  # WMO code (Open-Meteo `current`), unit "wmo code"
 
 
 @dataclass(frozen=True)
@@ -83,7 +88,7 @@ class Rule:
     group: str  # factor group; a core group with no usable input blocks GOOD
     param: str  # OutdoorInputs field
     comparison: str  # gt | gte | lt | lte — "value <comparison> threshold" = worse
-    moderate: float
+    moderate: float | None  # None = the rule has no MODERATE band (POOR only, e.g. STORM)
     poor: float
     unit: str
     core: bool
@@ -116,6 +121,11 @@ _UV = "WHO UV index edges (High=6, Very high=8), verified 2026-09-30; mapping = 
 # Mapping to outdoor comfort is a PRODUCT DECISION; Beaufort describes sustained
 # wind, so using force 7/8 edges for GUSTS is an orientation only.
 _BFT = "Beaufort class edges, verified 2026-09-30; mapping to outdoor comfort = product decision"
+# --- Verified code meaning: Open-Meteo docs, WMO weather interpretation codes
+# https://open-meteo.com/en/docs (verified 2026-10-02): 95 Thunderstorm, 96 Thunderstorm
+# with slight hail, 99 Thunderstorm with heavy hail.
+# Any thunderstorm code (>= 95) -> POOR is a PRODUCT DECISION (no MODERATE band).
+_WMO = "Open-Meteo WMO codes 95/96/99 = thunderstorm, verified 2026-10-02; POOR = product decision"
 # --- Everything else: PRODUCT DECISION, do kalibracji (no source verified).
 _PD = "PRODUCT DECISION - do kalibracji, no verified source"
 
@@ -126,13 +136,22 @@ _THERMAL = [
 ]
 
 RULES: tuple[Rule, ...] = (
-    Rule("PM25_HIGH", "air", "pm25", "gt", 15.0, 50.0, "µg/m³", True, _EEA),
-    Rule("PM10_HIGH", "air", "pm10", "gt", 45.0, 120.0, "µg/m³", True, _EEA),
+    # Cut-points come from air_index.BANDS (one table, ADR-015): MODERATE above the upper
+    # edge of Fair, POOR above the upper edge of Moderate (= EAQI Poor starts).
+    Rule(
+        "PM25_HIGH", "air", "pm25", "gt", BANDS["PM2.5"][1], BANDS["PM2.5"][2], "µg/m³", True, _EEA
+    ),
+    Rule("PM10_HIGH", "air", "pm10", "gt", BANDS["PM10"][1], BANDS["PM10"][2], "µg/m³", True, _EEA),
+    # NO2 / O3 are OPTIONAL groups (ADR-016 addendum): many GIOŚ stations have no such
+    # sensor, and a missing optional sensor must not turn every verdict into UNKNOWN.
+    Rule("NO2_HIGH", "no2", "no2", "gt", BANDS["NO2"][1], BANDS["NO2"][2], "µg/m³", False, _EEA),
+    Rule("O3_HIGH", "o3", "o3", "gt", BANDS["O3"][1], BANDS["O3"][2], "µg/m³", False, _EEA),
     Rule("PRECIPITATION", "precipitation", "precipitation", "gte", 0.1, 2.5, "mm", True, _PD),
     Rule("WIND_STRONG", "wind", "wind_speed_10m", "gte", 29.0, 39.0, "km/h", True, _BFT),
     Rule("GUSTS_STRONG", "gusts", "wind_gusts_10m", "gte", 50.0, 62.0, "km/h", False, _BFT),
     Rule("UV_HIGH", "uv", "uv_index", "gte", 6.0, 8.0, "", False, _UV),
     Rule("LOW_VISIBILITY", "visibility", "visibility", "lt", 5000.0, 1000.0, "m", False, _PD),
+    Rule("STORM", "storm", "weather_code", "gte", None, 95.0, "wmo code", False, _WMO),
     *_THERMAL,
 )
 
@@ -195,7 +214,7 @@ def evaluate(inputs: OutdoorInputs, rules: tuple[Rule, ...] = RULES) -> OutdoorR
         cmp = _CMP[rule.comparison]
         if cmp(value, rule.poor):
             level, threshold = Level.POOR, rule.poor
-        elif cmp(value, rule.moderate):
+        elif rule.moderate is not None and cmp(value, rule.moderate):
             level, threshold = Level.MODERATE, rule.moderate
         else:
             continue
