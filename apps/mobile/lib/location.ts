@@ -17,6 +17,9 @@ export type ActiveLocation = {
   label: string;
   latitude: number;
   longitude: number;
+  // The registry's attribution string (GeoNames, CC BY 4.0) sent with the place; shown verbatim
+  // under Settings > Źródła. null for seeded cities and for records saved before this field.
+  attribution: string | null;
 };
 
 export type Settings = { onboardingDone: boolean; location: ActiveLocation | null };
@@ -37,7 +40,8 @@ function parseLocation(x: unknown): ActiveLocation | null {
   const { geoAreaId, placeId, name, label, latitude, longitude } = x;
   if (!posInt(geoAreaId) || !text(name) || !text(label) || !inRange(latitude, 90) || !inRange(longitude, 180)) return null;
   if (placeId !== null && !posInt(placeId)) return null;
-  return { geoAreaId, placeId, name, label, latitude, longitude };
+  const attribution = text(x.attribution) ? x.attribution : null;
+  return { geoAreaId, placeId, name, label, latitude, longitude, attribution };
 }
 
 // Anything unreadable -> defaults (the user sees Welcome again, never a crash). A readable
@@ -55,7 +59,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
   return { onboardingDone: data.onboardingDone === true, location: parseLocation(data.location) };
 }
 
-export function locationFromPlace(place: PlaceOut, area: AreaOut): ActiveLocation {
+export function locationFromPlace(place: PlaceOut, area: AreaOut, attribution: string | null): ActiveLocation {
   return {
     geoAreaId: area.geo_area_id,
     placeId: place.place_id,
@@ -63,6 +67,7 @@ export function locationFromPlace(place: PlaceOut, area: AreaOut): ActiveLocatio
     label: place.label,
     latitude: place.latitude,
     longitude: place.longitude,
+    attribution,
   };
 }
 
@@ -74,7 +79,25 @@ export function locationFromArea(area: AreaOut): ActiveLocation {
     label: area.name,
     latitude: area.latitude,
     longitude: area.longitude,
+    attribution: null,
   };
+}
+
+// App start: the activation answer is the authority on the place (a later GeoNames import may
+// have corrected the name, a restored database may have recreated the area under another id).
+// Replaces the remembered location only if it is still that place; same object back when
+// nothing changed (no needless write).
+export function refreshLocation(s: Settings, placeId: number, next: ActiveLocation): Settings {
+  const cur = s.location;
+  if (cur === null || cur.placeId !== placeId) return s;
+  const same =
+    cur.geoAreaId === next.geoAreaId &&
+    cur.name === next.name &&
+    cur.label === next.label &&
+    cur.latitude === next.latitude &&
+    cur.longitude === next.longitude &&
+    cur.attribution === next.attribution;
+  return same ? s : { ...s, location: next };
 }
 
 // Forget the location only if it is still `geoAreaId` (same object back otherwise): a late

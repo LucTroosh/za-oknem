@@ -58,7 +58,7 @@ describe("debounce", () => {
 
 describe("interpretActivation", () => {
   it("active -> proceed, not limited", () => {
-    expect(interpretActivation(response("active") as never)).toEqual({ kind: "proceed", area, limited: false });
+    expect(interpretActivation(response("active") as never)).toEqual({ kind: "proceed", place, area, attribution: "GeoNames", limited: false });
   });
   it("capacity_reached / budget_exhausted / inactive -> proceed, limited (not an error)", () => {
     for (const p of ["capacity_reached", "budget_exhausted", "inactive"]) {
@@ -79,7 +79,7 @@ describe("activatePlace", () => {
   it("POSTs and proceeds", async () => {
     const f = vi.fn().mockResolvedValue(ok(response("active")));
     vi.stubGlobal("fetch", f);
-    await expect(activatePlace(1)).resolves.toEqual({ kind: "proceed", area, limited: false });
+    await expect(activatePlace(1)).resolves.toEqual({ kind: "proceed", place, area, attribution: "GeoNames", limited: false });
     expect(f.mock.calls[0][0]).toContain("/api/v1/places/1/activate");
     expect(f.mock.calls[0][1].method).toBe("POST");
   });
@@ -87,7 +87,7 @@ describe("activatePlace", () => {
     for (const status of [429, 503]) {
       const f = vi.fn().mockResolvedValueOnce(fail(status)).mockResolvedValueOnce(ok(response("inactive")));
       vi.stubGlobal("fetch", f);
-      await expect(activatePlace(1)).resolves.toEqual({ kind: "proceed", area, limited: true });
+      await expect(activatePlace(1)).resolves.toEqual({ kind: "proceed", place, area, attribution: "GeoNames", limited: true });
       expect(f.mock.calls[1][0]).toMatch(/\/api\/v1\/places\/1$/);
     }
   });

@@ -4,6 +4,11 @@
 const isObject = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 
+// Adds the place registry's attribution (GeoNames, shown verbatim) when a place is chosen.
+export function withPlaceSource(sources: string[], attribution: string | null | undefined): string[] {
+  return attribution && attribution.trim() !== "" && !sources.includes(attribution) ? [...sources, attribution] : sources;
+}
+
 // `extra` = other blocks that carry an `attribution` (water levels, pollen calendar).
 export function collectAttributions(dashboard: unknown, ...extra: unknown[]): string[] {
   const blocks: unknown[] = [];

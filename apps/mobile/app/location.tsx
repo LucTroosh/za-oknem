@@ -62,7 +62,7 @@ export default function LocationScreen() {
         setBusyId(null);
         return;
       }
-      choose(locationFromPlace(place, result.area));
+      choose(locationFromPlace(result.place, result.area, result.attribution));
       leave();
     } catch {
       // aborted (screen closed): nothing to do

@@ -1,7 +1,7 @@
 // Place search + activation (ADR-029) as plain functions: query rules, the debouncer, the
 // honest copy for every outcome, and the activation call itself. Screens only lay it out.
 // The client never calls a geocoder: names come from our own GET /api/v1/places (rule #14).
-import type { AreaOut, PlaceAreaResponse } from "../../../packages/api-contract/schema";
+import type { AreaOut, PlaceAreaResponse, PlaceOut } from "../../../packages/api-contract/schema";
 import { ApiError, apiGet, apiPost } from "./api";
 
 export const MIN_QUERY = 2;
@@ -57,12 +57,12 @@ export function activationFailureMessage(err: unknown): string {
 export type Activation =
   // `limited`: the area exists but weather is not polled (capacity_reached / budget_exhausted /
   // inactive): continue to Start, which says so (POLLING_OFF_NOTICE) from the live dashboard.
-  | { kind: "proceed"; area: AreaOut; limited: boolean }
+  | { kind: "proceed"; place: PlaceOut; area: AreaOut; attribution: string | null; limited: boolean }
   | { kind: "failed"; message: string };
 
 export function interpretActivation(res: PlaceAreaResponse): Activation {
   if (!res.area) return { kind: "failed", message: activationFailureMessage(null) };
-  return { kind: "proceed", area: res.area, limited: res.polling !== "active" };
+  return { kind: "proceed", place: res.place, area: res.area, attribution: res.attribution || null, limited: res.polling !== "active" };
 }
 
 // POST /places/{id}/activate; on 429/503 the area may already exist from an earlier choice,

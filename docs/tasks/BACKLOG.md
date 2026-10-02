@@ -853,8 +853,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       latest-wins z anulowaniem), `activate` przy wyborze i przy każdym otwarciu aplikacji,
       429/503 → odczyt `GET /places/{id}` (obszar istnieje ⇒ dalej, inaczej uczciwy błąd),
       `capacity_reached`/`budget_exhausted` ⇒ Start tłumaczy brak pogody i pyłków, coverage
-      powietrza i opis siatki na Start. (4) częściowo: atrybucja GeoNames (`attribution` z
-      `/places`) pod wynikami wyszukiwania; **brak** jej na ekranie Źródła (TASK-12.6).
+      powietrza i opis siatki na Start. (4) atrybucja GeoNames (`attribution` z odpowiedzi
+      `/places` i `activate`) pod wynikami wyszukiwania oraz, zapamiętana z lokalizacją, na liście
+      „Źródła danych” w Ustawieniach (ekran Źródła docelowo: TASK-12.6). Przy starcie
+      aplikacji odpowiedź `activate` odświeża zapamiętaną nazwę/etykietę/`geo_area_id`.
       Ekran nie ma „Użyj mojej lokalizacji” (TASK-12.3). Do zrobienia: heartbeat instalacji
       (TASK-12.2 a–c), import GeoNames na VPS (bez niego wyszukiwarka zwraca „Nie
       znaleziono…”, działa lista miast z `/areas`).

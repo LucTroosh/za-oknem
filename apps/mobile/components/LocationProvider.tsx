@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { type ActiveLocation, DEFAULT_SETTINGS, type Settings, dropLocationIf } from "../lib/location";
+import { type ActiveLocation, DEFAULT_SETTINGS, type Settings, dropLocationIf, locationFromPlace, refreshLocation } from "../lib/location";
 import { activatePlace } from "../lib/places";
 import { loadSettings, saveSettings } from "../lib/storage";
 
@@ -44,9 +44,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setState((cur) => ({ ...cur, ready: true, settings: s }));
       // Opening the app with a chosen place refreshes its activation TTL (ADR-029). Best effort:
       // the dashboard reads our database either way, a failure here changes nothing.
-      if (s.location?.placeId != null) {
-        activatePlace(s.location.placeId)
-          .then((r) => !cancelled && r.kind === "proceed" && setActivations((n) => n + 1))
+      const placeId = s.location?.placeId;
+      if (placeId != null) {
+        activatePlace(placeId)
+          .then((r) => {
+            if (cancelled || r.kind !== "proceed") return;
+            // The answer is the authority: refresh name / label / area id before the reload.
+            const next = locationFromPlace(r.place, r.area, r.attribution);
+            setState((cur) => {
+              const settings = refreshLocation(cur.settings, placeId, next);
+              return settings === cur.settings ? cur : { ...cur, settings };
+            });
+            setActivations((n) => n + 1);
+          })
           .catch(() => undefined);
       }
     });

@@ -8,7 +8,7 @@ import useDashboard from "../../components/DashboardProvider";
 import useLocation from "../../components/LocationProvider";
 import Screen from "../../components/Screen";
 import useTheme, { useThemedStyles } from "../../components/useTheme";
-import { collectAttributions } from "../../lib/sources";
+import { collectAttributions, withPlaceSource } from "../../lib/sources";
 import { MIN_TOUCH, type Theme, space, typo } from "../../lib/theme";
 
 // Location (one, local to the device) + about + data sources. Topics, theme and the privacy
@@ -20,7 +20,7 @@ export default function Settings() {
   const router = useRouter();
   const { settings } = useLocation();
   const { dashboard, hydro, calendar } = useDashboard();
-  const sources = collectAttributions(dashboard, hydro, calendar);
+  const sources = withPlaceSource(collectAttributions(dashboard, hydro, calendar), settings.location?.attribution);
   return (
     <Screen>
       <Card>

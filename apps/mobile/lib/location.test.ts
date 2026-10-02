@@ -8,10 +8,11 @@ import {
   locationFromArea,
   locationFromPlace,
   parseSettings,
+  refreshLocation,
   serializeSettings,
 } from "./location";
 
-const loc = { geoAreaId: 7, placeId: 42, name: "Nowa Wieś", label: "Nowa Wieś, pow. gliwicki, woj. śląskie", latitude: 50.3, longitude: 18.7 };
+const loc = { geoAreaId: 7, placeId: 42, name: "Nowa Wieś", label: "Nowa Wieś, pow. gliwicki, woj. śląskie", latitude: 50.3, longitude: 18.7, attribution: "Nazwy miejscowości: GeoNames (CC BY 4.0)" };
 const done: Settings = { onboardingDone: true, location: loc };
 
 describe("settings storage", () => {
@@ -42,11 +43,11 @@ describe("settings storage", () => {
 describe("location builders", () => {
   const area = { geo_area_id: 3, latitude: 50, longitude: 19, name: "Gliwice", slug: "gliwice", teryt_code: null, weather_polling_active: true };
   it("from a seeded area", () => {
-    expect(locationFromArea(area)).toEqual({ geoAreaId: 3, placeId: null, name: "Gliwice", label: "Gliwice", latitude: 50, longitude: 19 });
+    expect(locationFromArea(area)).toEqual({ geoAreaId: 3, placeId: null, name: "Gliwice", label: "Gliwice", latitude: 50, longitude: 19, attribution: null });
   });
   it("from a place + its activated area", () => {
     const place = { admin1_code: "83", admin2_code: null, kind: "PPL", label: loc.label, latitude: 50.3, longitude: 18.7, name: loc.name, place_id: 42, population: null };
-    expect(locationFromPlace(place, { ...area, geo_area_id: 7 })).toEqual(loc);
+    expect(locationFromPlace(place, { ...area, geo_area_id: 7 }, loc.attribution)).toEqual(loc);
   });
 });
 
@@ -80,5 +81,23 @@ describe("dropLocationIf", () => {
     expect(dropLocationIf(done, 3)).toBe(done);
     const none = { onboardingDone: true, location: null };
     expect(dropLocationIf(none, 7)).toBe(none);
+  });
+});
+
+describe("attribution and refreshLocation", () => {
+  it("a record saved before the attribution field parses with null", () => {
+    const old: Record<string, unknown> = { ...loc };
+    delete old.attribution;
+    expect(parseSettings(JSON.stringify({ v: 1, onboardingDone: true, location: old })).location?.attribution).toBeNull();
+  });
+  it("the activation answer replaces a stale name / area id of the same place", () => {
+    const next = { ...loc, geoAreaId: 99, label: "Nowa Wieś, pow. gliwicki, woj. śląskie (poprawka)" };
+    expect(refreshLocation(done, 42, next)).toEqual({ onboardingDone: true, location: next });
+  });
+  it("same data or another place: the very same object back", () => {
+    expect(refreshLocation(done, 42, { ...loc })).toBe(done);
+    expect(refreshLocation(done, 5, { ...loc, geoAreaId: 99 })).toBe(done);
+    const seeded = { onboardingDone: true, location: { ...loc, placeId: null } };
+    expect(refreshLocation(seeded, 42, loc)).toBe(seeded);
   });
 });
