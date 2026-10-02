@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DARK, LIGHT } from "./theme";
+import { DARK, LIGHT, contrastRatio } from "./theme";
 import {
   BOTTOM_VEIL,
   BRAND_GAP,
@@ -38,12 +38,22 @@ describe("welcome copy", () => {
   });
   it("domain colours: air green, weather amber, allergens light green, alerts red (never blue: reserved for Water)", () => {
     for (const p of [LIGHT, DARK]) {
-      expect(welcomeTintColors(p, "air")).toEqual({ fg: p.airFg, bg: p.airBg });
-      expect(welcomeTintColors(p, "weather")).toEqual({ fg: p.weatherFg, bg: p.weatherBg });
-      expect(welcomeTintColors(p, "pollen")).toEqual({ fg: p.pollenFg, bg: p.pollenBg });
-      expect(welcomeTintColors(p, "danger")).toEqual({ fg: p.danger, bg: p.dangerBg });
+      expect(welcomeTintColors(p, "danger", p === LIGHT ? "light" : "dark")).toEqual({ fg: p.danger, bg: p.dangerBg });
     }
+    // dark mode keeps the shared tints
+    expect(welcomeTintColors(DARK, "air", "dark")).toEqual({ fg: DARK.airFg, bg: DARK.airBg });
+    expect(welcomeTintColors(DARK, "weather", "dark")).toEqual({ fg: DARK.weatherFg, bg: DARK.weatherBg });
     expect(WELCOME_DOMAINS).toHaveLength(4); // no Water on Welcome yet
+  });
+  it("light mode icons are stronger than the shared pastel tints (Weather above all)", () => {
+    for (const tint of ["air", "weather", "pollen"] as const) {
+      const strong = contrastRatio(welcomeTintColors(LIGHT, tint, "light").fg, welcomeTintColors(LIGHT, tint, "light").bg);
+      const shared = welcomeTintColors(LIGHT, tint, "dark");
+      expect(strong, tint).toBeGreaterThan(contrastRatio(shared.fg, shared.bg));
+      expect(strong, tint).toBeGreaterThanOrEqual(7); // AAA for the symbol on its circle
+    }
+    const w = welcomeTintColors(LIGHT, "weather", "light");
+    expect(contrastRatio(w.bg, LIGHT.surface)).toBeGreaterThan(contrastRatio(LIGHT.weatherBg, LIGHT.surface));
   });
   it("dark CTA is calmer than the mint accent but keeps a dark label", () => {
     expect(WELCOME_CTA.dark(DARK).bg).not.toBe(DARK.accent);
@@ -62,8 +72,9 @@ describe("welcome typography", () => {
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeGreaterThanOrEqual(16);
     expect(WELCOME_TYPE.eyebrow.fontSize).toBeLessThanOrEqual(18);
     expect(WELCOME_TYPE.brand.fontSize).toBeGreaterThan(WELCOME_TYPE.eyebrow.fontSize * 2);
-    expect(WELCOME_TYPE.brand.fontFamily).toBe("NunitoSans_800ExtraBold");
-    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("NunitoSans_600SemiBold");
+    expect(WELCOME_TYPE.brand.fontFamily).toBe("Nunito_800ExtraBold");
+    expect(WELCOME_TYPE.eyebrow.fontFamily).toBe("Nunito_600SemiBold");
+    expect(WELCOME_TYPE.label.fontFamily).toBe("Nunito_700Bold");
     expect(BRAND_GAP).toBe(10); // +6 over the previous 4
   });
 });

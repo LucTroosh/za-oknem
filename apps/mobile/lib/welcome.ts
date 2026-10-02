@@ -11,12 +11,14 @@ export const WELCOME_COPY = {
   privacy: "Bez konta. Bez reklam.",
 } as const;
 
-// Welcome typography: Nunito Sans (rounded, friendly, close to the domain labels; OFL-1.1) for the two
-// brand lines only. A small eyebrow above, the brand name below as the strongest text on the screen.
-// Family names are the ones @expo-google-fonts/nunito-sans registers; weights come from the family.
+// Welcome typography: Nunito (rounded terminals, soft and friendly; OFL-1.1) for the two brand lines
+// and the four domain labels only - the rest of the app keeps the system font. A small semibold
+// eyebrow above, the brand name below as the strongest text on the screen. Family names are the ones
+// @expo-google-fonts/nunito registers; weights come from the family, not fontWeight.
 export const WELCOME_TYPE = {
-  eyebrow: { fontFamily: "NunitoSans_600SemiBold", fontSize: 17, lineHeight: 24 },
-  brand: { fontFamily: "NunitoSans_800ExtraBold", fontSize: 42, lineHeight: 50 },
+  eyebrow: { fontFamily: "Nunito_600SemiBold", fontSize: 17, lineHeight: 24 },
+  brand: { fontFamily: "Nunito_800ExtraBold", fontSize: 42, lineHeight: 50 },
+  label: { fontFamily: "Nunito_700Bold", fontSize: 13, lineHeight: 18 },
 } as const;
 export const BRAND_GAP = 10; // eyebrow -> brand (was 4)
 
@@ -33,8 +35,18 @@ export const WELCOME_DOMAINS = [
 
 export type WelcomeTint = (typeof WELCOME_DOMAINS)[number]["tint"];
 
-export function welcomeTintColors(p: Palette, tint: WelcomeTint): { fg: string; bg: string } {
-  return tint === "danger" ? toneColors(p, "danger") : domainColors(p, tint);
+// Light mode only: the shared domain tints are too pastel on the white capsule (Weather above all),
+// so Welcome uses a stronger foreground (dark green / dark amber-brown) on a slightly stronger soft
+// background. Same semantic palette; alerts keep the red treatment; dark mode keeps the shared tints.
+const LIGHT_TINTS = {
+  air: { fg: "#14622a", bg: "#cdeedb" },
+  weather: { fg: "#6b3f00", bg: "#ffe19a" },
+  pollen: { fg: "#2f5d00", bg: "#d9efb0" },
+} as const;
+
+export function welcomeTintColors(p: Palette, tint: WelcomeTint, scheme: "light" | "dark" = "dark"): { fg: string; bg: string } {
+  if (tint === "danger") return toneColors(p, "danger");
+  return scheme === "light" ? LIGHT_TINTS[tint] : domainColors(p, tint);
 }
 
 // One row of four at normal font size; 2 x 2 once the system font is enlarged so labels never clip.
@@ -147,7 +159,7 @@ export function welcomeContrasts(p: Palette, scheme: "light" | "dark"): { name: 
   out.push({ name: "CTA label", ratio: contrastRatio(cta.fg, cta.bg) });
   // The capsule is a solid surface (not photo-dependent): label + icons on it.
   for (const tint of WELCOME_DOMAINS.map((d) => d.tint)) {
-    const c = welcomeTintColors(p, tint);
+    const c = welcomeTintColors(p, tint, scheme);
     out.push({ name: `icon ${tint}`, ratio: contrastRatio(c.fg, c.bg) });
   }
   return out;

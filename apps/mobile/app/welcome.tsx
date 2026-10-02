@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { NunitoSans_600SemiBold } from "@expo-google-fonts/nunito-sans/600SemiBold";
-import { NunitoSans_800ExtraBold } from "@expo-google-fonts/nunito-sans/800ExtraBold";
+import { Nunito_600SemiBold } from "@expo-google-fonts/nunito/600SemiBold";
+import { Nunito_700Bold } from "@expo-google-fonts/nunito/700Bold";
+import { Nunito_800ExtraBold } from "@expo-google-fonts/nunito/800ExtraBold";
 import { useFonts } from "expo-font";
 import { Redirect, useNavigation, useRouter } from "expo-router";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -37,7 +38,7 @@ import {
 // text readable over the sky and blend the bottom edge; dark mode only changes the veils and
 // surfaces, not the photo. Says nothing about water (no source yet).
 const HERO = require("../assets/za-oknem/backgrounds/welcome-hero-1242x2688.jpg");
-const LOGO = require("../assets/za-oknem/brand/logo-mark-flat-512.png");
+const LOGO = require("../assets/za-oknem/brand/logo-mark-512.png");
 
 function Veil({ color, alphas, style }: { color: (a: number) => string; alphas: number[]; style: object }) {
   return (
@@ -58,7 +59,7 @@ export default function Welcome() {
   const { settings, startOnboarding } = useLocation();
   const navigation = useNavigation();
   // Local font files: loads in a few ms; until then (or if it fails) the plain background / system font.
-  const [fontsLoaded, fontError] = useFonts({ NunitoSans_600SemiBold, NunitoSans_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold });
   const redirect = entryRedirect(settings, "welcome");
   // Welcome stays in the stack under Location (so Back returns here). When the location is chosen
   // onboardingDone flips while Welcome is hidden underneath: it must not redirect from the
@@ -96,7 +97,7 @@ export default function Welcome() {
           {/* One soft capsule, four domains; read as one line by TalkBack (icons are decorative). */}
           <View style={[styles.capsule, { backgroundColor: capsuleColor(colors, scheme) }]} accessible accessibilityLabel={WELCOME_DOMAINS.map((d) => d.label).join(", ")}>
             {WELCOME_DOMAINS.map((d) => {
-              const c = welcomeTintColors(colors, d.tint);
+              const c = welcomeTintColors(colors, d.tint, scheme);
               return (
                 <View key={d.label} style={[styles.domain, { width: welcomeDomainColumns(fontScale) === 4 ? "25%" : "50%" }]}>
                   <View style={[styles.iconCircle, { backgroundColor: c.bg }]}>
@@ -142,7 +143,7 @@ const createStyles = (t: Theme) =>
     content: { flexGrow: 1, justifyContent: "space-between" },
     top: { alignItems: "center", paddingHorizontal: space.xl },
     logo: { width: 76, height: 76, marginBottom: space.lg },
-    // Weight comes from the font family (Nunito Sans), so no fontWeight; the system font is the fallback
+    // Weight comes from the font family (Nunito), so no fontWeight; the system font is the fallback
     // when the font fails to load.
     eyebrow: { ...WELCOME_TYPE.eyebrow, color: t.colors.text, textAlign: "center" },
     brand: { ...WELCOME_TYPE.brand, color: t.colors.text, textAlign: "center", marginTop: BRAND_GAP },
@@ -159,7 +160,7 @@ const createStyles = (t: Theme) =>
     },
     domain: { alignItems: "center", gap: space.xs },
     iconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-    domainText: { ...typo.caption, fontWeight: "600", color: t.colors.text, textAlign: "center" },
+    domainText: { ...WELCOME_TYPE.label, color: t.colors.text, textAlign: "center" },
     cta: { marginTop: space.xl },
     ctaButton: { minHeight: 52, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", paddingHorizontal: space.xl },
     ctaText: { ...typo.cardTitle, textAlign: "center" },
