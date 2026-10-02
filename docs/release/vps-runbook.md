@@ -42,10 +42,10 @@ pobiera sam przy pierwszym żądaniu (port 80 musi być otwarty).
 ## 4. Dane początkowe
 ```
 docker compose -f docker-compose.prod.yml exec api python -m app.connectors.geonames_places.ingest --download
-docker compose -f docker-compose.prod.yml exec api python -m app.connectors.gios.ingest
+docker compose -f docker-compose.prod.yml exec api python -c "from app.scheduler import run_gios; print(run_gios())"
 docker compose -f docker-compose.prod.yml exec api python -m app.connectors.open_meteo_pollen.ingest
 ```
-(`scheduler` odpytuje źródła sam; ręczne uruchomienia tylko przyspieszają pierwsze dane.) Opcjonalnie granice
+(`scheduler` odpytuje źródła sam; ręczne uruchomienia tylko przyspieszają pierwsze dane. GIOŚ uruchamiamy tą samą funkcją co scheduler — `gios.ingest` bez argumentów wymaga `--station-id` i obsługuje jedną stację.) Opcjonalnie granice
 gmin: `docs/data/prg-import.md`.
 
 ## 5. Test po wdrożeniu

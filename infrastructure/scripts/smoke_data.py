@@ -69,7 +69,7 @@ if area:
     if d:
         air = d.get("air")
         if not air:
-            say("FAIL", "air", f"no station with data (coverage: {d['coverage']['air']}) - run: python -m app.connectors.gios.ingest")
+            say("FAIL", "air", f"no station with data (coverage: {d['coverage']['air']}) - run: docker compose exec api python -c \"from app.scheduler import run_gios; print(run_gios())\" (or wait for the scheduler)")
         else:
             params = air["params"]
             worst = min((p["freshness"] for p in params.values()), key=["FRESH", "RECENT", "STALE"].index) if params else None
