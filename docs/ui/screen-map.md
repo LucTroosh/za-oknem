@@ -48,8 +48,8 @@ Root Stack (app/_layout.tsx)
 │   ├── Start           S1   🟡 jest jako „Dziś” (app/(tabs)/index.tsx) — do przebudowy TASK-12.18
 │   │     [nagłówek] nazwa miejscowości ⌄ ──────────► S4 Zmiana lokalizacji ✅
 │   │     karta werdyktu „Na dwór” ─────────────────► szczegóły werdyktu (reasons[]) ⬜
-│   │     karta Powietrze ──────────────────────────► S5 Szczegóły: Powietrze          ⬜ TASK-12.12
-│   │     karta Pogoda ─────────────────────────────► S6 Szczegóły: Pogoda             ⬜ TASK-12.12
+│   │     karta Powietrze ──────────────────────────► S5 Szczegóły: Powietrze          ✅ TASK-12.12
+│   │     karta Pogoda ─────────────────────────────► S6 Szczegóły: Pogoda             ✅ TASK-12.12
 │   │     karta Pyłki ──────────────────────────────► S7 Szczegóły: Pyłki              🧪 TASK-12.14
 │   │     karty aktywności ─────────────────────────► powód po tapnięciu               ⬜ TASK-7.9 + 12.18
 │   │     podgląd alertu ───────────────────────────► S3 Szczegół alertu
@@ -101,8 +101,8 @@ Kolumna **Źródło** to endpoint + pole kontraktu z `openapi.json`/`schema.ts` 
 | 4 Bottom Navigation (Start/Alerty/Ustawienia, ikony) | tabs | 🟡 jest, inne nazwy/ikona | TASK-12.18 |
 | 5 Dashboard | S1 | 🟡 | TASK-12.18 |
 | 6 Hero Verdict | S1 | ✅ dane i karta (LIVE, bez mocka) | TASK-7.8 ✅ |
-| 7 Powietrze | S1/S5 | ✅ / ⬜ szczegóły | TASK-12.12 |
-| 8 Pogoda | S1/S6 | ✅ / ⬜ szczegóły | TASK-12.12 |
+| 7 Powietrze | S1/S5 | ✅ / ✅ szczegóły | TASK-12.12 |
+| 8 Pogoda | S1/S6 | ✅ / ✅ szczegóły | TASK-12.12 |
 | 9 Pyłki | S1/S7 | ✅ (prognoza CAMS) / 🧪 wykres | TASK-12.14 |
 | 10 Rekomendacje aktywności | S1 | ⬜ **backend nie istnieje** (nie ma endpointu ani silnika) | **TASK-7.9** + 12.18 |
 | 11 Alerty | S2/S3 | 🟡 | TASK-9.7 |
@@ -188,24 +188,24 @@ ADR-029 (PR #85, `main`): wyszukiwanie dowolnej miejscowości (`GET /places?q=`,
 
 Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 
-### S5. Szczegóły: Powietrze — ⬜ (dane ✅, bez mocka)
+### S5. Szczegóły: Powietrze — ✅ (live, bez mocka; niezweryfikowane na urządzeniu)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Pełna lista parametrów z wiekiem pomiaru | `areas[].air.params{}` (wartość, jednostka, `observed_at`, `freshness`) | ⬜ (dane ✅) | TASK-12.12 | S per parametr, brak parametru = „brak”, nie 0 |
-| Indeks EAQI: składowe i decydujący parametr | `air.index` · `level`, `params`, `dominant[]`, `missing{}`, `complete`, `valid_until` | ⬜ (dane ✅) | TASK-12.12 | `complete=false` ⇒ jawnie „niepełny”; U/S ⇒ bez indeksu |
-| Stacja: nazwa, odległość, metoda | `station_name`, `distance_km`, `assignment_method` | ⬜ (dane ✅) | TASK-12.12 | — |
-| Źródło, atrybucja, status źródła | `source`, `attribution`, `source_status{freshness,last_success_at}` | ⬜ (dane ✅) | TASK-12.12 | Er/U źródła |
+| Pełna lista parametrów z wiekiem pomiaru | `areas[].air.params{}` (wartość, jednostka, `observed_at`, `freshness`) | ✅ | TASK-12.12 | S per parametr, brak parametru = „brak”, nie 0 |
+| Indeks EAQI: składowe i decydujący parametr | `air.index` · `level`, `params`, `dominant[]`, `missing{}`, `complete`, `valid_until` | ✅ | TASK-12.12 | `complete=false` ⇒ jawnie „niepełny”; U/S ⇒ bez indeksu |
+| Stacja: nazwa, odległość, metoda | `station_name`, `distance_km`, `assignment_method` | ✅ | TASK-12.12 | — |
+| Źródło, atrybucja, status źródła | `source`, `attribution`, `source_status{freshness,last_success_at}` | ✅ | TASK-12.12 | Er/U źródła |
 | Trend / historia 24 h | brak w kontrakcie | poza MVP (Master Plan §11: pełna historia) | — | nie rysujemy |
 
-### S6. Szczegóły: Pogoda i prognoza — ⬜ (dane ✅ dobowe)
+### S6. Szczegóły: Pogoda i prognoza — ✅ (live: pola bieżące + prognoza dobowa; niezweryfikowane na urządzeniu)
 
 | Element UI | Źródło | Status | Task | Stany |
 |---|---|---|---|---|
-| Wszystkie pola pogody z jednostkami | `weather.params{}` | ⬜ (dane ✅) | TASK-12.12 | S per pole |
-| Prognoza dobowa (dni) | `forecast.days[].params`, `valid_from/until`, `freshness`, `fetched_at` | ⬜ (dane ✅) | TASK-12.12 | S, E |
+| Wszystkie pola pogody z jednostkami | `weather.params{}` | ✅ | TASK-12.12 | S per pole |
+| Prognoza dobowa (dni) | `forecast.days[].params`, `valid_from/until`, `freshness`, `fetched_at` | ✅ | TASK-12.12 | S, E |
 | Prognoza godzinowa / wykres | brak — Open-Meteo `hourly` jest pobierane, ale zapisywana jest tylko godzina zgodna z `current` | ⬜ wymaga backendu (nowa tabela/migracja); NIE mockujemy, dopóki właściciel nie zdecyduje, że chce | brak taska — decyzja, sekcja 5 | — |
-| Źródło, atrybucja | `weather.attribution`, `forecast.attribution` | ⬜ (dane ✅) | TASK-12.12 | — |
+| Źródło, atrybucja | `weather.attribution`, `forecast.attribution` | ✅ | TASK-12.12 | — |
 
 ### S7. Szczegóły: Pyłki — 🧪 (część live)
 
@@ -386,8 +386,8 @@ Pola, które **są** w kontrakcie, a UI ich jeszcze nie używa (nie wymagają ba
 
 | Obszar | Backend / API | UI mobile dziś | Docelowo |
 |---|---|---|---|
-| Powietrze: parametry GIOŚ + EAQI | ✅ | ✅ (bez nazwy stacji/odległości) | ⬜ szczegóły S5 (live) |
-| Pogoda bieżąca (15 pól MVP) | ✅ | ✅ | ⬜ szczegóły S6 (live) |
+| Powietrze: parametry GIOŚ + EAQI | ✅ | ✅ (bez nazwy stacji/odległości) | ✅ szczegóły S5 (live) |
+| Pogoda bieżąca (15 pól MVP) | ✅ | ✅ | ✅ szczegóły S6 (live) |
 | Prognoza dobowa (3 dni) | ✅ (dostępność z `source_status.weather`) | 🟡 (tylko etykieta freshness) | max/min w nagłówku Start |
 | Prognoza godzinowa pogody / powietrza | ⬜ | ⬜ | decyzja właściciela |
 | Werdykt „Na dwór” | ✅ (progi do kalibracji) | ✅ | tap → powody |

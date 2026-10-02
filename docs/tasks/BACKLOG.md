@@ -951,6 +951,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       opisana jako „w Twoim mieście”; U/S ⇒ bez indeksu i bez „dobrych” wartości
       (reguła #8); testy czystych modułów `lib/*`. **Non-goals:** trend/historia 24 h,
       prognoza godzinowa, nowe pola API. **Dependencies:** brak (dane ✅).
+      **Stan (kolejny PR):** ✅ ekrany `app/(tabs)/air.tsx` i `weather.tsx` (ukryte zakładki, wejście z kart Start; pyłki nadal inline do TASK-12.14); logika w `lib/details.ts` z testami: stacja (nazwa, odległość, metoda tylko ze znanej mapy, opis pasma bez „w Twoim mieście” dla nearby/regional), składowe EAQI + `dominant` + `missing` + `complete` + ważność, brak indeksu z powodem dla regional/none/źródła milczącego/wygasłego, parametry z wiekiem, prognoza dobowa (maks/min, opady, stan), status źródła ze starzeniem na zegarze urządzenia, atrybucje. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.13:** Obserwowane tematy (S10) — lokalne, **bez mocka** (spec UI §3, §8).
       **Goal:** wybór tematów widocznych na Start; NIE „profil”. **Scope:** wspólny
       komponent kafelków multi-select dla onboardingu i Ustawień: Powietrze, Pogoda,
