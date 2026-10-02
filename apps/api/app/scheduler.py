@@ -27,7 +27,11 @@ from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_sna
 from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
-from app.connectors.open_meteo.ingest import ingest_geo_area, polling_areas
+from app.connectors.open_meteo.ingest import (
+    ingest_geo_area,
+    polling_areas,
+    purge_stale_hourly_forecasts,
+)
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
 from app.models import GeoArea, PollenSnapshot, WeatherSnapshot
@@ -243,13 +247,30 @@ def run_imgw_warningshydro() -> None:
 
 
 def run_raw_retention() -> None:
-    """ADR-014: NULL out raw payloads past each source's retention window."""
+    """ADR-014: NULL out raw payloads past each source's retention window. ADR-030: same
+    daily housekeeping drops hourly forecast rows left behind by areas that stopped being
+    polled."""
     db = SessionLocal()
+    purged = hourly = 0
     try:
-        purged = purge_expired_payloads(db)
+        # Independent steps: a failing payload purge must not skip the hourly cleanup (#1).
+        try:
+            purged = purge_expired_payloads(db)
+        except Exception:
+            logger.exception("raw payload retention failed")
+            db.rollback()
+        try:
+            hourly = purge_stale_hourly_forecasts(db)
+        except Exception:
+            logger.exception("hourly forecast retention failed")
+            db.rollback()
     finally:
         db.close()
-    logger.info("raw payload retention: purged %s payload(s)", purged)
+    logger.info(
+        "raw payload retention: purged %s payload(s), %s stale hourly forecast row(s)",
+        purged,
+        hourly,
+    )
 
 
 def _run_job_safely(

@@ -209,6 +209,12 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       ekranie pogody) + UI (§5 Master Planu wymienia prognozę jako MVP
       field), inaczej endpoint istnieje, ale jest niewidoczny dla
       użytkownika.
+- [x] **TASK-5.6** (PR #89, ADR-030): Prognoza godzinowa 48 h — `forecast.hours[]` w
+      `dashboard_latest()` (osobno od `days`), zapis w `forecasts` z `granularity='hourly'`
+      (migracja `0015`), jedno żądanie Open-Meteo (hourly +7 zmiennych; daily bez zmian), tylko najnowszy przebieg per obszar + dobowe czyszczenie,
+      parser odporny na `null` (jedna godzina/parametr nie zrywa reszty). Estymata budżetu
+      2 → 3 jedn./wywołanie (`max_active_areas` 411 → 280). **Non-goals:** UI, silnik okna,
+      powietrze godzinowe (TASK-7.10/7.11).
 
 ### Phase 6 — Geo Engine
 
@@ -481,8 +487,9 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       w `dashboard_latest()` (izolowany blok, rule #1): `activity` (klucz: spacer,
       bieganie/rower, wietrzenie), `status` GOOD/CAUTION/AVOID/UNKNOWN, `reasons[]` (kod,
       parametr, wartość, próg, jednostka, porównanie — jak `OutdoorReasonOut`), `missing[]`,
-      `valid_until`, `window` = `null` (przedziały czasu wymagają prognozy godzinowej
-      powietrza i pogody, której nie mamy — decyzja właściciela, screen-map sekcja 5);
+      `valid_until`, `window` = `null` (przedziały czasu: prognoza godzinowa pogody jest od TASK-5.6,
+      brakuje godzinowego powietrza i silnika okna → TASK-7.10/7.11; decyzja właściciela,
+      screen-map sekcja 5);
       regeneracja kontraktu; krótki ADR (progi i ich źródła; progi bez źródła oznaczone
       „do kalibracji” jak w ADR-016). **Acceptance Criteria:** brak/stare dane rdzenia ⇒
       UNKNOWN, nigdy GOOD (jak `outdoor`); testy granic progów; pyłki NIE wchodzą do
@@ -491,6 +498,39 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       aktywne alerty mogą obniżyć status tylko przez jawny, testowany kod powodu; CI
       zielone. **Non-goals:** „wieczorny wysiłek” i przedziały czasu, personalizacja,
       pyłki, UI (TASK-12.18). **Dependencies:** TASK-7.6/7.7 ✅, ADR-016.
+- [ ] **TASK-7.10:** „Najlepsze okno” aktywności — silnik, warstwa NAD `evaluate()`
+      (ADR-016), backend; bez UI (TASK-12.18). **Goal:** wskazać w najbliższych 24–48 h
+      przedział(y), w których werdykt „Na dwór” jest GOOD, deterministycznie i z jawnymi
+      powodami. **Scope:** czysty moduł `app/activity_window.py`: dla każdej godziny z
+      `forecast.hours` (TASK-5.6) buduje `OutdoorInputs` z pól prognozy (`temperature_2m`,
+      `apparent_temperature`, `precipitation`, `wind_speed_10m`, `wind_gusts_10m`,
+      `uv_index`, `visibility`, `weather_code` — nazwy zgodne z `OutdoorInputs`) i wywołuje
+      `evaluate()` per godzina; łączy sąsiednie godziny GOOD w przedziały (minimalna
+      długość i reguła remisu — do ustalenia w ADR); `reasons[]`/`missing[]` per godzina lub
+      zagregowane; pole `window` w `areas[].activities[]` (TASK-7.9, dziś `null`).
+      **Powietrze — ograniczenie kluczowe:** nie mamy godzinowego powietrza (GIOŚ = pomiar
+      „teraz”; CAMS → TASK-7.11), a `air` jest grupą rdzeniową, więc `evaluate()` dałby
+      `UNKNOWN` dla każdej przyszłej godziny. **Nie wolno** przenosić dzisiejszego PM na
+      przyszłe godziny jak prognozy (reguły #7/#8). Do czasu TASK-7.11 okno musi albo być
+      jawnie „bez oceny powietrza” (osobny tryb silnika z grupą `air` poza rdzeniem — wymaga
+      ADR i widocznej flagi w API, nigdy ciche GOOD), albo uwzględniać powietrze tylko dla
+      godziny 0. `precipitation_probability` nie jest wejściem silnika (`evaluate()` czyta
+      `precipitation` w mm) — czy i jak wchodzi (np. powód MODERATE) = decyzja do ADR, progi
+      „do kalibracji”. **Acceptance Criteria:** prognoza STALE/brak godzin ⇒ brak okna
+      (nigdy GOOD ze starych danych, #8); `valid_until` okna = najwcześniejszy wygasający
+      wejście; testy granic i monotoniczności jak `test_outdoor.py`; kontrakt
+      zregenerowany; CI zielone. **Non-goals:** personalizacja (TASK-12.4), pyłki, UI.
+      **Dependencies:** TASK-5.6 ✅, TASK-7.6/7.7 ✅, TASK-7.9; pełne powietrze: TASK-7.11.
+- [ ] **TASK-7.11:** Godzinowa prognoza jakości powietrza (PM2.5/PM10/NO₂/O₃) — **wymagane
+      przez TASK-7.10**, żeby okno mogło oceniać powietrze w przyszłości. Kandydat: CAMS
+      Europe przez Open-Meteo Air Quality `hourly` (ten sam dostawca i wspólny budżet co
+      pyłki, ADR-020) — **model, nie pomiar** (reguła #7): osobny `source_id`, zapis jako
+      `Forecast` (`granularity='hourly'`), jawne `model` i `forecast_reference_time`,
+      brak pomiaru GIOŚ udawanego prognozą. Wymaga Source Approval Gate (#15: licencja,
+      atrybucja, `rate_limit`, wpis w `source-registry.md`), ADR (progi/rozdzielczość i
+      dokładność modelu względem GIOŚ — niezweryfikowane), policzenia jednostek budżetu
+      (ADR-029: `max_active_areas`). **Non-goals:** zastąpienie GIOŚ, UI.
+      **Dependencies:** ADR-030, ADR-020.
 ### Phase 9 — Alerts (dokończenie)
 
 - [ ] **TASK-9.4** (ADR-013, PR #81: granica Alert ≠ Event ≠ Notification opisana; `Event` NIE zaimplementowany — nadal BLOKADA decyzji o źródle): `Event` model (§31) — odrębny od `Alert`/`Measurement`
@@ -1187,6 +1227,13 @@ placeholderze.
       `/dashboard/latest` bez zmian po aktywacji miejscowości; log Caddy nie zawiera query
       `/api/v1/places?q=` (usunąć `query` z formatu logu / filtr `delete`), bo to miejscowość
       użytkownika (obraz API ma `--no-access-log`).
+      **Dopisek (ADR-030, review #89):** odpowiedź `/dashboard/latest` urosła o `forecast.hours`
+      (~25 KB na obszar); w Caddy włączyć `encode zstd gzip` (JSON ściska się dobrze) i
+      sprawdzić rozmiar odpowiedzi dla listy obszarów; kontraktu API nie zmieniać.
+      Migracja `0015` (ADD COLUMN + CHECK + indeks na małej tabeli `forecasts`) wdrażać poza
+      cyklem schedulera (zatrzymać `scheduler` na czas `alembic upgrade`). Osobny drobny task
+      (do rozważenia): `rain`/`snowfall` w `current` nie mają konsumenta poza `precipitation` —
+      usunięcie obniży estymatę (26 → 24 zmienne, nadal 3 jedn.), więc bez zysku w budżecie.
 - [ ] **TASK-15.5:** Release rollback readiness (§104 Master Planu) —
       możliwość wyłączenia pojedynczego connectora/kategorii alertów,
       zmiany konfiguracji i rollbacku backendu **bez rebuildu appki**

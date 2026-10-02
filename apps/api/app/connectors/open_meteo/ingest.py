@@ -12,20 +12,26 @@ follow-up work; per ADR-004 fetch this every 3h once scheduled, not more often:
 import argparse
 import logging
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from app import provenance
 from app.config import settings, warn_if_open_meteo_host_unusual
 from app.connectors.open_meteo import client
-from app.connectors.open_meteo.client import CURRENT_PARAMS, DAILY_PARAMS, HOURLY_PARAMS
+from app.connectors.open_meteo.client import (
+    CURRENT_PARAMS,
+    DAILY_PARAMS,
+    HOURLY_REQUEST_PARAMS,
+)
 from app.connectors.open_meteo.parser import (
     PARSER_VERSION,
     OpenMeteoParseError,
     normalize,
     normalize_forecast,
     normalize_hourly_current,
+    normalize_hourly_forecast,
 )
 from app.db import SessionLocal
 from app.models import Forecast, GeoArea, WeatherSnapshot
@@ -45,11 +51,15 @@ DAILY_CALL_LIMIT = settings.open_meteo_daily_call_limit  # env, ADR-022
 # calls" - example given is 15 variables = 1.5 calls, i.e. variables/10. We round UP
 # so the budget alert can only trigger EARLIER than the real quota, never later
 # (Codex review [P1]: undercounting delays the 70% alert past actual exhaustion).
-# TASK-5.4 (now merged, PR #50) added HOURLY_PARAMS to the same request - counted
-# here too, per this comment's own earlier note, so the estimate doesn't silently
-# undercount again the moment both PRs land.
+# TASK-5.4 (PR #50) added the hourly variables to the same request, ADR-030 added the
+# hourly forecast ones: HOURLY_REQUEST_PARAMS is the union (each hourly variable once),
+# counted here too so the estimate cannot silently undercount again. Conservative: a
+# variable that is in both `current` and `hourly` (e.g. temperature_2m) counts twice.
+# ADR-030: 12 current + 10 hourly + 4 daily = 26 variables -> 3 units (was 19 -> 2).
 _TOTAL_VARIABLES = (
-    len(CURRENT_PARAMS.split(",")) + len(HOURLY_PARAMS.split(",")) + len(DAILY_PARAMS.split(","))
+    len(CURRENT_PARAMS.split(","))
+    + len(HOURLY_REQUEST_PARAMS.split(","))
+    + len(DAILY_PARAMS.split(","))
 )
 ESTIMATED_BILLABLE_UNITS_PER_CALL = max(1, -(-_TOTAL_VARIABLES // 10))  # ceil division
 
@@ -99,6 +109,99 @@ def _store_forecast_batch(records: list[dict], db) -> int:
     return len(new_records)
 
 
+# ADR-030: a baseline run older than this is replaced even by a poorer one (otherwise a model
+# that really dropped a param would keep an ever-older run alive).
+HOURLY_BASELINE_MAX_AGE = timedelta(hours=6)
+
+
+def _utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=UTC)  # SQLite returns naive
+
+
+def _store_hourly_forecast(records: list[dict], db, errors: list[str] | None = None) -> int:
+    """ADR-030: all-or-nothing, and only the NEWEST model run is kept per area (the hourly
+    window is re-fetched every cycle; keeping every run would add ~3.5k rows/area/day).
+
+    * Replace, not skip: a re-run with the SAME reference time overwrites that run (its
+      fetched_at/values are the fresh ones - freshness must not lie).
+    * A DEGRADED run never destroys a good one: if the new run covers fewer than half of
+      the previous run's still-relevant slots or drops one of its params, the previous run
+      stays (honestly ageing -> STALE) and nothing is written - unless that previous run is
+      itself older than HOURLY_BASELINE_MAX_AGE.
+    * A run OLDER than what is stored (late concurrent run) writes nothing.
+    * Delete + insert + commit are one transaction inside one try: any IntegrityError
+      (race with another ingest) rolls back and is swallowed, never escapes (rule #1).
+    Returns the number of rows written."""
+    area_id, reference = records[0]["geo_area_id"], records[0]["forecast_reference_time"]
+    window_start = min(r["valid_from"] for r in records)
+    try:
+        stored = db.execute(
+            select(
+                Forecast.forecast_reference_time,
+                Forecast.valid_from,
+                Forecast.param_code,
+                Forecast.fetched_at,
+            ).where(
+                Forecast.source_id == records[0]["source_id"],
+                Forecast.geo_area_id == area_id,
+                Forecast.granularity == "hourly",
+            )
+        ).all()
+        if stored:
+            newest = max(_utc(ref) for ref, *_ in stored)
+            if newest > reference:
+                return 0
+            base = [row for row in stored if _utc(row[0]) == newest]
+            base_relevant = [row for row in base if _utc(row[1]) >= window_start]
+            base_slots = {_utc(row[1]) for row in base_relevant}
+            base_params = {row[2] for row in base_relevant}
+            new_slots = {r["valid_from"] for r in records}
+            new_params = {r["param_code"] for r in records}
+            baseline_old = max(_utc(row[3]) for row in base) <= (
+                records[0]["fetched_at"] - HOURLY_BASELINE_MAX_AGE
+            )
+            # by values (rows), not slots: a run with every slot but few params is degraded too
+            degraded = len(records) * 2 < len(base_relevant) or not base_params <= new_params
+            if base_relevant and not baseline_old and degraded:
+                logger.warning(
+                    "geo_area %s: degraded hourly forecast run (%s slots / %s params vs "
+                    "%s / %s) - keeping the previous run",
+                    area_id,
+                    len(new_slots),
+                    len(new_params),
+                    len(base_slots),
+                    len(base_params),
+                )
+                if errors is not None:
+                    errors.append("hourly forecast degraded run kept previous run")
+                return 0
+        db.execute(
+            delete(Forecast).where(
+                Forecast.geo_area_id == area_id,
+                Forecast.granularity == "hourly",
+                Forecast.forecast_reference_time <= reference,
+            )
+        )
+        db.add_all(Forecast(**r) for r in records)
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # race with another ingest run - next scheduled cycle retries
+        return 0
+    return len(records)
+
+
+def purge_stale_hourly_forecasts(db, *, now: datetime | None = None) -> int:
+    """ADR-030: hourly rows whose hour ended more than a day ago. The per-area cleanup above
+    only runs while an area is polled; an expired place (ADR-029) keeps its last run until
+    this daily housekeeping removes it. Returns the number of deleted rows."""
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=1)
+    result = db.execute(
+        delete(Forecast).where(Forecast.granularity == "hourly", Forecast.valid_until < cutoff)
+    )
+    db.commit()
+    return result.rowcount
+
+
 def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int | None:
     """Returns the number of new rows stored (current-weather snapshots +
     hourly-derived fields + forecast days), or None when the fetch itself failed or
@@ -106,7 +209,7 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
     difference to avoid recording a total outage as a successful run, TASK-13.1). One
     geo_area's fetch failure is logged and skipped — it must not abort ingestion
     for the rest (rule #1). Failure causes are appended to `errors` when given.
-    All three parse steps are isolated from each other too (ADR-010, TASK-5.4):
+    All four parse steps are isolated from each other too (ADR-010, TASK-5.4):
     a malformed block in one must not cost an otherwise-valid reading in another."""
 
     # ADR-001/ADR-003/ADR-004: count every REAL outbound request against the daily
@@ -132,7 +235,7 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
     stored = 0
 
     # ADR-014: raw payload first (status pending) - it survives a parser crash or a
-    # worker kill - then all three blocks are parsed (each isolated, ADR-010/
+    # worker kill - then all four blocks are parsed (each isolated, ADR-010/
     # TASK-5.4) and the status set, BEFORE any row is stored so every row can point
     # at the fetch.
     fetch_id = provenance.record_fetch(
@@ -177,24 +280,40 @@ def ingest_geo_area(area: GeoArea, db, errors: list[str] | None = None) -> int |
         if errors is not None:
             errors.append(f"{type(exc).__name__}: {exc}")
 
-    provenance.set_validation_status(db, fetch_id, provenance.batch_status(3, failed_blocks))
-    if failed_blocks == 3:
+    # ADR-030: the hourly forecast block, isolated like the others (rule #1).
+    try:
+        hourly_forecasts = normalize_hourly_forecast(
+            geo_area_id=area.id, payload=payload, fetched_at=fetched_at
+        )
+    except OpenMeteoParseError as exc:
+        logger.warning("geo_area %s: hourly forecast FAILED (%s)", area.slug, exc)
+        hourly_forecasts = []
+        failed_blocks += 1
+        if errors is not None:
+            errors.append(f"{type(exc).__name__}: {exc}")
+
+    provenance.set_validation_status(db, fetch_id, provenance.batch_status(4, failed_blocks))
+    if failed_blocks == 4:
         return None  # nothing usable parsed: a failed run, not "0 new rows" (TASK-13.1)
-    for r in (*snapshots, *hourly_snapshots, *forecasts):
+    for r in (*snapshots, *hourly_snapshots, *forecasts, *hourly_forecasts):
         r["source_fetch_id"] = fetch_id
 
     stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in snapshots)
     stored += sum(_store_if_new(WeatherSnapshot, r, db) for r in hourly_snapshots)
     stored += _store_forecast_batch(forecasts, db)
+    if hourly_forecasts:
+        stored += _store_hourly_forecast(hourly_forecasts, db, errors)
 
     logger.info(
-        "geo_area %s (%s): stored %s new row(s) (%s current + %s hourly + %s forecast)",
+        "geo_area %s (%s): stored %s new row(s) (%s current + %s hourly + %s forecast"
+        " + %s hourly forecast)",
         area.slug,
         area.name,
         stored,
         len(snapshots),
         len(hourly_snapshots),
         len(forecasts),
+        len(hourly_forecasts),
     )
     return stored
 

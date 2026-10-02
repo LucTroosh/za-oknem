@@ -7,7 +7,7 @@ import type {
 } from "../../../packages/api-contract/schema";
 import type { AlertsBlock } from "./alerts";
 import type { AirIndexBlock } from "./aqi";
-import type { ForecastDay } from "./forecast";
+import type { ForecastDay, ForecastHour } from "./forecast";
 // The screen types live in ./dashboardTypes since the UI foundation PR split the old
 // single-screen index.tsx into tabs/components (only this import path changed).
 import type { DashboardArea as ScreenArea, DashboardSourceStatus } from "./dashboardTypes";
@@ -29,6 +29,7 @@ function uiAcceptsContract(response: DashboardResponse, index: AirIndex) {
   accept<AlertsBlock>(alerts);
   accept<AirIndexBlock>(index);
   accept<ForecastDay[] | undefined>(area.forecast?.days);
+  accept<ForecastHour[] | undefined>(area.forecast?.hours);
 }
 
 describe("api-contract", () => {

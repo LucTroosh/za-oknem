@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -244,6 +245,9 @@ class Forecast(Base):
     __tablename__ = "forecasts"
     __table_args__ = (
         UniqueConstraint("source_id", "source_record_id", name="uq_forecast_source_record"),
+        CheckConstraint("granularity IN ('daily', 'hourly')", name="ck_forecast_granularity"),
+        # ADR-030: the daily retention purge (granularity + valid_until range).
+        Index("ix_forecasts_granularity_valid_until", "granularity", "valid_until"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -263,6 +267,11 @@ class Forecast(Base):
     source_fetch_id: Mapped[int | None] = mapped_column(
         ForeignKey("source_fetches.id"), nullable=True, index=True
     )
+    # ADR-030: "daily" (one row per day, append-only history, ADR-010) or "hourly" (the next
+    # 48 h; only the newest model run is kept). A column, not a param_code convention: both
+    # granularities carry `weather_code`, and a daily and an hourly row for 00:00 would
+    # otherwise collide on (param, valid_from).
+    granularity: Mapped[str] = mapped_column(String(10), default="daily", server_default="daily")
 
 
 class PollenSnapshot(Base):

@@ -335,6 +335,94 @@ def test_dashboard_includes_forecast_with_source_transparency():
     assert forecast["days"][0]["params"]["temperature_2m_min"] == {"value": 9.2, "unit": "°C"}
 
 
+def _hour_row(offset_h: int, param="temperature_2m", value=11.0, rid="h", **kw) -> Forecast:
+    start = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) + timedelta(hours=offset_h)
+    return _forecast(
+        param_code=param,
+        value=value,
+        unit=kw.pop("unit", "°C"),
+        valid_from=start,
+        valid_until=start + timedelta(hours=1),
+        source_record_id=f"{rid}-{offset_h}-{param}",
+        granularity="hourly",
+        **kw,
+    )
+
+
+def test_dashboard_forecast_hours_are_a_separate_list_from_days():
+    # ADR-030: weather_code exists in both granularities - hourly rows must never leak into
+    # `days` (even one at the daily row's own valid_from), and vice versa.
+    midnight = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = [
+        _forecast(param_code="weather_code", value=3.0, unit="wmo code"),
+        _forecast(
+            param_code="weather_code",
+            value=61.0,
+            unit="wmo code",
+            valid_from=midnight,
+            valid_until=midnight + timedelta(hours=1),
+            source_record_id="h-mid",
+            granularity="hourly",
+        ),
+        _hour_row(1, "temperature_2m", 11.0),
+        _hour_row(1, "precipitation_probability", 40.0, unit="%"),
+        _hour_row(2, "temperature_2m", 12.5),
+    ]
+    client = _client([GeoArea(**KLODZKO)], [], [], rows)
+
+    forecast = client.get("/api/v1/dashboard/latest").json()["areas"][0]["forecast"]
+
+    assert [d["params"] for d in forecast["days"]] == [
+        {"weather_code": {"value": 3.0, "unit": "wmo code"}}
+    ]
+    hours = forecast["hours"]
+    assert [h["valid_from"] for h in hours] == sorted(h["valid_from"] for h in hours)
+    first_next = [h for h in hours if "precipitation_probability" in h["params"]]
+    assert first_next[0]["params"]["temperature_2m"] == {"value": 11.0, "unit": "°C"}
+    assert first_next[0]["params"]["precipitation_probability"] == {"value": 40.0, "unit": "%"}
+    # a param the model did not give for an hour is absent from that hour, not 0
+    assert "precipitation_probability" not in hours[-1]["params"]
+    assert hours[0]["params"] == {"weather_code": {"value": 61.0, "unit": "wmo code"}}
+    assert datetime.fromisoformat(hours[0]["valid_until"]) - datetime.fromisoformat(
+        hours[0]["valid_from"]
+    ) == timedelta(hours=1)
+    assert forecast["freshness"] == "FRESH"
+
+
+def test_dashboard_forecast_hours_empty_without_hourly_rows():
+    forecast = (
+        _client([GeoArea(**KLODZKO)], [], [], [_forecast()])
+        .get("/api/v1/dashboard/latest")
+        .json()["areas"][0]["forecast"]
+    )
+
+    assert forecast["hours"] == [] and len(forecast["days"]) == 1
+
+
+def test_dashboard_forecast_with_only_hours_is_still_a_block():
+    # The daily block failed (or never parsed) but the hourly one is there.
+    client = _client([GeoArea(**KLODZKO)], [], [], [_hour_row(1)])
+
+    forecast = client.get("/api/v1/dashboard/latest").json()["areas"][0]["forecast"]
+
+    assert forecast["days"] == [] and len(forecast["hours"]) == 1
+
+
+def test_dashboard_forecast_freshness_follows_the_older_of_days_and_hours():
+    # Rule #8: fresh hours must not make a block with a 10 h old daily part look FRESH.
+    old = datetime.now(UTC) - timedelta(hours=10)
+    rows = [_forecast(fetched_at=old), _hour_row(1)]
+
+    forecast = (
+        _client([GeoArea(**KLODZKO)], [], [], rows)
+        .get("/api/v1/dashboard/latest")
+        .json()["areas"][0]["forecast"]
+    )
+
+    assert forecast["freshness"] == "STALE"
+    assert datetime.fromisoformat(forecast["fetched_at"]) <= old + timedelta(seconds=1)
+
+
 def test_dashboard_forecast_null_when_no_forecast_rows():
     client = _client([GeoArea(**KLODZKO)], [], [])
 

@@ -235,3 +235,10 @@ kalibracji. `exact` i `nearby` — bez zmian (wchodzą do werdyktu).
 - **Granica 100 km:** wybór stacji tnie na dokładnej odległości (≤ 100 km), klasyfikacja i
   `distance_km` używają 0,1 km. Stacja 100,001–100,049 km jest poza zasięgiem (`none`) —
   rozbieżność ≤ 50 m, bez wpływu na wyświetlaną stację.
+
+## Addendum 2026-10-02 (ADR-030)
+
+Prognoza godzinowa dopisuje zmienne do żądania Open-Meteo: estymata wzrosła z 2 do 3 jednostek
+na wywołanie, więc `max_active_areas()` = floor(0,7 · 10 000 / (8·3 + 1)) = **280** (było 411).
+Wzór bez zmian; liczby w tym ADR sprzed ADR-030 są historyczne.
+

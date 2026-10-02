@@ -144,10 +144,17 @@ export type DashboardForecast = {
   days: Array<DashboardForecastDay>;
   fetched_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
+  hours: Array<DashboardForecastHour>;
   source: "open_meteo";
 };
 
 export type DashboardForecastDay = {
+  params: Record<string, WeatherParam>;
+  valid_from: string;
+  valid_until: string;
+};
+
+export type DashboardForecastHour = {
   params: Record<string, WeatherParam>;
   valid_from: string;
   valid_until: string;
