@@ -1046,8 +1046,8 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Stan (PR #86):** zrobione: zakładki, nagłówek (nazwa, data, temperatura FRESH), werdykt,
       karty Powietrze/Pogoda/Prognoza pyłków (data-driven), status ostrzeżeń (brak ≠ nie
       sprawdzono; realny alert pod nagłówkiem), skeletony, partial failure, testy `lib/home.test.ts`.
-      Zostaje: max/min z `forecast.days[0]`, karty aktywności (TASK-7.9), tap werdyktu → powody,
-      chevron lokalizacji (TASK-12.7), tematy (TASK-12.17).
+      **Stan (kolejny PR):** + max/min dnia z `forecast.days[0]` w nagłówku (`todayRange`: tylko bieżący dzień UTC, FRESH/RECENT po `forecast.freshness` + wiek na zegarze urządzenia + `source_status.weather`; inaczej nic), tap werdyktu → powody (UNKNOWN bez przełącznika, uwaga o brakach i zastrzeżenie zawsze widoczne), skeleton kalendarza pylenia. Zostaje: karty aktywności (TASK-7.9), tematy (TASK-12.13).
+      (chevron lokalizacji zrobiony w TASK-12.7.)
 - [ ] **TASK-12.19:** Wygląd i dostępność (spec UI §26–27, §34–39; P0 #13–14). **Goal:**
       wybór motywu Systemowy | Jasny | Ciemny (domyślnie Systemowy) i respektowanie
       ustawień dostępności systemu. **Scope:** wiersz „Wygląd” w Ustawieniach zapisany w

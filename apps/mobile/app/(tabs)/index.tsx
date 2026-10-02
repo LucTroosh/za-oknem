@@ -14,6 +14,7 @@ import { SkeletonCard } from "../../components/Skeleton";
 import StatusCards from "../../components/StatusCards";
 import useNow from "../../components/useNow";
 import { summarizeAlerts } from "../../lib/alerts";
+import { todayRange } from "../../lib/forecast";
 import { homeAlertsBanner, homeHydroBanner } from "../../lib/alertsBanner";
 import { alertsStatus, currentTemperature, formatHeaderDate, pollingOff, pollingPending, sectionOrder, selectArea, statusCards, verdictModel } from "../../lib/home";
 import { summarizeHydro } from "../../lib/hydro";
@@ -73,6 +74,7 @@ export default function Start() {
         loading={loading}
         onChangeLocation={() => router.push("/location")}
         dateText={formatHeaderDate(now)}
+        range={area ? todayRange(area.forecast, d.sourceStatus?.weather, now) : null}
         temperature={area ? currentTemperature(area.weather, d.sourceStatus?.weather, now, true) : null}
       />
     ),
@@ -105,7 +107,11 @@ export default function Start() {
       />
     ),
     alerts: <AlertsStatus key="alerts" status={alerts} />,
-    calendar: <PollenCalendarCard key="calendar" calendar={d.calendar} error={d.calendarError} />,
+    calendar: d.calendar === null && !d.calendarError ? (
+      <SkeletonCard key="calendar" label="Ładowanie kalendarza pylenia" lines={2} />
+    ) : (
+      <PollenCalendarCard key="calendar" calendar={d.calendar} error={d.calendarError} />
+    ),
   };
 
   return (
