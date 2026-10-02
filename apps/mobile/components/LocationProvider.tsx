@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppState } from "react-native";
+import { AppState, Appearance } from "react-native";
 
 import {
   type ActiveLocation,
@@ -12,6 +12,7 @@ import {
 } from "../lib/location";
 import { activatePlace } from "../lib/places";
 import { loadSettings, saveSettings } from "../lib/storage";
+import { type ThemePref, themeOverride } from "../lib/theme";
 
 // The remembered location + onboarding flag for the whole app (spec §3: ONE location, local to
 // the device, no account). `ready` = the stored record has been read (the root shows nothing
@@ -26,6 +27,8 @@ export type LocationContext = {
   // The Welcome CTA was pressed in this run (memory only): the first run may enter the picker.
   welcomeSeen: boolean;
   startOnboarding: () => void;
+  // Appearance (TASK-12.19): saved with the rest of the settings, applied app-wide.
+  setTheme: (theme: ThemePref) => void;
   // Resolves when the most recent activation (launch or foreground) has finished (or failed / timed out).
   // A dashboard 404 for a place may only mean "not re-created yet": wait for this first.
   latestActivation: () => Promise<void>;
@@ -42,6 +45,16 @@ const Ctx = createContext<LocationContext | null>(null);
 type State = { ready: boolean; settings: Settings; notice: string | null };
 
 const ACTIVATION_TIMEOUT_MS = 10_000;
+
+// Forces light/dark for the whole app (useColorScheme, navigation, native controls follow);
+// null hands control back to the system, which then keeps being followed live.
+function applyTheme(theme: ThemePref): void {
+  try {
+    Appearance.setColorScheme(themeOverride(theme));
+  } catch {
+    // platform without an override (web preview): the system scheme stays
+  }
+}
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const [{ ready, settings, notice }, setState] = useState<State>({ ready: false, settings: DEFAULT_SETTINGS, notice: null });
@@ -89,6 +102,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     loadSettings().then(({ settings: s }) => {
       if (cancelled) return;
       loaded.current = s;
+      applyTheme(s.theme);
       const placeId = s.location?.placeId;
       // Started BEFORE `ready`: the dashboard provider mounts right after and may await it.
       if (placeId != null) void reactivate(placeId);
@@ -116,7 +130,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   const choose = useCallback((location: ActiveLocation) => {
     lastActivation.current = Date.now(); // the picker has just activated it
-    setState((cur) => ({ ...cur, settings: { onboardingDone: true, location }, notice: null }));
+    setState((cur) => ({ ...cur, settings: { ...cur.settings, onboardingDone: true, location }, notice: null }));
   }, []);
 
   // The check runs inside the updater, against React's latest state: a late answer for a place
@@ -128,11 +142,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setTheme = useCallback((theme: ThemePref) => {
+    applyTheme(theme);
+    setState((cur) => (cur.settings.theme === theme ? cur : { ...cur, settings: { ...cur.settings, theme } }));
+  }, []);
+
   const latestActivation = useCallback(() => latest.current, []);
 
   const value = useMemo(
-    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, latestActivation, choose, invalidate }),
-    [ready, settings, notice, activations, welcomeSeen, startOnboarding, latestActivation, choose, invalidate],
+    () => ({ ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, latestActivation, choose, invalidate }),
+    [ready, settings, notice, activations, welcomeSeen, startOnboarding, setTheme, latestActivation, choose, invalidate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

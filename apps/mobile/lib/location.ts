@@ -4,6 +4,7 @@
 // the chosen place (public data of the places registry) - never the user's position.
 // Versioned: an unknown or corrupt record parses to the defaults, so the app always starts.
 import type { AreaOut, PlaceOut } from "../../../packages/api-contract/schema";
+import { type ThemePref, parseThemePref } from "./theme";
 
 export const SETTINGS_KEY = "za-oknem/settings";
 export const SETTINGS_VERSION = 1;
@@ -22,12 +23,14 @@ export type ActiveLocation = {
   attribution: string | null;
 };
 
-export type Settings = { onboardingDone: boolean; location: ActiveLocation | null };
+// `theme` is optional in the stored record (older installs have none): missing -> "system", so
+// no version bump and no reset of an existing install.
+export type Settings = { onboardingDone: boolean; location: ActiveLocation | null; theme: ThemePref };
 
-export const DEFAULT_SETTINGS: Settings = { onboardingDone: false, location: null };
+export const DEFAULT_SETTINGS: Settings = { onboardingDone: false, location: null, theme: "system" };
 
 export function serializeSettings(s: Settings): string {
-  return JSON.stringify({ v: SETTINGS_VERSION, onboardingDone: s.onboardingDone, location: s.location });
+  return JSON.stringify({ v: SETTINGS_VERSION, onboardingDone: s.onboardingDone, location: s.location, theme: s.theme });
 }
 
 const isObject = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -56,7 +59,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
     return DEFAULT_SETTINGS;
   }
   if (!isObject(data) || data.v !== SETTINGS_VERSION) return DEFAULT_SETTINGS;
-  return { onboardingDone: data.onboardingDone === true, location: parseLocation(data.location) };
+  return { onboardingDone: data.onboardingDone === true, location: parseLocation(data.location), theme: parseThemePref(data.theme) };
 }
 
 // Reads through `read` with a time limit. A read ERROR or a timeout is not "no record": the

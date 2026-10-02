@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DARK, LIGHT, TEXT_PAIRS, contrastRatio, freshnessColor, paletteFor, toneColors } from "./theme";
+import { DARK, LIGHT, TEXT_PAIRS, THEME_LABEL, THEME_PREFS, contrastRatio, freshnessColor, paletteFor, parseThemePref, themeOverride, toneColors } from "./theme";
 
 describe("contrastRatio", () => {
   it("matches the WCAG reference values", () => {
@@ -43,5 +43,27 @@ describe("palettes", () => {
     expect(freshnessColor(DARK, "UNAVAILABLE")).toBe(DARK.unavailable);
     expect(toneColors(LIGHT, "danger")).toEqual({ fg: LIGHT.danger, bg: LIGHT.dangerBg });
     expect(toneColors(LIGHT, "neutral").bg).toBe(LIGHT.neutralBg);
+  });
+});
+
+describe("theme choice", () => {
+  it("offers Systemowy / Jasny / Ciemny, system first", () => {
+    expect(THEME_PREFS.map((p) => THEME_LABEL[p])).toEqual(["Systemowy", "Jasny", "Ciemny"]);
+  });
+  it("system clears the override (follows the phone live), light/dark force a scheme", () => {
+    expect(themeOverride("system")).toBeNull();
+    expect(themeOverride("light")).toBe("light");
+    expect(themeOverride("dark")).toBe("dark");
+  });
+  it("parses only known values", () => {
+    expect(parseThemePref("dark")).toBe("dark");
+    expect(parseThemePref("light")).toBe("light");
+    expect(parseThemePref("system")).toBe("system");
+    expect(parseThemePref(undefined)).toBe("system");
+    expect(parseThemePref("sepia")).toBe("system");
+  });
+  it("a forced scheme gives the matching palette", () => {
+    expect(paletteFor(themeOverride("dark"))).toBe(DARK);
+    expect(paletteFor(themeOverride("light"))).toBe(LIGHT);
   });
 });

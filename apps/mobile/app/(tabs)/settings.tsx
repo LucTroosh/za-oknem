@@ -7,18 +7,19 @@ import Card from "../../components/Card";
 import useDashboard from "../../components/DashboardProvider";
 import useLocation from "../../components/LocationProvider";
 import Screen from "../../components/Screen";
+import ThemePicker from "../../components/ThemePicker";
 import useTheme, { useThemedStyles } from "../../components/useTheme";
 import { collectAttributions, withPlaceSource } from "../../lib/sources";
 import { MIN_TOUCH, type Theme, space, typo } from "../../lib/theme";
 
-// Location (one, local to the device) + about + data sources. Topics, theme and the privacy
-// policy page arrive with TASK-12.13 / 12.19 / 12.6.
+// Location (one, local to the device) + appearance (TASK-12.19) + about + data sources. Topics
+// and the privacy policy page arrive with TASK-12.13 / 12.6.
 // Sources = the attribution strings the backend sent with the data (shown verbatim).
 export default function Settings() {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
   const router = useRouter();
-  const { settings } = useLocation();
+  const { settings, setTheme } = useLocation();
   const { dashboard, hydro, calendar } = useDashboard();
   const sources = withPlaceSource(collectAttributions(dashboard, hydro, calendar), settings.location?.attribution);
   return (
@@ -37,6 +38,13 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </Pressable>
+      </Card>
+      <Card>
+        <Text style={styles.heading} accessibilityRole="header">
+          Wygląd
+        </Text>
+        <ThemePicker value={settings.theme} onChange={setTheme} />
+        <Text style={styles.meta}>„Systemowy” podąża za ustawieniem telefonu. Rozmiar tekstu zależy od ustawień czcionki w telefonie.</Text>
       </Card>
       <Card>
         <Text style={styles.heading} accessibilityRole="header">
