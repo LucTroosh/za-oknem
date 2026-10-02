@@ -31,8 +31,9 @@ export default function TabsLayout() {
           tabBarLabelStyle: { fontSize: typo.micro.fontSize, fontWeight: "600" },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: "Za Oknem", tabBarLabel: "Dziś", tabBarIcon: icon("home-outline", "home") }} />
-        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("warning-outline", "warning") }} />
+        {/* Start draws its own header (location, date, temperature). */}
+        <Tabs.Screen name="index" options={{ title: "Start", headerShown: false, tabBarIcon: icon("home-outline", "home") }} />
+        <Tabs.Screen name="alerts" options={{ title: "Alerty", tabBarIcon: icon("notifications-outline", "notifications") }} />
         <Tabs.Screen name="settings" options={{ title: "Ustawienia", tabBarIcon: icon("settings-outline", "settings") }} />
       </Tabs>
     </DashboardProvider>

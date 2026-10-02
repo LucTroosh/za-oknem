@@ -31,7 +31,7 @@ export default function Settings() {
           Źródła danych
         </Text>
         {sources.length === 0 ? (
-          <Text style={styles.body}>Lista źródeł pojawi się po załadowaniu danych. Odśwież widok Home.</Text>
+          <Text style={styles.body}>Lista źródeł pojawi się po załadowaniu danych. Odśwież ekran Start.</Text>
         ) : (
           sources.map((s) => (
             <Text key={s} style={styles.body}>
@@ -46,7 +46,7 @@ export default function Settings() {
           Prywatność
         </Text>
         <Text style={styles.body}>
-          Aplikacja nie wymaga konta i nie korzysta z lokalizacji urządzenia. Obszary pokazywane na Home są stałą listą.
+          Aplikacja nie wymaga konta i nie korzysta z lokalizacji urządzenia. Pokazywana miejscowość jest na razie stała (wybór lokalizacji w przygotowaniu).
         </Text>
       </Card>
     </Screen>

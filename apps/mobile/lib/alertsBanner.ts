@@ -9,14 +9,14 @@ import type { HydroSummary } from "./hydro";
 export type HomeBanner = { tone: "danger" | "warning" | "neutral"; text: string };
 
 export function homeAlertsBanner(summary: AlertsSummary | null, count: number): HomeBanner | null {
-  if (summary === null) return { tone: "neutral", text: "Ostrzeżenia chwilowo niedostępne." };
+  if (summary === null) return { tone: "neutral", text: "Nie udało się sprawdzić ostrzeżeń." };
   switch (summary.kind) {
     case "list":
       return { tone: "warning", text: `Ostrzeżenia hydrologiczne w Polsce: ${count}. Zobacz listę.` };
     case "list-maybe-outdated":
       return { tone: "warning", text: "Lista ostrzeżeń może być nieaktualna. Zobacz szczegóły." };
     case "unavailable":
-      return { tone: "neutral", text: "Ostrzeżenia chwilowo niedostępne." };
+      return { tone: "neutral", text: "Nie udało się sprawdzić ostrzeżeń." };
     default:
       return null;
   }

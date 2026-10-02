@@ -667,6 +667,10 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       zakładkę do istniejącego tab layoutu, nie tworzyć nawigacji od nowa.
       **Stan (PR „fundament UI”):** placeholder jest (wersja, źródła z
       `attribution` backendu, zdanie o prywatności); brak realnych preferencji.
+      **Start (PR „struktura Start”):** zakładki Start/Alerty/Ustawienia, nagłówek, Hero
+      Verdict, karty statusu, status ostrzeżeń, skeletony — wg Frontend UX/UI Spec v1;
+      czeka na: wybór lokalizacji (`TODO(TASK-12.7)`), sekcję aktywności (brak backendu),
+      ekrany szczegółów (dziś rozwijane karty).
 - [ ] **TASK-12.6:** Pozostałe sekcje Settings z §60 Master Planu — location/
       profile/allergies/outdoor/notifications pokrywają TASK-12.2/12.3/
       12.4/10.3, ale §60 wymienia też **data & privacy, sources, about**, dla
@@ -967,6 +971,11 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       **Dependencies:** TASK-12.17, 12.13; karty aktywności: TASK-7.9. Prognoza (nagłówek, max/min):
       dostępność z istniejącego `source_status.weather` (to samo pobranie Open-Meteo, ADR-010)
       połączona z `forecast.freshness` przez `worstFreshness` — bez zmian backendu.
+      **Stan (PR #86):** zrobione: zakładki, nagłówek (nazwa, data, temperatura FRESH), werdykt,
+      karty Powietrze/Pogoda/Prognoza pyłków (data-driven), status ostrzeżeń (brak ≠ nie
+      sprawdzono; realny alert pod nagłówkiem), skeletony, partial failure, testy `lib/home.test.ts`.
+      Zostaje: max/min z `forecast.days[0]`, karty aktywności (TASK-7.9), tap werdyktu → powody,
+      chevron lokalizacji (TASK-12.7), tematy (TASK-12.17).
 - [ ] **TASK-12.19:** Wygląd i dostępność (spec UI §26–27, §34–39; P0 #13–14). **Goal:**
       wybór motywu Systemowy | Jasny | Ciemny (domyślnie Systemowy) i respektowanie
       ustawień dostępności systemu. **Scope:** wiersz „Wygląd” w Ustawieniach zapisany w
