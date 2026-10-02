@@ -226,6 +226,8 @@ kalibracji. `exact` i `nearby` — bez zmian (wchodzą do werdyktu).
 
 ### Znane, świadomie przyjęte ograniczenia
 
+- **CORS:** `allow_methods=["GET"]` zostaje; `POST /places/{id}/activate` jest wołany z natywnej
+  aplikacji (bez CORS). Web/PWA jest poza MVP — przy jego dodaniu trzeba świadomie poszerzyć CORS.
 - **Reaktywacja po wygaśnięciu:** bootstrap ponawia pobranie, gdy dane są starsze niż jeden
   regularny cykl (pogoda 3 h, pyłki 24 h), nie względem czasu aktywacji — porównanie z
   `last_requested_at` odświeżałoby dane przy każdym otwarciu miejscowości i paliło budżet

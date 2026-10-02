@@ -103,8 +103,12 @@ def _get_place(db: Session, place_id: int) -> Place:
 def get_place(place_id: int = _PLACE_ID, db: Session = Depends(get_db)) -> PlaceAreaResponse:
     """A place and the state of its area. Read-only: never creates or refreshes the area
     (the id is public and enumerable, so a read must not keep polling alive, ADR-026)."""
-    place = _get_place(db, place_id)
-    area = area_for_place(db, place_id)
+    try:
+        place = _get_place(db, place_id)
+        area = area_for_place(db, place_id)
+    except SQLAlchemyError:
+        logger.error("place lookup failed: database error (details withheld)")
+        raise HTTPException(status_code=503, detail="Places unavailable") from None
     return PlaceAreaResponse(
         place=_place_out(place),
         area=_area_out(area) if area else None,
@@ -123,8 +127,12 @@ def activate(
     scheduler (first fetch within minutes, not the 3 h cycle), never on this request
     (rule #14). No user data is sent or stored: the area is a public resource (rule #11).
     Switching polling on is rate-limited per IP; refreshing an already active area is not."""
-    place = _get_place(db, place_id)
-    existing = area_for_place(db, place_id)
+    try:
+        place = _get_place(db, place_id)
+        existing = area_for_place(db, place_id)
+    except SQLAlchemyError:
+        logger.error("place activation failed: database error (details withheld)")
+        raise HTTPException(status_code=503, detail="Places unavailable") from None
     counted = existing is None or not existing.weather_polling_active
     if counted:
         limit_place_activations(request)

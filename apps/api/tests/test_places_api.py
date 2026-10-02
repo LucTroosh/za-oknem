@@ -243,3 +243,15 @@ def test_failed_activation_gives_the_rate_limit_slot_back(client, monkeypatch):
     monkeypatch.setattr("app.api.v1.places.activate_place", boom)
     for _ in range(12):  # more than the 10/h limit: all 503, none 429
         assert client.post("/api/v1/places/1/activate").status_code == 503
+
+
+def test_database_failure_on_lookup_is_503_not_500(client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    def boom(*a, **k):
+        raise OperationalError("x", {}, Exception("db"))
+
+    monkeypatch.setattr("app.api.v1.places._get_place", boom)
+
+    assert client.get("/api/v1/places/1").status_code == 503
+    assert client.post("/api/v1/places/1/activate").status_code == 503
