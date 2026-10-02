@@ -850,6 +850,20 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       użycie resolvera z TASK-6.2(5) (współrzędne GPS → `geo_area_id`) jako
       źródła domyślnej/aktualizowanej lokalizacji w selektorze TASK-12.2,
       nie tylko jako danych wejściowych do TASK-12.5.
+      **Ocena (kolejka frontowa, bez implementacji): GPS dziś NIE daje sensu — decyzja właściciela.**
+      `POST /geo/locate` bez granic PRG (gate #15 otwarty, `prg_gminy` bez danych) sprowadza się do
+      kroku 2: najbliższy AKTYWNY obszar z seedu (`place_id IS NULL`, czyli 7 miast) w promieniu
+      `NEAREST_AREA_MAX_KM = 25 km`. Rejestr miejscowości (ADR-029) jest świadomie wyłączony z tego
+      zapytania. Skutek: poza ~25 km od jednego z 7 miast odpowiedź to `out_of_range`, więc
+      przycisk „Użyj mojej lokalizacji” działałby dla garstki użytkowników i zawodził dla reszty
+      (martwe CTA jest zabronione, spec UI §46). Dodawanie go teraz wymagałoby też zgody systemowej
+      i obsługi odmowy bez realnej korzyści.
+      **Opcje:** (A) poczekać na import PRG (wtedy point-in-polygon pokrywa cały kraj, bez zmian
+      w mobile poza przyciskiem i zgodą); (B) nowy endpoint „najbliższa miejscowość z rejestru
+      `places`” (ADR-029, dokładniejszy niż 25 km od 7 miast; wymaga ADR/addendum, POST bez
+      logowania współrzędnych jak w ADR-002, brak migracji) — daje GPS bez PRG, ale to zmiana
+      backendu poza kolejką frontową. **Rekomendacja:** (A) jeśli PRG będzie w najbliższych
+      tygodniach, inaczej (B). Do decyzji nie ruszam; frontend zostaje przy ręcznym wyborze.
 - [ ] **TASK-12.5:** Wysyłka `observed_area_code` do `POST /api/v1/devices`
       przy każdym otwarciu appki z aktywną lokalizacją (foreground) i przy
       ręcznej zmianie lokalizacji w Settings (ADR-002, sekcja Decision) —
