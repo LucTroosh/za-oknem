@@ -234,11 +234,13 @@ def normalize_forecast(
             series = daily.get(param_code)
             if not isinstance(series, list) or len(series) != len(days):
                 continue
-            value = _finite(series[day_index])
-            unit = units.get(param_code)
-            if value is None or not isinstance(unit, str):
+            optional_value = _finite(series[day_index])
+            optional_unit = units.get(param_code)
+            if optional_value is None or not isinstance(optional_unit, str):
                 continue
-            records.append(_daily_record(geo_area_id, param_code, value, unit, valid_from))
+            records.append(
+                _daily_record(geo_area_id, param_code, optional_value, optional_unit, valid_from)
+            )
     return records
 
 
