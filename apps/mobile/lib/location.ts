@@ -77,6 +77,12 @@ export function locationFromArea(area: AreaOut): ActiveLocation {
   };
 }
 
+// Forget the location only if it is still `geoAreaId` (same object back otherwise): a late
+// "gone" answer for a place the user has already left must not wipe the new choice.
+export function dropLocationIf(s: Settings, geoAreaId: number): Settings {
+  return s.location?.geoAreaId === geoAreaId ? { ...s, location: null } : s;
+}
+
 // ---- routing guard --------------------------------------------------------------------------
 
 export type Entry = "tabs" | "welcome";

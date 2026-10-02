@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SETTINGS,
   type Settings,
+  dropLocationIf,
   entryRedirect,
   locationFromArea,
   locationFromPlace,
@@ -62,5 +63,16 @@ describe("entryRedirect", () => {
     const s = { onboardingDone: true, location: null };
     expect(entryRedirect(s, "tabs")).toBe("/location");
     expect(entryRedirect(s, "welcome")).toBe("/location");
+  });
+});
+
+describe("dropLocationIf", () => {
+  it("forgets the location only when it is still the one that was reported gone", () => {
+    expect(dropLocationIf(done, 7)).toEqual({ onboardingDone: true, location: null });
+  });
+  it("a late answer for an earlier place changes nothing (same object)", () => {
+    expect(dropLocationIf(done, 3)).toBe(done);
+    const none = { onboardingDone: true, location: null };
+    expect(dropLocationIf(none, 7)).toBe(none);
   });
 });

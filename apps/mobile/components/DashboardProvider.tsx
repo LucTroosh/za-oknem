@@ -39,7 +39,7 @@ const Ctx = createContext<DashboardContext | null>(null);
 // Mounted with `key={geoAreaId}`: another location = a fresh provider, so nothing of the
 // previous place stays on screen under the new name.
 export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; children: ReactNode }) {
-  const { invalidate } = useLocation();
+  const { invalidate, activations } = useLocation();
   const [state, setState] = useState<LoadState>("loading");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [hydroState, setHydroState] = useState<LoadState>("loading");
@@ -82,6 +82,12 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
     loadDashboard();
     loadHydro();
   }, [loadDashboard, loadHydro]);
+
+  // The place was (re)activated after this provider mounted: re-read, the first read may have
+  // raced with it. Latest-wins guard keeps the older response from overwriting this one.
+  useEffect(() => {
+    if (activations > 0) void loadDashboard();
+  }, [activations, loadDashboard]);
 
   const refresh = useCallback(() => {
     const isLatest = guards.current.refresh();

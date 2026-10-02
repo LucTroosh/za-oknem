@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { type ActiveLocation, DEFAULT_SETTINGS, type Settings } from "../lib/location";
+import { type ActiveLocation, DEFAULT_SETTINGS, type Settings, dropLocationIf } from "../lib/location";
 import { activatePlace } from "../lib/places";
 import { loadSettings, saveSettings } from "../lib/storage";
 
@@ -12,6 +12,8 @@ export type LocationContext = {
   settings: Settings;
   // Message for the picker after the remembered place stopped being available.
   notice: string | null;
+  // Count of successful activations of the remembered place at app start (see below).
+  activations: number;
   // Choosing a place finishes the onboarding as well.
   choose: (location: ActiveLocation) => void;
   // The remembered area is gone/unavailable: forget it (Welcome stays done), explain in the picker.
@@ -22,20 +24,26 @@ export type LocationContext = {
 
 const Ctx = createContext<LocationContext | null>(null);
 
+type State = { ready: boolean; settings: Settings; notice: string | null };
+
 export function LocationProvider({ children }: { children: ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [{ ready, settings, notice }, setState] = useState<State>({ ready: false, settings: DEFAULT_SETTINGS, notice: null });
+  // Bumped when the activation of the remembered place succeeded: the dashboard read that raced
+  // with it may have seen the not-yet-reactivated area, so it reloads (DashboardProvider).
+  const [activations, setActivations] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     loadSettings().then((s) => {
       if (cancelled) return;
-      setSettings(s);
-      setReady(true);
+      setState((cur) => ({ ...cur, ready: true, settings: s }));
       // Opening the app with a chosen place refreshes its activation TTL (ADR-029). Best effort:
       // the dashboard reads our database either way, a failure here changes nothing.
-      if (s.location?.placeId != null) activatePlace(s.location.placeId).catch(() => undefined);
+      if (s.location?.placeId != null) {
+        activatePlace(s.location.placeId)
+          .then((r) => !cancelled && r.kind === "proceed" && setActivations((n) => n + 1))
+          .catch(() => undefined);
+      }
     });
     return () => {
       cancelled = true;
@@ -47,25 +55,23 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (ready) void saveSettings(settings);
   }, [ready, settings]);
 
-  // Latest settings for `invalidate`, whose callers (an older provider instance answering late)
-  // may hold a stale closure.
-  const current = useRef(settings);
-  useEffect(() => {
-    current.current = settings;
-  }, [settings]);
-
   const choose = useCallback((location: ActiveLocation) => {
-    setNotice(null);
-    setSettings({ onboardingDone: true, location });
+    setState((cur) => ({ ...cur, settings: { onboardingDone: true, location }, notice: null }));
   }, []);
 
+  // The check runs inside the updater, against React's latest state: a late answer for a place
+  // the user has already left finds another location and changes nothing.
   const invalidate = useCallback((geoAreaId: number, message: string) => {
-    if (current.current.location?.geoAreaId !== geoAreaId) return;
-    setNotice(message);
-    setSettings({ ...current.current, location: null });
+    setState((cur) => {
+      const next = dropLocationIf(cur.settings, geoAreaId);
+      return next === cur.settings ? cur : { ...cur, settings: next, notice: message };
+    });
   }, []);
 
-  const value = useMemo(() => ({ ready, settings, notice, choose, invalidate }), [ready, settings, notice, choose, invalidate]);
+  const value = useMemo(
+    () => ({ ready, settings, notice, activations, choose, invalidate }),
+    [ready, settings, notice, activations, choose, invalidate],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
