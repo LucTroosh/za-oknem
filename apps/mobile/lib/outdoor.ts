@@ -57,6 +57,9 @@ const PARAM_LABEL: Record<string, string> = {
   visibility: "widzialność",
   pm25: "PM2.5",
   pm10: "PM10",
+  no2: "NO₂",
+  o3: "O₃",
+  weather_code: "burza (kod WMO)",
 };
 
 // Keys = Rule.group in app/outdoor.py.
@@ -68,6 +71,9 @@ const GROUP_LABEL: Record<string, string> = {
   gusts: "porywy wiatru",
   uv: "indeks UV",
   visibility: "widzialność",
+  no2: "NO₂",
+  o3: "O₃",
+  storm: "burza",
 };
 
 const STATUS_LABEL: Record<string, string> = {

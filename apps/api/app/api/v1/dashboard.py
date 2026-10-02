@@ -65,8 +65,15 @@ _OUTDOOR_WEATHER_UNITS = {
     "wind_gusts_10m": "km/h",
     "uv_index": "",
     "visibility": "m",
+    "weather_code": "wmo code",
 }
-_OUTDOOR_AIR = {"PM2.5": ("pm25", "µg/m³"), "PM10": ("pm10", "µg/m³")}  # param_code -> field
+# param_code -> (field, unit); units must match air_index.UNIT exactly (no conversion)
+_OUTDOOR_AIR = {
+    "PM2.5": ("pm25", "µg/m³"),
+    "PM10": ("pm10", "µg/m³"),
+    "NO2": ("no2", "µg/m³"),
+    "O3": ("o3", "µg/m³"),
+}
 
 
 # TASK-2.1: explicit response contract of /dashboard/latest (OpenAPI -> TS types in

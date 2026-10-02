@@ -384,7 +384,8 @@ Wszystko inne poniżej nie ma zewnętrznych zależności i mogę to zrobić sam.
       jakość powietrza + UV → GOOD/MODERATE/POOR + `reasons[]`); **nie LLM**
       (rule #10, §52/§53 explicité to zabraniają dla samej klasyfikacji).
       Zależny od Forecast (TASK-5.3, gotowe) i pełnego zestawu parametrów
-      GIOŚ (TASK-4.1) dla wejść.
+      GIOŚ (TASK-4.1) dla wejść. **Rozszerzenie (PR #87, addendum ADR-016):** NO₂/O₃
+      (grupy opcjonalne, progi z `air_index.BANDS`) i burza WMO ≥95 → POOR.
 - [x] **TASK-7.7** (PR #68): `outdoor` w payloadzie `dashboard_latest()` (§55) — wynik
       TASK-7.6 per geo_area, zależny od TASK-7.6.
 - [x] **TASK-7.8** (PR #68): `OutdoorCard` na mobile dashboard (§56/§58) — bez tego
