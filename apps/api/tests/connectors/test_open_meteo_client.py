@@ -50,8 +50,20 @@ def test_fetch_weather_passes_coordinates_and_params(monkeypatch):
     assert kwargs["params"]["latitude"] == 50.43
     assert kwargs["params"]["longitude"] == 16.65
     assert kwargs["params"]["current"] == client.CURRENT_PARAMS
-    assert kwargs["params"]["hourly"] == client.HOURLY_PARAMS
+    assert kwargs["params"]["hourly"] == client.HOURLY_REQUEST_PARAMS
     assert kwargs["params"]["daily"] == client.DAILY_PARAMS
+    assert kwargs["params"]["forecast_days"] == 7  # explicit (ADR-030), not the API default
+    assert "forecast_hours" not in kwargs["params"]  # would drop the current-hour slot
+
+
+def test_hourly_request_is_the_union_of_both_sets_without_duplicates():
+    requested = client.HOURLY_REQUEST_PARAMS.split(",")
+    assert len(requested) == len(set(requested))  # each variable once (billing counts them)
+    assert set(requested) == set(client.HOURLY_PARAMS.split(",")) | set(
+        client.HOURLY_FORECAST_PARAMS.split(",")
+    )
+    # Still starts with the TASK-5.4 variables, so the current-hour lookup keeps its inputs.
+    assert set(client.HOURLY_PARAMS.split(",")) <= set(requested)
 
 
 def test_fetch_weather_fires_on_attempt_once_per_real_request(monkeypatch):

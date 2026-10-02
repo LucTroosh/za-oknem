@@ -1,8 +1,13 @@
 // TASK-5.5: compact daily forecast line ("śr 18°/9°"). Values come straight from
 // the server (dashboard.py forecast block) - nothing is estimated here.
-import type { DashboardForecastDay } from "../../../packages/api-contract/schema";
+import type {
+  DashboardForecastDay,
+  DashboardForecastHour,
+} from "../../../packages/api-contract/schema";
 
 export type ForecastDay = DashboardForecastDay;
+// ADR-030: next up to 48 h, a separate list from `days`; no UI yet (TASK-7.9 / window).
+export type ForecastHour = DashboardForecastHour;
 
 // ponytail: days are UTC calendar days (Open-Meteo is queried with timezone=UTC,
 // client.py), so near midnight the label can be off by one vs. Polish local time.

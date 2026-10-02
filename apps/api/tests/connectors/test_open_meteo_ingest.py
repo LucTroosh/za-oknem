@@ -2,18 +2,21 @@
 fixture (plain ORM queries here, no Postgres-specific SQL — unlike air.py)."""
 
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app import provenance
 from app.connectors.open_meteo import client, ingest
 from app.connectors.open_meteo.parser import (
     FORECAST_PARAM_CODES,
+    HOURLY_FORECAST_PARAM_CODES,
     HOURLY_PARAM_CODES,
     PARAM_CODES,
     PARSER_VERSION,
+    normalize_hourly_forecast,
 )
 from app.models import Forecast, GeoArea, SourceFetch, SourceFetchCounter, WeatherSnapshot
 
@@ -81,6 +84,9 @@ PAYLOAD_WITH_HOURLY = {**CURRENT_BLOCK, **HOURLY_BLOCK, **DAILY_BLOCK}
 PARAM_COUNT = len(PARAM_CODES)
 HOURLY_COUNT = len(HOURLY_PARAM_CODES)
 FORECAST_COUNT = len(FORECAST_PARAM_CODES) * 2  # 2 days in DAILY_BLOCK
+# ADR-030: HOURLY_BLOCK carries visibility + uv_index (also hourly FORECAST params) for the
+# current hour (18:00) and the next one (19:00); 17:00 is before the window.
+HOURLY_FORECAST_COUNT = 2 * 2
 
 
 def _make_area(db) -> GeoArea:
@@ -110,7 +116,7 @@ def test_ingest_geo_area_stores_hourly_derived_fields(db_session, monkeypatch):
 
     stored = ingest.ingest_geo_area(area, db_session)
 
-    assert stored == PARAM_COUNT + HOURLY_COUNT + FORECAST_COUNT
+    assert stored == PARAM_COUNT + HOURLY_COUNT + FORECAST_COUNT + HOURLY_FORECAST_COUNT
     assert db_session.query(WeatherSnapshot).count() == PARAM_COUNT + HOURLY_COUNT
     codes = {r.param_code for r in db_session.query(WeatherSnapshot).all()}
     assert set(HOURLY_PARAM_CODES) <= codes
@@ -469,3 +475,252 @@ def test_ingest_geo_area_records_every_attempt_even_on_final_failure(db_session,
     counter = db_session.query(SourceFetchCounter).filter_by(source_id="open_meteo").first()
     assert counter is not None
     assert counter.count == 2 * ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL
+
+
+# --- ADR-030: hourly forecast storage ---------------------------------------------------
+
+
+def _full_payload(current_time="2026-09-28T18:00") -> dict:
+    """Whole-day hourly arrays for every forecast param (3 days from midnight)."""
+    first = datetime.fromisoformat(current_time).replace(hour=0)
+    times = [(first + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(72)]
+    hourly = {code: [float(i) for i in range(72)] for code in HOURLY_FORECAST_PARAM_CODES}
+    hourly.update(dew_point_2m=[8.0] * 72)
+    units = dict.fromkeys((*HOURLY_FORECAST_PARAM_CODES, "dew_point_2m"), "u")
+    units["uv_index"] = ""
+    payload = {
+        **PAYLOAD,
+        "current": {**CURRENT_BLOCK["current"], "time": current_time},
+        "hourly": {"time": times, **hourly},
+        "hourly_units": units,
+    }
+    return payload
+
+
+def _hourly_rows(db):
+    return db.query(Forecast).filter(Forecast.granularity == "hourly").all()
+
+
+def test_ingest_stores_hourly_forecast_next_to_daily_without_mixing(db_session, monkeypatch):
+    area = _make_area(db_session)
+    payload = _full_payload()
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=payload))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    hourly = _hourly_rows(db_session)
+    daily = db_session.query(Forecast).filter(Forecast.granularity == "daily").all()
+    assert len(hourly) == 48 * len(HOURLY_FORECAST_PARAM_CODES)
+    assert len(daily) == len(FORECAST_PARAM_CODES) * 2
+    assert stored == PARAM_COUNT + HOURLY_COUNT + len(daily) + len(hourly)
+    # weather_code exists in both granularities, also at the same instant: no collision.
+    midnight = datetime(2026, 9, 29, 0, 0)  # SQLite returns naive datetimes
+    kinds = sorted(
+        r.granularity
+        for r in db_session.query(Forecast).filter(Forecast.param_code == "weather_code")
+        if r.valid_from.replace(tzinfo=None) == midnight
+    )
+    assert kinds == ["daily", "hourly"]
+
+
+def test_ingest_hourly_forecast_same_cycle_overwrites_the_whole_run(db_session, monkeypatch):
+    # Same forecast_reference_time: the run is REPLACED (fresh values and fetched_at), not
+    # skipped as "already known" - freshness must not lie (review of PR #89).
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=_full_payload()))
+    ingest.ingest_geo_area(area, db_session)
+    n = len(_hourly_rows(db_session))
+    first_fetch = {r.fetched_at for r in _hourly_rows(db_session)}
+    changed = _full_payload()
+    changed["hourly"]["temperature_2m"] = [99.0] * 72
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=changed))
+
+    ingest.ingest_geo_area(area, db_session)
+
+    rows = _hourly_rows(db_session)
+    assert len(rows) == n  # rewritten, not duplicated
+    temps = {r.value for r in rows if r.param_code == "temperature_2m"}
+    assert temps == {99.0}
+    assert {r.fetched_at for r in rows}.isdisjoint(first_fetch)
+
+
+def test_ingest_hourly_forecast_keeps_only_the_newest_run_per_area(db_session, monkeypatch):
+    area = _make_area(db_session)
+    other = GeoArea(slug="warszawa", name="Warszawa", latitude=52.2, longitude=21.0)
+    db_session.add(other)
+    db_session.commit()
+    real_dt = ingest.datetime
+
+    class _At(real_dt):
+        now_value = real_dt(2026, 9, 28, 18, 20, tzinfo=UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.now_value
+
+    monkeypatch.setattr(ingest, "datetime", _At)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=_full_payload()))
+    ingest.ingest_geo_area(area, db_session)
+    ingest.ingest_geo_area(other, db_session)
+    first_run = len(_hourly_rows(db_session))
+
+    # next 3 h cycle: a new reference time replaces the old run - for that area only
+    _At.now_value = real_dt(2026, 9, 28, 21, 20, tzinfo=UTC)
+    monkeypatch.setattr(
+        client, "fetch_weather", MagicMock(return_value=_full_payload("2026-09-28T21:00"))
+    )
+    ingest.ingest_geo_area(area, db_session)
+
+    rows = _hourly_rows(db_session)
+    refs = {(r.geo_area_id, r.forecast_reference_time.replace(tzinfo=UTC)) for r in rows}
+    assert refs == {
+        (area.id, real_dt(2026, 9, 28, 21, 0, tzinfo=UTC)),
+        (other.id, real_dt(2026, 9, 28, 18, 0, tzinfo=UTC)),  # untouched
+    }
+    assert len(rows) == first_run  # replaced, not accumulated
+    # Daily forecast history is still append-only (ADR-010): the old daily run is kept.
+    daily_refs = {
+        r.forecast_reference_time
+        for r in db_session.query(Forecast).filter(
+            Forecast.granularity == "daily", Forecast.geo_area_id == area.id
+        )
+    }
+    assert len(daily_refs) == 2
+
+
+def test_ingest_hourly_forecast_block_failure_does_not_cost_the_rest(db_session, monkeypatch):
+    area = _make_area(db_session)
+    payload = _full_payload()
+    payload["hourly"] = {"time": payload["hourly"]["time"]}  # no series at all
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=payload))
+
+    stored = ingest.ingest_geo_area(area, db_session)
+
+    assert stored is not None and stored > 0
+    assert _hourly_rows(db_session) == []
+    assert db_session.query(Forecast).filter(Forecast.granularity == "daily").count() > 0
+    assert db_session.query(SourceFetch).one().validation_status == provenance.PARTIAL
+
+
+def test_ingest_full_payload_is_valid_and_rows_link_to_the_fetch(db_session, monkeypatch):
+    area = _make_area(db_session)
+    monkeypatch.setattr(client, "fetch_weather", MagicMock(return_value=_full_payload()))
+
+    ingest.ingest_geo_area(area, db_session)
+
+    fetch = db_session.query(SourceFetch).one()
+    assert fetch.validation_status == provenance.VALID
+    assert {r.source_fetch_id for r in _hourly_rows(db_session)} == {fetch.id}
+
+
+def test_purge_stale_hourly_forecasts_drops_only_old_hourly_rows(db_session):
+    area = _make_area(db_session)
+    now = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
+
+    def row(rid, granularity, valid_until):
+        return Forecast(
+            source_id="open_meteo",
+            source_record_id=rid,
+            geo_area_id=area.id,
+            param_code="temperature_2m",
+            value=1.0,
+            unit="°C",
+            model="auto",
+            forecast_reference_time=now,
+            valid_from=valid_until - timedelta(hours=1),
+            valid_until=valid_until,
+            fetched_at=now,
+            granularity=granularity,
+        )
+
+    db_session.add_all(
+        [
+            row("old-h", "hourly", now - timedelta(days=2)),
+            row("recent-h", "hourly", now - timedelta(hours=3)),
+            row("old-d", "daily", now - timedelta(days=2)),  # daily history is not touched here
+        ]
+    )
+    db_session.commit()
+
+    assert ingest.purge_stale_hourly_forecasts(db_session, now=now) == 1
+
+    assert {r.source_record_id for r in db_session.query(Forecast)} == {"recent-h", "old-d"}
+
+
+def test_request_units_estimate_follows_the_union_of_requested_variables():
+    total = (
+        len(client.CURRENT_PARAMS.split(","))
+        + len(client.HOURLY_REQUEST_PARAMS.split(","))
+        + len(client.DAILY_PARAMS.split(","))
+    )
+    assert total == 26
+    assert ingest.ESTIMATED_BILLABLE_UNITS_PER_CALL == 3  # ceil(26 / 10), ADR-030
+
+
+def _records(area, payload, fetched_at):
+    return normalize_hourly_forecast(geo_area_id=area.id, payload=payload, fetched_at=fetched_at)
+
+
+def _hourly_refs(db):
+    return {r.forecast_reference_time.replace(tzinfo=UTC) for r in _hourly_rows(db)}
+
+
+T1 = datetime(2026, 9, 28, 18, 20, tzinfo=UTC)
+T2 = datetime(2026, 9, 28, 21, 20, tzinfo=UTC)
+
+
+def test_degraded_hourly_run_does_not_destroy_the_previous_one(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session)
+    full = len(_hourly_rows(db_session))
+
+    # (a) far fewer slots: the series ends 3 h after the new window starts
+    short = _full_payload("2026-09-28T21:00")
+    short["hourly"] = {k: (v[:24] if k != "time" else v[:24]) for k, v in short["hourly"].items()}
+    errors: list[str] = []
+    assert ingest._store_hourly_forecast(_records(area, short, T2), db_session, errors) == 0
+    assert errors == ["hourly forecast degraded run kept previous run"]  # trace in the run
+    # (b) full length but a param narrower than the previous run
+    narrow = _full_payload("2026-09-28T21:00")
+    del narrow["hourly"]["wind_gusts_10m"]
+    assert ingest._store_hourly_forecast(_records(area, narrow, T2), db_session) == 0
+
+    assert len(_hourly_rows(db_session)) == full
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 28, 18, 0, tzinfo=UTC)}
+
+
+def test_degraded_run_replaces_a_baseline_that_is_itself_too_old(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session)
+    narrow = _full_payload("2026-09-29T01:00")
+    del narrow["hourly"]["wind_gusts_10m"]
+    late = T1 + timedelta(hours=7)  # baseline older than HOURLY_BASELINE_MAX_AGE
+
+    assert ingest._store_hourly_forecast(_records(area, narrow, late), db_session) > 0
+
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 29, 0, 0, tzinfo=UTC)}
+
+
+def test_older_hourly_run_than_stored_writes_nothing(db_session):
+    area = _make_area(db_session)
+    ingest._store_hourly_forecast(_records(area, _full_payload("2026-09-28T21:00"), T2), db_session)
+    before = len(_hourly_rows(db_session))
+
+    assert ingest._store_hourly_forecast(_records(area, _full_payload(), T1), db_session) == 0
+
+    assert len(_hourly_rows(db_session)) == before
+    assert _hourly_refs(db_session) == {datetime(2026, 9, 28, 21, 0, tzinfo=UTC)}
+
+
+def test_hourly_store_swallows_integrity_error_and_rolls_back(db_session, monkeypatch):
+    area = _make_area(db_session)
+    records = _records(area, _full_payload(), T1)
+
+    def _boom():
+        raise IntegrityError("insert", {}, Exception("race"))
+
+    monkeypatch.setattr(db_session, "commit", _boom)
+
+    assert ingest._store_hourly_forecast(records, db_session) == 0  # no exception escapes
+    monkeypatch.undo()
+    assert _hourly_rows(db_session) == []

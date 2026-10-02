@@ -815,6 +815,13 @@
             "title": "Freshness",
             "type": "string"
           },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardForecastHour"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
           "source": {
             "const": "open_meteo",
             "title": "Source",
@@ -826,7 +833,8 @@
           "attribution",
           "fetched_at",
           "freshness",
-          "days"
+          "days",
+          "hours"
         ],
         "title": "DashboardForecast",
         "type": "object"
@@ -855,6 +863,33 @@
           "params"
         ],
         "title": "DashboardForecastDay",
+        "type": "object"
+      },
+      "DashboardForecastHour": {
+        "description": "ADR-030: one hour of the model forecast (NOT a measurement). `params` holds only the\nvalues the model provided for that hour - a missing one is absent, never 0.",
+        "properties": {
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_until": {
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid_from",
+          "valid_until",
+          "params"
+        ],
+        "title": "DashboardForecastHour",
         "type": "object"
       },
       "DashboardOutdoor": {
