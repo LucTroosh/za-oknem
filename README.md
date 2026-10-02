@@ -101,6 +101,8 @@ docker compose exec api python -m app.connectors.geonames_places.ingest --downlo
 
 ### Mobile (Expo)
 
+Pełna instrukcja uruchomienia i testu na telefonie: [`docs/mobile/run-and-test.md`](docs/mobile/run-and-test.md).
+
 ```bash
 cd apps/mobile
 npm install
