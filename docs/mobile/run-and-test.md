@@ -42,6 +42,24 @@ Brak danych dla któregoś źródła = ekran pokazuje „niedostępne”, nigdy 
 
 Zasada: **układ i zachowanie testuj w Expo Go, wygląd natywny (ikona, splash) wyłącznie w buildzie natywnym.**
 
+### Test APK (EAS, profil `preview`) - backend lokalny bez VPS
+
+`apps/mobile/eas.json` ma profil `preview`: samodzielny APK (JS jest w środku, nie potrzebuje Metro),
+z własną ikoną launchera i splashem. Adres API jest wypiekany w buildzie z `eas.json` -> `env.EXPO_PUBLIC_API_URL`
+(dziś adres LAN laptopa). **Zmieniasz IP Maca albo sieć = zmień ten adres i zrób nowy build.**
+Release Android blokuje HTTP, więc `app.config.js` włącza `usesCleartextTraffic` WYŁĄCZNIE dla profilu `preview`
+(Expo Go, development i przyszła produkcja zostają przy domyślnym HTTPS).
+
+```bash
+npm i -g eas-cli && eas login            # darmowe konto na expo.dev
+cd apps/mobile
+eas init                                  # raz: tworzy projekt EAS (dopisuje extra.eas.projectId do app.json)
+eas build -p android --profile preview    # chmura Expo, kilkanascie minut
+```
+
+Na koncu dostajesz link/QR do APK. Na telefonie: otworz link, zainstaluj (zezwol na instalacje z tego zrodla).
+Backend musi dzialac na Macu (`docker compose up -d`), a telefon byc w tej samej sieci Wi-Fi.
+
 ## 3. Reset do pierwszego uruchomienia
 
 Wybór lokalizacji jest tylko na urządzeniu (AsyncStorage). Żeby zobaczyć Welcome od zera: Android → Ustawienia → Aplikacje
