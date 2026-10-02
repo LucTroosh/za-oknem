@@ -964,6 +964,7 @@ loading/empty/error/stale/unavailable/brak uprawnień wg tabel mapy.
       ostrzeżenia (decyzja w screen-map 5.2); test czystej funkcji „które moduły
       pokazać”. **Non-goals:** wybór gatunków pyłków, wiek/płeć/zdrowie/rodzina,
       konto, wpływ na silnik „Na dwór”. **Dependencies:** TASK-12.17 (magazyn i onboarding).
+      **Stan (kolejny PR):** ✅ `lib/topics.ts` (testy: czysta funkcja „które moduły pokazać”, pusty wybór = wszystko, tapnięcie działa na efektywnym wyborze, zły zapis odfiltrowany, baner ostrzeżenia nigdy ukryty), `TopicsPicker` (checkbox: Powietrze/Pogoda/Pyłki/Alerty — bez Woda/Kąpieliska/Aktywność), krok „Co chcesz śledzić?” po pierwszym wyborze lokalizacji (`app/topics.tsx`) i w Ustawieniach, `Settings.topics` bez podnoszenia `v`. Werdykt „Na dwór” nie zależy od wyboru. Niezweryfikowane na urządzeniu.
 - [ ] **TASK-12.14 (UI-MOCK-3):** Szczegóły pyłków z wykresem godzinowym (S7; poza P0, spec UI §56).
       **Goal:** struktura ekranu pyłków z przebiegiem godzinowym, zawsze jako prognoza
       modelu. **Scope:** `current` i `days[]` **live**; szereg godzinowy z fixture'a
