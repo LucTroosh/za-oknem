@@ -17,14 +17,15 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 
 from app import provenance
+from app.config import settings
 from app.connectors.gios import client
 from app.connectors.gios.parser import (
     PARAM_UNITS,
     PARSER_VERSION,
     GiosParseError,
     find_sensor,
-    latest_value,
     normalize,
+    parse_values,
 )
 from app.db import SessionLocal
 from app.models import Measurement
@@ -78,7 +79,8 @@ def _ingest_param(
             logger.info("station %s: no %s sensor, skipping", station_id, formula)
             return NO_SENSOR
         sensor_id = str(sensor["Identyfikator stanowiska"])
-        data = client.fetch_sensor_data(sensor_id)
+        size = settings.gios_data_size
+        data = client.fetch_sensor_data(sensor_id, size=size)
     except (client.GiosApiError, GiosParseError, KeyError) as exc:
         # KeyError: malformed sensor dict (e.g. missing "Identyfikator stanowiska")
         # must stay inside this param's isolation too (Codex review) — otherwise it
@@ -100,61 +102,100 @@ def _ingest_param(
     fetch_id = provenance.record_fetch(
         db,
         source_id="gios",
-        endpoint=f"{client.BASE_URL}/data/getData/{sensor_id}",
+        endpoint=f"{client.BASE_URL}{client.sensor_data_path(sensor_id, size)}",
         payload=data,
         fetched_at=fetched_at,
         parser_version=PARSER_VERSION,
     )
     try:
-        result = latest_value(data)
-        record: dict | None = None
-        if result is not None:
-            observed_at, value = result
-            record = normalize(
-                station=station,
-                sensor=sensor,
-                observed_at=observed_at,
-                value=value,
-                fetched_at=fetched_at,
-            )
-        status = provenance.VALID
+        parsed = parse_values(data)
+        readings = parsed.readings
+        skipped = len(parsed.rejected)
+        # The CURRENT reading must be usable (a failed run, as before): if the newest entry that
+        # carries a value is one we could not use, the window is not trustworthy. Older entries we
+        # cannot use are skipped and counted.
+        if parsed.rejected and not readings:
+            raise GiosParseError(f"no usable value in the payload ({parsed.rejected[0][1]})")
+        dated = [(naive, why) for naive, why in parsed.rejected if naive is not None]
+        if readings and dated:
+            naive, why = max(dated, key=lambda r: r[0])
+            if naive > readings[-1][0].replace(tzinfo=None):
+                raise GiosParseError(f"newest reading unusable ({why})")
+        records: list[dict] = []
+        for index, (observed_at, value) in enumerate(readings):
+            try:
+                records.append(
+                    normalize(
+                        station=station,
+                        sensor=sensor,
+                        observed_at=observed_at,
+                        value=value,
+                        fetched_at=fetched_at,
+                    )
+                )
+            except GiosParseError as exc:
+                if index == len(readings) - 1:
+                    raise  # the CURRENT reading must be valid: a failed run, as before
+                # an older value we cannot use must not hold back the rest of the window
+                skipped += 1
+                logger.warning(
+                    "station %s (%s): skipping an older invalid value (%s)",
+                    station_id,
+                    formula,
+                    exc,
+                )
+        # ADR-014: VALID = every record validated; PARTIAL = some were rejected (never silent)
+        status = provenance.PARTIAL if skipped else provenance.VALID
     except (GiosParseError, KeyError) as exc:
         logger.warning(
             "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc
         )
         if errors is not None:
             errors.append(f"{type(exc).__name__}: {exc}")
-        record, status = None, provenance.INVALID
+        records, status = [], provenance.INVALID
     provenance.set_validation_status(db, fetch_id, status)
     if status == provenance.INVALID:
         return FAILED
-    if record is None:
+    if not records:
         logger.info("station %s: no recent %s values, skipping", station_id, formula)
         return NOTHING_NEW
-    record["source_fetch_id"] = fetch_id
 
-    exists = (
-        db.query(Measurement)
-        .filter_by(source_id=record["source_id"], source_record_id=record["source_record_id"])
-        .first()
-    )
-    if exists:
-        logger.info("station %s: %s reading already stored, skipping", station_id, formula)
+    # One response carries the whole window (hourly, newest first): every value we do not have yet
+    # is stored, which also fills the hours a missed run left behind (rule #8: nothing is made up,
+    # the source simply still lists them). A race with another run is retried once.
+    stored = 0
+    for _attempt in range(2):
+        known = {
+            row[0]
+            for row in db.query(Measurement.source_record_id).filter(
+                Measurement.source_id == "gios",
+                Measurement.source_record_id.in_([r["source_record_id"] for r in records]),
+            )
+        }
+        new = [r for r in records if r["source_record_id"] not in known]
+        if not new:
+            logger.info("station %s: %s readings already stored, skipping", station_id, formula)
+            return NOTHING_NEW
+        # ADR-014: every row points at the fetch that delivered it (one fetch -> many readings)
+        db.add_all(Measurement(**r, source_fetch_id=fetch_id) for r in new)
+        try:
+            db.commit()
+            stored = len(new)
+            break
+        except IntegrityError:
+            db.rollback()  # another run stored some of them meanwhile: look again
+    if not stored:
         return NOTHING_NEW
-
-    db.add(Measurement(**record))
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()  # race with another ingest run — fine, reading exists now
-        return NOTHING_NEW
+    newest = new[-1]
     logger.info(
-        "station %s (%s): %s = %s %s",
+        "station %s (%s): %s = %s %s (+%d new, newest %s)",
         station_id,
-        record["station_name"],
+        newest["station_name"],
         formula,
-        record["value"],
-        record["unit"],
+        newest["value"],
+        newest["unit"],
+        stored,
+        newest["observed_at"].isoformat(),
     )
     return STORED
 

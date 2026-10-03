@@ -6,6 +6,9 @@ English camelCase shape this file originally (wrongly) assumed before we had net
 access to test it against the live service.
 """
 
+import math
+from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -36,7 +39,8 @@ GIOS_TZ = ZoneInfo("Europe/Warsaw")
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested fields), so old payloads stay interpretable.
-PARSER_VERSION = "1"
+# "2": a payload yields its whole window of readings (was: the newest one), DST-aware.
+PARSER_VERSION = "2"
 
 
 class GiosParseError(Exception):
@@ -78,6 +82,84 @@ def latest_value(data: dict[str, Any]) -> tuple[datetime, float] | None:
     if not readings:
         return None
     return max(readings, key=lambda r: r[0])
+
+
+_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _is_ambiguous(naive: datetime) -> bool:
+    """A local time that happens twice (the hour the clocks go back, last Sunday of October)."""
+    return (
+        naive.replace(tzinfo=GIOS_TZ, fold=0).utcoffset()
+        != naive.replace(tzinfo=GIOS_TZ, fold=1).utcoffset()
+    )
+
+
+@dataclass(frozen=True)
+class ParsedValues:
+    """`readings`: every usable reading, oldest first. `rejected`: the entries that carried a value
+    but could not be used, as the local time they were listed under (None = no readable `Data`)
+    plus why; they are counted, never silently lost."""
+
+    readings: list[tuple[datetime, float]]
+    rejected: list[tuple[datetime | None, str]]
+
+
+def parse_values(data: dict[str, Any]) -> ParsedValues:
+    """EVERY non-null reading of the payload (not just the newest), each entry judged on its own:
+    one malformed old value must not discard the readings around it. Only a payload whose overall
+    shape changed raises.
+
+    `Data` is naive Warsaw local time with DST (checked 2026-10-03: a 19:23 CEST fetch carried
+    19:00 as its newest value). When the clocks go back, 02:00 occurs twice with nothing to tell
+    the copies apart but their place in the list: the API lists newest first, so the first copy
+    is the LATER instant (CET, fold=1) and the second the earlier (CEST, fold=0); an ascending
+    list is read the other way round. A lone ambiguous time (its twin missing) stays fold=0,
+    as before: it cannot be resolved from the payload."""
+    values = data.get("Lista danych pomiarowych")
+    if not isinstance(values, list):
+        raise GiosParseError(f"expected 'Lista danych pomiarowych' list, got: {type(values)!r}")
+    if not all(isinstance(entry, dict) for entry in values):
+        raise GiosParseError("malformed value entry: not an object")
+
+    stamps: list[datetime | None] = []
+    for entry in values:
+        try:
+            stamps.append(datetime.strptime(entry["Data"], _DATE_FORMAT))
+        except (KeyError, ValueError, TypeError):
+            stamps.append(None)  # judged below, and only if it carries a value
+    known = [s for s in stamps if s is not None]
+    descending = len(known) > 1 and known[0] > known[-1]
+    occurrences = Counter(known)
+    seen: Counter[datetime] = Counter()
+
+    readings: list[tuple[datetime, float]] = []
+    rejected: list[tuple[datetime | None, str]] = []
+    for entry, naive in zip(values, stamps, strict=True):
+        if naive is not None:
+            seen[naive] += 1  # a null twin still takes its place in the order
+        raw_value = entry.get("Wartość")
+        if raw_value is None:
+            continue
+        if naive is None:
+            rejected.append((None, f"bad or missing 'Data' in {entry!r}"))
+            continue
+        try:
+            value = float(raw_value)
+        except (ValueError, TypeError):
+            rejected.append((naive, f"non-numeric 'Wartość' {raw_value!r}"))
+            continue
+        if not math.isfinite(value):
+            rejected.append((naive, f"non-finite 'Wartość' {raw_value!r}"))
+            continue
+        fold = 0
+        if occurrences[naive] == 2 and _is_ambiguous(naive):
+            first_copy = seen[naive] == 1
+            fold = 1 if first_copy == descending else 0
+        readings.append((naive.replace(tzinfo=GIOS_TZ, fold=fold), value))
+    # aware datetimes sharing a tzinfo compare by wall time (fold ignored): order by the instant
+    readings.sort(key=lambda r: r[0].timestamp())
+    return ParsedValues(readings, rejected)
 
 
 def normalize(
