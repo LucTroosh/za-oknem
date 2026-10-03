@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # A staging snapshot older than this is a dead run (crash): its lock may be taken over.
     gios_open_lock_ttl_minutes: int = Field(default=360, gt=0)
 
+    # ADR-032: per-section switches for "Twoja okolica" (default off: a section is shown only after
+    # its source passed the operator check). Noise: nearest measurement point within the radius.
+    neighborhood_noise_enabled: bool = False
+    neighborhood_noise_max_km: float = Field(default=10.0, gt=0, le=50)
+
     @field_validator("gios_open_base_url", mode="before")
     @classmethod
     def _gios_open_base_url(cls, v: object) -> object:

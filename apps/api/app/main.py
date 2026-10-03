@@ -16,6 +16,7 @@ from app.api.v1 import (
     geo,
     health,
     hydro,
+    neighborhood,
     places,
     pollen,
     pollen_calendar,
@@ -70,6 +71,7 @@ app.include_router(hydro.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(geo.router, prefix="/api/v1")
+app.include_router(neighborhood.router, prefix="/api/v1")
 app.include_router(places.router, prefix="/api/v1")
 app.include_router(pollen.router, prefix="/api/v1")
 app.include_router(pollen_calendar.router, prefix="/api/v1")

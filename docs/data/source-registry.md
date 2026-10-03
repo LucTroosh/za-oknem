@@ -597,7 +597,7 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
 ## gios_noise (GIOŚ — hałas: pomiary w środowisku, zasięgi, ekspozycja)
 
 - **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
-- **connector:** `gios_noise` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **connector:** `gios_noise` (`app/connectors/gios_noise/`, ADR-032): `parser` + `ingest` (CLI `python -m app.connectors.gios_noise.ingest`); zaimplementowana tylko operacja `pomiar-halasu-w-srodowisku`
 - **endpoint:** `https://dane.gios.gov.pl/api/halas` — 9 operacji; planowana pierwsza: `GET /v1/pomiar-halasu-w-srodowisku` (wymagane `kategoria`, `wojewodztwo`, `dataOd`, `dataDo`). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-halas.yaml`
   (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
 - **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
