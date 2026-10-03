@@ -135,7 +135,7 @@ nagłówek lokalizacji → werdykt → karty statusu → „Co możesz dziś rob
 | Karta statusu „Prognoza pyłków” | `areas[].pollen` · `current`, `unit`, `valid_at`, `freshness`, `source_status`, `kind="model_forecast"` | ✅ (prognoza modelu CAMS, nie pomiar; progi = sezon/szczyt EAACI, **nie ryzyko objawów** — ADR-020; etykieta „Niskie” to tylko „poniżej progu sezonu”) | TASK-8.8/8.9 ✅ | S/U ⇒ „Dane chwilowo niedostępne” bez poziomów; `null` = „brak danych”, nigdy 0 |
 | Karty statusu dla pozostałych modułów (np. woda) | — | ⬜ renderowane tylko, gdy dane dostępne i włączona flaga (spec §50); **woda nie jest renderowana** | TASK-12.18 | layout dostosowany do liczby kart |
 | „Co możesz dziś robić?” — karty aktywności (spacer, bieganie/rower, wietrzenie, wieczorny wysiłek) | **brak**: `outdoor` daje jeden werdykt + powody, nie rekomendacje per aktywność; brak przedziałów czasu (brak prognozy godzinowej powietrza i pogody) | ⬜ wymaga backendu — **bez mocka** (rekomendacja to interpretacja zbliżona do werdyktu; zakaz mockowania) | **TASK-7.9** (backend), TASK-12.18 (UI) | GOOD ✓ / CAUTION ! / AVOID × / UNKNOWN ? (glif + słowo, nie sam kolor); powód po tapnięciu; przedział czasu opcjonalny, dziś nieobecny |
-| Kalendarz pylenia | `GET /pollen/calendar` | 🟡 (8 taksonów; ambrozja/pokrzywowate `not_covered`) | TASK-8.10 ✅ | pusty `active` ≠ „nic nie pyli” |
+| Kalendarz pylenia | `GET /pollen/calendar` | 🟡 (8 taksonów; ambrozja/pokrzywowate `not_covered`) | TASK-8.10 ✅ | pusty `active` ≠ „nic nie pyli” (karta „Typowy sezon” jest na S7, szczegóły na S7a) |
 | Prognoza dobowa | `areas[].forecast` · `days[].params`, `freshness`, `fetched_at` | ✅ dane; blok `forecast` nie ma własnego `source_status`, ale pochodzi z tego samego pobrania Open-Meteo co pogoda (źródło `open_meteo`, ADR-010), więc **używamy `source_status.weather`**: efektywna świeżość = najgorsza z `forecast.freshness` i `source_status.weather.freshness` (`worstFreshness`, ADR-012), `fetched_at` jako wiek | TASK-12.18 | S/U ⇒ „Prognoza mogła się zmienić / niedostępna”, bez max/min w nagłówku; brak bloku `forecast` ⇒ pomijamy |
 | Obszar bez pollingu / miejscowość bez pokrycia | `areas[].weather_polling_active=false`; `coverage` exact/nearby/regional/none, `grid_description` | ✅ | TASK-12.7 | Start: „Pogoda i pyłki dla tej miejscowości są chwilowo niedostępne. Powietrze może pochodzić ze stacji w okolicy.”; nearby/regional: „Dane ze stacji X, N km stąd” / „Stan dla obszaru w promieniu ok. 100 km — stacja X, N km”; `none` = UNAVAILABLE „Brak stacji pomiarowej w okolicy”; opis siatki w szczegółach pogody i pyłków |
 | Stan ekranu: ładowanie / błąd / pusty / częściowa awaria | stan `DashboardProvider` | 🟡 (globalny spinner; każdy moduł ma własny stan, ekran nie blokuje się przy awarii jednego — spec §42) | TASK-12.18 | skeleton per moduł; „Nie udało się pobrać aktualnych danych. Spróbuj ponownie” bez błędów technicznych |
@@ -214,8 +214,19 @@ Nie ma: mapy, wielu zapisanych lokalizacji, śledzenia w tle (reguła #11).
 | Wartości „teraz” (5 gatunków) i poziomy sezon/szczyt | `pollen.current`, `unit`, `valid_at` | ✅ (jak na S1) | — | S/U ⇒ bez poziomów |
 | Maksima dobowe na kolejne dni | `pollen.days[]` · `date`, `max{5 gatunków}` | ⬜ (dane ✅, nieużyte w UI) | TASK-12.14 | `null` = „brak danych” |
 | **Wykres godzinowy** | brak: baza ma 96 wierszy/obszar/dobę (ADR-020), ale API wystawia tylko `current` + `days` | 🧪 MOCK (typ proponowany `PollenHourly`) → live po TASK-8.11 | TASK-12.14 (mock), TASK-8.11 (backend) | zawsze jako **model_forecast** (tytuł „prognoza modelu CAMS, nie pomiar”), wersja tekstowa/tabela dla a11y, S/U ⇒ bez wykresu |
-| Kalendarz pylenia | `GET /pollen/calendar` | ✅ (jak na S1) | — | — |
+| **Typowy sezon** — kompaktowa karta: jeden status sezonu (ikona + tytuł), jedno zdanie, jedno zdanie kontekstu, link „Zobacz kalendarz sezonów” | `GET /pollen/calendar` · `active[]` (`phase`, `name_pl`) + poziom aktualnej prognozy (nagłówek karty Pyłki) | ✅ | — | 5 stanów: poza sezonem / początek / trwa / szczyt / dobiega końca (priorytet: szczyt; wspólna faza = ta faza; mieszanka = „trwa”). **Kalendarz to kontekst dla prognozy, nie jej zamiennik** (reguła #7): poza sezonem nigdy „nic nie pyli”, a gdy prognoza pokazuje pyłki, karta mówi to wprost. Bez metodologii, dekad, taksonów i dłuższych disclaimerów |
 | Atrybucja CAMS + Open-Meteo, `forecast_reference_time` | `pollen.attribution`, `forecast_reference_time`, `model` | ✅ | — | — |
+
+### S7a. Kalendarz sezonów (szczegóły typowego sezonu) — ✅
+
+Ukryty ekran (`/pollen-calendar`), otwierany linkiem z karty „Typowy sezon” na S7. Te same dane co karta (jedno żądanie `GET /pollen/calendar` w `DashboardProvider`), nic nowego z sieci.
+
+| Element UI | Źródło | Status | Stany |
+|---|---|---|---|
+| „Teraz w typowym sezonie”: alergen, faza (początek / szczyt / koniec), okres sezonu, okno szczytu | `active[]` · `phase`, `season_*`, `peak_*` | ✅ | pusty `active` ⇒ „Żaden z ujętych alergenów nie jest teraz w typowym sezonie” |
+| „Nadchodzące” (start w ciągu 30 dni) | `upcoming[]` | ✅ | brak ⇒ sekcja ukryta |
+| „Jak działa kalendarz?”: typowy przebieg, nie pomiar i nie prognoza; ograniczenia (`coverage_warning`, `not_covered`), `disclaimer` | `coverage_warning`, `not_covered[]`, `disclaimer`, `active_message` | ✅ (teksty serwera dosłownie) | — |
+| Źródło | `attribution` | ✅ | — |
 
 ### S8. Stany rzek (hydrologia) — ✅ pełna lista (bez kąpielisk i wody pitnej) / ⬜ stacja najbliższa lokalizacji
 
