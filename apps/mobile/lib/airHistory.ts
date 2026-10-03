@@ -3,6 +3,14 @@ import type { AirHistoryResponse } from "../../../packages/api-contract/schema";
 export type AirHistory = AirHistoryResponse;
 export const AIR_PARAMS: readonly AirHistory["param"][] = ["PM2.5", "PM10", "NO2", "SO2", "O3", "CO", "C6H6"];
 
+// Include the UTC offset so the repeated local 02:00 during autumn DST stays unambiguous.
+export function formatHistoryTime(iso: string): string {
+  return new Date(iso).toLocaleString("pl-PL", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    timeZoneName: "shortOffset",
+  });
+}
+
 // Position by elapsed time, not array index: missing hours stay empty, including across DST.
 export function historyBars(data: AirHistory) {
   const start = Date.parse(data.window_start);

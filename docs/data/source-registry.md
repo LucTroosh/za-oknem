@@ -242,6 +242,7 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   godzina", potwierdzone na żywym przykładzie). Zgodnie z ADR-004: scheduler docelowo
   co godzinę dla danych, raz na dzień/tydzień dla listy stacji — do ostatecznego
   ustalenia w Phase 5.
+- **Indeks dostawcy (2026-10-03, implementacja do review, ADR-033):** `aqindex/getIndex/52` oraz `/11` pobrane na żywo; raw w `gios/evidence/air-live/`. `AqIndex` ma skalę polską 0–5, źródłowe etykiety i osobne daty obliczenia/wejść; dla stacji 11 niektóre indeksy cząstkowe są jawnie null. Meta: hourly i czas lokalny; oficjalne API: limit 1500/min. Ingest 1×/h pod `GIOS_PROVIDER_INDEX_ENABLED` (domyślnie false); odrębny snapshot/stan próby, API DB-only. Nie zastępuje naszego EAQI.
 - **getData (zweryfikowane na żywo przez operatora 2026-10-03):** bez parametrów zwraca stronę 20 najnowszych wartości (sortowanie
   malejące po `Data`); `size` (spec: max 500) działa — `size=100` zwróciło **66 wartości** (2026-10-01 02:00 – 2026-10-03 19:00,
   co godzinę, bez dziur): źródło trzyma dla czujnika tylko ok. 66 godzin (okno może się zmieniać, nie zakładać stałości).

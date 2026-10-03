@@ -27,6 +27,7 @@ from app.connectors.gios.parser import (
     normalize,
     parse_values,
 )
+from app.connectors.gios.provider_index import ingest_index
 from app.db import SessionLocal
 from app.models import Measurement
 from app.source_status import SMALL_SET_MAX_FAILED_FRACTION, record_source_run, run_failure_reason
@@ -210,6 +211,8 @@ def ingest_station(station: dict, db, errors: list[str] | None = None) -> int | 
     of the run (rule #1); a single param's failure within a station is isolated by
     _ingest_param instead."""
     station_id = station.get("Identyfikator stacji")
+    if settings.gios_provider_index_enabled:
+        ingest_index(str(station_id), db)
     try:
         sensors = client.fetch_sensors(str(station_id))
     except client.GiosApiError as exc:

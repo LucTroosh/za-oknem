@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { type AirHistory, historyBars } from "./airHistory";
+import { type AirHistory, formatHistoryTime, historyBars } from "./airHistory";
 
 it("plots elapsed time across DST, leaves gaps empty, preserves zero and rejects invalid measurements", () => {
   const data = {
@@ -22,4 +22,19 @@ it("plots elapsed time across DST, leaves gaps empty, preserves zero and rejects
     expect(() => historyBars({ ...data, points: [{ observed_at, value: 1 }] })).toThrow();
   }
   expect(() => historyBars({ ...data, window_end: data.window_start })).toThrow();
+});
+
+it("distinguishes both occurrences of the local hour when clocks go back", () => {
+  const before = process.env.TZ;
+  process.env.TZ = "Europe/Warsaw";
+  try {
+    const first = formatHistoryTime("2026-10-25T00:00:00Z");
+    const second = formatHistoryTime("2026-10-25T01:00:00Z");
+    expect(first).toContain("02:00");
+    expect(second).toContain("02:00");
+    expect(first).not.toEqual(second);
+  } finally {
+    if (before === undefined) delete process.env.TZ;
+    else process.env.TZ = before;
+  }
 });

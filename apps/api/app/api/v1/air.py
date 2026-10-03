@@ -1,3 +1,4 @@
+import math
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -8,10 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.air_index import air_index
 from app.attribution import GIOS_ATTRIBUTION
+from app.config import settings
 from app.connectors.gios.discovery import assignment_candidates
+from app.connectors.gios.parser import PARAM_UNITS
+from app.connectors.gios.provider_index import ProviderIndexPayload
 from app.db import get_db
 from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
-from app.models import GeoArea, Measurement
+from app.models import GeoArea, GiosProviderIndex, Measurement
 
 router = APIRouter()
 
@@ -22,7 +26,7 @@ RECENT_MAX_AGE = timedelta(hours=6)
 
 
 def freshness(observed_at: datetime) -> str:
-    age = datetime.now(UTC) - observed_at
+    age = datetime.now(UTC) - _aware(observed_at)
     if age <= FRESH_MAX_AGE:
         return "FRESH"
     if age <= RECENT_MAX_AGE:
@@ -83,7 +87,9 @@ def assign_air_station(db: Session, area: GeoArea, stations: dict[str, dict]) ->
     position. `stations` = id -> {latitude, longitude} of those that have measurements."""
     points = assignment_candidates(db, stations)
     coords = {sid: (lat, lon) for sid, lat, lon in points}
-    match, _ = pick_air_station(area.latitude, area.longitude, points, set(stations))
+    match, _ = pick_air_station(
+        area.latitude, area.longitude, points, set(stations), current_ids=current_air_ids(stations)
+    )
     if match is None:  # no station WITH data in range (ADR-025 amended)
         return None
     level = classify_air_coverage(match.distance_km)
@@ -97,6 +103,61 @@ def assign_air_station(db: Session, area: GeoArea, stations: dict[str, dict]) ->
         "distance_km": round(match.distance_km, 1),
         "assignment_method": match.method,
     }
+
+
+def current_air_ids(stations: dict[str, dict]) -> set[str]:
+    return {
+        sid
+        for sid, station in stations.items()
+        if any(
+            p["freshness"] in ("FRESH", "RECENT") and p["unit"] == PARAM_UNITS.get(code)
+            for code, p in station.get("params", {}).items()
+        )
+    }
+
+
+def latest_air_stations(db: Session) -> dict[str, dict]:
+    # Window query works in Postgres AND SQLite; tie-break by id for two sensors at one time.
+    ranked = (
+        select(
+            Measurement.id,
+            func.row_number()
+            .over(
+                partition_by=(Measurement.station_id, Measurement.param_code),
+                order_by=(Measurement.observed_at.desc(), Measurement.id.asc()),
+            )
+            .label("rank"),
+        )
+        .where(Measurement.source_id == "gios", Measurement.observed_at <= datetime.now(UTC))
+        .subquery()
+    )
+    stmt = select(Measurement).where(
+        Measurement.id.in_(select(ranked.c.id).where(ranked.c.rank == 1))
+    )
+    stations: dict[str, dict] = {}
+    for row in db.execute(stmt).scalars().all():
+        if row.param_code not in PARAM_UNITS:
+            continue
+        if not math.isfinite(row.value) or row.value < 0:
+            continue
+        station = stations.setdefault(
+            row.station_id,
+            {
+                "station_id": row.station_id,
+                "station_name": row.station_name,
+                "latitude": row.latitude,
+                "longitude": row.longitude,
+                "params": {},
+                "source": "gios",
+            },
+        )
+        station["params"][row.param_code] = {
+            "value": row.value,
+            "unit": row.unit,
+            "observed_at": _aware(row.observed_at).isoformat(),
+            "freshness": freshness(row.observed_at),
+        }
+    return stations
 
 
 # exclude_unset: the ADR-025 provenance fields appear only for ?geo_area_id= - the plain list
@@ -121,50 +182,7 @@ def latest_air_quality(
         area = db.get(GeoArea, geo_area_id)
         if area is None:
             raise HTTPException(status_code=404, detail="geo_area not found")
-    # Latest reading per (station, param): one query, no N+1 — distinct on
-    # (station_id, param_code) ordered by observed_at desc is the standard Postgres
-    # idiom for "latest per group", extended to two grouping columns.
-    #
-    # ponytail: newer SQLAlchemy (2.1+) deprecates this expression-based .distinct()
-    # in favor of sqlalchemy.dialects.postgresql.distinct_on(), but the exact new
-    # API shape wasn't reliably verifiable from docs at the time of writing (worth
-    # confirming against the real changelog, not guessing, before switching — same
-    # lesson as the GIOŚ connector). Still correct and fully covered by tests, just
-    # noisy in pytest output. Upgrade when SQLAlchemy actually removes the old form.
-    # source_id filter: `measurements` is shared with other connectors (e.g.
-    # imgw_hydro's water_level_cm) — without it this query would also return
-    # river-gauge rows here, labeled as GIOŚ air stations (Codex review).
-    stmt = (
-        select(Measurement)
-        .where(Measurement.source_id == "gios")
-        .distinct(Measurement.station_id, Measurement.param_code)
-        .order_by(Measurement.station_id, Measurement.param_code, Measurement.observed_at.desc())
-    )
-    rows = db.execute(stmt).scalars().all()
-
-    if not rows:
-        # no data != zero (Principle §43) — empty list, not fabricated 0s
-        return {"stations": []}
-
-    stations: dict[str, dict] = {}
-    for row in rows:
-        station = stations.setdefault(
-            row.station_id,
-            {
-                "station_id": row.station_id,
-                "station_name": row.station_name,
-                "latitude": row.latitude,
-                "longitude": row.longitude,
-                "params": {},
-                "source": "gios",
-            },
-        )
-        station["params"][row.param_code] = {
-            "value": row.value,
-            "unit": row.unit,
-            "observed_at": row.observed_at.isoformat(),
-            "freshness": freshness(row.observed_at),
-        }
+    stations = latest_air_stations(db)
 
     for station in stations.values():
         station["index"] = air_index(station["params"], RECENT_MAX_AGE)
@@ -282,18 +300,7 @@ def air_history(
     }
 
     # Stations that have any GIOŚ reading, with their measured position (as /air/latest)
-    measured = {
-        sid: {"latitude": lat, "longitude": lon}
-        for sid, lat, lon in db.execute(
-            select(
-                Measurement.station_id,
-                func.max(Measurement.latitude),
-                func.max(Measurement.longitude),
-            )
-            .where(Measurement.source_id == "gios")
-            .group_by(Measurement.station_id)
-        )
-    }
+    measured = latest_air_stations(db)
     assigned = assign_air_station(db, area, measured) if measured else None
     if assigned is None:
         return {**base, "availability": "no_station"}
@@ -304,6 +311,7 @@ def air_history(
             Measurement.source_id == "gios",
             Measurement.station_id == assigned["station_id"],
             Measurement.param_code == param,
+            Measurement.unit == PARAM_UNITS[param],
             Measurement.observed_at >= start,
             Measurement.observed_at <= now,  # a future-dated reading is not part of the window
         )
@@ -311,7 +319,8 @@ def air_history(
     ).scalars()
     by_time: dict[datetime, Measurement] = {}
     for row in rows:  # two sensors of one parameter must not double a point: first wins
-        by_time.setdefault(_aware(row.observed_at), row)
+        if math.isfinite(row.value) and row.value >= 0:
+            by_time.setdefault(_aware(row.observed_at), row)
     times = sorted(by_time)
 
     first = next(iter(by_time.values()), None)
@@ -343,4 +352,60 @@ def air_history(
         "gaps": history_gaps(times),
         "latest_observed_at": times[-1].isoformat(),
         "latest_freshness": freshness(times[-1]),
+    }
+
+
+class ProviderIndexResponse(BaseModel):
+    kind: Literal["provider_index"] = "provider_index"
+    source: Literal["gios"] = "gios"
+    scale: Literal["POLISH_AIR_QUALITY_INDEX"] = "POLISH_AIR_QUALITY_INDEX"
+    availability: Literal["available", "no_index", "no_data", "no_station", "disabled"]
+    station: AirHistoryStation | None
+    data: ProviderIndexPayload | None
+    freshness: Literal["FRESH", "RECENT", "STALE", "UNAVAILABLE"]
+    retrieval_status: Literal["ok", "degraded", "none"]
+    fetched_at: str | None
+    attribution: str = GIOS_ATTRIBUTION
+
+
+@router.get("/air/provider-index", response_model=ProviderIndexResponse)
+def provider_index(
+    geo_area_id: int = Query(ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
+    """Source index at the same station as /air/latest and /air/history. DB only."""
+    area = db.get(GeoArea, geo_area_id)
+    if area is None:
+        raise HTTPException(status_code=404, detail="geo_area not found")
+    base: dict = {
+        "station": None,
+        "data": None,
+        "freshness": "UNAVAILABLE",
+        "retrieval_status": "none",
+        "fetched_at": None,
+    }
+    if not settings.gios_provider_index_enabled:
+        return {**base, "availability": "disabled"}
+    stations = latest_air_stations(db)
+    assigned = assign_air_station(db, area, stations) if stations else None
+    if assigned is None:
+        return {**base, "availability": "no_station"}
+    sid = assigned["station_id"]
+    base["station"] = {**assigned, "station_name": stations[sid]["station_name"]}
+    row = db.get(GiosProviderIndex, sid)
+    if row is None:
+        return {**base, "availability": "no_data"}
+    base["retrieval_status"] = "ok" if row.last_attempt_succeeded else "degraded"
+    if row.payload is None:
+        return {**base, "availability": "no_data"}
+    data = ProviderIndexPayload.model_validate(row.payload)
+    # Provider status false/null must never be interpreted as a usable overall index.
+    available = data.status is True and data.index.level is not None
+    return {
+        **base,
+        "availability": "available" if available else "no_index",
+        "data": data.model_dump(),
+        "freshness": freshness(datetime.fromisoformat(data.index.observed_at))
+        if available and data.index.observed_at
+        else "UNAVAILABLE",
+        "fetched_at": _aware(row.fetched_at).isoformat() if row.fetched_at else None,
     }

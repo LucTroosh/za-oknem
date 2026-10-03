@@ -200,6 +200,22 @@ class GiosStation(Base):
     )
 
 
+class GiosProviderIndex(Base):
+    """Latest successful provider index plus last attempt; NOT a measurement or our EAQI."""
+
+    __tablename__ = "gios_provider_indices"
+    station_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True
+    )
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
+    last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_attempt_succeeded: Mapped[bool] = mapped_column(Boolean)
+
+
 class WeatherSnapshot(Base):
     """One normalized weather reading for a geo_area (ADR-001 option C).
 

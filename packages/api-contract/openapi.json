@@ -2783,6 +2783,216 @@
         "title": "PollenValues",
         "type": "object"
       },
+      "ProviderIndexPayload": {
+        "properties": {
+          "critical_pollutant": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PYL",
+                  "OZON"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Critical Pollutant"
+          },
+          "index": {
+            "$ref": "#/components/schemas/ProviderIndexValue"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ProviderIndexValue"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "index",
+          "params",
+          "status",
+          "critical_pollutant"
+        ],
+        "title": "ProviderIndexPayload",
+        "type": "object"
+      },
+      "ProviderIndexResponse": {
+        "properties": {
+          "attribution": {
+            "default": "Źródło danych: GIOŚ - EKOINFONET",
+            "title": "Attribution",
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "no_index",
+              "no_data",
+              "no_station",
+              "disabled"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderIndexPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE",
+              "UNAVAILABLE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "kind": {
+            "const": "provider_index",
+            "default": "provider_index",
+            "title": "Kind",
+            "type": "string"
+          },
+          "retrieval_status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "none"
+            ],
+            "title": "Retrieval Status",
+            "type": "string"
+          },
+          "scale": {
+            "const": "POLISH_AIR_QUALITY_INDEX",
+            "default": "POLISH_AIR_QUALITY_INDEX",
+            "title": "Scale",
+            "type": "string"
+          },
+          "source": {
+            "const": "gios",
+            "default": "gios",
+            "title": "Source",
+            "type": "string"
+          },
+          "station": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirHistoryStation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "availability",
+          "station",
+          "data",
+          "freshness",
+          "retrieval_status",
+          "fetched_at"
+        ],
+        "title": "ProviderIndexResponse",
+        "type": "object"
+      },
+      "ProviderIndexValue": {
+        "properties": {
+          "calculated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculated At"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          }
+        },
+        "required": [
+          "level",
+          "label",
+          "observed_at",
+          "calculated_at"
+        ],
+        "title": "ProviderIndexValue",
+        "type": "object"
+      },
       "ResolvedGeoArea": {
         "properties": {
           "geo_area_id": {
@@ -3370,6 +3580,48 @@
           }
         },
         "summary": "Latest Air Quality"
+      }
+    },
+    "/api/v1/air/provider-index": {
+      "get": {
+        "description": "Source index at the same station as /air/latest and /air/history. DB only.",
+        "operationId": "provider_index_api_v1_air_provider_index_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Geo Area Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderIndexResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Provider Index"
       }
     },
     "/api/v1/alerts/latest": {

@@ -6,6 +6,7 @@ different from the plain English-keyed shape this file originally (wrongly) assu
 before we had network access to test it. parser.py does the field-name mapping.
 """
 
+import json
 import time
 from collections.abc import Iterator
 
@@ -118,14 +119,37 @@ def find_stations(station_ids: set[str]) -> list[dict]:
 def fetch_sensors(station_id: str) -> list[dict]:
     """GET /station/sensors/{stationId} — also a 2 req/min list endpoint, throttled
     the same as station/findAll (see _throttle_list_endpoint).
-    ponytail: assumes one page is enough — real stations have a handful of sensors
-    (verified: 5 for station 11), no pagination handling here. Add it if a station
-    is ever seen with more than one page's worth."""
-    resp = _get(f"/station/sensors/{station_id}", throttle=True)
-    try:
-        return resp["Lista stanowisk pomiarowych dla podanej stacji"]
-    except KeyError as exc:
-        raise GiosApiError(f"unexpected sensors response shape: missing {exc}") from exc
+    Walk every declared page; an incomplete walk is an error, never a partial list."""
+    sensors: list[dict] = []
+    total = None
+    seen: set[str] = set()
+    for page in range(100):  # operational bound, not a provider limit
+        resp = _get(f"/station/sensors/{station_id}?page={page}&size=500", throttle=True)
+        rows = (
+            resp.get("Lista stanowisk pomiarowych dla podanej stacji")
+            if isinstance(resp, dict)
+            else None
+        )
+        pages = resp.get("totalPages") if isinstance(resp, dict) else None
+        if (
+            not isinstance(rows, list)
+            or not all(isinstance(r, dict) for r in rows)
+            or type(pages) is not int
+            or not 0 <= pages <= 100
+            or (total is not None and pages != total)
+        ):
+            raise GiosApiError("unexpected/inconsistent sensors pagination")
+        total = pages
+        fingerprint = json.dumps(rows, sort_keys=True, ensure_ascii=False)
+        if rows and fingerprint in seen:
+            raise GiosApiError("repeated sensors page")
+        seen.add(fingerprint)
+        sensors.extend(rows)
+        if page + 1 >= total:
+            return sensors
+        if not rows:
+            raise GiosApiError("empty sensors page before declared end")
+    raise GiosApiError("sensors page limit exceeded")
 
 
 def sensor_data_path(sensor_id: str, size: int | None = None) -> str:
@@ -138,3 +162,8 @@ def fetch_sensor_data(sensor_id: str, size: int | None = None) -> dict:
     Without `size` the API returns its default page of 20 hourly values; `size` (max 500)
     asks for more in the SAME single request (the source keeps ~66 h per sensor)."""
     return _get(sensor_data_path(sensor_id, size))
+
+
+def fetch_index(station_id: str) -> dict:
+    """Current Polish air quality index (1500/min; hourly, provider metadata)."""
+    return _get(f"/aqindex/getIndex/{station_id}")

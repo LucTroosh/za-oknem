@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AIR_PARAMS, type AirHistory, historyBars } from "../lib/airHistory";
+import { AIR_PARAMS, type AirHistory, formatHistoryTime, historyBars } from "../lib/airHistory";
 import { apiGet } from "../lib/api";
 import { airCoverage } from "../lib/coverage";
 import { formatObservedAt } from "../lib/dashboardTypes";
@@ -88,7 +88,7 @@ export default function AirHistoryCard({ geoAreaId, refreshTick }: { geoAreaId: 
               <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpanded((v) => !v)} style={styles.choice}>
                 <Text style={styles.text}>{expanded ? "Ukryj pomiary" : "Pokaż pomiary"}</Text>
               </Pressable>
-              {expanded && data.points.map((p) => <Text key={p.observed_at} style={styles.text}>{formatObservedAt(p.observed_at)} · {p.value.toLocaleString("pl-PL")} {data.unit}</Text>)}
+              {expanded && data.points.map((p) => <Text key={p.observed_at} style={styles.text}>{formatHistoryTime(p.observed_at)} · {p.value.toLocaleString("pl-PL")} {data.unit}</Text>)}
             </>
           )}
           <Text style={styles.note}>{data.attribution}</Text>

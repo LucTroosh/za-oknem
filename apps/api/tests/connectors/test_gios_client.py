@@ -133,7 +133,12 @@ def test_fetch_sensors_returns_list(monkeypatch):
     monkeypatch.setattr(
         client,
         "_get",
-        MagicMock(return_value={"Lista stanowisk pomiarowych dla podanej stacji": [{"id": 1}]}),
+        MagicMock(
+            return_value={
+                "Lista stanowisk pomiarowych dla podanej stacji": [{"id": 1}],
+                "totalPages": 1,
+            }
+        ),
     )
     assert client.fetch_sensors("38") == [{"id": 1}]
 
@@ -147,3 +152,17 @@ def test_fetch_sensors_raises_gios_api_error_on_unexpected_shape(monkeypatch):
 def test_fetch_sensor_data_passes_through(monkeypatch):
     monkeypatch.setattr(client, "_get", MagicMock(return_value={"data": "raw"}))
     assert client.fetch_sensor_data("25988") == {"data": "raw"}
+
+
+def test_sensors_reads_all_pages_and_rejects_incomplete_or_repeated_walk(monkeypatch):
+    key = "Lista stanowisk pomiarowych dla podanej stacji"
+    first = {key: [{"id": 1}], "totalPages": 2}
+    second = {key: [{"id": 2}], "totalPages": 2}
+    fetch = MagicMock(side_effect=[first, second])
+    monkeypatch.setattr(client, "_get", fetch)
+    assert client.fetch_sensors("52") == [{"id": 1}, {"id": 2}]
+    assert all(call.kwargs["throttle"] for call in fetch.call_args_list)
+    for last in [first, {key: [], "totalPages": 3}, {key: None, "totalPages": 2}]:
+        monkeypatch.setattr(client, "_get", MagicMock(side_effect=[first, last]))
+        with pytest.raises(client.GiosApiError):
+            client.fetch_sensors("52")

@@ -81,6 +81,8 @@ def pick_air_station(
     longitude: float,
     points: Iterable[tuple[str, float, float]],
     measured_ids: set[str],
+    *,
+    current_ids: set[str] | None = None,
 ) -> tuple[StationMatch | None, StationMatch | None]:
     """ADR-025 (amended): (nearest station WITH data, nearest catalog station at all), both within
     REGIONAL_MAX_KM. The air block uses the first - its own distance/coverage, never the nearer
@@ -88,6 +90,12 @@ def pick_air_station(
     points = list(points)
     nearest_any = select_stations(latitude, longitude, points, max_km=REGIONAL_MAX_KM)
     with_data = [p for p in points if p[0] in measured_ids]
+    current = [p for p in with_data if current_ids is not None and p[0] in current_ids]
+    if current:
+        # Prefer current readings, but keep a stale station when nothing current is in range.
+        in_range = select_stations(latitude, longitude, current, max_km=REGIONAL_MAX_KM)
+        if in_range:
+            return in_range[0], nearest_any[0] if nearest_any else None
     nearest_data = select_stations(latitude, longitude, with_data, max_km=REGIONAL_MAX_KM)
     return (nearest_data[0] if nearest_data else None, nearest_any[0] if nearest_any else None)
 

@@ -69,6 +69,59 @@ def history(client, area, **params):
     return r.json()
 
 
+def test_current_station_is_shared_by_latest_dashboard_and_history(db_session, client, area):
+    reading(db_session, 24, 10, station="near", pos=NEAR)
+    reading(db_session, 1, 20, station="current", pos=(50.4, 18.7))
+    # Another older row must not overwrite the current row in SQLite or Postgres.
+    reading(db_session, 12, 5, station="current", pos=(50.4, 18.7))
+    assert (
+        client.get(f"/api/v1/air/latest?geo_area_id={area.id}").json()["stations"][0]["station_id"]
+        == "current"
+    )
+    assert history(client, area)["station"]["station_id"] == "current"
+    body = client.get(f"/api/v1/dashboard/latest?geo_area_id={area.id}").json()
+    assert body["areas"][0]["air"]["station_id"] == "current"
+    assert body["areas"][0]["air"]["params"]["PM2.5"]["value"] == 20
+    # If all readings are old, retain the nearest station and its explicit stale status.
+    db_session.query(Measurement).filter(Measurement.station_id == "current").delete()
+    db_session.commit()
+    body = client.get(f"/api/v1/air/latest?geo_area_id={area.id}").json()["stations"][0]
+    assert body["station_id"] == "near" and body["params"]["PM2.5"]["freshness"] == "STALE"
+
+
+def test_duplicate_sensor_timestamp_has_same_value_in_latest_dashboard_and_history(
+    db_session, client, area
+):
+    reading(db_session, 1, 10)
+    first = db_session.query(Measurement).one()
+    db_session.add(
+        Measurement(
+            source_id="gios",
+            source_record_id="other-sensor",
+            station_id=first.station_id,
+            station_name=first.station_name,
+            latitude=first.latitude,
+            longitude=first.longitude,
+            param_code=first.param_code,
+            value=99,
+            unit=first.unit,
+            observed_at=first.observed_at,
+            fetched_at=first.fetched_at,
+        )
+    )
+    db_session.commit()
+    latest = client.get(f"/api/v1/air/latest?geo_area_id={area.id}").json()["stations"][0]
+    dashboard = client.get(f"/api/v1/dashboard/latest?geo_area_id={area.id}").json()["areas"][0][
+        "air"
+    ]
+    assert (
+        latest["params"]["PM2.5"]["value"]
+        == dashboard["params"]["PM2.5"]["value"]
+        == history(client, area)["points"][-1]["value"]
+        == 10
+    )
+
+
 def test_the_last_hours_come_back_oldest_first_with_the_station_and_its_distance(
     db_session, client, area
 ):
