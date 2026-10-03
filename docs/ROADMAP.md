@@ -268,7 +268,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #126 | Mobile: adaptive icon — znak ×1,10 i wyśrodkowany (`*-fit-1024.png`, oryginały bez zmian); niezweryfikowane na urządzeniu |
 | #127 | Docs: wiersze #125 i #126 w historii PR |
 | #128 | Mobile: fonty (Ionicons + Nunito) ładowane z góry w głównym layoucie; błąd ładowania widoczny w APK `preview` |
-| #129 | Mobile: brakujący `expo-file-system` (moduł natywny `AppDirectories`) — przyczyna braku ikon i Nunito na urządzeniu; ⛔→🟡 **do potwierdzenia nowym APK** |
+| #129 | Mobile: brakujący `expo-file-system` (moduł natywny `AppDirectories`) — przyczyna braku ikon i Nunito na urządzeniu; ✅ **potwierdzone na urządzeniu** (zrzuty z 2026-10-03: ikony, wyszukiwanie miejscowości, Start z danymi) |
+| #130 | Szybkie pierwsze dane nowej miejscowości: bootstrap powietrza (najbliższe stacje GIOŚ, 1 próba na stację, 3 stacje na tick), tick schedulera 15 s, auto-odświeżanie Startu; atrybucja GIOŚ wg regulaminu (`Źródło danych: GIOŚ - EKOINFONET`), limit ≤ 2 pobrania/h — 🟡 niezweryfikowane na prawdziwym GIOŚ i urządzeniu |
 ---
 
 ## Jak utrzymywać ten plik
