@@ -316,12 +316,16 @@ export type HTTPValidationError = {
 export type HydroLatestResponse = {
   attribution: string;
   publication_enabled?: boolean;
+  scope?: "national" | "nearby";
+  search_radius_km?: number | null;
   source_status: SourceStatusOut;
   stations: Array<HydroStation>;
 };
 
 export type HydroStation = {
   alarm_level_cm: number | null;
+  distance_km?: number | null;
+  fetched_at?: string | null;
   freshness: "FRESH" | "RECENT" | "STALE";
   latitude: number;
   longitude: number;

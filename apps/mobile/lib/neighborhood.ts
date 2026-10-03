@@ -8,8 +8,8 @@ import type { NeighborhoodOut } from "../../../packages/api-contract/schema";
 export type NeighborhoodBlock = NeighborhoodOut;
 type Section = NeighborhoodOut["sections"][number];
 
-export const ENTRY_TITLE = "Twoja okolica";
-export const ENTRY_VALUE = "Hałas i inne dane o okolicy";
+export const ENTRY_TITLE = "Hałas w okolicy";
+export const ENTRY_VALUE = "Pomiary GIOŚ z datą i odległością";
 export const SCREEN_INTRO = "Dane historyczne i długoterminowe o wybranej lokalizacji. To nie jest stan na dziś ani ostrzeżenie.";
 
 const CATEGORY_LABEL: Record<string, string> = {

@@ -47,6 +47,7 @@ export function ageFreshness(iso: unknown, now: number): SourceFreshness {
   const t = typeof iso === "string" ? Date.parse(iso) : Number.NaN;
   if (Number.isNaN(t)) return "UNAVAILABLE";
   const age = now - t;
+  if (age < -5 * 60 * 1000) return "STALE";
   if (age <= FRESH_MAX_MS) return "FRESH";
   if (age <= RECENT_MAX_MS) return "RECENT";
   return "STALE";
@@ -89,8 +90,8 @@ export function summarizeHydro(block: HydroBlock, now: number, limit = HYDRO_LIS
       lastSuccessAt,
     };
   }
-  // "No warning/alarm stations" only with a healthy source AND at least one current reading.
-  if (sourceOk && stations.some((s) => healthy(stationFreshness(s, now)))) {
+  // Confirmation needs a healthy source, a classified NORMAL reading and no old readings.
+  if (sourceOk && stations.some((s) => s.status === "NORMAL") && stations.every((s) => healthy(stationFreshness(s, now)))) {
     return { kind: "none-confirmed", unassessed: stations.filter((s) => s.status !== "NORMAL").length };
   }
   return { kind: "unavailable", lastSuccessAt };

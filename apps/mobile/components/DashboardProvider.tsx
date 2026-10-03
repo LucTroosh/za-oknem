@@ -89,14 +89,14 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
 
   const loadHydro = useCallback(() => {
     const isLatest = guards.current.hydro();
-    return apiGet<HydroBlock>("/api/v1/hydro/latest")
+    return apiGet<HydroBlock>(`/api/v1/hydro/latest?geo_area_id=${geoAreaId}`)
       .then((body) => {
         if (!isLatest()) return;
         setHydro(body);
         setHydroState("ready");
       })
       .catch(() => isLatest() && setHydroState("error"));
-  }, []);
+  }, [geoAreaId]);
 
   useEffect(() => {
     loadDashboard();

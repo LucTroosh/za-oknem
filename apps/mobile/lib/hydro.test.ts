@@ -87,10 +87,7 @@ describe("summarizeHydro", () => {
   });
 
   it("UNKNOWN stations alone are not an all-clear", () => {
-    expect(summarizeHydro(block([{ status: "UNKNOWN" }]), NOW)).toEqual({
-      kind: "none-confirmed",
-      unassessed: 1,
-    });
+    expect(summarizeHydro(block([{ status: "UNKNOWN" }]), NOW).kind).toBe("unavailable");
   });
 
   it("flags a list as outdated and ages each station at `now`", () => {
@@ -108,10 +105,7 @@ describe("summarizeHydro", () => {
   });
 
   it("ignores statuses it does not know", () => {
-    expect(summarizeHydro(block([{ status: "SEVERE" as never }]), NOW)).toEqual({
-      kind: "none-confirmed",
-      unassessed: 1,
-    });
+    expect(summarizeHydro(block([{ status: "SEVERE" as never }]), NOW).kind).toBe("unavailable");
   });
 });
 
@@ -130,3 +124,10 @@ describe("hydroLevelLine", () => {
     expect(hydroLevelLine(station({ alarm_level_cm: null }))).toBe("300 cm · próg ostrzegawczy 250 cm");
   });
 });
+
+ it("never confirms no exceedances with a mix of old and current readings", () => {
+   expect(summarizeHydro(block([{ status: "NORMAL" }, { station_id: "2", status: "NORMAL", observed_at: ago(8) }]), NOW).kind).toBe("unavailable");
+ });
+ it("future source times never appear fresh", () => {
+   expect(ageFreshness(new Date(NOW + 10 * 60 * 1000).toISOString(), NOW)).toBe("STALE");
+ });

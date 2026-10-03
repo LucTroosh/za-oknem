@@ -17,8 +17,7 @@ import { formatObservedAt } from "../../lib/dashboardTypes";
 import { RIVERS_PAGE, buildRivers, limitGroups } from "../../lib/rivers";
 import { type Theme, space, typo } from "../../lib/theme";
 
-// S8 Stany rzek (TASK-12.16): every IMGW water-level station from /hydro/latest, nationwide
-// (matching to the location is TASK-9.5). Live only; hydrology and nothing else.
+// S8: nearby IMGW gauges for the selected location; a geographic radius is not a catchment match.
 export default function Rivers() {
   const d = useDashboard();
   const now = useNow();
@@ -33,10 +32,10 @@ export default function Rivers() {
   }
   return (
     <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh} gap={16}>
-      <PageHeader title="Stany rzek" subtitle="Cała Polska: stacje wodowskazowe IMGW z progami ostrzegawczym i alarmowym." />
+      <PageHeader title="Stany rzek" subtitle={d.hydro?.scope === "nearby" ? `Stacje IMGW w promieniu ${d.hydro.search_radius_km} km. Odległość nie oznacza powiązania z lokalną zlewnią.` : "Cała Polska: stacje wodowskazowe IMGW."} />
       {d.hydroState === "error" && d.hydro && <InfoBanner tone="warning" text="Nie udało się odświeżyć danych." detail="Pokazane informacje mogą być nieaktualne." />}
       {model && !model.sourceOk && (
-        <InfoBanner tone="warning" text="Źródło nie odświeża się na bieżąco." detail={`Ostatnia udana aktualizacja: ostatnia udana aktualizacja: ${model.lastSuccessAt ? formatObservedAt(model.lastSuccessAt) : "brak"}. Stany mogą być nieaktualne.`} />
+        <InfoBanner tone="warning" text="Źródło nie odświeża się na bieżąco." detail={`Ostatnia udana aktualizacja: ${model.lastSuccessAt ? formatObservedAt(model.lastSuccessAt) : "brak"}. Stany mogą być nieaktualne.`} />
       )}
       {!d.hydro ? (
         d.hydroState === "loading" ? (
@@ -60,7 +59,7 @@ export default function Rivers() {
             placeholder="Szukaj stacji lub rzeki"
           />
           {model && model.total === 0 && (
-            <Text style={styles.body}>{query.trim() === "" ? "Brak stacji w danych." : `Nie znaleziono stacji „${query.trim()}”.`}</Text>
+            <Text style={styles.body}>{query.trim() === "" ? (d.hydro.scope === "nearby" ? `Brak pomiarów stacji IMGW w promieniu ${d.hydro.search_radius_km} km.` : "Brak stacji w danych.") : `Nie znaleziono stacji „${query.trim()}”.`}</Text>
           )}
           {shown.map((g) => (
             <Card key={g.key}>
