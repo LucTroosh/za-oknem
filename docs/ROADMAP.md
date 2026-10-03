@@ -266,6 +266,9 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #124 | Docs/scripts: poprawna komenda ręcznego pobrania GIOŚ (`run_gios`, jak scheduler) |
 | #125 | Docs: naprawa tabeli „Historia PR” i audyt statusów w ROADMAP |
 | #126 | Mobile: adaptive icon — znak ×1,10 i wyśrodkowany (`*-fit-1024.png`, oryginały bez zmian); niezweryfikowane na urządzeniu |
+| #127 | Docs: wiersze #125 i #126 w historii PR |
+| #128 | Mobile: fonty (Ionicons + Nunito) ładowane z góry w głównym layoucie; błąd ładowania widoczny w APK `preview` |
+| #129 | Mobile: brakujący `expo-file-system` (moduł natywny `AppDirectories`) — przyczyna braku ikon i Nunito na urządzeniu; ⛔→🟡 **do potwierdzenia nowym APK** |
 ---
 
 ## Jak utrzymywać ten plik
