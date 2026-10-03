@@ -329,3 +329,13 @@ osobnym małym commitem zaraz po merge'u. Aktualizacja obejmuje: sekcję 1
 ✅/🟡/⛔ tam gdzie coś się zmieniło), sekcję 6 (nowe/rozwiązane blokady) i
 sekcję 7 (nowy wiersz z numerem PR). Nie przepisywać całego pliku za każdym
 razem — punktowa edycja, tak jak przy kodzie.
+
+### Aktualizacja zakresu — 2026-10-03: rzeki i hałas
+
+Właściciel przywrócił oba tematy do realizacji. Branch `codex/rivers-noise-local` (na PR #150):
+🟡 lokalne stacje IMGW hydro (domyślnie 50 km, distance/time/thresholds, Start entry) i jednoznaczne
+wejście do istniejących pomiarów GIOŚ noise („Hałas w okolicy”). Implementacja oddzielona od aktywacji:
+flagi nadal false; hydro: timezone/terms/warningshydro gate, noise: operator/import/remaining gates.
+Szczegóły i AC: `docs/tasks/TASK-local-rivers-noise.md`; design: `docs/ui/gios-imgw-design-brief.md`.
+Brak deploy, build urządzenia i nowych map. Hałas historyczny jest jawnym wyjątkiem od current-only;
+nie jest prezentowany jako bieżący monitoring akustyczny.

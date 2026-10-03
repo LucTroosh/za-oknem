@@ -151,3 +151,10 @@ def test_normalize_raises_on_out_of_range_coordinates():
     station = {**STATION, "lat": "999"}
     with pytest.raises(ImgwHydroParseError):
         normalize(station, fetched_at=datetime.now(UTC))
+
+
+@pytest.mark.parametrize("key", ["stan_wody", "stan_ostrzegawczy", "stan_alarmowy"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_nonfinite_values_rejected(key, value):
+    with pytest.raises(ImgwHydroParseError):
+        normalize({**STATION, key: value}, fetched_at=datetime.now(UTC))

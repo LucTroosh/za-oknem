@@ -47,7 +47,8 @@ export function normalizeName(s: string): string {
 }
 
 const cmp = (a: HydroStation, b: HydroStation) =>
-  a.station_name < b.station_name ? -1 : a.station_name > b.station_name ? 1 : a.station_id < b.station_id ? -1 : a.station_id > b.station_id ? 1 : 0;
+  ((a.distance_km ?? Infinity) - (b.distance_km ?? Infinity)) ||
+  (a.station_name < b.station_name ? -1 : a.station_name > b.station_name ? 1 : a.station_id < b.station_id ? -1 : a.station_id > b.station_id ? 1 : 0);
 
 // A real warning/alarm stays in its group even when the reading is old (it is shown with its
 // age badge): hiding it would be worse. Only NORMAL readings lose their claim when stale.

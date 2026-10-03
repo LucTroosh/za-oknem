@@ -75,3 +75,11 @@ describe("limitGroups", () => {
     expect(RIVERS_PAGE).toBeGreaterThan(0);
   });
 });
+
+it("sorts nearby stations by distance before their names, regardless of input order", () => {
+ const far = st("far", "A", "NORMAL", { distance_km: 10 });
+ const near = st("near", "Z", "NORMAL", { distance_km: 1 });
+ for (const stations of [[far, near], [near, far]]) {
+   expect(buildRivers(block(stations), NOW).groups[0].items.map(i => i.station.station_id)).toEqual(["near", "far"]);
+ }
+});

@@ -21,6 +21,7 @@ export default function StationRow({ item, statusText, first }: { item: HydroIte
       <Text style={styles.name}>{station.station_name}</Text>
       <StatusBadge tone={tone} label={statusText ?? HYDRO_STATUS_LABEL[station.status]} />
       <Text style={styles.body}>{hydroLevelLine(station)}</Text>
+      {station.distance_km != null && <Text style={styles.meta}>Około {station.distance_km.toFixed(1).replace(".", ",")} km od wybranej lokalizacji</Text>}
       <Text style={styles.meta}>{formatObservedAt(station.observed_at)}</Text>
       <FreshnessBadge state={freshness} label={HYDRO_FRESHNESS_LABEL[freshness]} />
     </View>

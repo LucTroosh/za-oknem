@@ -11,6 +11,7 @@ import InfoBanner from "../../components/InfoBanner";
 import NeighborhoodEntry from "../../components/NeighborhoodEntry";
 import QuickStatusGrid from "../../components/QuickStatusGrid";
 import Screen from "../../components/Screen";
+import SettingsRow, { SettingsGroup } from "../../components/SettingsRow";
 import SourceMeta from "../../components/SourceMeta";
 import { SkeletonCard } from "../../components/Skeleton";
 import useNow from "../../components/useNow";
@@ -71,6 +72,11 @@ export default function Start() {
           {verdict ? <HeroVerdict verdict={verdict} /> : null}
           {tiles.length > 0 && <QuickStatusGrid tiles={tiles} />}
           {preview && <AlertPreviewCard preview={preview} />}
+          {d.hydro?.publication_enabled && (
+            <SettingsGroup>
+              <SettingsRow icon="water-outline" title="Rzeki w okolicy" value={`Stacje IMGW · do ${d.hydro.search_radius_km ?? 50} km`} hint="Otwiera stany wody w pobliskich stacjach" onPress={() => router.push("/rivers")} last />
+            </SettingsGroup>
+          )}
           {location && <NeighborhoodEntry geoAreaId={location.geoAreaId} refreshTick={d.loadedAt} />}
           <SourceMeta
             lines={[

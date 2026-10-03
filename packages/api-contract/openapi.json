@@ -1797,6 +1797,26 @@
             "title": "Publication Enabled",
             "type": "boolean"
           },
+          "scope": {
+            "default": "national",
+            "enum": [
+              "national",
+              "nearby"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "search_radius_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Radius Km"
+          },
           "source_status": {
             "$ref": "#/components/schemas/SourceStatusOut"
           },
@@ -1828,6 +1848,28 @@
               }
             ],
             "title": "Alarm Level Cm"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
           },
           "freshness": {
             "enum": [
@@ -4268,6 +4310,38 @@
       "get": {
         "description": "Reads only from our own DB (rule #14) - never calls IMGW on request.\nData arrives via `python -m app.connectors.imgw_hydro.ingest` or the scheduler.",
         "operationId": "latest_hydro_api_v1_hydro_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geo Area Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_distance_km",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "title": "Max Distance Km",
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4278,6 +4352,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Latest Hydro"

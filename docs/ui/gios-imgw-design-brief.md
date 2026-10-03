@@ -103,3 +103,27 @@ TalkBack, hit-area≥48dp, status słowem/glifem, nie wyłącznie kolorem.
 
 Dostarcz mapowanie element UI→pole API, teksty, zasady ukrywania danych wyłączonych i scenariusze
 przejść stanów. Po zatwierdzeniu: implementacja UI, wspólna selekcja dla insights, build i QA urządzenia.
+
+## Aktualizacja 2026-10-03 — rzeki i hałas w zakresie produktu
+
+Decyzja właściciela: dodajemy oba tematy. Obecny kod zapewnia bazę i osobne wejścia ze Start;
+Design Lead może zaprojektować ich karty obok istniejących tematów, bez zmiany Start/Alerty/Ustawienia.
+
+**Rzeki w okolicy:** stacje wodowskazowe IMGW w promieniu 50 km od lokalizacji. Pokazać nazwę stacji
+(z rzeką), odległość, poziom cm, czas pomiaru, aktualność oraz dostępne progi ostrzegawczy/alarmowy.
+W grupach najpierw stany alarmowe/ostrzegawcze, wewnątrz grup bliższe stacje. Brak progów = brak oceny;
+nie zastępować go zielonym „bezpiecznie”. Odległość nie oznacza, że stacja leży w tej samej zlewni ani
+że mierzy ryzyko pod adresem użytkownika. Stan cm jest względem lokalnego zera wodowskazu, nie
+„głębokością rzeki”. Brak punktu w promieniu to osobny stan; awaria i stare dane zachowują poprzednie
+odczyty z ostrzeżeniem. Nieprojektowane w tym etapie: prognoza powodzi, mapa, trend bez danych historii.
+
+**Hałas w okolicy:** ostatnie opublikowane pomiary GIOŚ z wybranych punktów do 10 km, osobno
+Droga/Kolej/Przemysł/Lotnisko. Każdy wynik musi mieć okres pomiaru, porę dnia/nocy podaną przez źródło,
+dB i odległość. Wyróżnik na karcie: „Pomiary historyczne”, a nie aktualność importu. Pokazać przekroczenie
+wyłącznie jako informację źródła, bez własnych progów i ocen „cicho/głośno teraz”. Brak punktu nie oznacza
+ciszy. Nie używamy mikrofonu telefonu. Dostępne kategorie zależą od rzeczywistych pomiarów.
+
+Oba tematy mają niezależne stany ładowania/awarii. Publiczne karty pojawiają się po aktywacji źródeł;
+prototypy mogą wykorzystać zweryfikowane fixtures, oznaczone jako przykładowe. Hydro wymaga jeszcze
+potwierdzenia czasu/warunków; hałas sprawdzenia operatora i aktualnego importu. Nie ogłaszać funkcji
+„live” przed aktywacją i QA. Nie wpływają obecnie na Co dziś robimy / ocenę Outdoor.

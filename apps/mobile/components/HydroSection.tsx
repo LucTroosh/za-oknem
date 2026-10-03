@@ -17,7 +17,7 @@ import useTheme, { useThemedStyles } from "./useTheme";
 const lastSuccess = (at: string | null) => (at === null ? "brak udanej aktualizacji" : `ostatnia aktualizacja ${formatObservedAt(at)}`);
 
 // Water levels (TASK-7.2 / 12.16): own request and own states, independent of the dashboard
-// (rule #1). Nationwide until nearest-station matching, hence the "cała Polska" label. Statuses are
+// (rule #1). Scope follows the server; geographic proximity is not catchment membership. Statuses are
 // IMGW's own thresholds via the backend; nothing here classifies a level (rule #10).
 export default function HydroSection({ state, hydro }: { state: LoadState; hydro: HydroBlock | null }) {
   const styles = useThemedStyles(createStyles);
@@ -29,7 +29,7 @@ export default function HydroSection({ state, hydro }: { state: LoadState; hydro
   return (
     <View style={styles.section}>
       <SectionHeader title="Stany wody" actionLabel={hydro ? "Wszystkie stacje" : undefined} onAction={() => router.push("/rivers")} />
-      <Text style={styles.note}>Cała Polska: stacje w stanie ostrzegawczym lub alarmowym.</Text>
+      <Text style={styles.note}>{hydro?.scope === "nearby" ? `W promieniu ${hydro.search_radius_km} km: stacje w stanie ostrzegawczym lub alarmowym.` : "Cała Polska: stacje w stanie ostrzegawczym lub alarmowym."}</Text>
       {state === "loading" && !hydro && <LoadingState label="Ładowanie stanów wody…" />}
       {state === "error" && (
         <InfoBanner
@@ -44,7 +44,7 @@ export default function HydroSection({ state, hydro }: { state: LoadState; hydro
       {summary?.kind === "none-confirmed" && (
         <InfoBanner
           tone="good"
-          text="Brak stacji w stanie ostrzegawczym lub alarmowym."
+          text="W ocenionych stacjach odczyty są poniżej progu ostrzegawczego."
           detail={summary.unassessed > 0 ? `${summary.unassessed} stacji bez progów IMGW nie jest oceniane.` : undefined}
         />
       )}

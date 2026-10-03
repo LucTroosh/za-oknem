@@ -23,6 +23,7 @@ own clock (our fetched_at, not the source's stan_wody timestamp) - see
 ingest.py's upsert/delete handling, which is the actual current-state gate.
 """
 
+import math
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -41,7 +42,7 @@ IMGW_TZ = ZoneInfo("Europe/Warsaw")
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested fields), so old payloads stay interpretable.
-PARSER_VERSION = "1"
+PARSER_VERSION = "2"
 
 
 class ImgwHydroParseError(Exception):
@@ -81,6 +82,8 @@ def normalize(station: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any
             ).replace(tzinfo=IMGW_TZ)
         except (TypeError, ValueError) as exc:
             raise ImgwHydroParseError(f"malformed station payload: {exc}") from exc
+        if not math.isfinite(value):
+            raise ImgwHydroParseError(f"station {station_id} has nonfinite stan_wody")
         # No value < 0 rejection here (unlike GIOŚ's PM2.5 check) - unlike air
         # quality, a negative stan_wody is physically valid: it's measured
         # relative to a local gauge-zero reference ("rzędna zera wodowskazu"),
@@ -126,6 +129,8 @@ def normalize(station: dict[str, Any], *, fetched_at: datetime) -> dict[str, Any
             raise ImgwHydroParseError(
                 f"station {station_id} has malformed {raw_key}: {exc}"
             ) from exc
+        if not math.isfinite(threshold_value):
+            raise ImgwHydroParseError(f"station {station_id} has nonfinite {raw_key}")
         return {
             "source_id": "imgw_hydro",
             "source_record_id": source_record_id,

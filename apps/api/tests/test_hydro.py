@@ -104,6 +104,8 @@ def test_latest_hydro_shapes_response_from_rows():
     assert body["attribution"] == IMGW_ATTRIBUTION
     assert body.pop("source_status")["freshness"] == "UNAVAILABLE"
     del body["attribution"]
+    assert body.pop("scope") == "national"
+    assert body.pop("search_radius_km") is None
     assert body.pop("publication_enabled") is True
     assert body == {
         "stations": [
@@ -120,6 +122,8 @@ def test_latest_hydro_shapes_response_from_rows():
                 "observed_at": row.observed_at.isoformat(),
                 "freshness": "FRESH",
                 "source": "imgw_hydro",
+                "distance_km": None,
+                "fetched_at": row.fetched_at.isoformat(),
             }
         ]
     }
@@ -280,3 +284,21 @@ def _legacy_hydro_publication(monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "imgw_hydro_publication_enabled", True)
+
+
+@pytest.mark.parametrize("warning,alarm", [(None, 300), (400, 300), (float("nan"), 300)])
+def test_partial_or_invalid_thresholds_do_not_claim_normal(warning, alarm):
+    assert compute_status(100, warning, alarm) == "UNKNOWN"
+
+
+def test_future_reading_is_not_fresh():
+    assert freshness(datetime.now(UTC) + timedelta(hours=1)) == "STALE"
+
+
+def test_latest_hydro_failed_refresh_degrades_source():
+    status = _status(0.1)
+    status.last_error = "timeout"
+    body = (
+        _client_with_rows([_reading()], {"imgw_hydro": status}).get("/api/v1/hydro/latest").json()
+    )
+    assert body["source_status"]["freshness"] == "STALE"
