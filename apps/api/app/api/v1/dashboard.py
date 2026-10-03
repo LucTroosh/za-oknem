@@ -21,6 +21,7 @@ from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
 from app.api.v1.weather import WeatherParam, forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
+from app.attribution import GIOS_ATTRIBUTION
 from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
@@ -39,8 +40,6 @@ router = APIRouter()
 # sources feed this endpoint today, so a constant beats a lookup table (YAGNI).
 AIR_SOURCE_ID = "gios"  # source_status rows are keyed by the connector's source_id
 WEATHER_SOURCE_ID = "open_meteo"
-# Wording required by the GIOŚ portal terms (regulamin powietrze.gios.gov.pl, checked 2026-10-03).
-GIOS_ATTRIBUTION = "Źródło danych: GIOŚ - EKOINFONET"
 OPEN_METEO_ATTRIBUTION = "Weather data by Open-Meteo.com (CC BY 4.0)"
 # source-registry.md (imgw_hydro, same terms for imgw_warnings*): verbatim, required.
 IMGW_ATTRIBUTION = (

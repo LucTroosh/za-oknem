@@ -76,6 +76,238 @@
         "title": "ActiveTaxon",
         "type": "object"
       },
+      "AirHistoryGap": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "string"
+          },
+          "before": {
+            "title": "Before",
+            "type": "string"
+          },
+          "missing_hours": {
+            "title": "Missing Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "after",
+          "before",
+          "missing_hours"
+        ],
+        "title": "AirHistoryGap",
+        "type": "object"
+      },
+      "AirHistoryPoint": {
+        "properties": {
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "observed_at",
+          "value"
+        ],
+        "title": "AirHistoryPoint",
+        "type": "object"
+      },
+      "AirHistoryResponse": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "no_station",
+              "no_data"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/AirHistoryGap"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "integer"
+          },
+          "interval_minutes": {
+            "title": "Interval Minutes",
+            "type": "integer"
+          },
+          "kind": {
+            "const": "measurement_history",
+            "title": "Kind",
+            "type": "string"
+          },
+          "latest_freshness": {
+            "anyOf": [
+              {
+                "enum": [
+                  "FRESH",
+                  "RECENT",
+                  "STALE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Freshness"
+          },
+          "latest_observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Observed At"
+          },
+          "param": {
+            "enum": [
+              "PM2.5",
+              "PM10",
+              "NO2",
+              "SO2",
+              "O3",
+              "CO",
+              "C6H6"
+            ],
+            "title": "Param",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AirHistoryPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "station": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirHistoryStation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "window_end": {
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "availability",
+          "param",
+          "unit",
+          "hours",
+          "window_start",
+          "window_end",
+          "interval_minutes",
+          "station",
+          "points",
+          "gaps",
+          "latest_observed_at",
+          "latest_freshness",
+          "attribution"
+        ],
+        "title": "AirHistoryResponse",
+        "type": "object"
+      },
+      "AirHistoryStation": {
+        "properties": {
+          "assignment_method": {
+            "title": "Assignment Method",
+            "type": "string"
+          },
+          "coverage": {
+            "enum": [
+              "exact",
+              "nearby",
+              "regional"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "coverage_radius_km": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Radius Km"
+          },
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "station_name": {
+            "title": "Station Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "station_id",
+          "station_name",
+          "latitude",
+          "longitude",
+          "distance_km",
+          "coverage",
+          "coverage_radius_km",
+          "assignment_method"
+        ],
+        "title": "AirHistoryStation",
+        "type": "object"
+      },
       "AirIndex": {
         "description": "European AQI (app/air_index.py, ADR-015). `level` None = \"no index\" (never a\ndefault GOOD); DERIVED, not a Measurement (rule #7).",
         "properties": {
@@ -3018,6 +3250,79 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/air/history": {
+      "get": {
+        "description": "The last `hours` of one parameter at the station assigned to the area (the same one\n/air/latest shows). Reads only our own DB (rule #14); readings accumulate from every ingest\n(the source itself keeps only ~66 h), so a window longer than what we collected is simply\nshorter, and holes inside it are reported as `gaps`. Unknown area = 404.",
+        "operationId": "air_history_api_v1_air_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Geo Area Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "param",
+            "required": false,
+            "schema": {
+              "default": "PM2.5",
+              "enum": [
+                "PM2.5",
+                "PM10",
+                "NO2",
+                "SO2",
+                "O3",
+                "CO",
+                "C6H6"
+              ],
+              "title": "Param",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "maximum": 168,
+              "minimum": 1,
+              "title": "Hours",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Air History"
+      }
+    },
     "/api/v1/air/latest": {
       "get": {
         "description": "Reads only from our own DB (rule #14) — never calls GIOŚ on request.\nData arrives via `python -m app.connectors.gios.ingest` (manual for now, Phase 4).\n\nTASK-4.1: full MVP param set (PM2.5/PM10/NO2/SO2/O3/CO/C6H6), not just PM2.5 —\neach station now returns a `params` dict keyed by param code instead of a single\ntop-level `pm25` field.\n\nADR-025: `?geo_area_id=N` narrows the list to the station assigned to that area\n(nearest WITH data within REGIONAL_MAX_KM = 100 km, with `distance_km`,\n`assignment_method` and the ADR-029 `coverage` band); no station in range = empty list\n(\"brak danych dla obszaru\"), unknown area = 404.",

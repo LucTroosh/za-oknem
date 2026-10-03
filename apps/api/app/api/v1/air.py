@@ -3,10 +3,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.air_index import air_index
+from app.attribution import GIOS_ATTRIBUTION
 from app.connectors.gios.discovery import assignment_candidates
 from app.db import get_db
 from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
@@ -74,6 +75,28 @@ class AirStation(BaseModel):
 
 class AirLatestResponse(BaseModel):
     stations: list[AirStation]
+
+
+def assign_air_station(db: Session, area: GeoArea, stations: dict[str, dict]) -> dict | None:
+    """ADR-025 assignment of the area's air station, shared by /air/latest and /air/history so
+    both always show the SAME station: nearest WITH data, within REGIONAL_MAX_KM, at the catalog
+    position. `stations` = id -> {latitude, longitude} of those that have measurements."""
+    points = assignment_candidates(db, stations)
+    coords = {sid: (lat, lon) for sid, lat, lon in points}
+    match, _ = pick_air_station(area.latitude, area.longitude, points, set(stations))
+    if match is None:  # no station WITH data in range (ADR-025 amended)
+        return None
+    level = classify_air_coverage(match.distance_km)
+    return {
+        "station_id": match.station_id,
+        "coverage": level,
+        "coverage_radius_km": coverage_radius_km(level),
+        # the position the distance was computed from (catalog), not the measured one
+        "latitude": coords[match.station_id][0],
+        "longitude": coords[match.station_id][1],
+        "distance_km": round(match.distance_km, 1),
+        "assignment_method": match.method,
+    }
 
 
 # exclude_unset: the ADR-025 provenance fields appear only for ?geo_area_id= - the plain list
@@ -148,23 +171,176 @@ def latest_air_quality(
     if area is None:
         return {"stations": list(stations.values())}
     # ADR-025: catalog = authority for who may be assigned and at which coordinates.
-    points = assignment_candidates(db, stations)
-    coords = {sid: (lat, lon) for sid, lat, lon in points}
-    match, _ = pick_air_station(area.latitude, area.longitude, points, set(stations))
-    if match is None:  # no station WITH data in range (ADR-025 amended)
+    assigned = assign_air_station(db, area, stations)
+    if assigned is None:
         return {"stations": []}
-    level = classify_air_coverage(match.distance_km)
+    return {"stations": [{**stations[assigned["station_id"]], **assigned}]}
+
+
+# ---- short history (GIOS-03b): the last hours of ONE parameter at the area's station -----------
+# Measurements only (rule #7: not a forecast), straight from our DB (rule #14). The source gives
+# hourly values, so a spacing well beyond an hour is a visible gap, never an interpolated line.
+HISTORY_INTERVAL_MINUTES = 60
+GAP_AFTER = timedelta(minutes=90)  # more than 1.5 intervals between two readings = a gap
+
+AirParamCode = Literal["PM2.5", "PM10", "NO2", "SO2", "O3", "CO", "C6H6"]
+
+
+class AirHistoryPoint(BaseModel):
+    observed_at: str
+    value: float
+
+
+class AirHistoryGap(BaseModel):
+    after: str  # observed_at of the reading before the gap
+    before: str  # observed_at of the reading after it
+    missing_hours: int
+
+
+class AirHistoryStation(BaseModel):
+    station_id: str
+    station_name: str
+    latitude: float
+    longitude: float
+    distance_km: float
+    coverage: Literal["exact", "nearby", "regional"]
+    coverage_radius_km: int | None
+    assignment_method: str
+
+
+class AirHistoryResponse(BaseModel):
+    kind: Literal["measurement_history"]
+    # available: points shown; no_station: no station with data within range of this area;
+    # no_data: the area's station has no readings of this parameter in the window (never a zero)
+    availability: Literal["available", "no_station", "no_data"]
+    param: AirParamCode
+    unit: str | None
+    hours: int
+    window_start: str
+    window_end: str
+    interval_minutes: int
+    station: AirHistoryStation | None
+    points: list[AirHistoryPoint]
+    gaps: list[AirHistoryGap]
+    latest_observed_at: str | None
+    latest_freshness: Literal["FRESH", "RECENT", "STALE"] | None
+    attribution: str
+
+
+def _aware(moment: datetime) -> datetime:
+    """SQLite hands naive datetimes back; Postgres keeps the offset. Stored times are absolute."""
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def history_gaps(times: list[datetime]) -> list[dict]:
+    """Where consecutive readings are further apart than GAP_AFTER (rule #8: missing hours are
+    shown as missing). `times` ascending."""
+    gaps = []
+    for earlier, later in zip(times, times[1:], strict=False):
+        if later - earlier > GAP_AFTER:
+            missing = round((later - earlier) / timedelta(minutes=HISTORY_INTERVAL_MINUTES)) - 1
+            gaps.append(
+                {
+                    "after": earlier.isoformat(),
+                    "before": later.isoformat(),
+                    "missing_hours": max(missing, 1),
+                }
+            )
+    return gaps
+
+
+@router.get("/air/history", response_model=AirHistoryResponse)
+def air_history(
+    geo_area_id: int = Query(ge=1, le=2_147_483_647),
+    param: AirParamCode = "PM2.5",
+    hours: int = Query(24, ge=1, le=168),
+    db: Session = Depends(get_db),
+) -> dict:
+    """The last `hours` of one parameter at the station assigned to the area (the same one
+    /air/latest shows). Reads only our own DB (rule #14); readings accumulate from every ingest
+    (the source itself keeps only ~66 h), so a window longer than what we collected is simply
+    shorter, and holes inside it are reported as `gaps`. Unknown area = 404."""
+    area = db.get(GeoArea, geo_area_id)
+    if area is None:
+        raise HTTPException(status_code=404, detail="geo_area not found")
+    now = datetime.now(UTC)
+    start = now - timedelta(hours=hours)
+    base: dict = {
+        "kind": "measurement_history",
+        "param": param,
+        "hours": hours,
+        "window_start": start.isoformat(),
+        "window_end": now.isoformat(),
+        "interval_minutes": HISTORY_INTERVAL_MINUTES,
+        "station": None,
+        "points": [],
+        "gaps": [],
+        "unit": None,
+        "latest_observed_at": None,
+        "latest_freshness": None,
+        "attribution": GIOS_ATTRIBUTION,
+    }
+
+    # Stations that have any GIOŚ reading, with their measured position (as /air/latest)
+    measured = {
+        sid: {"latitude": lat, "longitude": lon}
+        for sid, lat, lon in db.execute(
+            select(
+                Measurement.station_id,
+                func.max(Measurement.latitude),
+                func.max(Measurement.longitude),
+            )
+            .where(Measurement.source_id == "gios")
+            .group_by(Measurement.station_id)
+        )
+    }
+    assigned = assign_air_station(db, area, measured) if measured else None
+    if assigned is None:
+        return {**base, "availability": "no_station"}
+
+    rows = db.execute(
+        select(Measurement)
+        .where(
+            Measurement.source_id == "gios",
+            Measurement.station_id == assigned["station_id"],
+            Measurement.param_code == param,
+            Measurement.observed_at >= start,
+            Measurement.observed_at <= now,  # a future-dated reading is not part of the window
+        )
+        .order_by(Measurement.observed_at, Measurement.id)
+    ).scalars()
+    by_time: dict[datetime, Measurement] = {}
+    for row in rows:  # two sensors of one parameter must not double a point: first wins
+        by_time.setdefault(_aware(row.observed_at), row)
+    times = sorted(by_time)
+
+    first = next(iter(by_time.values()), None)
+    name = first.station_name if first else None
+    if name is None:  # the station exists but sent nothing of this parameter in the window
+        name = db.execute(
+            select(Measurement.station_name)
+            .where(
+                Measurement.source_id == "gios", Measurement.station_id == assigned["station_id"]
+            )
+            .limit(1)
+        ).scalar_one()
+    keep = ("latitude", "longitude", "distance_km", "coverage")
+    station = {
+        "station_id": assigned["station_id"],
+        "station_name": name,
+        **{k: assigned[k] for k in keep},
+        "coverage_radius_km": assigned["coverage_radius_km"],
+        "assignment_method": assigned["assignment_method"],
+    }
+    if not times:
+        return {**base, "availability": "no_data", "station": station}
     return {
-        "stations": [
-            {
-                **stations[match.station_id],
-                "coverage": level,
-                "coverage_radius_km": coverage_radius_km(level),
-                # the position the distance was computed from (catalog), not the measured one
-                "latitude": coords[match.station_id][0],
-                "longitude": coords[match.station_id][1],
-                "distance_km": round(match.distance_km, 1),
-                "assignment_method": match.method,
-            }
-        ]
+        **base,
+        "availability": "available",
+        "station": station,
+        "unit": by_time[times[0]].unit,
+        "points": [{"observed_at": t.isoformat(), "value": by_time[t].value} for t in times],
+        "gaps": history_gaps(times),
+        "latest_observed_at": times[-1].isoformat(),
+        "latest_freshness": freshness(times[-1]),
     }
