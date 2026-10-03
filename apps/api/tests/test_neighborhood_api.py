@@ -57,8 +57,11 @@ def enabled(monkeypatch):
     monkeypatch.setattr(settings, "neighborhood_noise_max_km", 10.0)
 
 
-def snapshot(db, category, voivodeship="ŚLĄSKIE"):
-    filters = request_filters(category, voivodeship, date(2024, 1, 1), date(2024, 12, 31))
+WIDE = (date(2015, 1, 1), date(2026, 12, 31))  # the range the operator imports (settings default)
+
+
+def snapshot(db, category, voivodeship="ŚLĄSKIE", span=WIDE):
+    filters = request_filters(category, voivodeship, *span)
     snap = sn.begin_snapshot(db, source_id="gios_noise", operation=OPERATION, filters=filters)
     db.flush()
     sn.promote(
@@ -169,7 +172,31 @@ def test_complete_import_without_a_nearby_point_is_no_coverage(db_session, clien
             snapshot(db_session, c, v)
     status(db_session)
     s = section(client, area)["sections"][0]
-    assert s["availability"] == "no_coverage" and "10 km" in s["message"] and s["items"] == []
+    assert s["availability"] == "no_coverage" and s["items"] == []
+    assert "10 km" in s["message"] and "2015–2026" in s["message"]  # says which years were checked
+
+
+def test_a_single_year_import_of_every_combination_cannot_prove_there_is_no_point(
+    db_session, client, area, enabled
+):
+    for c in CATEGORIES:
+        for v in VOIVODESHIPS:
+            snapshot(db_session, c, v, span=(date(2024, 1, 1), date(2024, 12, 31)))
+    status(db_session)
+    s = section(client, area)["sections"][0]
+    assert s["availability"] == "unavailable"  # an older point could exist in another year
+
+
+def test_the_same_measurement_in_two_overlapping_imports_is_listed_once(
+    db_session, client, area, enabled
+):
+    wide = snapshot(db_session, "Droga")
+    year = snapshot(db_session, "Droga", span=(date(2024, 1, 1), date(2024, 12, 31)))
+    for snap in (wide, year):
+        point(db_session, snap, "NEAR", 50.21, 18.91, value=64.5)  # same natural key
+    status(db_session)
+    (item,) = section(client, area)["sections"][0]["items"]
+    assert len(item["measurements"]) == 1
 
 
 def test_a_failed_latest_attempt_is_degraded_while_old_data_is_still_served(
