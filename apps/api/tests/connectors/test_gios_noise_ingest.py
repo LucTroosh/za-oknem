@@ -275,3 +275,51 @@ def test_a_null_result_is_a_missing_value_not_a_type_error(db_session):
     client = FakeHalas({("Droga", "ŚLĄSKIE"): [[rec("D_1"), rec("D_2", wynikPomiaru=None)]]})
     run(db_session, client)
     assert [q.reason for q in db_session.query(IngestQuarantine)] == ["value_missing"]
+
+
+class CountingHalas:
+    """Answers a page-size-1 request with the source's total, like the live API (one request)."""
+
+    service = "halas"
+
+    def __init__(self, totals):
+        self.totals, self.calls = totals, []
+
+    def get_page(self, path, params):
+        key = (params["kategoria"], params["wojewodztwo"])
+        self.calls.append(params)
+        if key not in self.totals:
+            raise GiosOpenSourceError("400", "boom")
+        total = self.totals[key]
+        records = [rec("D_1")] if total else []
+        return Page(
+            records=records, reported_count=total, empty_observed=not total, event_id=None, raw={}
+        )
+
+
+def test_count_only_makes_one_small_request_per_combination_and_estimates_the_time(db_session):
+    client = CountingHalas(
+        {("Droga", "ŚLĄSKIE"): 4415, ("Droga", "OPOLSKIE"): 0, ("Kolej", "ŚLĄSKIE"): 51}
+    )
+    results = ing.run(
+        db=None, client=client, categories=["Droga", "Kolej"], voivodeships=["ŚLĄSKIE", "OPOLSKIE"],
+        date_from=D_FROM, date_to=D_TO, validate_only=False, count_only=True,
+    )  # fmt: skip
+    by_key = {(r["category"], r["voivodeship"]): r for r in results}
+    assert len(client.calls) == 4 and all(c["liczbaElementowNaStronie"] == 1 for c in client.calls)
+    assert (
+        by_key[("Droga", "ŚLĄSKIE")]["records_reported"] == 4415
+        and by_key[("Droga", "ŚLĄSKIE")]["pages"] == 89
+    )
+    assert (
+        by_key[("Droga", "OPOLSKIE")]["records_reported"] == 0
+        and by_key[("Droga", "OPOLSKIE")]["pages"] == 0
+    )
+    assert (
+        by_key[("Kolej", "OPOLSKIE")]["status"] == "failed"
+    )  # one failing combination does not stop the rest
+    summary = ing.count_summary(results)
+    assert summary["total_records"] == 4466 and summary["total_pages"] == 91  # 89 + 0 + 2
+    # (89 + 2) pages + the final empty page of each non-empty combination (2), 5 s each
+    assert summary["estimated_minutes"] == round((91 + 2) * 5 / 60, 1)
+    assert db_session.query(DatasetSnapshot).count() == 0  # nothing written
