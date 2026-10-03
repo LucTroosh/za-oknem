@@ -55,3 +55,35 @@ poza publicznymi danymi GIOŚ (CC BY 4.0).
 - `GiosOpenSourceError ... 400`: zły filtr (najczęściej brak wymaganego parametru albo zła wielkość liter).
 - `GiosOpenPageLoopError` w `walk.stopped_by`: usługa zwraca tę samą stronę zamiast następnej. To właśnie dowód,
   którego szukamy; nie ponawiaj, odeślij raport.
+
+---
+
+# Import hałasu (GIOS-04): walidacja, import, włączenie sekcji
+
+Kolejność ma znaczenie: najpierw walidacja bez zapisu, dopiero potem import i flaga. Import jest **ręczny** — cykl
+publikacji GIOŚ jest nieznany (wyjątek od reguły #16, ADR-032 pkt 8), nic nie biegnie w tle.
+
+```bash
+# 1) Walidacja bez zapisu do bazy: ile rekordów, ile stron, co odrzucone i dlaczego
+docker compose exec api python -m app.connectors.gios_noise.ingest \
+  --year 2024 --category Droga --voivodeship ŚLĄSKIE --validate-only
+
+# 2) Import jednej kombinacji (kategoria × województwo × rok); można powtarzać
+docker compose exec api python -m app.connectors.gios_noise.ingest \
+  --year 2024 --category Droga --voivodeship ŚLĄSKIE
+
+# 3) Cały kraj (4 kategorie × 16 województw = 64 kombinacje, 1 żądanie / 5 s) — długo, w tle
+docker compose exec -d api python -m app.connectors.gios_noise.ingest --year 2024
+```
+
+- Kombinacja, która się nie uda, jest raportowana (kod wyjścia 1), a poprzedni aktywny snapshot **zostaje** i dalej
+  jest serwowany. Inny trwający import tej usługi = kod 2.
+- Rekordy niepasujące do kształtu (zła kolejność współrzędnych, tekst zamiast liczby, kategoria sprzeczna z filtrem,
+  duplikat) trafiają do `ingest_quarantine` z powodem; import idzie dalej.
+- Sekcja „Brak punktów w okolicy” pojawia się dopiero, gdy zaimportowano **wszystkie** 64 kombinacje; przy imporcie
+  częściowym API zwraca `unavailable` (brak punktu w danych częściowych nie dowodzi braku punktu).
+- Włączenie: `NEIGHBORHOOD_NOISE_ENABLED=true` w `.env` serwera i restart `api`. Promień: `NEIGHBORHOOD_NOISE_MAX_KM`
+  (domyślnie 10). Dopóki flaga jest wyłączona, `GET /api/v1/neighborhood` zwraca `enabled=false`, a aplikacja
+  nie pokazuje wejścia.
+- Bez internetu w środowisku: `--file odpowiedz.json` (lista odpowiedzi stron, jedna kombinacja).
+- Wynik walidacji (liczba stron, pusty wynik, zakres dat) odpowiada na B-6 — prześlij go, a zaktualizuję bramkę.

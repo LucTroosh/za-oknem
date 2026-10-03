@@ -1707,6 +1707,276 @@
         "title": "NearestPlaceResponse",
         "type": "object"
       },
+      "NeighborhoodOut": {
+        "properties": {
+          "area_name": {
+            "title": "Area Name",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/NoiseSectionOut"
+            },
+            "title": "Sections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "area_name",
+          "enabled",
+          "sections"
+        ],
+        "title": "NeighborhoodOut",
+        "type": "object"
+      },
+      "NoiseItemOut": {
+        "properties": {
+          "category": {
+            "enum": [
+              "Droga",
+              "Lotnisko",
+              "Przemysł",
+              "Kolej"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "gmina": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmina"
+          },
+          "locality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locality"
+          },
+          "measurements": {
+            "items": {
+              "$ref": "#/components/schemas/NoiseMeasurementOut"
+            },
+            "title": "Measurements",
+            "type": "array"
+          },
+          "period_from": {
+            "format": "date",
+            "title": "Period From",
+            "type": "string"
+          },
+          "period_to": {
+            "format": "date",
+            "title": "Period To",
+            "type": "string"
+          },
+          "point_code": {
+            "title": "Point Code",
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "voivodeship": {
+            "title": "Voivodeship",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "point_code",
+          "locality",
+          "gmina",
+          "voivodeship",
+          "distance_km",
+          "period_from",
+          "period_to",
+          "purpose",
+          "measurements"
+        ],
+        "title": "NoiseItemOut",
+        "type": "object"
+      },
+      "NoiseMeasurementOut": {
+        "properties": {
+          "exceedance_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exceedance Db"
+          },
+          "period_of_day": {
+            "title": "Period Of Day",
+            "type": "string"
+          },
+          "value_db": {
+            "title": "Value Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "period_of_day",
+          "value_db",
+          "exceedance_db"
+        ],
+        "title": "NoiseMeasurementOut",
+        "type": "object"
+      },
+      "NoiseSectionOut": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "availability": {
+            "enum": [
+              "available",
+              "no_coverage",
+              "no_records",
+              "unavailable",
+              "pending_verification"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "data_kind": {
+            "const": "historical_measurement",
+            "title": "Data Kind",
+            "type": "string"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "id": {
+            "const": "noise",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NoiseItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "license_url": {
+            "title": "License Url",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "retrieval_status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "none"
+            ],
+            "title": "Retrieval Status",
+            "type": "string"
+          },
+          "search_radius_km": {
+            "title": "Search Radius Km",
+            "type": "number"
+          },
+          "source_period": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourcePeriod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data_kind",
+          "title",
+          "availability",
+          "retrieval_status",
+          "message",
+          "source_period",
+          "fetched_at",
+          "attribution",
+          "source_url",
+          "license_url",
+          "limitations",
+          "search_radius_km",
+          "items"
+        ],
+        "title": "NoiseSectionOut",
+        "type": "object"
+      },
       "NotCovered": {
         "additionalProperties": false,
         "properties": {
@@ -2416,6 +2686,37 @@
           "monitored"
         ],
         "title": "SourceHealthOut",
+        "type": "object"
+      },
+      "SourcePeriod": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "precision": {
+            "enum": [
+              "date",
+              "year",
+              "range",
+              "unknown"
+            ],
+            "title": "Precision",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "precision"
+        ],
+        "title": "SourcePeriod",
         "type": "object"
       },
       "SourceStatusOut": {
@@ -3196,6 +3497,46 @@
           }
         },
         "summary": "Latest Hydro"
+      }
+    },
+    "/api/v1/neighborhood": {
+      "get": {
+        "operationId": "get_neighborhood_api_v1_neighborhood_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Geo Area Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborhoodOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Neighborhood"
       }
     },
     "/api/v1/places": {

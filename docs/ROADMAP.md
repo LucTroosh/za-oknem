@@ -92,7 +92,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-01 | ADR-032, kontrakt `/neighborhood`, flagi | ✅ ADR-032 (kontrakt OpenAPI przy pierwszej implementacji) |
 | GIOS-02 | wspólny fundament ingestu (`app/gios_open/`): klient (BLAD przy HTTP 200, retry ≤ 2, limiter na każdą próbę), paginacja (pętla / nakładanie / limit stron = błąd, koniec = potwierdzona pusta strona), snapshoty staging → active z blokadą per usługa w bazie, kwarantanna, `probe` dla operatora | ✅ DONE (PR-B, migracja 0017); bez żadnego connectora; paginację na żywo rozstrzyga `probe` (B-6) |
 | GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | ⬜ TODO (PR-C) |
-| GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | ⬜ TODO (PR-D); IMPLEMENTABLE, gate niezaliczony (paginacja, pusty wynik: B-6) |
+| GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | 🟡 PARTIAL — backend gotowy (parser, import `--validate-only`/`--file`, kwarantanna, migracja 0018); **gate niezaliczony** (paginacja, pusty wynik: B-6) — import na prawdziwym GIOŚ po stronie operatora |
 | GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
 | GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⬜ TODO; liczby emisji ⛔ BLOCKED — jednostki (B-1) |
 | GIOS-07 | rejestr ZZR/ZDR i historia zdarzeń | ⬜ TODO; zdarzenia UNVERIFIED (brak próbki) |
@@ -101,7 +101,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-10 | powietrze historyczne (16 operacji) | ⬜ TODO (po hałasie) |
 | GIOS-11 | NEC (ekosystemy) | ⬜ TODO; stanowiska IMPLEMENTABLE (gate niezaliczony), wyniki UNVERIFIED |
 | GIOS-12 | pozostałe obszary (gleby, PEM, promieniowanie, przyroda, morze, CLC, INSPIRE) | ⬜ TODO — tylko discovery |
-| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | ⬜ TODO (minimum razem z GIOS-04) |
+| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | 🟡 PARTIAL — `GET /api/v1/neighborhood` + flaga `NEIGHBORHOOD_NOISE_ENABLED` (domyślnie off) gotowe; ekran mobilny ⬜ (PR-D2) |
 
 ---
 
@@ -301,6 +301,10 @@ okresem i źródłem, nie własna historia szeregów czasowych.
 | #130 | Szybkie pierwsze dane nowej miejscowości: bootstrap powietrza (najbliższe stacje GIOŚ, 1 próba na stację, 3 stacje na tick), tick schedulera 15 s, auto-odświeżanie Startu; atrybucja GIOŚ wg regulaminu (`Źródło danych: GIOŚ - EKOINFONET`), limit ≤ 2 pobrania/h — 🟡 niezweryfikowane na prawdziwym GIOŚ i urządzeniu |
 | #131 | Docs: wiersz #130 w historii PR, #129 potwierdzone na urządzeniu |
 | #132 | Mobile: karta „Typowy sezon” (jeden status sezonu + kontekst względem prognozy) i ekran szczegółów „Kalendarz sezonów”; kalendarz pobierany ponownie przy zmianie dnia — 🟡 niezweryfikowane na urządzeniu |
+| #134 | Docs: pakiet `docs/data/gios/` (specyfikacje, próbki, weryfikacja, plan prac) |
+| #135 | ADR-032 „Twoja okolica”, 7 wpisów `gios_*` w Source Registry, macierz bramek operacji (`07-operation-gates.md`) |
+| #136 | Fundament ingestu nowych API GIOŚ (`app/gios_open/`, migracja 0017) i `probe` dla operatora; bez connectora |
+
 ---
 
 ## Jak utrzymywać ten plik

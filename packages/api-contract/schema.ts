@@ -301,6 +301,49 @@ export type NearestPlaceResponse = {
   status: "found" | "out_of_range";
 };
 
+export type NeighborhoodOut = {
+  area_name: string;
+  enabled: boolean;
+  geo_area_id: number;
+  sections: Array<NoiseSectionOut>;
+};
+
+export type NoiseItemOut = {
+  category: "Droga" | "Lotnisko" | "Przemysł" | "Kolej";
+  distance_km: number;
+  gmina: string | null;
+  locality: string | null;
+  measurements: Array<NoiseMeasurementOut>;
+  period_from: string;
+  period_to: string;
+  point_code: string;
+  purpose: string | null;
+  voivodeship: string;
+};
+
+export type NoiseMeasurementOut = {
+  exceedance_db: number | null;
+  period_of_day: string;
+  value_db: number;
+};
+
+export type NoiseSectionOut = {
+  attribution: string;
+  availability: "available" | "no_coverage" | "no_records" | "unavailable" | "pending_verification";
+  data_kind: "historical_measurement";
+  fetched_at: string | null;
+  id: "noise";
+  items: Array<NoiseItemOut>;
+  license_url: string;
+  limitations: Array<string>;
+  message: string | null;
+  retrieval_status: "ok" | "degraded" | "none";
+  search_radius_km: number;
+  source_period: SourcePeriod | null;
+  source_url: string;
+  title: string;
+};
+
 export type NotCovered = {
   key: string;
   name_pl: string;
@@ -425,6 +468,12 @@ export type SourceHealthOut = {
   last_success_at: string | null;
   monitored: boolean;
   source_id: string;
+};
+
+export type SourcePeriod = {
+  from: string;
+  precision: "date" | "year" | "range" | "unknown";
+  to: string;
 };
 
 export type SourceStatusOut = {

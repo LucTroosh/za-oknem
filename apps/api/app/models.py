@@ -483,3 +483,43 @@ class IngestQuarantine(Base):
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw: Mapped[Any] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class NoiseMeasurement(Base):
+    """One noise measurement of GIOŚ `halas` / `pomiar-halasu-w-srodowisku` (ADR-032, GIOS-04).
+
+    A value in dB over a period (`date_from`..`date_to`) at a point, for a time of day
+    (`period_label`, the source's `pora`, e.g. "Dzień 16h"). It is a HISTORICAL measurement
+    (rule #7), not "noise now", and not a `Measurement` row (that table holds instantaneous
+    readings). Rows belong to a snapshot (`snapshot_id`) and are visible to readers only while that
+    snapshot is `active`.
+
+    `value_db` and `exceedance_db` are exactly what the source reports; decibels are never
+    averaged. `exceedance_db` is the source's own figure for THIS measurement (0 = reported
+    without exceedance), not a verdict on the locality. Coordinates are WGS84 (`coordWgs84Y` =
+    latitude, `coordWgs84X` = longitude, checked against the live sample). `raw` is the record as
+    received.
+    """
+
+    __tablename__ = "noise_measurements"
+    __table_args__ = (UniqueConstraint("snapshot_id", "natural_key", name="uq_noise_snapshot_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[int] = mapped_column(ForeignKey("dataset_snapshots.id"), index=True)
+    natural_key: Mapped[str] = mapped_column(String(64))  # sha256 of the identifying fields
+    point_code: Mapped[str] = mapped_column(String(32))
+    category: Mapped[str] = mapped_column(String(20))  # Droga | Lotnisko | Przemysł | Kolej
+    voivodeship: Mapped[str] = mapped_column(String(30))
+    powiat: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    gmina: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    locality: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    period_label: Mapped[str] = mapped_column(String(255))
+    purpose: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Calendar days as the source states them (precision = day); no invented hour/zone.
+    date_from: Mapped[date] = mapped_column(Date)
+    date_to: Mapped[date] = mapped_column(Date)
+    value_db: Mapped[float] = mapped_column(Float)
+    exceedance_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    raw: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
