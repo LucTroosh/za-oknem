@@ -148,29 +148,37 @@ def air_areas(db: Session) -> list[GeoArea]:
     return polling_areas(db) + recent.all()
 
 
+def catalog_points(db: Session) -> list[tuple[str, float, float]]:
+    """(id, lat, lon) of every catalog station (raw JSON not loaded)."""
+    rows = db.query(GiosStation).options(defer(GiosStation.raw))
+    return [(r.station_id, r.latitude, r.longitude) for r in rows]
+
+
+def area_station_ids(area: GeoArea, points: list[tuple[str, float, float]]) -> list[str]:
+    """The AIR_STATIONS_PER_AREA nearest catalog stations of `area` within REGIONAL_MAX_KM,
+    nearest first (rule #9: deterministic; none in range = empty)."""
+    return [
+        m.station_id
+        for m in select_stations(
+            area.latitude,
+            area.longitude,
+            points,
+            max_km=REGIONAL_MAX_KM,
+            limit=AIR_STATIONS_PER_AREA,
+        )
+    ]
+
+
 def assigned_station_ids(db: Session) -> list[str]:
     """Station ids to poll: nearest catalog station within REGIONAL_MAX_KM (ADR-029: the
     50-100 km "regional" band is polled too, so it has data to disclose) for every actively
     polled area, de-duplicated, sorted. Areas with no station in range contribute nothing
     ("brak danych dla obszaru"). Air is cheap (<= one request per catalog station), so a place
     activated recently but refused Open-Meteo polling (capacity/budget) is polled for air too."""
-    rows = db.query(GiosStation).options(defer(GiosStation.raw))  # raw JSON not needed here
-    points = [(r.station_id, r.latitude, r.longitude) for r in rows]
+    points = catalog_points(db)
     if not points:
         return []
-    return sorted(
-        {
-            m.station_id
-            for area in air_areas(db)
-            for m in select_stations(
-                area.latitude,
-                area.longitude,
-                points,
-                max_km=REGIONAL_MAX_KM,
-                limit=AIR_STATIONS_PER_AREA,
-            )
-        }
-    )
+    return sorted({sid for area in air_areas(db) for sid in area_station_ids(area, points)})
 
 
 def stations_by_id(db: Session, ids: list[str]) -> list[dict]:

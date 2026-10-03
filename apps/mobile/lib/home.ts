@@ -358,6 +358,30 @@ export function pollingPending(area: { weather_polling_active?: boolean; weather
   return area !== null && area.weather_polling_active === true && !area.weather && !area.forecast;
 }
 
+// A freshly activated place is filled in by the backend within seconds (ADR-029: weather and
+// pollen bootstrap, and the nearest air stations). The screen therefore re-reads on its own,
+// but only while something is still on its way and only a bounded number of times.
+export const FIRST_DATA_POLL_MS = 8_000;
+export const FIRST_DATA_POLL_MAX = 12; // ~100 s; after that a pull-to-refresh is the way
+
+// Air from a station that is not the place's own yet: a distant (regional) one, or none with data
+// although a catalog station exists in range (band exact/nearby/regional without an `air` block).
+// Never for "none": no station in range will not appear by waiting.
+export function airArriving(area: { air?: unknown; coverage?: unknown } | null): boolean {
+  if (area === null) return false;
+  const { band } = airCoverage(area.coverage, area.air);
+  return band === "regional" || ((band === "exact" || band === "nearby") && !area.air);
+}
+
+// `sawPending`: this screen has seen the place with no weather yet, i.e. it is really a new place.
+// Without it a seed city that simply has a far-away station would be re-read for nothing.
+export function awaitingFirstData(
+  area: { weather_polling_active?: boolean; weather?: unknown; forecast?: unknown; air?: unknown; coverage?: unknown } | null,
+  sawPending: boolean,
+): boolean {
+  return pollingPending(area) || (sawPending && airArriving(area));
+}
+
 export function pollingOff(area: { weather_polling_active?: boolean } | null): boolean {
   return area !== null && area.weather_polling_active === false;
 }

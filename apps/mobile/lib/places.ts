@@ -42,7 +42,7 @@ export const emptyResultMessage = (q: string): string =>
 export const POLLING_OFF_NOTICE =
   "Pogoda i pyłki dla tej miejscowości są chwilowo niedostępne. Powietrze może pochodzić ze stacji w okolicy.";
 
-export const POLLING_PENDING_NOTICE = "Pobieramy dane dla tej miejscowości, to potrwa kilka minut.";
+export const POLLING_PENDING_NOTICE = "Pobieramy dane dla tej miejscowości. To zajmie chwilę, ekran odświeży się sam.";
 
 export const EXPIRED_AREA_MESSAGE = "Wybrana miejscowość nie jest już dostępna. Wybierz ją ponownie.";
 
