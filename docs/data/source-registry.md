@@ -613,7 +613,7 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
   powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
 - **semantyka danych:** pomiar z przedziału `dataOd`–`dataDo` i porą doby (`pora`, np. „Dzień 16h”), wynik w dB; to nie „hałas teraz”.
   Nie uśredniamy decybeli, nie zamieniamy `pora` w LDWN/LN bez stwierdzenia w źródle. `przekroczenie` dotyczy tego pomiaru
-- **status:** VERIFIED (spec + 1 próbka niepusta + 1 błąd walidacji dla pomiarów); **gate dla `pomiar-halasu-w-srodowisku`: READY do implementacji z importem ręcznym** — APPROVED dopiero po `--validate-only` operatora (paginacja, zakres dat; B-6, B-8). `zasiegi-halasu` BLOCKED (brak próbki polygonu i CRS, B-2); pozostałe operacje UNVERIFIED
+- **status:** VERIFIED (spec + 1 próbka niepusta + 1 błąd walidacji dla pomiarów); **gate dla `pomiar-halasu-w-srodowisku`: IMPLEMENTABLE (kod i testy na fixture, import ręczny), gate NIEZALICZONY** — brak próbki pustego wyniku, potwierdzonej paginacji i zakresu dat; APPROVED dopiero po `--validate-only` operatora (B-6, B-8). `zasiegi-halasu` BLOCKED (brak próbki polygonu i CRS, B-2); pozostałe operacje UNVERIFIED
 - **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
 
 ## gios_prtr (GIOŚ — PRTR: uwolnienia i transfery zanieczyszczeń)
@@ -718,7 +718,7 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
 - **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
   powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
 - **semantyka danych:** monitoring regionalny z rokiem raportowania i osobno datą pomiaru; jedno stanowisko nie opisuje całej okolicy
-- **status:** VERIFIED (spec + 1 próbka `stanowiska`, rok 2023); **READY** dla stanowisk; `wskazniki` i `wyniki` UNVERIFIED
+- **status:** VERIFIED (spec + 1 próbka `stanowiska`, rok 2023); **IMPLEMENTABLE** dla stanowisk (gate niezaliczony); `wskazniki` i `wyniki` UNVERIFIED
 - **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
 
 ## gios_air_assessments (GIOŚ — powietrze historyczne: oceny roczne i wieloletnie, PM2.5, chemizm opadów)

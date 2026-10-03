@@ -98,11 +98,14 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
    dopiero po kompletnym snapshocie) · `unavailable` (awaria, brak snapshotu) · `pending_verification`
    (źródło bez zatwierdzonej bramki). Awaria jednej sekcji nie zmienia pozostałych.
 6. **Czas, nie „świeżość”.** Sekcje historyczne **nie mają pola `freshness`**. Mają `source_period`
-   (+ `precision`: `date` | `year` | `range`), `fetched_at` (moment naszego pobrania, zawsze UTC) i
+   (+ `precision`: `date` | `year` | `range` | `unknown`), `fetched_at` (moment naszego pobrania, zawsze UTC) i
    `retrieval_status` (`ok` | `degraded` — ostatnie pobranie nieudane, pokazujemy poprzedni dobry
    snapshot | `none`). Ponowne pobranie starego pomiaru nie czyni go aktualnym: UI zawsze pokazuje
    okres z danych obok daty pobrania. `FRESH/RECENT/STALE/UNAVAILABLE` (ADR-012) zostają dla danych
    bieżących. Dzień zachowuje precyzję dnia, rok — roku; nie wymyślamy godziny 00:00.
+   **Okres jest opcjonalny.** Część źródeł nie podaje daty ani okresu (np. rejestr zakładów ZZR/ZDR `zaklady`: schemat i
+   próbka nie mają daty obowiązywania ani publikacji, a `wynik.data` nie jest datą danych). Wtedy `source_period` jest
+   `null` z `precision: "unknown"`; okresu NIE wolno zmyślać z `fetched_at`, a UI mówi tylko, kiedy rejestr pobraliśmy.
 7. **Flagi (env, domyślnie wyłączone):** `NEIGHBORHOOD_NOISE_ENABLED`, `NEIGHBORHOOD_PRTR_ENABLED`,
    `NEIGHBORHOOD_INDUSTRIAL_ENABLED`, `NEIGHBORHOOD_WATER_ENABLED`, `NEIGHBORHOOD_ECOSYSTEMS_ENABLED`.
    API zwraca tylko włączone sekcje; gdy żadna nie jest włączona: `enabled=false`, `sections=[]`, a mobile
@@ -130,7 +133,8 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
 11. **Źródła i licencja:** siedem nowych źródeł `gios_*` ma osobne wpisy w `docs/data/source-registry.md`,
     wszystkie CC BY 4.0 w specyfikacjach. Atrybucja w każdej sekcji i w Ustawienia → Źródła:
     „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych:
-    {period}. Pobrano: {fetched_at}.” + link do strony źródła i licencji; bez sugerowania poparcia GIOŚ.
+    {period}. Pobrano: {fetched_at}.” — a gdy źródło nie podaje okresu: „… Okres danych nie jest podany przez źródło.
+    Pobrano: {fetched_at}.” + link do strony źródła i licencji; bez sugerowania poparcia GIOŚ.
     Licencja zbioru nie przenosi się na inne portale, mapy bazowe ani grafiki. Bez monetyzacji w tej zmianie
     (ADR-031 zostaje).
 12. **Zmiana bazy:** wyłącznie migracje Alembic, addytywne (reguła #4). Rollback: wyłączenie flag
@@ -140,7 +144,7 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
 
 - Dashboard i istniejące endpointy bez zmian i kompatybilne; moduł można wyłączyć jedną flagą.
 - Sekcje startują niezależnie od siebie; blokery per operacja (patrz `07-operation-gates.md`) blokują
-  tylko daną sekcję. Dziś: hałas (pomiary) — gotowy do implementacji i weryfikacji przez operatora;
+  tylko daną sekcję. Dziś: hałas (pomiary) — dopuszczony do implementacji (`IMPLEMENTABLE`, gate niezaliczony do czasu weryfikacji operatora);
   PRTR/ZZR/ZDR — lista administracyjna możliwa, liczby emisji zablokowane do potwierdzenia jednostek;
   wody powierzchniowe — tylko plan monitoringu, karta jakości zablokowana do pozyskania wyników i geometrii;
   wody podziemne — zablokowane do potwierdzenia CRS i polygonów JCWPd; mapa/ekspozycja hałasu — zablokowana
