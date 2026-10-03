@@ -31,8 +31,10 @@ NOISE_LIMITATIONS = [
 
 @dataclass(frozen=True)
 class Coverage:
-    complete: bool  # every category x voivodeship has an active snapshot
+    # Every category x voivodeship has an active import spanning the configured date range.
+    complete: bool
     snapshot_ids: list[int]
+    period: tuple[date, date] | None  # widest range the active imports were requested for
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -44,7 +46,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_RADIUS_KM * math.asin(math.sqrt(a))
 
 
-def noise_coverage(db: Session) -> Coverage:
+def noise_coverage(db: Session, cover_from: date, cover_to: date) -> Coverage:
     snaps = db.execute(
         select(DatasetSnapshot).where(
             DatasetSnapshot.source_id == SOURCE_ID,
@@ -53,16 +55,24 @@ def noise_coverage(db: Session) -> Coverage:
         )
     ).scalars()
     ids: list[int] = []
-    seen: set[tuple[str, str]] = set()
+    covered: set[tuple[str, str]] = set()
+    lows: list[date] = []
+    highs: list[date] = []
     for s in snaps:
         ids.append(s.id)
         try:
             f = json.loads(s.filters_key)
-            seen.add((f["kategoria"], f["wojewodztwo"]))
+            start, end = date.fromisoformat(f["dataOd"]), date.fromisoformat(f["dataDo"])
+            key = (f["kategoria"], f["wojewodztwo"])
         except (ValueError, KeyError, TypeError):
             continue
-    complete = all((c, v) in seen for c in CATEGORIES for v in VOIVODESHIPS)
-    return Coverage(complete=complete, snapshot_ids=ids)
+        lows.append(start)
+        highs.append(end)
+        if start <= cover_from and end >= cover_to:  # a narrower import proves nothing
+            covered.add(key)
+    complete = all((c, v) in covered for c in CATEGORIES for v in VOIVODESHIPS)
+    period = (min(lows), max(highs)) if lows else None
+    return Coverage(complete=complete, snapshot_ids=ids, period=period)
 
 
 def attribution(period: tuple[date, date] | None, fetched_at: datetime | None) -> str:
@@ -111,6 +121,8 @@ def nearest_noise(
         .scalars()
         .all()
     )
+    # The same measurement can sit in two overlapping imports: count it once.
+    rows = list({r.natural_key: r for r in rows}.values())
     best: dict[str, tuple[float, str]] = {}
     for r in rows:
         d = haversine_km(lat, lon, r.latitude, r.longitude)
@@ -149,9 +161,11 @@ def nearest_noise(
     return items
 
 
-def build_noise_section(db: Session, lat: float, lon: float, max_km: float) -> dict:
+def build_noise_section(
+    db: Session, lat: float, lon: float, max_km: float, cover_from: date, cover_to: date
+) -> dict:
     status, fetched_at = retrieval(db)
-    coverage = noise_coverage(db)
+    coverage = noise_coverage(db, cover_from, cover_to)
     items = (
         nearest_noise(db, coverage.snapshot_ids, lat, lon, max_km) if coverage.snapshot_ids else []
     )
@@ -167,8 +181,12 @@ def build_noise_section(db: Session, lat: float, lon: float, max_km: float) -> d
         message = "Dane o hałasie nie zostały jeszcze pobrane."
     elif coverage.complete:
         availability = "no_coverage"
-        message = f"Brak punktów pomiaru hałasu w promieniu {max_km:g} km od wybranej lokalizacji."
-    else:  # a partial import cannot prove that nothing is nearby
+        years = f"{coverage.period[0].year}–{coverage.period[1].year}" if coverage.period else ""
+        message = (
+            f"Brak punktów pomiaru hałasu w promieniu {max_km:g} km od wybranej lokalizacji"
+            f" w danych GIOŚ z lat {years}."
+        )
+    else:  # a partial / narrower import cannot prove that nothing is nearby
         availability = "unavailable"
         message = "Dane o hałasie zostały pobrane tylko częściowo."
     return {

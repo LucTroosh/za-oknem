@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,6 +48,11 @@ class Settings(BaseSettings):
     # its source passed the operator check). Noise: nearest measurement point within the radius.
     neighborhood_noise_enabled: bool = False
     neighborhood_noise_max_km: float = Field(default=10.0, gt=0, le=50)
+    # "No measurement point nearby" is claimed only when EVERY category x voivodeship has an active
+    # import whose date filter spans this whole range (a single year would miss older points).
+    # Widen it only together with a re-import over the wider range.
+    neighborhood_noise_coverage_from: date = date(2015, 1, 1)
+    neighborhood_noise_coverage_to: date = date(2026, 12, 31)
 
     @field_validator("gios_open_base_url", mode="before")
     @classmethod

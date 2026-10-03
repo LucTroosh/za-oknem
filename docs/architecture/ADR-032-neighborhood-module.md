@@ -151,6 +151,9 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
   wody podziemne — zablokowane do potwierdzenia CRS i polygonów JCWPd; mapa/ekspozycja hałasu — zablokowana
   do próbki prawdziwego zasięgu.
 - Hałas z państwowego monitoringu ma rzadką siatkę punktów: dla wielu lokalizacji wynik to `no_coverage`.
+  Dopisek 2026-10-03 (po probe operatora): `no_coverage` wymaga aktywnego importu każdej z 64 kombinacji kategoria ×
+  województwo obejmującego cały zakres dat `NEIGHBORHOOD_NOISE_COVERAGE_FROM`–`_TO` (domyślnie 2015-01-01 – 2026-12-31).
+  Import jednego roku daje `unavailable`: filtr dat nie ogranicza okresu pomiaru, a starszy punkt mógłby istnieć w innym roku.
   Dlatego ekran pokazuje taką sekcję jako jedną spokojną linię, a wiersz na Start pojawia się dopiero po
   włączeniu przynajmniej jednej flagi.
 - Dane „z rejestru” mogą mylić użytkownika, jeśli UI nada im ton ostrzeżenia: żadnych czerwonych alarmów

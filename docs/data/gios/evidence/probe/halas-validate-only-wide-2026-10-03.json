@@ -1,0 +1,13 @@
+[
+  {
+    "category": "Droga",
+    "voivodeship": "ŚLĄSKIE",
+    "records": 4415,
+    "pages": 89,
+    "accepted": 4413,
+    "rejected": {"duplicate_record": 1, "value_not_number": 1},
+    "period": ["2015-03-04", "2025-12-05"],
+    "status": "ok",
+    "_meta": "`--date-from 2015-01-01 --date-to 2026-12-31 --category Droga --voivodeship ŚLĄSKIE --validate-only`, operator, 2026-10-03: 90 żądań (strony 0-88 + pusta 89), HTTP 200 każde. Treść 2 odrzuconych rekordów nieznana (validate-only nic nie zapisuje) - do obejrzenia w ingest_quarantine po imporcie."
+  }
+]

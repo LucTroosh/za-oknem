@@ -85,9 +85,15 @@ def get_neighborhood(
     if settings.neighborhood_noise_enabled:
         max_km = settings.neighborhood_noise_max_km
         try:
-            sections.append(
-                NoiseSectionOut(**build_noise_section(db, area.latitude, area.longitude, max_km))
+            section = build_noise_section(
+                db,
+                area.latitude,
+                area.longitude,
+                max_km,
+                settings.neighborhood_noise_coverage_from,
+                settings.neighborhood_noise_coverage_to,
             )
+            sections.append(NoiseSectionOut(**section))
         except Exception:  # one section must not take the response down (rule #1)
             logger.exception("neighborhood noise section failed")
             sections.append(NoiseSectionOut(**failed_noise_section(max_km)))
