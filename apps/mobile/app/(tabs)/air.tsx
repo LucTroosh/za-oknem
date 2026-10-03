@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import AirHistoryCard from "../../components/AirHistoryCard";
 import AirScale from "../../components/AirScale";
 import Card from "../../components/Card";
 import useDashboard from "../../components/DashboardProvider";
@@ -26,6 +28,7 @@ import { type Theme, space, toneColors, typo } from "../../lib/theme";
 // -> "Co to oznacza?" -> station / coverage / source below, visually secondary. Rule #8: with a
 // silent, regional or missing station there is no index and no good-looking value.
 export default function AirDetails() {
+  const [historyTick, setHistoryTick] = useState(0);
   const d = useDashboard();
   const area = useArea();
   const now = useNow();
@@ -44,7 +47,7 @@ export default function AirDetails() {
   const source = sourceLine(air?.source_status ?? status, now, AIR_AGE);
   const { fg, bg } = toneColors(colors, hero.tone);
   return (
-    <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh} gap={16}>
+    <Screen padTop refreshing={d.refreshing} onRefresh={() => { setHistoryTick((n) => n + 1); d.refresh(); }} gap={16}>
       <PageHeader title="Powietrze" />
       {d.state === "error" && area && <InfoBanner tone="warning" text="Nie udało się odświeżyć danych." detail="Pokazane informacje mogą być nieaktualne." />}
       {area === null ? (
@@ -78,6 +81,8 @@ export default function AirDetails() {
           ) : (
             <InfoBanner tone="neutral" text={cov.unavailable ? "Brak stacji pomiarowej w okolicy." : "Pomiary powietrza są chwilowo niedostępne."} />
           )}
+
+          <AirHistoryCard key={area.geo_area_id} geoAreaId={area.geo_area_id} refreshTick={historyTick} />
 
           {meaning.length > 0 && (
             <Card tint={colors.infoBg}>
