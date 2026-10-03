@@ -216,6 +216,19 @@ class GiosProviderIndex(Base):
     last_attempt_succeeded: Mapped[bool] = mapped_column(Boolean)
 
 
+class ImgwWeatherStation(Base):
+    """Separate SYNOP/METEO namespaces. SYNOP geometry stays unknown until verified."""
+
+    __tablename__ = "imgw_weather_stations"
+    source_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    station_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class WeatherSnapshot(Base):
     """One normalized weather reading for a geo_area (ADR-001 option C).
 

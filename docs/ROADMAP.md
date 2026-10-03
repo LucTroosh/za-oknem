@@ -6,7 +6,7 @@ każdym zmergowanym PR (patrz przypis na końcu). Źródło wizji produktowej:
 (§4–§11). Status źródeł danych ze szczegółami (licencja, rate limit,
 attribution): [`source-registry.md`](data/source-registry.md).
 
-**Ostatnia aktualizacja:** 2026-10-02 (po PR #117; stan main = 210396a)
+**Ostatnia aktualizacja:** 2026-10-03 (GIOŚ #146–149 scalone; pierwszy etap IMGW w PR, pod flagami)
 
 Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 ⛔ BLOCKED (zatrzymane na konkretnym warunku) · ⬜ TODO (nie zaczęte)
@@ -17,8 +17,8 @@ Legenda: ✅ DONE · 🟡 PARTIAL (częściowo, mniej niż pełny zakres MVP) ·
 
 Vertical Slice z CLAUDE.md (GIOŚ → connector → PostgreSQL → FastAPI → React Native) działa end-to-end i
 jest rozszerzony o pogodę, prognozę godzinową, pyłki (CAMS przez Open-Meteo), poziomy wody i
-ostrzeżenia hydrologiczne IMGW, EAQI i ocenę „Na dwór”. Backend wybiera dla każdej lokalizacji
-najbliższą stację GIOŚ **z danymi**, dopasowuje alerty do lokalizacji (kod TERYT gminy albo województwo
+ostrzeżenia hydrologiczne IMGW (adaptery zachowane, publikacja teraz off wg researchu), EAQI i ocenę „Na dwór”. Backend wybiera dla każdej lokalizacji
+najbliższą stację GIOŚ **z bieżącymi danymi, jeśli dostępna**, dopasowuje alerty do lokalizacji (kod TERYT gminy albo województwo
 miejscowości) i ma rejestr dowolnych miejscowości (GeoNames) oraz „najbliższą miejscowość” dla GPS.
 Mobile (Android, produkcyjny UI v1): Welcome → Lokalizacja (wyszukiwarka, lista miast, GPS jednorazowy) →
 Start / Alerty / Ustawienia plus ekrany Pogoda, Powietrze, Pyłki, Alert, Rzeki. **Niezweryfikowane na
@@ -73,7 +73,7 @@ push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowan
 | Typ (MVP wg Master Planu) | Status |
 |---|---|
 | ostrzeżenia hydrologiczne | ✅ DONE (patrz 2.5) |
-| ostrzeżenia meteorologiczne | ⛔ BLOCKED — `imgw_warningsmeteo`: `client.py` + dispatch pustego stanu zweryfikowane i gotowe (PR #38), ale `normalize()` (mapowanie pól pojedynczego ostrzeżenia) **czeka na żywy przykład aktywnego ostrzeżenia** — API nie miało żadnego w chwili implementacji, a nieoficjalne źródła sugerują inny schemat pól niż hydro. Nie zgadujemy danych bezpieczeństwa (rule #10/#15). Wznowić: `docs/tasks/TASK-9.2-imgw-warningsmeteo-blocked.md` |
+| ostrzeżenia meteorologiczne | 🟡 IMPLEMENTED UNDER GATES — aktywna fixture 2026-10-03 odblokowała parser; atomowy ingest/reconcile, scheduler, exact-county matching i mobile15min; domyślnie off do potwierdzenia czasu/approval. ADR-034, `docs/data/imgw/README.md` |
 | zamknięcia kąpielisk | ⛔ BLOCKED — zależne od źródła statusu bieżącego kąpielisk (2.4, ADR-021) |
 | istotne lokalne zagrożenia / zweryfikowane zdarzenia | ⬜ TODO — model `Event` (§31) nie istnieje; granica Alert ≠ Event ≠ Notification opisana w ADR-013 (PR #81), `Event` czeka na decyzję człowieka o źródle (TASK-9.4) |
 | geo-matching alertu → lokalizacja użytkownika | 🟡 PARTIAL — backend (TASK-9.5 część, PR #81, ADR-013): nazwa województwa z `obszary` → kod TERC → prefiks kodu obszaru (`app/alert_geo.py`, bez LLM), `GET /api/v1/alerts/latest?geo_area_id=`, `AlertOut.geo_match` (`voivodeship`/`unresolved`), `local_alerts` per obszar w `dashboard_latest()`. Siedem miast z seedów ma kody TERYT gmin (migracja `0016`, PR #103); miejscowości z rejestru `places` (bez gminy) dopasowane po **województwie z GeoNames** (`places.alert_match_codes`, PR #105). **Poziom = województwo** (IMGW hydro nie podaje TERYT/powiatów/gmin, tylko `kod_zlewni`). Nierozpoznane obszary i miejscowość bez znanego województwa → `unresolved` (pokazane, nie ukryte). Mobile: sekcje „Dla Twojej lokalizacji” / „Do sprawdzenia” / „Pozostałe w Polsce” + szczegół alertu (PR #94, #102). Brak: `/hydro/latest` po lokalizacji, meteo (⛔) |
@@ -122,7 +122,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | Connector framework (fetch/parse/validate/normalize) | ✅ DONE — wzorzec ustalony i powtórzony w 6 connectorach (`gios`, `open_meteo`, `open_meteo_pollen`, `imgw_hydro`, `imgw_warningshydro`, `imgw_warningsmeteo` częściowo); `prg_gminy` to importer jednorazowy z lokalnego pliku, nie connector sieciowy |
 | Scheduler | ✅ DONE — ADR-007, loop-based, per-job interval gating, izolacja awarii (rule #1, `_run_job_safely`) |
 | Workers (oddzielny proces/kolejka) | ⬜ TODO — świadomie NIE zrobione (ADR-007): scheduler w jednym procesie wystarcza przy obecnej skali, przejście na worker/queue dopiero gdy realnie potrzebne |
-| Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 5 connectorach (`gios`, `open_meteo`, `open_meteo_pollen`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` ma tylko `client.py` + dispatch pustego stanu, brak `normalize()`/`ingest.py` (patrz 2.6, blocker) |
+| Normalization / validation | 🟡 PARTIAL — wzorzec (fetch/parse/validate/normalize) wdrożony w pełni w 5 connectorach (`gios`, `open_meteo`, `open_meteo_pollen`, `imgw_hydro`, `imgw_warningshydro`); `imgw_warningsmeteo` i `imgw_weather` mają implementację pod flagami (ADR-034); nowe API czasu/jednostek nadal oczekują weryfikacji |
 | Freshness | 🟡 PARTIAL — per-wiersz freshness (FRESH/RECENT/STALE) dla `/air`, `/hydro`, `/alerts`, `/weather`; **source-level freshness z UNAVAILABLE (ADR-012, TASK-7.4)** dla ostrzeżeń (#59, #61) i hydrologii (#62): tabela `source_status` zapisywana przez scheduler i ręczne CLI, `source_status` w `/alerts/latest`, `/hydro/latest` i agregacie; mobile nie pokazuje „brak ostrzeżeń/alarmów”, gdy źródło milczy lub status zestarzał się na urządzeniu (>6h); `air`/`weather` w agregacie też niosą `source_status` (TASK-7.3, PR #78); pyłki mają `source_status` w `/pollen/latest` (PR #71). Widok operatorski: `GET /api/v1/health/sources` (TASK-13.1, PR #69) |
 | Provenance / raw ingestion (§33-34) | ✅ DONE — `source_fetches` (surowy payload, endpoint, wersja parsera, status walidacji) + nullable FK `source_fetch_id` na `Measurement`/`Alert`/`WeatherSnapshot`/`Forecast`; wszystkie connectory istniejące w PR #65 (4; pyłki dołączyły w PR #71); retencja payloadu 7/14/30 dni, metadane zostają; zapis best-effort, awaria nie psuje ingestu (ADR-014, TASK-3.1, PR #65). Rekordy sprzed migracji 0009 mają FK NULL |
 | Outdoor Interpretation Engine (§52) | 🟡 PARTIAL — `app/outdoor.py`: deterministyczny GOOD/MODERATE/POOR/UNKNOWN + `reasons[]`/`missing[]` (ADR-016, PR #64); progi PM/UV/wiatr ze źródłami (PM/NO₂/O₃ czytane z `air_index.BANDS`), temperatura/opady/widoczność oznaczone „do kalibracji”; NO₂/O₃ (grupy opcjonalne) i burza WMO ≥95 → POOR w silniku (addendum ADR-016, PR #87). Podłączony: blok `outdoor` per obszar w `dashboard_latest()` i `OutdoorCard` na mobile (TASK-7.7/7.8, PR #68); preferencje „outdoor” użytkownika (TASK-12.4) nie istnieją |
@@ -191,9 +191,9 @@ okresem i źródłem, nie własna historia szeregów czasowych.
 
 | Blokada | Co odblokuje | Task |
 |---|---|---|
-| `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
+| Aktywacja nowych adapterów IMGW | Aktywna fixture już pozyskana; nadal potwierdzić timezone per API, jednostki/poziomy, wysokości lokalizacji i gate przed rolloutem | ADR-034, `docs/data/imgw/README.md` |
 | Kąpieliska: brak źródła BIEŻĄCEGO statusu | Status BIEŻĄCY wymaga zgody/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji) lub innego zatwierdzonego źródła (dane.gov.pl/WIOŚ — kandydaci, niesprawdzeni). EEA po potwierdzeniu licencji wydania 2025, schematu i filtra PL odblokuje tylko rejestr + klasyfikację roczną, NIE status bieżący. Pełny Gate §38 (APPROVED) dla każdego wybranego źródła | TASK-11.1/11.2, ADR-021 |
-| Geo-matching alertów — dokładność poniżej województwa | Dopasowanie na poziomie województwa jest (PR #81, #103, #105; ADR-013). Powiat/gmina wymaga, by źródło podawało TERYT (hydro: tylko `kod_zlewni`; meteo: kształt nieznany, TASK-9.2) lub zbioru zlewnia↔gmina. Seedowe miasta mają kody TERYT (migracja `0016`), miejscowości z rejestru — województwo z GeoNames; granice gmin PRG nie wpłyną na to, dopóki źródło alertów nie poda dokładniejszego obszaru | TASK-9.5 |
+| Geo-matching alertów — dokładność poniżej województwa | Dopasowanie na poziomie województwa jest (PR #81, #103, #105; ADR-013). Powiat/gmina wymaga, by źródło podawało TERYT (hydro: tylko `kod_zlewni`; meteo: fixture z kodami powiatów pozyskana, exact matching pod flagą, ADR-034) lub zbioru zlewnia↔gmina. Seedowe miasta mają kody TERYT (migracja `0016`), miejscowości z rejestru — województwo z GeoNames; granice gmin PRG nie wpłyną na to, dopóki źródło alertów nie poda dokładniejszego obszaru | TASK-9.5 |
 
 ### Blokady po stronie człowieka (kod nie przesunie tego dalej)
 
@@ -315,6 +315,8 @@ okresem i źródłem, nie własna historia szeregów czasowych.
 | #146 | Backend: `/air/history`, okno 24/48 h i wykluczenie przyszłych odczytów — scalony 2026-10-03; CI backend/mobile zielone |
 | #147 | Mobile: historia powietrza z lukami i wyborem 7 parametrów — scalony 2026-10-03; QA urządzenia po nowym UI |
 | #148 | Bieżąca stacja, paginacja sensorów, niezależny indeks GIOŚ, poprawki po osobnym review i brief Design Leada — scalony 2026-10-03; CI backend/mobile zielone; indeks off, migracja/rollout oczekują |
+
+Pierwszy etap IMGW: `docs/data/imgw/README.md` (ADR-034) — nowe obserwacje i resolver w addytywnym kontrakcie, ostrzeżenia pod flagami; nowy UI/insights, NWP/radar, migration/rollout i QA pozostają otwarte.
 
 ---
 

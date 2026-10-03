@@ -1198,3 +1198,10 @@ def test_weather_query_is_scoped_to_the_listed_areas(monkeypatch):
 
     weather = next(q for q in seen if "FROM weather_snapshots" in q)
     assert "weather_snapshots.geo_area_id IN" in weather
+
+
+@pytest.fixture(autouse=True)
+def _legacy_hydro_publication(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "imgw_hydro_publication_enabled", True)

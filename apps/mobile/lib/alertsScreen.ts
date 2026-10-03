@@ -21,7 +21,7 @@ export type AlertsScreenModel = {
   located: boolean;
 };
 
-export const LOCAL_NONE_TEXT = "Brak aktywnych ostrzeżeń dla Twojego województwa";
+export const LOCAL_NONE_TEXT = "Brak aktywnych ostrzeżeń dla Twojej lokalizacji";
 export const LOCAL_UNKNOWN_TEXT = "Nie udało się sprawdzić ostrzeżeń";
 export const UNRESOLVED_NOTE = "Nie da się ustalić, czy to ostrzeżenie dotyczy Twojej lokalizacji. Sprawdź obszary w treści.";
 export const NATIONAL_UNMATCHED_NOTE = "Cała Polska — lista nie jest dopasowana do Twojej lokalizacji.";
@@ -37,8 +37,8 @@ export function buildAlertsScreen(
   if (!Array.isArray(localAlerts)) {
     return { localStatus: "unknown", local: [], unresolved: [], elsewhere: national.items, located: false };
   }
-  const local = localAlerts.filter((a) => a.geo_match === "voivodeship");
-  const unresolved = localAlerts.filter((a) => a.geo_match !== "voivodeship");
+  const local = localAlerts.filter((a) => a.geo_match === "voivodeship" || a.geo_match === "county");
+  const unresolved = localAlerts.filter((a) => a.geo_match !== "voivodeship" && a.geo_match !== "county");
   const taken = new Set(localAlerts.map(alertKey));
   const elsewhere = national.items.filter((a) => !taken.has(alertKey(a)));
   const localStatus: LocalStatus =
@@ -55,6 +55,7 @@ export function findAlert(key: string | undefined, local: AlertItem[] | null | u
 
 export const GEO_MATCH_TEXT: Record<string, string> = {
   voivodeship: "Dotyczy Twojego województwa",
+  county: "Dotyczy Twojego powiatu",
   unresolved: "Nie da się ustalić, czy dotyczy Twojej lokalizacji",
 };
 
@@ -63,6 +64,7 @@ export function areaNames(areas: unknown): string[] {
   if (!Array.isArray(areas)) return [];
   const out = areas.flatMap((a) => {
     const r = a as Record<string, unknown> | null;
+    if (r && typeof r.teryt === "string") return ["Wybrane powiaty"];
     return r && typeof r.wojewodztwo === "string" && r.wojewodztwo.trim() !== "" ? [r.wojewodztwo.trim()] : [];
   });
   return [...new Set(out)];

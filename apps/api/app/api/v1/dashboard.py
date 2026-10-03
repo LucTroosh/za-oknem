@@ -19,13 +19,15 @@ from app.api.v1.alerts import AlertOut, SourceStatusOut, alerts_source_status, c
 from app.api.v1.pollen import PollenValues, latest_pollen, pollen_block
 from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import RECENT_MAX_AGE as weather_recent_max_age
-from app.api.v1.weather import WeatherParam, forecasts_by_area
+from app.api.v1.weather import SelectedWeatherResponse, WeatherParam, forecasts_by_area
 from app.api.v1.weather import freshness as weather_freshness
 from app.attribution import GIOS_ATTRIBUTION
+from app.config import settings
 from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
+from app.imgw_weather import selected_weather
 from app.models import GeoArea, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
 from app.places import alert_match_codes
@@ -220,6 +222,7 @@ class DashboardArea(BaseModel):
     weather_polling_active: bool
     air: DashboardAir | None
     weather: DashboardWeather | None
+    selected_weather: SelectedWeatherResponse | None = None
     forecast: DashboardForecast | None
     outdoor: DashboardOutdoor
     pollen: DashboardPollen
@@ -394,6 +397,9 @@ def dashboard_latest(
                 "weather_polling_active": bool(area.weather_polling_active),
                 "air": air,
                 "weather": weather,
+                "selected_weather": selected_weather(db, area)
+                if settings.imgw_observations_publication_enabled
+                else None,
                 "forecast": _forecast_block(forecasts.get(area.id)),
                 # ADR-029: a far-away (regional) station must not decide "Na dwór" - the
                 # engine then has no air input and cannot return GOOD (air is a core group).

@@ -7,8 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.alert_geo import filter_alerts_for_area
+from app.config import settings
 from app.db import get_db
-from app.models import Alert, GeoArea
+from app.models import Alert, GeoArea, SourceStatus
 from app.places import alert_match_codes
 from app.source_status import source_freshness
 
@@ -55,7 +56,7 @@ class AlertOut(BaseModel):
     # ADR-013: how the alert relates to the requested area. null = not area-filtered
     # (national list). "voivodeship" = the alert names the area's voivodeship (the finest
     # level IMGW hydro gives); "unresolved" = we cannot tell, so it is shown, not hidden.
-    geo_match: Literal["voivodeship", "unresolved"] | None
+    geo_match: Literal["voivodeship", "county", "unresolved"] | None
 
 
 class SourceStatusOut(BaseModel):
@@ -77,7 +78,29 @@ ALERT_SOURCES = ("imgw_warningshydro",)
 
 
 def alerts_source_status(db: Session) -> dict[str, dict]:
-    return {source: source_freshness(db, source, freshness) for source in ALERT_SOURCES}
+    result = {}
+    for source, enabled in (
+        ("imgw_warningshydro", settings.imgw_hydro_publication_enabled),
+        (
+            "imgw_warningsmeteo",
+            settings.imgw_warnings_enabled and bool(settings.imgw_warnings_timezone),
+        ),
+    ):
+        if enabled:
+            threshold = meteo_freshness if source == "imgw_warningsmeteo" else freshness
+            result[source] = source_freshness(db, source, threshold)
+            if source == "imgw_warningsmeteo":
+                status = db.get(SourceStatus, source)
+                if status is not None and status.last_error:
+                    result[source]["freshness"] = "STALE"
+    # Empty set of enabled sources never means a confirmed all-clear.
+    return result or {"imgw_warningsmeteo": {"freshness": "UNAVAILABLE", "last_success_at": None}}
+
+
+def meteo_freshness(value: datetime) -> str:
+    value = value if value.tzinfo else value.replace(tzinfo=UTC)
+    age = datetime.now(UTC) - value
+    return "FRESH" if timedelta(minutes=-5) <= age <= timedelta(minutes=15) else "STALE"
 
 
 def current_alerts(db: Session) -> list[dict]:
@@ -89,7 +112,16 @@ def current_alerts(db: Session) -> list[dict]:
     updating fetched_at long before any `valid_until` (up to year 9999 for
     drought) would say so."""
     now = datetime.now(UTC)
-    stmt = select(Alert).where(Alert.valid_until >= now).order_by(Alert.valid_until.desc())
+    enabled = []
+    if settings.imgw_hydro_publication_enabled:
+        enabled.append("imgw_warningshydro")
+    if settings.imgw_warnings_enabled and settings.imgw_warnings_timezone:
+        enabled.append("imgw_warningsmeteo")
+    stmt = (
+        select(Alert)
+        .where(Alert.valid_until > now, Alert.source_id.in_(enabled))
+        .order_by(Alert.valid_until.desc())
+    )
     return [
         {
             "external_id": row.external_id,
@@ -105,7 +137,9 @@ def current_alerts(db: Session) -> list[dict]:
             "valid_until": row.valid_until.isoformat(),
             "published_at": row.published_at.isoformat(),
             "fetched_at": row.fetched_at.isoformat(),
-            "freshness": freshness(row.fetched_at),
+            "freshness": meteo_freshness(row.fetched_at)
+            if row.source_id == "imgw_warningsmeteo"
+            else freshness(row.fetched_at),
             "geo_match": None,
         }
         for row in db.execute(stmt).scalars().all()

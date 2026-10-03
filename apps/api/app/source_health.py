@@ -17,12 +17,15 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import freshness as alerts_freshness
+from app.api.v1.alerts import meteo_freshness
 from app.api.v1.hydro import freshness as hydro_freshness
 from app.api.v1.pollen import freshness as pollen_freshness
 from app.api.v1.weather import freshness as weather_freshness
+from app.config import settings
 from app.connectors.gios.discovery import polling_expected
 from app.connectors.open_meteo.ingest import DAILY_CALL_LIMIT as OPEN_METEO_DAILY_LIMIT
 from app.connectors.open_meteo.ingest import polling_areas
+from app.imgw_weather import freshness as observation_freshness
 from app.models import SourceFetchCounter, SourceStatus
 from app.source_status import source_freshness
 
@@ -65,6 +68,16 @@ SOURCES: dict[str, SourceSpec] = {
     "gios": SourceSpec(
         air_freshness,
         enabled=polling_expected,
+    ),
+    "imgw_meteo": SourceSpec(
+        observation_freshness, enabled=lambda db: settings.imgw_observations_enabled
+    ),
+    "imgw_synop": SourceSpec(
+        observation_freshness, enabled=lambda db: settings.imgw_observations_enabled
+    ),
+    "imgw_warningsmeteo": SourceSpec(
+        meteo_freshness,
+        enabled=lambda db: settings.imgw_warnings_enabled and bool(settings.imgw_warnings_timezone),
     ),
     "imgw_hydro": SourceSpec(hydro_freshness),
     "imgw_warningshydro": SourceSpec(alerts_freshness),

@@ -104,6 +104,7 @@ def test_latest_hydro_shapes_response_from_rows():
     assert body["attribution"] == IMGW_ATTRIBUTION
     assert body.pop("source_status")["freshness"] == "UNAVAILABLE"
     del body["attribution"]
+    assert body.pop("publication_enabled") is True
     assert body == {
         "stations": [
             {
@@ -272,3 +273,10 @@ def test_hydro_latest_response_rejects_unknown_status():
                 ]
             }
         )
+
+
+@pytest.fixture(autouse=True)
+def _legacy_hydro_publication(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "imgw_hydro_publication_enabled", True)

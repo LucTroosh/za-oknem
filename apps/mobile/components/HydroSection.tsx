@@ -25,6 +25,7 @@ export default function HydroSection({ state, hydro }: { state: LoadState; hydro
   const { colors } = useTheme();
   const now = useNow(); // labels age on the device without a refetch
   const summary = hydro ? summarizeHydro(hydro, now) : null;
+  if (hydro?.publication_enabled === false) return null;
   return (
     <View style={styles.section}>
       <SectionHeader title="Stany wody" actionLabel={hydro ? "Wszystkie stacje" : undefined} onAction={() => router.push("/rivers")} />

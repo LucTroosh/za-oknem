@@ -1,5 +1,11 @@
 # TASK 9.2 — IMGW ostrzeżenia meteorologiczne: zablokowane na weryfikacji
 
+> Aktualizacja 2026-10-03: blokada braku aktywnej fixture zamknięta. Rzeczywisty payload
+> jest w `docs/data/imgw/evidence/warningsmeteo.json`. Parser/ingest/API/scheduler/exact
+> county matching zaimplementowane pod flagą (ADR-034); strefa czasu/approval/rollout
+> nadal pending. Poniższy opis zachowuje historyczny zakres TASK-9.2 z PR #38.
+
+
 ## Goal
 
 Drugi connector Alert (obok `imgw_warningshydro`, ADR-009) — ostrzeżenia

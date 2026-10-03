@@ -288,3 +288,10 @@ def test_without_geo_area_id_the_list_stays_national_and_unmatched():
         ("w", None),
         ("d", None),
     ]
+
+
+@pytest.fixture(autouse=True)
+def _legacy_hydro_publication(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "imgw_hydro_publication_enabled", True)
