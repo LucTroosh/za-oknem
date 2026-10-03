@@ -90,7 +90,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 |---|---|---|
 | GIOS-00 | evidence i bramki per operacja, wpisy `gios_*` w Source Registry | 🟡 PARTIAL — rejestr i macierz gotowe (PR-A), **żywa weryfikacja po stronie operatora** (B-8) |
 | GIOS-01 | ADR-032, kontrakt `/neighborhood`, flagi | ✅ ADR-032 (kontrakt OpenAPI przy pierwszej implementacji) |
-| GIOS-02 | wspólny fundament ingestu (BLAD przy 200, paginacja, snapshot, kwarantanna, limiter) | ⬜ TODO (PR-B) |
+| GIOS-02 | wspólny fundament ingestu (`app/gios_open/`): klient (BLAD przy HTTP 200, retry ≤ 2, limiter na każdą próbę), paginacja (pętla / nakładanie / limit stron = błąd, koniec = potwierdzona pusta strona), snapshoty staging → active z blokadą per usługa w bazie, kwarantanna, `probe` dla operatora | ✅ DONE (PR-B, migracja 0017); bez żadnego connectora; paginację na żywo rozstrzyga `probe` (B-6) |
 | GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | ⬜ TODO (PR-C) |
 | GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | ⬜ TODO (PR-D); IMPLEMENTABLE, gate niezaliczony (paginacja, pusty wynik: B-6) |
 | GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |

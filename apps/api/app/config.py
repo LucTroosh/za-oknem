@@ -31,6 +31,23 @@ class Settings(BaseSettings):
     # fresh activation (`POST /places/{id}/activate`); keeps the Open-Meteo budget bounded.
     place_activation_ttl_days: int = Field(default=7, gt=0)
 
+    # ADR-032: the seven new GIOŚ datasets (dane.gios.gov.pl). They publish no rate limit or SLA
+    # (source-registry: UNKNOWN), so every value here is OUR OWN bound, not a provider limit.
+    gios_open_base_url: str = "https://dane.gios.gov.pl/api"
+    gios_open_min_interval_seconds: float = Field(default=5.0, ge=0)  # per service, whole process
+    gios_open_connect_timeout_seconds: float = Field(default=5.0, gt=0)
+    gios_open_read_timeout_seconds: float = Field(default=20.0, gt=0)
+    gios_open_max_retries: int = Field(default=2, ge=0, le=5)  # retries AFTER the first attempt
+    gios_open_page_size: int = Field(default=50, ge=1, le=50)  # spec maximum is 50 (per operation)
+    gios_open_max_pages: int = Field(default=2000, gt=0)  # safety valve, not a provider limit
+    # A staging snapshot older than this is a dead run (crash): its lock may be taken over.
+    gios_open_lock_ttl_minutes: int = Field(default=360, gt=0)
+
+    @field_validator("gios_open_base_url", mode="before")
+    @classmethod
+    def _gios_open_base_url(cls, v: object) -> object:
+        return v.strip().rstrip("/") if isinstance(v, str) else v
+
     @field_validator("open_meteo_api_key", mode="before")
     @classmethod
     def _blank_key_is_none(cls, v: object) -> object:
@@ -42,6 +59,12 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_url(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _gios_open_https(self) -> "Settings":
+        if not self.gios_open_base_url.startswith("https://"):
+            raise ValueError("GIOS_OPEN_BASE_URL must be https://")
+        return self
 
     @model_validator(mode="after")
     def _open_meteo_urls(self) -> "Settings":
