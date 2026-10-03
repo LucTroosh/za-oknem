@@ -1,0 +1,72 @@
+[
+  {
+    "file": "openapi/halas.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-halas.yaml",
+    "sha256": "429f51e7d1ee001dfe673ef8729d0e280014e0dea8bd6906f00cda19eb5bfa51",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 9
+  },
+  {
+    "file": "openapi/nec.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-nec.yaml",
+    "sha256": "1f2ae40926ad348eb4ae1c26187c348a80cb16fac892ab929e175cfbf02e4c88",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 3
+  },
+  {
+    "file": "openapi/powazne-awarie.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-powazne-awarie.yaml",
+    "sha256": "03506cbbf07df19b2b677a4823488f41e19d01097f70e4c9a782b9fb6d7b68c0",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 2
+  },
+  {
+    "file": "openapi/powietrze.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-powietrze.yaml",
+    "sha256": "2097547a7cb7da32a8fa0fdb4a29d905758df5d9982b9ee3ec811a990961c896",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 16
+  },
+  {
+    "file": "openapi/prtr.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-prtr.yaml",
+    "sha256": "1f9d74b14af08215421e685a1afd3effaefb7934393155fa532b07fca75bb2dc",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 2
+  },
+  {
+    "file": "openapi/wody-podziemne.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-wody-podziemne.yaml",
+    "sha256": "e2a52bda75999238b971b0699d6f16e2fc0a8cb6d51cd9d44c1550adb150e69c",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 6
+  },
+  {
+    "file": "openapi/wody-powierzchniowe.yaml",
+    "source_url": "https://dane.gios.gov.pl/apispec/openapi-wody-powierzchniowe.yaml",
+    "sha256": "cb353fef329debf30ee430b6d3c0b245614ac446661c6281cc96c0f10de0e4c5",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.1.1",
+    "version": "1.0.0",
+    "operations": 1
+  },
+  {
+    "file": "openapi/air-live.json",
+    "source_url": "https://api.gios.gov.pl/pjp-api/v3/api-docs",
+    "sha256": "72424ad45519e48001de16bfac6148c03aa7de6158fa4062e4d8e1dcb363db54",
+    "retrieved_at": "2026-10-03",
+    "openapi": "3.0.1"
+  }
+]

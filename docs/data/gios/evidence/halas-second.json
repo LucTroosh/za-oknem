@@ -1,0 +1,6 @@
+{
+  "url": "https://dane.gios.gov.pl/api/halas/v1/pomiar-halasu-w-srodowisku?kategoria=Droga&wojewodztwo=%C5%9AL%C4%84SKIE&dataOd=2024-01-01&dataDo=2024-12-31&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"kodPunktuPomiarowego\":\"D_24_001020_001\",\"kategoria\":\"Droga\",\"wojewodztwo\":\"ŚLĄSKIE\",\"powiat\":\"tarnogórski\",\"gmina\":\"Miasteczko Śląskie (gmina miejska)\",\"miejscowosc\":\"Żyglin\",\"coordWgs84X\":18.948417,\"coordWgs84Y\":50.484861,\"pora\":\"Dzień 16h\",\"celPomiaru\":\"Państwowy monitoring środowiska, art. 26 Poś\",\"dataOd\":\"2024-05-10T08:00:00.000+02:00\",\"dataDo\":\"2024-11-10T07:00:00.000+01:00\",\"wynikPomiaru\":64.5,\"przekroczenie\":0}]},\"wynik\":{\"idZdarzenia\":\"ee76458e-006a-4509-9721-5eef1c4c7a22\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:25:05\"}}"
+}

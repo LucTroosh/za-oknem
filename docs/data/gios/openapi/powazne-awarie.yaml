@@ -1,0 +1,305 @@
+openapi: 3.1.1
+info:
+  title: PA API
+  description: |-
+      PA - Interfejs API udostępniający dane w zakresie poważnych awarii przemysłowych
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/powazne-awarie
+tags:
+  - name: Rejestr poważnych awarii
+    description: Dane dotyczące poważnych awarii objętych obowiązkiem zgłoszenia do GIOŚ
+  - name: Rejestr zakładów ZZR i ZDR
+    description: Dane o zakładach o zwiększonym ryzyku (ZZR) i zakładach o dużym ryzyku (ZDR) wystąpienia poważnej awarii przemysłowej
+paths:
+  /v1/powazne-awarie:
+    get:
+      tags:
+        - Rejestr poważnych awarii
+      summary: Poważne Awarie
+      description: Usługa sieciowa udostępniająca dane dotyczące poważnych awarii objętych obowiązkiem zgłoszenia do GIOŚ
+      operationId: getPowazneAwarieV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok (dane dostępne od 2017 roku)
+          schema:
+            type: integer
+            minimum: 2017
+            maximum: 9999
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: powiat
+          in: query
+          description: Powiat, np. 'miński', 'kutnowski'
+          schema:
+            type: string
+            maxLength: 80
+        - name: gmina
+          in: query
+          description: Gmina, np. 'Mińsk Mazowiecki', 'Kutno'
+          schema:
+            type: string
+            maxLength: 80
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaPowazneAwarieOdpowiedz'
+  /v1/zaklady:
+    get:
+      tags:
+        - Rejestr zakładów ZZR i ZDR
+      summary: Zakłady stwarzające zagrożenie wystąpienia poważnej awarii przemysłowej
+      description: Usługa sieciowa udostępniająca dane o zakładach stwarzających zagrożenie wystąpienia poważnej awarii przemysłowej - zakładach o zwiększonym ryzyku (ZZR) i zakładach o dużym ryzyku (ZDR) wystąpienia poważnej awarii przemysłowej. Dane udostępniane według stanu na dzień dzisiejszy.
+      operationId: getZakladyV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: klasyfikacjaZakladu
+          in: query
+          description: Klasyfikacja zakładu
+          schema:
+            $ref: '#/components/schemas/PaKlasyfikacjaZakladuEnum'
+        - name: regon
+          in: query
+          description: REGON
+          schema:
+            type: string
+            maxLength: 9
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaZakladyOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    PaPowazneAwarieRekord:
+      type: object
+      properties:
+        data:
+          type: string
+          description: Data
+          maxLength: 10
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+          maxLength: 80
+        gmina:
+          type: string
+          description: Gmina
+          maxLength: 80
+        kodPocztowy:
+          type: string
+          description: Kod pocztowy
+          maxLength: 6
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 80
+        miejsceZdarzenia:
+          type: string
+          description: Miejsce zdarzenia
+          maxLength: 32
+        rodzajTransportu:
+          type: string
+          description: Rodzaj transportu
+          maxLength: 32
+        klasyfikacjaZakladu:
+          description: Klasyfikacja zakładu
+          $ref: '#/components/schemas/PaKlasyfikacjaZakladuEnum'
+        rodzajZdarzenia:
+          type: string
+          description: Rodzaj zdarzenia
+        zrodloZdarzenia:
+          type: string
+          description: Źródło zdarzenia
+          maxLength: 30
+        opisZdarzenia:
+          type: string
+          description: Opis zdarzenia
+          maxLength: 1000
+    PaPowazneAwarieOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaPowazneAwarieRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PaZakladyRekord:
+      type: object
+      properties:
+        klasyfikacjaZakladu:
+          description: Klasyfikacja zakładu
+          $ref: '#/components/schemas/PaKlasyfikacjaZakladuEnum'
+        nazwaZakladu:
+          type: string
+          description: Nazwa zakładu
+          maxLength: 256
+        regon:
+          type: string
+          description: REGON
+          maxLength: 9
+        rodzajDzialalnosci:
+          type: string
+          description: Rodzaj działalności
+          maxLength: 255
+        kodNace:
+          type: string
+          description: Kod NACE
+          maxLength: 20
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+          maxLength: 80
+        gmina:
+          type: string
+          description: Gmina
+          maxLength: 80
+        kodPocztowy:
+          type: string
+          description: Kod pocztowy
+          maxLength: 6
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 80
+        ulica:
+          type: string
+          description: Ulica
+          maxLength: 120
+        stronaWww:
+          type: string
+          description: Adres strony internetowej zakładu
+          maxLength: 254
+    PaZakladyOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaZakladyRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PaKlasyfikacjaZakladuEnum:
+      type: string
+      enum:
+        - ZZR
+        - ZDR
+    WojewodztwoEnum:
+      type: string
+      enum:
+        - dolnośląskie
+        - kujawsko-pomorskie
+        - lubelskie
+        - lubuskie
+        - łódzkie
+        - małopolskie
+        - mazowieckie
+        - opolskie
+        - podkarpackie
+        - podlaskie
+        - pomorskie
+        - śląskie
+        - świętokrzyskie
+        - warmińsko-mazurskie
+        - wielkopolskie
+        - zachodniopomorskie
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

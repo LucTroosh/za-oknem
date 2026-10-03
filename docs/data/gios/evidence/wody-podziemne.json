@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/wody-podziemne/v1/punkty-pomiarowe-monitoringu?rokOd=2022&rokDo=2027&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\n    \"wynik\": {\n        \"idZdarzenia\": \"552378a6-de81-4da3-a061-ec2ce1c148eb\",\n        \"status\": \"BLAD\",\n        \"data\": \"2026-10-03T10:23:54\",\n        \"blad\": {\n            \"kod\": \"400\",\n            \"opis\": \"Wymagany jest parametr dorzeczeNazwa lub jcwpdKod lub jcwpdNumer\"\n        }\n    }\n}"
+}

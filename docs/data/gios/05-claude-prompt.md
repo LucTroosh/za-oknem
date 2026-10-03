@@ -1,0 +1,11 @@
+# Instrukcja do Claude
+
+Przeczytaj CLAUDE.md, Master Plan, docs/ROADMAP.md, source-registry.md i aktualne ADR oraz cały pakiet docs/data/gios, zaczynając od README.md. W repo już działa GIOŚ powietrze — rozwijaj istniejący connector. Celem jest wdrożenie modułu „Twoja okolica” etapami opisanymi w 04-work-breakdown.md, w obecnym stacku i bez zmiany providera pogody/pyłków.
+
+Zacznij od GIOS-00/01. Zweryfikuj aktualny kod i realne odpowiedzi operacji, które chcesz implementować. Nie traktuj katalogu OpenAPI jako dowodu zgodności runtime: w evidence są HTTP 200 z BLAD, błędne deklarowane typy i projected współrzędne. `liczbaRekordow` nie jest potwierdzonym total. Zachowuj oryginalne specyfikacje i rejestr różnic. Zatwierdź każdą operację na podstawie danych, licencji, jednostek, CRS, pagination i okresu. Przy braku dowodu zapisz BLOCKED z konkretnym brakującym elementem i kontynuuj niezależne zadania.
+
+Następnie foundation GIOS-02, hardening powietrza GIOS-03 i vertical slice historycznych pomiarów hałasu GIOS-04 + minimalne API/UI GIOS-13. Dopiero kolejne PR obejmują PRTR, ZZR/ZDR, programy wód i dalsze API. Dokumentacja obejmuje wszystkie operacje, ale nie wolno implementować fikcyjnych wyników jakości wód powierzchniowych: ta specyfikacja ma tylko plan monitoringu. Nie ma coordinates w PRTR/PA; dopasowanie administracyjne, bez promienia/odległości. Wody podziemne wymagają potwierdzonego CRS. Historyczne dane nie są aktywnymi alertami ani wejściem do „zostań w domu”.
+
+Zachowaj Start/Alerty/Ustawienia, bez mapy/konta/background location. Każda nowa sekcja ma własną feature flag, źródło/licencję/okres i stany braku pokrycia/rekordów/awarii. Mobile/API czyta tylko PostgreSQL; fetch i cache na backendzie. Jedno źródło nie może psuć innych. Nigdy nie promuj niekompletnego snapshotu ani nie usuwaj rekordów po błędzie źródła.
+
+Wykonuj task→test→review→commit w małych feature branch PR. Aktualizuj Registry, ADR i kontrakty; po merge ROADMAP zgodnie z CLAUDE.md. Nie zwiększaj produkcyjnego zakresu i nie włączaj monetyzacji bez osobnego zlecenia. Nie oznaczaj TODO/BLOCKED jako DONE. Każdy PR podaje wdrożone operacje, dowody live, wynik testów, ograniczenia danych i rollback. Na końcu danego tasku opisz konkretnie co działa i który blocker pozostaje; pracuj dalej nad niezależnymi zadaniami w autoryzowanym zakresie.

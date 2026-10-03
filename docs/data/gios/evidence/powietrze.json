@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id?liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"stanowisko\":{\"id\":1,\"kod\":\"DsBialka-CO-1g\",\"status\":3,\"typ\":3,\"dataUruchomienia\":\"2004-01-01T01:00:00.000+01:00\",\"dataZamkniecia\":\"2005-12-31T01:00:00.000+01:00\"},\"wskaznik\":{\"id\":8},\"stacja\":{\"id\":1},\"pomiar\":{\"typ\":2,\"tryb\":1}}]},\"wynik\":{\"idZdarzenia\":\"3d0e4a58-8aec-48df-853e-e49f7227ec00\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:23:54\"}}"
+}

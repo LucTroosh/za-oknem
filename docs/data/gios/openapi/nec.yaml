@@ -1,0 +1,418 @@
+openapi: 3.1.1
+info:
+  title: NEC API
+  description: |-
+      NEC - Interfejs API udostępniający dane w zakresie wpływu zanieczyszczeń powietrza na ekosystemy
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/nec
+tags:
+  - name: Monitorowanie wpływu zanieczyszczenia powietrza na ekosystemy
+    description: Informacje dotyczące monitorowania negatywnego wpływu zanieczyszczenia powietrza na ekosystemy na potrzeby dyrektywy NEC w zakresie stacji/stanowisk pomiarowych, używanych wskaźników i wyników pomiaru
+paths:
+  /v1/monitorowanie/stanowiska:
+    get:
+      tags:
+        - Monitorowanie wpływu zanieczyszczenia powietrza na ekosystemy
+      summary: Wykaz lokalizacji stacji do monitorowania negatywnego wpływu zanieczyszczenia powietrza na te ekosystemy
+      description: Usługa sieciowa udostępniająca listę stacji/stanowisk do monitorowania negatywnego wpływu zanieczyszczeń powietrza na ekosystemy na potrzeby dyrektywy NEC
+      operationId: getMonitorowanieStanowiskaV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rokRaportowania
+          in: query
+          description: Rok raportowania. Oznacza rok przekazania danych do Komisji Europejskiej w ramach dyrektywy NEC. Raporty dostępne od roku 2019 i kolejno co 4 lata. Przykładowo, dane dla 2019 roku dotyczą wykazu stacji wybranych w 2018 r. dla których w 2019 r. zestawiono wyniki monitoringu.
+          required: true
+          schema:
+            type: integer
+            minimum: 2019
+            maximum: 9999
+        - name: regionBiogeograficzny
+          in: query
+          description: Region biogeograficzny
+          schema:
+            $ref: '#/components/schemas/NecRegionBiogeograficznyEnum'
+        - name: typEkosystemuMAES
+          in: query
+          description: Typ ekosystemu wg klasyfikacji MAES
+          schema:
+            $ref: '#/components/schemas/NecTypEkosystemuMAESEnum'
+        - name: statusObszaru
+          in: query
+          description: Status obszaru
+          schema:
+            $ref: '#/components/schemas/NecStatusObszaruEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NecMonitorowanieStanowiskaOdpowiedz'
+  /v1/monitorowanie/wskazniki:
+    get:
+      tags:
+        - Monitorowanie wpływu zanieczyszczenia powietrza na ekosystemy
+      summary: Wykaz wskaźników używanych do monitorowania negatywnego wpływu zanieczyszczenia powietrza na ekosystemy
+      description: Usługa sieciowa udostępniająca informacje o wskaźnikach używanych do monitorowania negatywnego wpływu zanieczyszczenia powietrza na ekosystemy na potrzeby dyrektywy NEC
+      operationId: getMonitorowanieParametryV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rodzajEkosystemu
+          in: query
+          description: Rodzaj ekosystemu
+          schema:
+            $ref: '#/components/schemas/NecRodzajEkosystemuEnum'
+        - name: rokRaportowania
+          in: query
+          description: Rok raportowania. Oznacza rok przekazania danych do Komisji Europejskiej w ramach dyrektywy NEC. Raporty dostępne od roku 2019 i kolejno co 4 lata. Przykładowo, dane dla 2019 roku dotyczą wykazu stacji wybranych w 2018 r. dla których w 2019 r. zestawiono wyniki monitoringu.
+          schema:
+            type: integer
+            minimum: 2019
+            maximum: 9999
+        - name: krajowyKodStacji
+          in: query
+          description: Krajowy kod stacji
+          schema:
+            type: string
+            maxLength: 1000
+        - name: nazwaStacji
+          in: query
+          description: Nazwa stacji
+          schema:
+            type: string
+            maxLength: 1000
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NecMonitorowanieWskaznikiOdpowiedz'
+  /v1/monitorowanie/wyniki:
+    get:
+      tags:
+        - Monitorowanie wpływu zanieczyszczenia powietrza na ekosystemy
+      summary: Dane uzyskane w wyniku monitorowania negatywnego wpływu zanieczyszczenia powietrza na ekosystemy
+      description: Usługa sieciowa udostępniająca wyniki monitorowania wpływu zanieczyszczeń powietrza na ekosystemy na potrzeby dyrektywy NEC
+      operationId: getMonitorowanieWynikiV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rokRaportowania
+          in: query
+          description: Rok raportowania. Oznacza rok przekazania danych do Komisji Europejskiej w ramach dyrektywy NEC. Raporty dostępne od roku 2019 i kolejno co 4 lata. Przykładowo, dane dla 2019 roku dotyczą wykazu stacji wybranych w 2018 r. dla których w 2019 r. zestawiono wyniki monitoringu.
+          required: true
+          schema:
+            type: integer
+            minimum: 2019
+            maximum: 9999
+        - name: rokWykonaniaPomiaru
+          in: query
+          description: Rok wykonania pomiaru
+          schema:
+            type: integer
+            minimum: 1990
+            maximum: 9999
+        - name: regionBiogeograficzny
+          in: query
+          description: Region biogeograficzny
+          schema:
+            $ref: '#/components/schemas/NecRegionBiogeograficznyEnum'
+        - name: typEkosystemuMAES
+          in: query
+          description: Typ ekosystemu wg klasyfikacji MAES
+          schema:
+            $ref: '#/components/schemas/NecTypEkosystemuMAESEnum'
+        - name: statusObszaru
+          in: query
+          description: Status obszaru
+          schema:
+            $ref: '#/components/schemas/NecStatusObszaruEnum'
+        - name: krajowyKodStacji
+          in: query
+          description: Krajowy kod stacji
+          schema:
+            type: string
+            maxLength: 1000
+        - name: nazwaStacji
+          in: query
+          description: Nazwa stacji
+          schema:
+            type: string
+            maxLength: 1000
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NecMonitorowanieWynikiOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    NecMonitorowanieStanowiskaRekord:
+      type: object
+      properties:
+        rokRaportowania:
+          type: integer
+          description: Rok raportowania
+        kodKraju:
+          type: string
+          description: Kod kraju
+        krajowyKodStacji:
+          type: string
+          description: Krajowy kod stacji
+        nazwaStacji:
+          type: string
+          description: Nazwa stacji
+        kodEuropejski:
+          type: string
+          description: Kod Europejski
+        kodStacjiMonitoringowejRDW:
+          type: string
+          description: Kod stacji monitoringowej RDW
+        kodJCWP:
+          type: string
+          description: Kod JCWP
+        nazwaSieciMonitoringu:
+          type: string
+          description: Nazwa sieci monitoringu
+        dlugoscGeograficzna:
+          type: string
+          description: Lokalizacja stacji - długość geograficzna
+        szerokoscGeograficzna:
+          type: string
+          description: Lokalizacja stacji - szerokość geograficzna
+        typEkosystemuMAES:
+          description: Typ ekosystemu wg klasyfikacji MAES (ekosystem miejski, lasy i inne tereny zadrzewione, uprawy, łąki i tereny trawiaste, wrzosowiska i zarośla, tereny skąpo porośnięte roślinnością, tereny podmokłe, rzeki i jeziora i inne)
+          $ref: '#/components/schemas/NecTypEkosystemuMAESEnum'
+        typEkosystemuEUNIS:
+          type: string
+          description: Typ ekosystemu wg klasyfikacji EUNIS
+        statusObszaru:
+          description: Status obszaru (objęty ochroną, nieobjęty ochroną, nieznany)
+          $ref: '#/components/schemas/NecStatusObszaruEnum'
+        regionBiogeograficzny:
+          description: Region biogeograficzny (ALP, CON)
+          $ref: '#/components/schemas/NecRegionBiogeograficznyEnum'
+        parametry:
+          type: array
+          description: Lista parametrów stacji
+          items:
+            $ref: '#/components/schemas/ParametrStacji'
+    ParametrStacji:
+      type: object
+      properties:
+        nazwa:
+          type: string
+        wartosc:
+          type: string
+    NecMonitorowanieStanowiskaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/NecMonitorowanieStanowiskaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    NecMonitorowanieWskaznik:
+      type: object
+      properties:
+        rodzajEkosystemu:
+          description: Rodzaj ekosystemu
+          $ref: '#/components/schemas/NecRodzajEkosystemuEnum'
+        klasa:
+          type: string
+          description: Klasa wskaźnika
+        nazwa:
+          type: string
+          description: Nazwa wskaźnika
+        jednostka:
+          type: string
+          description: Jednostka miary
+    NecMonitorowanieWskaznikiRekord:
+      type: object
+      properties:
+        rokRaportowania:
+          type: integer
+          description: Rok raportowania
+        krajowyKodStacji:
+          type: string
+          description: Krajowy kod stacji
+        nazwaStacji:
+          type: string
+          description: Nazwa stacji
+        wskazniki:
+          type: array
+          items:
+            $ref: '#/components/schemas/NecMonitorowanieWskaznik'
+    NecMonitorowanieWskaznikiOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/NecMonitorowanieWskaznikiRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    NecMonitorowanieWynik:
+      type: object
+      properties:
+        wskaznik:
+          $ref: '#/components/schemas/NecMonitorowanieWskaznik'
+        wartosc:
+          type: string
+          description: Wartość
+    NecMonitorowanieWynikiRekord:
+      type: object
+      properties:
+        krajowyKodStacji:
+          type: string
+          description: Krajowy kod stacji
+        nazwaStacji:
+          type: string
+          description: Nazwa stacji
+        rokRaportowania:
+          type: integer
+          description: Rok raportowania
+        rokWykonaniaPomiaru:
+          type: integer
+          description: Rok wykonania pomiaru
+        miesiacWykonaniaPomiaru:
+          type: integer
+          description: Miesiąc wykonania pomiaru
+        dzienWykonaniaPomiaru:
+          type: integer
+          description: Dzień wykonania pomiaru
+        regionBiogeograficzny:
+          description: Region biogeograficzny (ALP, CON)
+          $ref: '#/components/schemas/NecRegionBiogeograficznyEnum'
+        typEkosystemuMAES:
+          description: Typ ekosystemu wg klasyfikacji MAES (ekosystem miejski, lasy i inne tereny zadrzewione, uprawy, łąki i tereny trawiaste, wrzosowiska i zarośla, tereny skąpo porośnięte roślinnością, tereny podmokłe, rzeki i jeziora i inne)
+          $ref: '#/components/schemas/NecTypEkosystemuMAESEnum'
+        statusObszaru:
+          description: Status obszaru (objęty ochroną, nieobjęty ochroną, nieznany)
+          $ref: '#/components/schemas/NecStatusObszaruEnum'
+        wyniki:
+          type: array
+          items:
+            $ref: '#/components/schemas/NecMonitorowanieWynik'
+    NecMonitorowanieWynikiOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/NecMonitorowanieWynikiRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    NecRegionBiogeograficznyEnum:
+      type: string
+      enum:
+        - kontynentalny
+        - alpejski
+    NecRodzajEkosystemuEnum:
+      type: string
+      enum:
+        - lądowy
+        - wodny
+    NecStatusObszaruEnum:
+      type: string
+      enum:
+        - 'objęty ochroną'
+        - 'nieobjęty ochroną'
+    NecTypEkosystemuMAESEnum:
+      type: string
+      enum:
+        - 'ekosystem miejski'
+        - 'lasy i inne tereny zadrzewione'
+        - 'uprawy, łąki i tereny trawiaste'
+        - 'wrzosowiska i zarośla'
+        - 'tereny skąpo porośnięte roślinnością'
+        - 'tereny podmokłe'
+        - 'rzeki i jeziora'
+        - 'inne'
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

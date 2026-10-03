@@ -1,0 +1,6 @@
+{
+  "url": "https://dane.gios.gov.pl/api/wody-powierzchniowe/v1/programy-monitoringu?jcwpNazwa=&rok=2025&wojewodztwo=%C5%9AL%C4%84SKIE&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "body": "{\n    \"wynik\": {\n        \"idZdarzenia\": \"43662cec-cb9f-43d2-a22b-fdba73463454\",\n        \"status\": \"BLAD\",\n        \"data\": \"2026-10-03T10:25:05\",\n        \"blad\": {\n            \"kod\": \"400\",\n            \"opis\": \"Parametr jcwpNazwa jest wymagany\"\n        }\n    }\n}"
+}

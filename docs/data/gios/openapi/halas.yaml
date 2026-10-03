@@ -1,0 +1,993 @@
+openapi: 3.1.1
+info:
+  title: HALAS API
+  description: |-
+      HALAS - Interfejs API udostępniający dane ze strategicznych map hałasu, programów ochrony środowiska przed hałasem i pomiarów hałasu w środowisku
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/halas
+tags:
+  - name: Pomiary hałasu w środowisku
+    description: Dane z pomiarów hałasu w środowisku na podstawie podanej kategorii hałasu, daty, województwa z możliwością wyboru powiatu oraz gminy
+  - name: Jednostki
+    description: Dane adresowe jednostek odpowiedzialnych za sporządzanie lub gromadzenie strategicznych map hałasu oraz programów ochrony środowiska przed hałasem w podziale na źródła hałasu
+  - name: Programy ochrony środowiska przed hałasem
+    description: Dane w zakresie istniejących lub planowanych działań, kosztów działań oraz liczby ludności eksponowanej na hałas
+  - name: Strategiczne mapy hałasu
+    description: Zasięgi hałasu dla wskaźnika hałasu L den lub L night w danym województwie w przedziałach co 5 dB, w podziale na rundy mapowania oraz dane dotyczące powierzchni terenu oraz liczby lokali mieszkalnych, szkół, szpitali lub osób narażonych na hałas
+  - name: Dopuszczalne poziomy hałasu
+    description: Wartości dopuszczalnych poziomów hałasu dla wskaźników L den i L night dla hałasu drogowego, kolejowego, lotniczego i instalacyjnego dla określonych rodzajów terenów
+paths:
+  /v1/pomiar-halasu-w-srodowisku:
+    get:
+      tags:
+        - Pomiary hałasu w środowisku
+      summary: Dane z pomiarów hałasu w środowisku
+      description: Usługa sieciowa udostępniająca dane z pomiarów hałasu w środowisku
+      operationId: getPomiarHalasuWSrodowiskuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: kodPunktuPomiarowego
+          in: query
+          description: Kod punktu pomiarowego
+          schema:
+            type: string
+            maxLength: 16
+        - name: kategoria
+          in: query
+          description: Kategoria hałasu
+          required: true
+          schema:
+            $ref: '#/components/schemas/HalasKategoriaHalasuEnum'
+        - name: celPomiaru
+          in: query
+          description: 'Cel pomiaru. Dostępne wartości:<br>
+                    - Pomiar wykonany w ramach kontroli przeprowadzonej przez Urząd Marszałkowski <br>
+                    - Pomiar wykonany w ramach kontroli przeprowadzonej przez starostę <br>
+                    - Analiza porealizacyjna <br>
+                    - Inny <br>
+                    - Pomiar wykonany w ramach mapy akustycznej <br>
+                    - Pomiar w trybie art.147 ust.1 Poś (pomiary okresowe) <br>
+                    - Pomiar w trybie art.175 ust.3 Poś (przebudowa) <br>
+                    - Pomiar w trybie art.175 ust.2 Poś (pomiary ciągłe) <br>
+                    - Pomiar w trybie art.175 ust.1 Poś (pomiary okresowe) <br>
+                    - Pomiar wykonywany w ramach kontroli prowadzonej przez WIOŚ <br>
+                    - Państwowy monitoring środowiska, art. 26 Poś'
+          schema:
+            type: string
+            maxLength: 500
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          required: true
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: powiat
+          in: query
+          description: Powiat, np. 'Wrocław', 'oławski'
+          schema:
+            type: string
+            maxLength: 50
+        - name: gmina
+          in: query
+          description: Gmina, np. 'Wrocław (gmina miejska)', 'Oława (gmina miejska)'
+          schema:
+            type: string
+            maxLength: 50
+        - name: dataOd
+          in: query
+          description: 'Data od w formacie ISO 8601, np. 2023-11-29. <br>Format: yyyy-mm-dd'
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: dataDo
+          in: query
+          description: 'Data do w formacie ISO 8601, np. 2023-11-29. <br>Format: yyyy-mm-dd'
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasPomiarHalasuWSrodowiskuOdpowiedz'
+  /v1/jednostka-odpowiedzialna:
+    get:
+      tags:
+        - Jednostki
+      summary: Jednostki odpowiedzialne za sporządzanie lub gromadzenie strategicznych map hałasu oraz programów ochrony przed hałasem
+      description: Usługa sieciowa udostępniająca dane adresowe jednostek odpowiedzialnych za sporządzanie lub gromadzenie strategicznych map hałasu oraz programów ochrony środowiska przed hałasem w podziale na źródła hałasu
+      operationId: getJednostkaOdpowiedzialnaV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: miejscowosc
+          in: query
+          description: Miejscowość
+          schema:
+            type: string
+            maxLength: 255
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+        - name: zrodloHalasu
+          in: query
+          description: 'Źródło hałasu. Dostępne wartości: Drogi, Koleje, Miasta, Lotniska, wszystkie źródła'
+          schema:
+            type: string
+            maxLength: 300
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasJednostkaOdpowiedzialnaOdpowiedz'
+  /v1/dzialania-w-zakresie-ochrony-srodowiska-przed-halasem:
+    get:
+      tags:
+        - Programy ochrony środowiska przed hałasem
+      summary: Działania w zakresie ochrony środowiska przed hałasem
+      description: Usługa sieciowa udostępniająca informacje o planowanych działaniach w zakresie ochrony przed hałasem, jakie właściwe władze zamierzają podjąć w ciągu najbliższych pięciu lat lub w ramach długofalowej strategii, łącznie ze środkami zachowania obszarów ciszy na obszarze województwa, w podziale na rundy mapowania
+      operationId: getDzialaniaWZakresieOchronySrodowiskaPrzedHalasemV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: '#/components/parameters/zrodloHalasu'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasDzialaniaWZakresieOchronySrodowiskaPrzedHalasemOdpowiedz'
+  /v1/liczba-ludnosci-eksponowanej-na-halas:
+    get:
+      tags:
+        - Programy ochrony środowiska przed hałasem
+      summary: Liczba ludności eksponowanej na hałas
+      description: Usługa sieciowa udostępniająca informacje o liczbie ludności eksponowanej na hałas dla wskaźników L den >= 55 dB lub L night >=50 dB na obszarze objętym programem środowiska przed hałasem (województwo) lub o zmniejszeniu liczby osób narażonych na hałas na podstawie wskaźników NHA i NHSD, w podziale na rundy mapowania
+      operationId: getLiczbaLudnosciEksponowanejNaHalasV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: '#/components/parameters/zrodloHalasu'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasLiczbaLudnosciEksponowanejNaHalasOdpowiedz'
+  /v1/srodki-ochrony-przed-halasem:
+    get:
+      tags:
+        - Programy ochrony środowiska przed hałasem
+      summary: Informacje o istniejących środkach ochrony przed hałasem
+      description: Usługa sieciowa udostępniająca informacje o istniejących środkach ochrony przed hałasem na terenie województwa, w podziale na rundy mapowania
+      operationId: getSrodkiOchronyPrzedHalasemV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: '#/components/parameters/zrodloHalasu'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasSrodkiOchronyPrzedHalasemOdpowiedz'
+  /v1/zasiegi-halasu:
+    get:
+      tags:
+        - Strategiczne mapy hałasu
+      summary: Zasięgi hałasu
+      description: Usługa sieciowa udostępniająca zasięgi hałasu dla wskaźnika hałasu L den lub L night w danym województwie/kraju w przedziałach co 5 dB, w podziale na rundy mapowania
+      operationId: getZasiegiHalasuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: id
+          in: query
+          description: Identyfikator
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 9223372036854775807
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: '#/components/parameters/zrodloHalasuWymagane'
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. LN, LDWN
+          schema:
+            type: string
+            maxLength: 1020
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasZasiegiHalasuOdpowiedz'
+  /v1/informacja-o-powierzchni-terenu:
+    get:
+      tags:
+        - Strategiczne mapy hałasu
+      summary: Informacja o powierzchni terenu oraz liczbie lokali mieszkalnych, szkół, szpitali lub osób
+      description: Usługa sieciowa udostępniająca przybliżoną liczbę lokali mieszkalnych lub szkół lub szpitali lub osób, które na danym obszarze (powiat/województwo) znajdują się w zasięgu wskaźników L den lub L night w przedziałach co 5 dB, w podziale na rundy mapowania. Wielkość obszaru (narażony obszar) wyrażona w km2 dla danego zasięgu hałasu.
+      operationId: getInformacjaOPowierzchniTerenuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: "#/components/parameters/zrodloHalasuWymagane"
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasInformacjaOPowierzchniTerenuOdpowiedz'
+  /v1/koszty-dzialan-w-programach-ochrony-srodowiska:
+    get:
+      tags:
+        - Programy ochrony środowiska przed hałasem
+      summary: Informacja o kosztach działań w programach ochrony środowiska przed hałasem
+      description: Usługa sieciowa udostępniająca informacje o kosztach działań w programie ochrony środowiska przed hałasem, ocenie efektywności kosztowej, ocenie relacji koszt/korzyść, na obszarze województwa
+      operationId: getKosztyDzialanWProgramachOchronySrodowiskaV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: rundaMapowania
+          in: query
+          description: Runda mapowania, np. 4 Runda Mapowania, 5 Runda Mapowania
+          schema:
+            type: string
+            maxLength: 255
+          example: '4 Runda Mapowania'
+          required: true
+        - $ref: "#/components/parameters/zrodloHalasuWymagane"
+          description: 'Źródło hałasu. Dostępne wartości:<br>
+                - Hałas kolejowy wewnątrz aglomeracji<br>
+                - Główne lotniska poza aglomeracjami<br>
+                - Hałas pochodzący od głównych dróg wewnątrz aglomeracji<br>
+                - Hałas drogowy wewnątrz aglomeracji<br>
+                - Główne drogi poza aglomeracjami<br>
+                - Hałas lotniczy wewnątrz aglomeracji<br>
+                - Hałas przemysłowy wewnątrz aglomeracji<br>
+                - Główne linie kolejowe poza aglomeracjami<br>
+                - Hałas pochodzący od głównych linii kolejowych wewnątrz aglomeracji<br>
+                - Hałas pochodzący z głównych lotnisk wewnątrz aglomeracji'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasKosztyDzialanWProgramachOchronySrodowiskaOdpowiedz'
+  /v1/dopuszczalne-poziomy-halasu:
+    get:
+      tags:
+        - Dopuszczalne poziomy hałasu
+      summary: Dopuszczalne poziomy hałasu
+      description: Usługa sieciowa udostępniająca wartości dopuszczalnych poziomów hałasu dla wskaźników L den i L night dla hałasu drogowego, kolejowego, lotniczego i instalacyjnego dla określonych rodzajów terenów
+      operationId: getDopuszczalnePoziomyHalasuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rodzajTerenu
+          in: query
+          description: Rodzaj terenu
+          schema:
+            $ref: '#/components/schemas/HalasRodzajTerenuEnum'
+          required: true
+        - $ref: '#/components/parameters/zrodloHalasu'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HalasDopuszczalnePoziomyHalasuOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    zrodloHalasu:
+      in: query
+      name: zrodloHalasu
+      description: 'Źródło hałasu. Dostępne wartości:<br>
+                - Hałas kolejowy wewnątrz aglomeracji<br>
+                - Główne lotniska poza aglomeracjami<br>
+                - Hałas pochodzący od głównych dróg wewnątrz aglomeracji<br>
+                - Hałas drogowy wewnątrz aglomeracji<br>
+                - Główne drogi poza aglomeracjami<br>
+                - Hałas lotniczy wewnątrz aglomeracji<br>
+                - Hałas przemysłowy wewnątrz aglomeracji<br>
+                - Główne linie kolejowe poza aglomeracjami<br>
+                - Hałas pochodzący od głównych linii kolejowych wewnątrz aglomeracji<br>
+                - Hałas pochodzący z głównych lotnisk wewnątrz aglomeracji'
+      schema:
+        type: string
+        maxLength: 300
+    zrodloHalasuWymagane:
+      in: query
+      name: zrodloHalasu
+      description: 'Źródło hałasu. Dostępne wartości:<br>
+                - Hałas kolejowy wewnątrz aglomeracji<br>
+                - Główne drogi z uwzględnieniem aglomeracji<br>
+                - Hałas drogowy wewnątrz aglomeracji<br>
+                - Główne linie kolejowe z uwzględnieniem aglomeracji<br>
+                - Hałas przemysłowy wewnątrz aglomeracji<br>
+                - Hałas lotniczy wewnątrz aglomeracji<br>
+                - Główne porty lotnicze z uwzględnieniem aglomeracji'
+      schema:
+        type: string
+        maxLength: 300
+      required: true
+  schemas:
+    HalasPomiarHalasuWSrodowiskuRekord:
+      type: object
+      properties:
+        kodPunktuPomiarowego:
+          type: string
+          description: Kod punktu pomiarowego
+          maxLength: 16
+        kategoria:
+          description: Kategoria
+          $ref: '#/components/schemas/HalasKategoriaHalasuEnum'
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+          maxLength: 50
+        gmina:
+          type: string
+          description: Gmina
+          maxLength: 50
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 100
+        coordWgs84X:
+          type: number
+          description: Współrzędne WGS84X
+          format: double
+        coordWgs84Y:
+          type: number
+          description: Współrzędne WGS84Y
+          format: double
+        pora:
+          type: string
+          description: Pora
+          maxLength: 255
+        celPomiaru:
+          type: string
+          description: Cel
+          maxLength: 500
+        dataOd:
+          type: string
+          description: Data od
+          format: date
+        dataDo:
+          type: string
+          description: Data do
+          format: date
+        wynikPomiaru:
+          type: number
+          description: Wynik pomiaru [dB]
+        przekroczenie:
+          type: number
+          description: Przekroczenie [dB]
+    HalasPomiarHalasuWSrodowiskuOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasPomiarHalasuWSrodowiskuRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasJednostkaOdpowiedzialnaRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 255
+        rola:
+          type: string
+          description: Rola
+          maxLength: 255
+        nazwaInstytucji:
+          type: string
+          description: Nazwa instytucji
+          maxLength: 255
+        ulica:
+          type: string
+          description: Ulica
+          maxLength: 255
+        numerBudynku:
+          type: string
+          description: Numer budynku
+          maxLength: 255
+        kodPocztowy:
+          type: string
+          description: Kod pocztowy
+          maxLength: 255
+        poczta:
+          type: string
+          description: Poczta
+          maxLength: 255
+    HalasJednostkaOdpowiedzialnaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasJednostkaOdpowiedzialnaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasDzialaniaWZakresieOchronySrodowiskaPrzedHalasemRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+        planowaneDzialaniaDlaLotniskWMiescie:
+          type: string
+          description: Planowane działania dla lotnisk w mieście
+          maxLength: 4000
+        planowaneDzialaniaDlaKoleiWMiescie:
+          type: string
+          description: Planowane działania dla linii kolejowych w mieście
+          maxLength: 4000
+        planowaneDzialaniaDlaDrogWMiescie:
+          type: string
+          description: Planowane działania dla dróg w mieście
+          maxLength: 4000
+        planowaneDzialaniaDlaPrzemysluWMiescie:
+          type: string
+          description: Planowane działania dla przemysłu w mieście
+          maxLength: 4000
+        planowaneDzialaniaDlaDrog:
+          type: string
+          description: Planowane działania dla dróg
+          maxLength: 4000
+        planowaneDzialaniaDlaKolei:
+          type: string
+          description: Planowane działania dla kolei
+          maxLength: 4000
+        planowaneDzialaniaDlaLotnisk:
+          type: string
+          description: Planowane działania dla lotnisk
+          maxLength: 4000
+    HalasDzialaniaWZakresieOchronySrodowiskaPrzedHalasemOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasDzialaniaWZakresieOchronySrodowiskaPrzedHalasemRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasLiczbaLudnosciEksponowanejNaHalasRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+        zredukowanyWskaznikHa:
+          type: number
+          description: Zredukowany wskaźnik HA
+        zredukowanyWskaznikHsd:
+          type: number
+          description: Zredukowany wskaźnik HSD
+        wskaznikHaPrzedRedukcja:
+          type: number
+          description: Wskaźnik HA przed redukcją
+        wskaznikHsdPrzedRedukcja:
+          type: number
+          description: Wskaźnik HSD przed redukcją
+        liczbaNarazonychPowLdwn55:
+          type: number
+          description: Liczba narażonych mieszkańców dla wskaźnika Ldwn>55dB
+        liczbaNarazonychPowLn50:
+          type: number
+          description: Liczba narażonych mieszkańców dla wskaźnika Ln>50dB
+        redukcjaNha:
+          type: number
+          description: Zmniejszenie wskaźnika NHA
+        redukcjaNhsd:
+          type: number
+          description: Zmniejszenie wskaźnika NHSD
+    HalasLiczbaLudnosciEksponowanejNaHalasOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasLiczbaLudnosciEksponowanejNaHalasRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasSrodkiOchronyPrzedHalasemRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+        istniejaceDzialaniaDlaLotniskWMiescie:
+          type: string
+          description: Istniejące działania dla lotnisk w mieście
+          maxLength: 4000
+        istniejaceDzialaniaDlaKoleiWMiescie:
+          type: string
+          description: Istniejące działania dla linii kolejowych w mieście
+          maxLength: 4000
+        istniejaceDzialaniaDlaDrogWMiescie:
+          type: string
+          description: Istniejące działania dla dróg w mieście
+          maxLength: 4000
+        istniejaceDzialaniaDlaPrzemysluWMiescie:
+          type: string
+          description: Istniejące działania dla przemysłu w mieście
+          maxLength: 4000
+        istniejaceDzialaniaDlaDrog:
+          type: string
+          description: Istniejące działania dla dróg
+          maxLength: 4000
+        istniejaceDzialaniaDlaKolei:
+          type: string
+          description: Istniejące działania dla kolei
+          maxLength: 4000
+        istniejaceDzialaniaDlaLotnisk:
+          type: string
+          description: Istniejące działania dla lotnisk
+          maxLength: 4000
+    HalasSrodkiOchronyPrzedHalasemOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasSrodkiOchronyPrzedHalasemRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasZasiegiHalasuProperties:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Identyfikator
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 80
+        przedzial:
+          type: string
+          description: Przedział
+          maxLength: 50
+        wskaznik:
+          type: string
+          description: Wskaźnik
+          maxLength: 1020
+    HalasZasiegiHalasuGeoJSONFeature:
+      type: object
+      properties:
+        type:
+          type: string
+          example: Feature
+        geometry:
+          type: object
+          properties:
+            type:
+              type: string
+              example: Point
+            coordinates:
+              type: array
+              items:
+                type: number
+              example: [102.0, 0.5]
+        properties:
+          $ref: "#/components/schemas/HalasZasiegiHalasuProperties"
+    HalasZasiegiHalasuOdpowiedz:
+      type: object
+      properties:
+        liczbaRekordow:
+          type: integer
+        type:
+          type: string
+          example: FeatureCollection
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/HalasZasiegiHalasuGeoJSONFeature'
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasInformacjaOPowierzchniTerenuRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 80
+        wskaznik:
+          type: string
+          description: Wskaźnik
+          maxLength: 1020
+        przedzial:
+          type: string
+          description: Przedział
+          maxLength: 50
+        narazonyObszar:
+          type: number
+          description: Obszar eksponowany na hałas
+        narazoneBudynkiMieszkalne:
+          type: number
+          description: Liczba budynków mieszkalnych eksponowanych na hałas
+        narazonaLudnosc:
+          type: number
+          description: Liczba mieszkańców narażonych na hałas
+        narazoneBudynkiSzpitalne:
+          type: number
+          description: Liczba budynków szpitalnych narażonych na hałas
+        narazoneBudynkiEdukacyjne:
+          type: number
+          description: Liczba budynków edukacyjnych narażonych na hałas
+    HalasInformacjaOPowierzchniTerenuOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasInformacjaOPowierzchniTerenuRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasKosztyDzialanWProgramachOchronySrodowiskaRekord:
+      type: object
+      properties:
+        rundaMapowania:
+          type: string
+          description: Runda mapowania
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+        planowaneKosztaWAglomeracjiDlaLotnisk:
+          type: number
+          description: Planowane koszty w aglomeracji dla lotnisk
+        planowaneKosztaWAglomeracjiDlaLiniiKolejowych:
+          type: number
+          description: Planowane koszty w aglomeracji dla linii kolejowych
+        planowaneKosztaWAglomeracjiDlaDrog:
+          type: number
+          description: Planowane koszty w aglomeracji dla dróg
+        planowaneKosztaWAglomeracjiDlaPrzemyslu:
+          type: number
+          description: Planowane koszty w aglomeracji dla przemysłu
+        planowaneKosztaDlaDrog:
+          type: number
+          description: Planowane koszty dla dróg
+        planowaneKosztaDlaKolei:
+          type: number
+          description: Planowane koszty dla kolei
+        planowaneKosztaDlaLotnisk:
+          type: number
+          description: Planowane koszty dla lotnisk
+    HalasKosztyDzialanWProgramachOchronySrodowiskaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasKosztyDzialanWProgramachOchronySrodowiskaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasDopuszczalnePoziomyHalasuRekord:
+      type: object
+      properties:
+        wskaznikHalasu:
+          type: string
+          description: Wskaźnik hałasu
+          maxLength: 80
+        wartoscDopuszczalna:
+          type: number
+          description: Wartość dopuszczalna
+        rodzajTerenu:
+          description: Rodzaj terenu
+          $ref: '#/components/schemas/HalasRodzajTerenuEnum'
+        zrodloHalasu:
+          type: string
+          description: Źródło hałasu
+          maxLength: 300
+    HalasDopuszczalnePoziomyHalasuOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/HalasDopuszczalnePoziomyHalasuRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    HalasKategoriaHalasuEnum:
+      type: string
+      enum:
+        - Droga
+        - Lotnisko
+        - Przemysł
+        - Kolej
+    HalasRodzajTerenuEnum:
+      type: string
+      enum:
+        - Strefa ochronna "A" uzdrowiska
+        - Tereny domów opieki społecznej
+        - Tereny mieszkaniowo-usługowe
+        - Tereny rekreacyjno-wypoczynkowe
+        - Tereny szpitali poza miastem
+        - Tereny szpitali w miastach
+        - Tereny w strefie śródmiejskiej miast powyżej 100 tys. mieszkańców
+        - Tereny zabudowy mieszkaniowej jednorodzinnej
+        - Tereny zabudowy mieszkaniowej wielorodzinnej i zamieszkania zbiorowego
+        - Tereny zabudowy zagrodowej
+        - Tereny zabudowy związanej ze stałym lub czasowym pobytem dzieci i młodzieży
+    WojewodztwoEnum:
+      type: string
+      enum:
+        - DOLNOŚLĄSKIE
+        - KUJAWSKO-POMORSKIE
+        - LUBELSKIE
+        - LUBUSKIE
+        - ŁÓDZKIE
+        - MAŁOPOLSKIE
+        - MAZOWIECKIE
+        - OPOLSKIE
+        - PODKARPACKIE
+        - PODLASKIE
+        - POMORSKIE
+        - ŚLĄSKIE
+        - ŚWIĘTOKRZYSKIE
+        - WARMIŃSKO-MAZURSKIE
+        - WIELKOPOLSKIE
+        - ZACHODNIOPOMORSKIE
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu
