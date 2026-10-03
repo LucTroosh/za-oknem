@@ -8,6 +8,7 @@ import EmptyState from "../../components/EmptyState";
 import HeroVerdict from "../../components/HeroVerdict";
 import HomeHeader from "../../components/HomeHeader";
 import InfoBanner from "../../components/InfoBanner";
+import NeighborhoodEntry from "../../components/NeighborhoodEntry";
 import QuickStatusGrid from "../../components/QuickStatusGrid";
 import Screen from "../../components/Screen";
 import SourceMeta from "../../components/SourceMeta";
@@ -70,6 +71,7 @@ export default function Start() {
           {verdict ? <HeroVerdict verdict={verdict} /> : null}
           {tiles.length > 0 && <QuickStatusGrid tiles={tiles} />}
           {preview && <AlertPreviewCard preview={preview} />}
+          {location && <NeighborhoodEntry geoAreaId={location.geoAreaId} refreshTick={d.loadedAt} />}
           <SourceMeta
             lines={[
               `Dane odświeżone o ${hhmm(d.loadedAt)}. Źródła i licencje: Ustawienia.`,

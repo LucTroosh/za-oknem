@@ -228,6 +228,18 @@ Ukryty ekran (`/pollen-calendar`), otwierany linkiem z karty „Typowy sezon” 
 | „Jak działa kalendarz?”: typowy przebieg, nie pomiar i nie prognoza; ograniczenia (`coverage_warning`, `not_covered`), `disclaimer` | `coverage_warning`, `not_covered[]`, `disclaimer`, `active_message` | ✅ (teksty serwera dosłownie) | — |
 | Źródło | `attribution` | ✅ | — |
 
+### S7b. Twoja okolica (dane historyczne o lokalizacji, ADR-032) — 🟡 (hałas; reszta sekcji ⬜)
+
+Ukryty ekran (`/neighborhood`), otwierany wierszem „Twoja okolica” na Start (pod podglądem alertów). Wiersz jest widoczny **tylko**, gdy `GET /api/v1/neighborhood?geo_area_id=` zwraca `enabled=true` (flaga sekcji po stronie serwera); przy błędzie, ładowaniu i starszym backendzie nie ma go wcale. Bez nowej zakładki, mapy, konta i push. To nie jest stan na dziś ani ostrzeżenie (reguła #7): bez znaczka świeżości, bez porad.
+
+| Element UI | Źródło | Status | Stany |
+|---|---|---|---|
+| Nagłówek sekcji + jedno zdanie odpowiedzi („Najbliższe punkty pomiarowe”) | `sections[].availability`, `title` | ✅ | `available` / `no_coverage` („W pobliżu nie ma punktu pomiarowego” + promień) / `no_records` / `unavailable` („Dane chwilowo niedostępne” — nie „brak”) / `pending_verification` |
+| Najbliższy punkt na kategorię: miejscowość, odległość „ok. X km”, okres pomiaru, wyniki wg pory doby (dB, przecinek) | `items[]` | ✅ | pusta lista przy `available` ⇒ stan pusty, nie pusta karta |
+| Przekroczenie | `measurements[].exceedance_db` | ✅ | pokazane tylko gdy > 0, słowami źródła; 0/null nie znaczy „w normie” |
+| Ostrzeżenie o nieudanym ostatnim pobraniu (dane starsze zostają) | `retrieval_status = degraded` | ✅ | okres danych nadal = okres źródła, nigdy „teraz” |
+| Cel pomiaru, ograniczenia, atrybucja CC BY 4.0 z oznaczeniem przetworzenia, linki do źródła i licencji | `purpose`, `limitations[]`, `attribution`, `source_url`, `license_url` | ✅ (tekst atrybucji składa serwer) | — |
+
 ### S8. Stany rzek (hydrologia) — ✅ pełna lista (bez kąpielisk i wody pitnej) / ⬜ stacja najbliższa lokalizacji
 
 Kąpieliska i woda pitna **nie występują w UI** (spec §8, §48): brak sekcji, „wkrótce”, nieaktywnego kafelka i placeholdera; kąpieliska wracają

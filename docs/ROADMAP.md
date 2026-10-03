@@ -101,7 +101,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-10 | powietrze historyczne (16 operacji) | ⬜ TODO (po hałasie) |
 | GIOS-11 | NEC (ekosystemy) | ⬜ TODO; stanowiska IMPLEMENTABLE (gate niezaliczony), wyniki UNVERIFIED |
 | GIOS-12 | pozostałe obszary (gleby, PEM, promieniowanie, przyroda, morze, CLC, INSPIRE) | ⬜ TODO — tylko discovery |
-| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | 🟡 PARTIAL — `GET /api/v1/neighborhood` + flaga `NEIGHBORHOOD_NOISE_ENABLED` (domyślnie off) gotowe; ekran mobilny ⬜ (PR-D2) |
+| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | 🟡 PARTIAL — `GET /api/v1/neighborhood` + flaga `NEIGHBORHOOD_NOISE_ENABLED` (domyślnie off) i ekran „Twoja okolica” (wiersz na Start tylko przy `enabled`) gotowe; niezweryfikowane na urządzeniu i na prawdziwych danych GIOŚ |
 
 ---
 
@@ -304,6 +304,7 @@ okresem i źródłem, nie własna historia szeregów czasowych.
 | #134 | Docs: pakiet `docs/data/gios/` (specyfikacje, próbki, weryfikacja, plan prac) |
 | #135 | ADR-032 „Twoja okolica”, 7 wpisów `gios_*` w Source Registry, macierz bramek operacji (`07-operation-gates.md`) |
 | #136 | Fundament ingestu nowych API GIOŚ (`app/gios_open/`, migracja 0017) i `probe` dla operatora; bez connectora |
+| #137 | Backend hałasu historycznego: connector `gios_noise` (parser, import ręczny, kwarantanna), `noise_measurements` (migracja 0018), `GET /api/v1/neighborhood`, flagi `NEIGHBORHOOD_NOISE_*` (domyślnie off) — 🟡 gate GIOŚ niezaliczony (B-6), jeszcze bez importu na prawdziwym GIOŚ |
 
 ---
 
