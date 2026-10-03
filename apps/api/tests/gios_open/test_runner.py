@@ -6,9 +6,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from app import provenance
+from app.config import settings
+from app.gios_open import runner as runner_mod
 from app.gios_open import snapshots as sn
 from app.gios_open.client import Page
-from app.gios_open.errors import GiosOpenSourceError, SnapshotLockedError
+from app.gios_open.errors import GiosOpenSourceError, SnapshotLockedError, SnapshotLostError
 from app.gios_open.runner import ingest_snapshot
 from app.models import DatasetSnapshot, SourceFetch, SourceStatus
 
@@ -181,3 +183,62 @@ def test_schema_hash_changes_when_the_record_fields_change(db_session):
     )
     hash_a = db_session.get(DatasetSnapshot, a.snapshot_id).schema_hash
     assert hash_a != db_session.get(DatasetSnapshot, b.snapshot_id).schema_hash
+
+
+def test_a_run_that_lost_its_lock_does_not_publish_and_leaves_the_newer_run_alone(
+    db_session, monkeypatch
+):
+    monkeypatch.setattr(settings, "gios_open_lock_ttl_minutes", 60)
+    first = run(db_session, good_pages(), Store())  # a good snapshot is active
+
+    class TakenOver(Store):
+        def __call__(self, db, snapshot, records):
+            if (
+                self.pages == 0
+            ):  # while we are working, our lease expires and another run takes over
+                sn.begin_snapshot(
+                    db,
+                    source_id=SRC,
+                    operation="other",
+                    filters=None,
+                    now=NOW + timedelta(minutes=61 + 24 * 60),
+                )
+            return super().__call__(db, snapshot, records)
+
+    store = TakenOver()
+    with pytest.raises(SnapshotLostError):
+        run(db_session, good_pages(), store, now=NOW + timedelta(days=1))
+
+    assert active(db_session).id == first.snapshot_id  # the old good snapshot still serves
+    assert (
+        db_session.query(DatasetSnapshot).filter_by(status=sn.STAGING).count() == 1
+    )  # the newer run
+    assert store.rows == {} or all(
+        k == first.snapshot_id for k in store.rows
+    )  # our rows were discarded
+
+
+def test_bookkeeping_failure_after_promotion_does_not_undo_the_published_snapshot(
+    db_session, monkeypatch
+):
+    def broken(db, source_id, *, success, error=None, now=None):
+        raise RuntimeError("source_status upsert failed")
+
+    monkeypatch.setattr(runner_mod, "record_source_run", broken)
+    store = Store()
+    result = run(db_session, good_pages(), store)  # does NOT raise
+    snap = active(db_session)
+    assert snap.id == result.snapshot_id and snap.status == sn.ACTIVE
+    assert store.discarded == [] and store.rows[snap.id]  # rows still there
+
+
+def test_bookkeeping_failure_on_the_failure_path_does_not_mask_the_real_error(
+    db_session, monkeypatch
+):
+    def broken(db, source_id, *, success, error=None, now=None):
+        raise RuntimeError("source_status upsert failed")
+
+    monkeypatch.setattr(runner_mod, "record_source_run", broken)
+    with pytest.raises(GiosOpenSourceError):
+        run(db_session, failing_pages(), Store())
+    assert db_session.query(DatasetSnapshot).filter_by(status=sn.FAILED).count() == 1

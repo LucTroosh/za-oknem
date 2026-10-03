@@ -7,7 +7,7 @@ import pytest
 
 from app.config import settings
 from app.gios_open import snapshots as sn
-from app.gios_open.errors import SnapshotLockedError
+from app.gios_open.errors import SnapshotLockedError, SnapshotLostError
 from app.models import DatasetSnapshot
 
 NOW = datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
@@ -149,3 +149,34 @@ def test_quarantine_keeps_the_raw_record_with_the_reason(db_session):
         "unknown_enum",
         {"pora": "Dzień 17h"},
     )
+
+
+def test_a_worker_that_outlived_its_lease_cannot_promote(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "gios_open_lock_ttl_minutes", 60)
+    slow = begin(db_session, now=NOW)
+    newer = begin(db_session, now=NOW + timedelta(minutes=61))  # took the lock over
+    with pytest.raises(SnapshotLostError):
+        promote(db_session, slow)
+    assert sn.active_snapshot(db_session, "gios_noise", "pomiar", FILT) is None  # nothing published
+    promote(db_session, newer)
+    assert sn.active_snapshot(db_session, "gios_noise", "pomiar", FILT).id == newer.id
+
+
+def test_a_late_worker_never_supersedes_a_newer_snapshot(db_session, monkeypatch):
+    monkeypatch.setattr(settings, "gios_open_lock_ttl_minutes", 60)
+    slow = begin(db_session, now=NOW)
+    newer = begin(db_session, now=NOW + timedelta(minutes=61))
+    promote(db_session, newer)  # the replacement finishes first
+    with pytest.raises(SnapshotLostError):
+        promote(db_session, slow)  # the original finishes later with OLDER data
+    assert sn.active_snapshot(db_session, "gios_noise", "pomiar", FILT).id == newer.id
+    db_session.refresh(slow)
+    assert slow.status == sn.FAILED
+
+
+def test_fail_leaves_a_snapshot_that_is_no_longer_staging_alone(db_session):
+    snap = begin(db_session)
+    promote(db_session, snap)
+    sn.fail(db_session, snap, "late error from the same run")
+    db_session.refresh(snap)
+    assert snap.status == sn.ACTIVE and snap.error is None

@@ -41,3 +41,8 @@ class GiosOpenPageLimitError(GiosOpenError):
 
 class SnapshotLockedError(GiosOpenError):
     """Another run of the same service is in progress (one staging snapshot per service)."""
+
+
+class SnapshotLostError(GiosOpenError):
+    """This run's staging snapshot is no longer ours (its lock expired and another run took it
+    over). It must not promote: the newer run owns the dataset."""

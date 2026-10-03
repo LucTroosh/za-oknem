@@ -9,14 +9,14 @@ staging row: it is taken over only after `gios_open_lock_ttl_minutes`.
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.gios_open.errors import SnapshotLockedError
+from app.gios_open.errors import SnapshotLockedError, SnapshotLostError
 from app.models import DatasetSnapshot, IngestQuarantine
 
 logger = logging.getLogger(__name__)
@@ -60,10 +60,19 @@ def begin_snapshot(
     for row in stale:
         started = row.started_at if row.started_at.tzinfo else row.started_at.replace(tzinfo=UTC)
         if now - started > ttl:
-            row.status = FAILED
-            row.completed_at = now
-            row.error = "stale lock: the run did not finish within the lock TTL"
-            logger.warning("took over a stale staging snapshot %s of %s", row.id, source_id)
+            # Conditional: a run that promoted or failed in the meantime is not touched. The
+            # owner of a staging row checks `status = staging` again on promotion (see `promote`).
+            taken = db.execute(
+                update(DatasetSnapshot)
+                .where(DatasetSnapshot.id == row.id, DatasetSnapshot.status == STAGING)
+                .values(
+                    status=FAILED,
+                    completed_at=now,
+                    error="stale lock: the run did not finish within the lock TTL",
+                )
+            )
+            if cast(CursorResult, taken).rowcount:
+                logger.warning("took over a stale staging snapshot %s of %s", row.id, source_id)
     db.flush()
     snapshot = DatasetSnapshot(
         source_id=source_id,
@@ -94,9 +103,23 @@ def promote(
     now: datetime | None = None,
 ) -> None:
     """staging -> active, and the previous active snapshot of the same dataset -> superseded, in ONE
-    transaction. If it cannot commit, nothing changes (the previous snapshot stays active)."""
+    transaction. The first statement claims the snapshot's own row `WHERE status = 'staging'`: if
+    the lock expired and another run took it over, nothing matches and SnapshotLostError is raised,
+    so a worker that outlived its lease can never publish (older data must not supersede a newer
+    snapshot). In PostgreSQL that UPDATE also holds the row lock until commit, so a concurrent
+    takeover cannot interleave. If anything fails nothing changes: the previous snapshot stays
+    active."""
     now = now or datetime.now(UTC)
     try:
+        claimed = db.execute(
+            update(DatasetSnapshot)
+            .where(DatasetSnapshot.id == snapshot.id, DatasetSnapshot.status == STAGING)
+            .values(completed_at=now)
+        )
+        if not cast(CursorResult, claimed).rowcount:
+            raise SnapshotLostError(
+                f"snapshot {snapshot.id} of {snapshot.source_id} is no longer ours (lock taken)"
+            )
         db.execute(
             update(DatasetSnapshot)
             .where(
@@ -107,28 +130,43 @@ def promote(
             )
             .values(status=SUPERSEDED)
         )
-        snapshot.status = ACTIVE
-        snapshot.completed_at = now
-        snapshot.record_count = record_count
-        snapshot.page_count = page_count
-        snapshot.rejected_count = rejected_count
-        snapshot.checksum = checksum
-        snapshot.schema_hash = schema_hash
-        snapshot.source_fetch_id = source_fetch_id
+        db.execute(
+            update(DatasetSnapshot)
+            .where(DatasetSnapshot.id == snapshot.id)
+            .values(
+                status=ACTIVE,
+                completed_at=now,
+                record_count=record_count,
+                page_count=page_count,
+                rejected_count=rejected_count,
+                checksum=checksum,
+                schema_hash=schema_hash,
+                source_fetch_id=source_fetch_id,
+            )
+        )
         db.commit()
     except Exception:
         db.rollback()
         raise
+    db.refresh(snapshot)
 
 
 def fail(
     db: Session, snapshot: DatasetSnapshot, error: str, *, now: datetime | None = None
 ) -> None:
-    """staging -> failed. The previous active snapshot is not touched."""
-    snapshot.status = FAILED
-    snapshot.completed_at = now or datetime.now(UTC)
-    snapshot.error = error[:MAX_ERROR_LENGTH]
+    """staging -> failed. The previous active snapshot is not touched, and a snapshot that is no
+    longer `staging` (promoted, or already failed by a takeover) is left exactly as it is."""
+    db.execute(
+        update(DatasetSnapshot)
+        .where(DatasetSnapshot.id == snapshot.id, DatasetSnapshot.status == STAGING)
+        .values(
+            status=FAILED,
+            completed_at=now or datetime.now(UTC),
+            error=error[:MAX_ERROR_LENGTH],
+        )
+    )
     db.commit()
+    db.refresh(snapshot)
 
 
 def active_snapshot(

@@ -104,10 +104,8 @@ def ingest_snapshot(
             source_fetch_id=fetch_id,
             now=fetched_at,
         )
-        provenance.set_validation_status(db, fetch_id, provenance.batch_status(records, rejected))
-        record_source_run(db, source_id, success=True)
-        return IngestResult(snapshot.id, records, page_count, rejected)
     except Exception as exc:
+        # Only a run that did NOT promote gets here: nothing after `promote` is inside this try.
         db.rollback()
         if discard is not None:
             try:
@@ -117,6 +115,21 @@ def ingest_snapshot(
                 db.rollback()
                 logger.exception("could not discard the rows of failed snapshot %s", snapshot.id)
         reason = f"{type(exc).__name__}: {exc}"
-        snapshots.fail(db, snapshot, reason)
-        record_source_run(db, source_id, success=False, error=reason)
+        try:
+            snapshots.fail(db, snapshot, reason)
+            record_source_run(db, source_id, success=False, error=reason)
+        except Exception:  # bookkeeping must never mask the real error
+            db.rollback()
+            logger.exception("could not record the failed run of %s", source_id)
         raise
+
+    # Promoted and committed: what follows is best-effort bookkeeping and can never undo it.
+    try:
+        provenance.set_validation_status(db, fetch_id, provenance.batch_status(records, rejected))
+        record_source_run(db, source_id, success=True)
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "snapshot %s of %s promoted, but bookkeeping failed", snapshot.id, source_id
+        )
+    return IngestResult(snapshot.id, records, page_count, rejected)
