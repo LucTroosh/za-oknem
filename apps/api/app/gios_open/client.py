@@ -9,8 +9,9 @@ Rules this encodes (docs/data/gios/02-development-contract.md, 06-verification.m
 - HTTP 200 does not mean success: `wynik.status = BLAD` is a source error;
 - `SUKCES` with `liczbaRekordow = 0` and no `strona` is an OBSERVED empty result; a body that is
   not an envelope at all, or claims records without a `strona`, is a contract error;
-- `liczbaRekordow` is reported but never treated as a total (in the live samples it equals the
-  page size); `wynik.data` is never a measurement time (no offset, UTC by the spec only).
+- `liczbaRekordow` is reported but never relied on as a total (early samples: the page size; one
+  probe of the noise operation: the total; the rest unverified); `wynik.data` is never a
+  measurement time (no offset, UTC by the spec only).
 Nothing here knows about any particular dataset.
 """
 

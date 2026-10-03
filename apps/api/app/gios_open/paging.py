@@ -1,7 +1,8 @@
 """Paging for the new GIOŚ API (`numerStrony` from 0, `liczbaElementowNaStronie` up to 50).
 
 The contract (02-development-contract.md) does NOT give a total: `liczbaRekordow` equalled the page
-size in the live samples. So a pass is complete only when a page comes back confirmed EMPTY; it is
+size in early samples (one noise probe saw the total; other operations unverified), so nothing
+relies on it. A pass is complete only when a page comes back confirmed EMPTY; it is
 guarded against the ways paging can lie:
 - a page that repeats an earlier page (pager not advancing) -> GiosOpenPageLoopError;
 - a record (natural key) on two pages (data moved while paging) -> GiosOpenPageOverlapError;

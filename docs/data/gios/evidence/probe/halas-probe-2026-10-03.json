@@ -1,0 +1,53 @@
+{
+  "service": "halas",
+  "path": "/v1/pomiar-halasu-w-srodowisku",
+  "params": {
+    "kategoria": "Droga",
+    "wojewodztwo": "ŚLĄSKIE",
+    "dataOd": "2024-01-01",
+    "dataDo": "2024-12-31"
+  },
+  "small_size": 3,
+  "steps": {
+    "page0_small": {"records": 3, "reported_count": 346, "empty_observed": false, "has_strona_key": true, "hash": "bab4d86e43c5a60f70dac79c09cc65bd7550582ab49b11932a1da9c94fd27a84"},
+    "page1_small": {"records": 3, "reported_count": 346, "empty_observed": false, "has_strona_key": true, "hash": "43ba7d98ef0ad0dbe00c6f5787d73fb69a18edec0d02f016473940bdc0088cbd"},
+    "page0_small_again": {"records": 3, "reported_count": 346, "empty_observed": false, "has_strona_key": true, "hash": "bab4d86e43c5a60f70dac79c09cc65bd7550582ab49b11932a1da9c94fd27a84"},
+    "page0_size_max": {"records": 50, "reported_count": 346, "empty_observed": false, "has_strona_key": true, "hash": "60abba80fc9e62eb4547fd9ad402b68edaf839cc7e4b8c2610cebf9b4ee1ad2f"},
+    "page_far_beyond_end": {"records": 0, "reported_count": 0, "empty_observed": true, "has_strona_key": false, "hash": null},
+    "first_record_sample": {
+      "kodPunktuPomiarowego": "D_24_001020_001",
+      "kategoria": "Droga",
+      "wojewodztwo": "ŚLĄSKIE",
+      "powiat": "tarnogórski",
+      "gmina": "Miasteczko Śląskie (gmina miejska)",
+      "miejscowosc": "Żyglin",
+      "coordWgs84X": 18.948417,
+      "coordWgs84Y": 50.484861,
+      "pora": "Dzień 16h",
+      "celPomiaru": "Państwowy monitoring środowiska, art. 26 Poś",
+      "dataOd": "2024-05-10T08:00:00.000+02:00",
+      "dataDo": "2024-11-10T07:00:00.000+01:00",
+      "wynikPomiaru": 64.5,
+      "przekroczenie": 0
+    }
+  },
+  "observations": {
+    "same_page_is_stable": true,
+    "page1_repeats_page0": false,
+    "page1_overlaps_page0": false,
+    "order_is_consistent_across_page_sizes": true,
+    "reported_count_equals_page_length": false,
+    "reported_count_exceeds_page_length": true
+  },
+  "walk": {
+    "max_pages": 40,
+    "completed": true,
+    "page_lengths": [50, 50, 50, 50, 50, 50, 46],
+    "total_records": 346,
+    "last_page_short": true
+  },
+  "_meta": {
+    "recorded_by": "operator (python -m app.gios_open.probe), wklejone do rozmowy 2026-10-03",
+    "note": "Jedna kombinacja (Droga, ŚLĄSKIE, 2024). Nie dowodzi zachowania innych kombinacji, dłuższych zakresów dat ani cyklu publikacji."
+  }
+}
