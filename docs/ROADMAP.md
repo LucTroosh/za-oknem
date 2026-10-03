@@ -270,6 +270,8 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | #128 | Mobile: fonty (Ionicons + Nunito) ładowane z góry w głównym layoucie; błąd ładowania widoczny w APK `preview` |
 | #129 | Mobile: brakujący `expo-file-system` (moduł natywny `AppDirectories`) — przyczyna braku ikon i Nunito na urządzeniu; ✅ **potwierdzone na urządzeniu** (zrzuty z 2026-10-03: ikony, wyszukiwanie miejscowości, Start z danymi) |
 | #130 | Szybkie pierwsze dane nowej miejscowości: bootstrap powietrza (najbliższe stacje GIOŚ, 1 próba na stację, 3 stacje na tick), tick schedulera 15 s, auto-odświeżanie Startu; atrybucja GIOŚ wg regulaminu (`Źródło danych: GIOŚ - EKOINFONET`), limit ≤ 2 pobrania/h — 🟡 niezweryfikowane na prawdziwym GIOŚ i urządzeniu |
+| #131 | Docs: wiersz #130 w historii PR, #129 potwierdzone na urządzeniu |
+| #132 | Mobile: karta „Typowy sezon” (jeden status sezonu + kontekst względem prognozy) i ekran szczegółów „Kalendarz sezonów”; kalendarz pobierany ponownie przy zmianie dnia — 🟡 niezweryfikowane na urządzeniu |
 ---
 
 ## Jak utrzymywać ten plik
