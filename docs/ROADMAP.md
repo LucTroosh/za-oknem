@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 12805)
+Total output lines: 325
+
 # Za Oknem — Roadmap
 
 **Ten plik odzwierciedla stan faktyczny kodu, nie plany.** Aktualizowany po
@@ -96,7 +99,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-00 | evidence i bramki per operacja, wpisy `gios_*` w Source Registry | 🟡 PARTIAL — rejestr i macierz gotowe (PR-A), **żywa weryfikacja po stronie operatora** (B-8) |
 | GIOS-01 | ADR-032, kontrakt `/neighborhood`, flagi | ✅ ADR-032 (kontrakt OpenAPI przy pierwszej implementacji) |
 | GIOS-02 | wspólny fundament ingestu (`app/gios_open/`): klient (BLAD przy HTTP 200, retry ≤ 2, limiter na każdą próbę), paginacja (pętla / nakładanie / limit stron = błąd, koniec = potwierdzona pusta strona), snapshoty staging → active z blokadą per usługa w bazie, kwarantanna, `probe` dla operatora | ✅ DONE (PR-B, migracja 0017); bez żadnego connectora; paginację na żywo rozstrzyga `probe` (B-6) |
-| GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | 🟡 PARTIAL — **03a ✅** zapis wszystkich niepustych wartości z odpowiedzi `getData` (`size`, okno ok. 66 h, luki uzupełniane, zmiana czasu 02:00 ×2); **03b ✅** `GET /api/v1/air/history?geo_area_id=&param=&hours=` (jeden parametr, ta sama stacja co `/air/latest`, z naszej bazy, luki jawne `gaps`, `availability`: available / no_station / no_data); ⬜ 03c mini-wykres 24–48 h na ekranie Powietrze; indeks dostawcy i stare stacje: później |
+| GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | 🟡 PARTIAL — **03a ✅** zapis wszystkich niepustych wartości z odpowiedzi `getData` (`size`, okno ok. 66 h, luki uzupełniane, zmiana czasu 02:00 ×2); **03b ✅** `GET /api/v1/air/history?geo_area_id=&param=&hours=` (jeden parametr, ta sama stacja co `/air/latest`, z naszej bazy, luki jawne `gaps`, `availability`: available / no_station / no_data); 🟡 03c mini-wykres 24–48 h na ekranie Powietrze — implementacja do review: wybór 7 parametrów, oś czasu z lukami, jawne zero, jednostka/stacja/aktualność, lista pomiarów dla dostępności; QA na urządzeniu przed merge; indeks dostawcy i stare stacje: później |
 | GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | 🟡 PARTIAL — backend gotowy (parser, import `--validate-only`/`--file`, kwarantanna, migracja 0018); probe paginacji zaliczony na prawdziwym GIOŚ (346 rekordów / 7 stron, Droga × ŚLĄSKIE × 2024); `--validate-only` zaliczony (346/346, 0 odrzuconych); **gate niezaliczony** do pełnego importu kraju i odpowiedzi na filtry bez danych (B-6, B-8) |
 | GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
 | GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⛔ BLOCKED — brak słownika powiat → TERYT (B-9); liczby emisji dodatkowo — jednostki (B-1) |
@@ -135,76 +138,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | Device registration (TASK-10.1, ADR-017) | 🟡 PARTIAL — backend: `POST/DELETE /api/v1/devices` bez konta, sekret urządzenia (SHA-256), rate limit in-memory, migracja `0010` (PR #67). Realna wysyłka push wymaga kluczy FCM/APNs (sekcja 6); klient mobilny (10.5), preferencje (10.3a) i Notification Engine (10.2) ⬜ |
 | Monitoring | 🟡 PARTIAL — dzienny licznik wywołań per źródło + WARNING przy 70% limitu (TASK-13.1a, PR #55) i source health (wiersz wyżej); brak zewnętrznego monitoringu/alertingu (TASK-13.2) |
 | Provider config Free→Paid (TASK-13.4, ADR-022) | 🟡 PARTIAL — (kod gotowy, PR #73; do ✅ po pierwszym żądaniu testowym z prawdziwym kluczem komercyjnym i potwierdzeniu hosta Air Quality) endpointy Open-Meteo i `OPEN_METEO_API_KEY` w env (domyślnie Free), klucz maskowany w wyjątkach/logach/provenance; przejście na plan komercyjny = tylko config. **Open-Meteo APPROVED dla obecnej architektury (pisemne potwierdzenie, ADR-031, 2026-10-02)** — plan komercyjny wymagany dopiero przed reklamami lub płatnymi/premium funkcjami (`docs/release/business-gates.md`); darowizny na Free dozwolone. **Przed monetyzacją: checklista w ADR-003** (plan komercyjny Open-Meteo, env produkcyjne, licencje pozostałych źródeł). Host `customer-air-quality-api…` niezweryfikowany wprost |
-| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+manifest, walidacja manifestu, limit wieku backupu, hasło poza argv); brak: realny off-VPS storage provider, zaplanowane uruchamianie na produkcji (TASK-15.2/15.3), wydzielony host weryfikacyjny |
-
----
-
-## 4. Mobile — checklist z §10 (MVP zawiera)
-
-| Element | Status |
-|---|---|
-| Home / Dashboard | 🟡 PARTIAL — zakładka „Start” wg production-ui-v1 (PR #102; logika `lib/home.ts`, `lib/start.ts`): kompaktowy nagłówek (miejscowość ⌄, data, temperatura + ikona pogody, min/max) → **HeroVerdict** „Na dwór” LIVE z ludzkim copy i rozwijanymi powodami (techniczne braki tylko w szczegółach, brak mocków) → **kafelki** Powietrze / Pogoda / Pyłki / UV (UV tylko przy realnej wartości; niedostępne = neutralne „Niedostępne”; tint domeny na całym kafelku) → podgląd alertów (lokalny / do sprawdzenia / nieznany / brak — tytuł i „Stopień X” dosłownie, bez własnej skali kolorów) → źródło i licencje. Skeletony, stany offline/brak danych, odświeżanie; stare dane oznaczone jako stare. Sekcja „Co możesz dziś robić?” NIE jest renderowana (brak backendu). **Niezweryfikowane na urządzeniu** |
-| Nawigacja + design system | 🟡 PARTIAL — Expo Router, tab bar tylko Start / Alerty / Ustawienia (Ionicons; etykiety skalowane z fontem, pasek rośnie z `fontScale`), ekrany szczegółowe jako ukryte zakładki; tokeny (`lib/theme.ts`, kontrast ≥ 4,5:1 sprawdzany testem w obu paletach), wspólne komponenty (Card, IconBox, SectionHeader, StatusTile, SettingsRow…), jasny/ciemny motyw (wybór Systemowy/Jasny/Ciemny), safe-area, a11y (role/etykiety, **min. dotyk 48 dp**, status = glif + słowo + kolor; `docs/ui/a11y-review.md`). Bez NativeWind (ADR-027) — StyleSheet + tokeny. **Niezweryfikowane na urządzeniu** (TalkBack, 130/200% fontu, Back) |
-| Mapa ekranów UI i polityka mocków | 🟡 PARTIAL — dokumentacja: [`docs/ui/screen-map.md`](ui/screen-map.md) (część historyczna, odświeżona adnotacją po PR #117) + kontrakt wizualny [`docs/ui/production-ui-v1.md`](ui/production-ui-v1.md) i `production-components-v1.md`; ADR-028 (mocki UI za flagą, zakaz mocków danych bezpieczeństwa). Produkcyjny UI nie używa mocków danych; tematy „Co chcesz śledzić?” usunięte decyzją production-ui-v1 |
-| Alerts (ekran) | 🟡 PARTIAL — zakładka Alerty (PR #94, #102): sekcje „Dla Twojej lokalizacji” (`local_alerts`), „Do sprawdzenia” (`unresolved`, nigdy ukryte) i „Pozostałe w Polsce” (zwinięte); „brak ostrzeżeń” tylko przy potwierdzonym świeżym źródle; karta alertu (neutralny styl, chip „Dotyczy Twojej lokalizacji”, „stopień X” dosłownie — ADR-009), ekran szczegółu z treścią źródłową verbatim (reguła #10), stany wody IMGW. Bez powiadomień push. **Niezweryfikowane na urządzeniu** |
-| Ekrany szczegółowe: Powietrze, Pogoda, Pyłki, Rzeki | 🟡 PARTIAL — Powietrze (stacja, odległość, metoda, skala EAQI, parametry; informacja o parametrze, którego stacja nie przekazuje — PR #123), Pogoda (godzinowa prognoza 48 h z realnych danych, dobowa), Pyłki (prognoza CAMS + kalendarz pylenia), Stany rzek (lista stacji IMGW z progami) — PR #93, #95, #102; źródło i atrybucje na każdym; **niezweryfikowane na urządzeniu** |
-| Settings | 🟡 PARTIAL — lista pozycji: Lokalizacja (zmiana miejscowości), Wygląd (Systemowy/Jasny/Ciemny), Dostępność, Prywatność (opis zgodny z kodem; pełna polityka: szkic `docs/privacy/privacy-policy-draft.md`, 🟡 do uzupełnienia i publikacji), Źródła danych (atrybucje z backendu), O aplikacji. Brak kont, powiadomień i profilu (poza MVP / ⬜) |
-| foreground location (GPS) | 🟡 PARTIAL — „Użyj mojej lokalizacji” na ekranie Lokalizacja: jednorazowy odczyt foreground (`expo-location`, tylko coarse; FINE/background/foreground-service zablokowane w `app.config.js`) → `POST /api/v1/places/nearest` (najbliższa miejscowość z rejestru `places` w 30 km, bez zapisu współrzędnych) → użytkownik potwierdza wybór. Wymaga zaimportowanych GeoNames; poza zasięgiem/bez importu = uczciwy komunikat. **Niezweryfikowane na urządzeniu** |
-| ręczny wybór lokalizacji + Welcome | 🟡 PARTIAL — Welcome (pierwsze uruchomienie, copy wg kontraktu asset packu v2: tło-zdjęcie + natywny znak/tekst/CTA/scrim; rastry zainstalowane, PR #90) → „Ustaw lokalizację” (wyszukiwarka `/places` + lista miast z `/areas`, aktywacja, jedna lokalizacja w AsyncStorage) → Start; zmiana z nagłówka Start / Ustawień; zapamiętany obszar wygasły/404 → wybór z komunikatem (TASK-12.7, 12.17, PR #88); Back z Lokalizacji do Welcome i reset historii po pierwszym wyborze (PR #110); finalny Welcome (PR #111–#117); GPS: patrz wiersz niżej. **Niezweryfikowane na urządzeniu/emulatorze** (brak środowiska w PR). Brak: heartbeat instalacji (TASK-12.2); tematy „Co chcesz śledzić?” usunięte decyzją production-ui-v1 (TASK-12.13 SUPERSEDED), dane miejscowości na serwerze do czasu importu GeoNames (`geonames_places.ingest --download`) |
-| push notifications | ⬜ TODO — (backend rejestracji urządzeń 🟡 w sekcji 3; klient mobilny i wysyłka nie istnieją) |
-| profil użytkownika | ⬜ TODO |
-| podstawowe preferencje | ⬜ TODO |
-| source transparency | ✅ DONE — `dashboard_latest()` zwraca `source`+`attribution`+`observed_at` dla air i weather, mobile renderuje atrybucję pod każdą sekcją (TASK-7.1, PR #49) |
-| freshness (UI) | ✅ DONE — etykieta freshness pokazywana per sekcja |
-| loading / error / stale / no-data states | ✅ DONE dla powietrza i pogody — loading/error/ready + FRESH/RECENT/STALE/UNAVAILABLE i „brak danych” (etykieta wieku, przygaszenie, efektywna świeżość = worst z danych i `source_status`; TASK-7.3, PR #78). Prognoza dzienna: tylko etykieta freshness |
-
----
-
-## 4a. Prywatność / sklepy
-
-Szkic polityki prywatności: [`privacy/privacy-policy-draft.md`](privacy/privacy-policy-draft.md) — 🟡 szkic do
-przeglądu właściciela (pola administratora, hostingu i logów do uzupełnienia; wymagana publikacja pod stałym
-adresem https przed Google Play).
-
-## 4b. Wdrożenie (VPS)
-
-Zestaw gotowy, **niewdrożony** (brak VPS): [`../docker-compose.prod.yml`](../docker-compose.prod.yml),
-`.env.prod.example`, `infrastructure/caddy/Caddyfile`, runbook [`release/vps-runbook.md`](release/vps-runbook.md).
-Statyczna walidacja compose OK; Caddyfile i całość niezweryfikowane na serwerze. Wejście na produkcję
-nadal wymaga TASK-15.0 (wszystkie źródła `APPROVED`) i decyzji właściciela (VPS, domena, hosting).
-
-## 5. Poza MVP (§11) — celowo nietykane
-
-Zgodnie z Master Planem, świadomie NIE robimy: mapy, uniwersalnego Green
-Index, background location, obowiązkowego konta, PWA, rozbudowanego
-social/community, zaawansowanej monetyzacji, pełnej historii danych,
-rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
-
-Moduł „Twoja okolica” (ADR-032, decyzja właściciela 2026-10-03) jest rozszerzeniem poza pierwotnym MVP, ale nie łamie tej listy:
-nie ma mapy, wspólnego wskaźnika (Green Index), konta ani background location, a dane historyczne to opublikowane rejestry z
-okresem i źródłem, nie własna historia szeregów czasowych.
-
----
-
-## 6. Aktywne blokady (wymagają decyzji lub zewnętrznego zdarzenia)
-
-| Blokada | Co odblokuje | Task |
-|---|---|---|
-| `imgw_warningsmeteo.normalize()` | Żywe, aktywne ostrzeżenie meteo w API (burze/upały latem, śnieg/mróz zimą) do podejrzenia realnego kształtu pól | TASK-9.2 |
-| Kąpieliska: brak źródła BIEŻĄCEGO statusu | Status BIEŻĄCY wymaga zgody/API od GIS (`sk.gis.gov.pl` to HTML bez API i licencji) lub innego zatwierdzonego źródła (dane.gov.pl/WIOŚ — kandydaci, niesprawdzeni). EEA po potwierdzeniu licencji wydania 2025, schematu i filtra PL odblokuje tylko rejestr + klasyfikację roczną, NIE status bieżący. Pełny Gate §38 (APPROVED) dla każdego wybranego źródła | TASK-11.1/11.2, ADR-021 |
-| Geo-matching alertów — dokładność poniżej województwa | Dopasowanie na poziomie województwa jest (PR #81, #103, #105; ADR-013). Powiat/gmina wymaga, by źródło podawało TERYT (hydro: tylko `kod_zlewni`; meteo: kształt nieznany, TASK-9.2) lub zbioru zlewnia↔gmina. Seedowe miasta mają kody TERYT (migracja `0016`), miejscowości z rejestru — województwo z GeoNames; granice gmin PRG nie wpłyną na to, dopóki źródło alertów nie poda dokładniejszego obszaru | TASK-9.5 |
-
-### Blokady po stronie człowieka (kod nie przesunie tego dalej)
-
-| Do zrobienia | Czego dotyczy | Task / źródło |
-|---|---|---|
-| ~~Zatwierdzić licencję PRG~~ ✅ zatwierdzone przez właściciela 2026-10-02 (`source-registry.md`); **do zrobienia: import** wg `docs/data/prg-import.md`. Pobrać `00_jednostki_administracyjne.zip` → GeoJSON gmin → import (`python -m app.connectors.prg_gminy.ingest`). **Po co:** granice gmin pozwalają zamienić współrzędne (GPS/miejscowość) na dokładną gminę (point-in-polygon, reguła #9) i nadać miejscowościom z rejestru kod TERYT gminy; dziś alerty dla nich dopasowujemy tylko po województwie (PR #105), a to jedyny poziom, który IMGW hydro i tak podaje. Plik trzeba przygotować i przekonwertować (SHP/GML → GeoJSON WGS84) | Bez tego `POST /geo/resolve` zwraca `None`, a 6.2 zostaje 🟡; dopasowanie alertów zostaje na poziomie województwa | TASK-6.2, `docs/tasks/TASK-6.2-geo-engine-foundation.md` |
-| GeoNames: import u właściciela wykonany lokalnie (smoke test 2026-10-02: wyszukiwarka i `places/nearest` działają); **na VPS** powtórzyć import (`geonames_places.ingest --download`) i formalnie przejść Source Approval Gate (`geonames_pl`, CC BY 4.0) | Bez importu na serwerze produkcyjnym `GET /places` zwraca pustą listę (wybór dowolnej miejscowości i GPS nie działają) | TASK-6.3, ADR-029, `source-registry.md` |
-| Kontakt z GIS ws. udostępnienia API/danych o kąpieliskach (albo wybór innego zatwierdzonego źródła); potwierdzić licencję EEA 2025, jeśli wystarczy rejestr + klasyfikacja roczna | Odblokowanie 2.4 | TASK-11.1/11.2, ADR-021, `docs/tasks/TASK-11-bathing-water.md` |
-| IMGW: ustalić, czy hydro/ostrzeżenia to dane o wysokiej wartości (HVD, rozp. UE 2023/138) i jak ma się CC BY-NC-ND 4.0 zbioru plikowego do API; w razie potrzeby umowa (biznes@imgw.pl) | Przed monetyzacją (checklista ADR-003) | ADR-003, `source-registry.md` |
-| Open-Meteo: ~~pisemne potwierdzenie dla Patronite~~ ✅ otrzymane 2026-10-02 (ADR-031; **uzupełnić datę/wątek korespondencji** w `docs/business/provider-licensing.md`); nadal: ceny planów komercyjnych (niezweryfikowane), potwierdzenie hosta Air Quality (`customer-air-quality-api…`) i pierwsze żądanie z prawdziwym kluczem — dopiero przed reklamami/premium (`docs/release/business-gates.md`) | TASK-13.4 🟡 → ✅; przed monetyzacją | ADR-003, ADR-022 |
-| OBAŚ — nawiązać kontakt (rzeczywiste pomiary pyłków; dziś kandydat, nic niezweryfikowane) | Opcjonalne uzupełnienie pyłków pomiarami (osobny byt Measurement) | `source-registry.md` (`obas`), ADR-022 |
-| Klucze FCM/APNs (konta deweloperskie Google/Apple) jako zmienne środowiskowe | Realna wysyłka push; walidacja iOS wymaga konta Apple Developer | TASK-10.1 🟡, 10.2 |
+| Backup | 🟡 PARTIAL — `backup.sh`/`restore_test.sh`/`test_backup_restore.sh` gotowe i przetestowane na Postgres 16 (dump+sekrety szyfrowane age bez plaintextu na dysku, spójna migawka dump+…2805 tokens truncated…ja iOS wymaga konta Apple Developer | TASK-10.1 🟡, 10.2 |
 | Skasować pusty plik `pr.json` w katalogu głównym repo, jeśli jest w lokalnej kopii (nie jest śledzony w `main`) | Higiena repo | — |
 | Import granic gmin PRG wg `docs/data/prg-import.md` (zatwierdzone 2026-10-02) | `POST /geo/resolve` zwraca gminę; kody TERYT dla miejscowości | TASK-6.2 |
 | VPS, domena API i hosting (kraj → polityka prywatności); uzupełnienie pól `[UZUPEŁNIĆ]` w `docs/privacy/privacy-policy-draft.md`, publikacja pod stałym adresem https; produkcyjny profil EAS z HTTPS | Wdrożenie (zestaw gotowy: `docs/release/vps-runbook.md`), Google Play | TASK-15.x, ROADMAP 4a/4b |
