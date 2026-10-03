@@ -9,13 +9,13 @@ import type { PollenCalendarOut } from "../../../packages/api-contract/schema";
 // The contract of the endpoint (generated); the view below accepts `unknown`.
 export type PollenCalendarBlock = PollenCalendarOut;
 
-export const CALENDAR_TITLE = "Kalendarz pylenia — typowy sezon";
+export const CALENDAR_TITLE = "Kalendarz sezonów"; // the detail screen; the dashboard card sits under "Typowy sezon"
 export const CALENDAR_KIND_NOTE = "Typowy sezon, nie pomiar i nie prognoza.";
 // Local fallbacks only for an API that omitted the server text; same wording as the backend.
 export const CALENDAR_COVERAGE_FALLBACK =
   "Lista nie obejmuje wszystkich alergenów; brak wpisu NIE oznacza braku pylenia.";
 export const CALENDAR_EMPTY_FALLBACK =
-  "Żaden z ujętych taksonów nie jest w typowym sezonie, ale to NIE znaczy, że nic nie pyli: kalendarz nie obejmuje wszystkich alergenów, a rzeczywiste pylenie zależy od pogody.";
+  "Żaden z ujętych alergenów nie jest teraz w typowym sezonie. To nie znaczy, że nic nie pyli: kalendarz nie obejmuje wszystkich alergenów, a rzeczywiste pylenie zależy od pogody.";
 export const CALENDAR_DISCLAIMER_FALLBACK =
   "Typowy przebieg sezonu, NIE pomiar i NIE prognoza. Rzeczywisty termin zależy od pogody, roku i regionu.";
 export const CALENDAR_ATTRIBUTION_FALLBACK = "Źródło: kalendarz własny Za Oknem (dane referencyjne).";
@@ -32,7 +32,7 @@ export type CalendarActiveLine = {
   phase: "start" | "peak" | "end" | null;
   phaseText: string;
   range: string | null; // "typowy sezon 1 lut – 1 kwi"
-  peakRange: string | null; // only before the peak: "szczyt 1–31 mar"
+  peakRange: string | null; // "szczyt 1–31 mar", in every phase
 };
 
 export type CalendarUpcomingLine = { key: string; name: string; text: string };
@@ -93,7 +93,8 @@ function activeLine(raw: unknown): CalendarActiveLine | null {
   if (!isObject(raw) || !nonEmpty(raw.name_pl)) return null;
   const phase = raw.phase === "start" || raw.phase === "peak" || raw.phase === "end" ? raw.phase : null;
   const range = formatRange(raw.season_start, raw.season_end);
-  const peakRange = phase === "start" ? formatRange(raw.peak_start, raw.peak_end) : null;
+  // The detail screen lists the peak window in every phase (before, during and after the peak).
+  const peakRange = formatRange(raw.peak_start, raw.peak_end);
   return {
     key: nonEmpty(raw.key) ? raw.key : raw.name_pl,
     name: raw.name_pl,
@@ -147,4 +148,136 @@ export function pollenCalendarView(block: unknown): CalendarView | null {
     disclaimer: nonEmpty(block.disclaimer) ? block.disclaimer : CALENDAR_DISCLAIMER_FALLBACK,
     attribution: nonEmpty(block.attribution) ? block.attribution : CALENDAR_ATTRIBUTION_FALLBACK,
   };
+}
+
+// ---- the dashboard card: one status, one sentence of context ----------------------------------
+// The calendar is background for the CURRENT FORECAST, never a replacement for it (rule #7): an
+// empty `active` list is "outside the typical season" - the wording never says nothing pollinates,
+// and when today's forecast shows pollen the card says so (`ForecastLevel`) instead of the calendar.
+// Everything technical (ranges, coverage, method, sources) lives on the detail screen.
+
+export type SeasonState = "out" | "start" | "active" | "peak" | "end";
+// What today's CAMS forecast says, from the pollen status model (lib/home.ts); "unknown" = no
+// usable forecast (unavailable / stale / no data): then the calendar makes no claim about it.
+export type ForecastLevel = "low" | "elevated" | "unknown";
+// Ionicons glyph names (a status is never carried by colour alone: icon + the title text).
+export type SeasonIcon = "leaf-outline" | "flower-outline" | "flower" | "trending-up" | "trending-down";
+
+export type SeasonSummary = {
+  state: SeasonState;
+  icon: SeasonIcon;
+  title: string;
+  text: string;
+  context: string;
+};
+
+const SEASON_TITLE: Record<SeasonState, string> = {
+  out: "Poza sezonem pylenia",
+  start: "Początek sezonu",
+  active: "Trwa sezon pylenia",
+  peak: "Szczyt sezonu",
+  end: "Sezon dobiega końca",
+};
+const SEASON_ICON: Record<SeasonState, SeasonIcon> = {
+  out: "leaf-outline",
+  start: "flower-outline",
+  active: "flower",
+  peak: "trending-up",
+  end: "trending-down",
+};
+
+// "brzoza", "brzoza i olsza", "brzoza, olsza i trawy", "brzoza, olsza, trawy i 2 inne".
+export function formatAllergens(names: string[]): string {
+  const list = names.filter((n) => n.trim() !== "");
+  if (list.length <= 1) return list.join("");
+  if (list.length <= 3) return `${list.slice(0, -1).join(", ")} i ${list[list.length - 1]}`;
+  const rest = list.length - 3;
+  const other = rest === 1 ? "inny" : rest <= 4 ? "inne" : "innych";
+  return `${list.slice(0, 3).join(", ")} i ${rest} ${other}`;
+}
+
+// The phase that headlines the card: any peak wins; otherwise one shared phase is named (all at
+// their start / all past their peak), and a mix of phases is simply "a season is under way" - never
+// "start of the season" while another allergen is already ending. A taxon without a phase (odd
+// payload) counts as "in its typical season".
+export function seasonState(active: CalendarActiveLine[]): SeasonState {
+  if (active.length === 0) return "out";
+  if (active.some((t) => t.phase === "peak")) return "peak";
+  const phases = new Set(active.map((t) => t.phase));
+  if (phases.size === 1) {
+    if (phases.has("start")) return "start";
+    if (phases.has("end")) return "end";
+  }
+  return "active";
+}
+
+function seasonText(state: SeasonState, active: CalendarActiveLine[]): string {
+  const named = (phase: CalendarActiveLine["phase"]) => formatAllergens(active.filter((t) => t.phase === phase).map((t) => t.name));
+  switch (state) {
+    case "out":
+      return "Żaden z monitorowanych alergenów nie jest teraz w typowym okresie pylenia.";
+    case "start":
+      return `Rozpoczyna się typowy okres pylenia: ${named("start")}.`;
+    case "active":
+      return `W typowym sezonie są teraz: ${formatAllergens(active.map((t) => t.name))}.`;
+    case "peak":
+      return `To typowo jeden z najbardziej intensywnych okresów pylenia: ${named("peak")}.`;
+    case "end":
+      return `Typowy okres pylenia ${formatAllergens(active.map((t) => t.name))} zbliża się do końca.`;
+  }
+}
+
+function seasonContext(state: SeasonState, forecast: ForecastLevel): string {
+  if (state === "out") {
+    return forecast === "elevated"
+      ? "Prognoza pokazuje jednak wyższe stężenia pyłków — sprawdź ją powyżej."
+      : "Aktualna prognoza może nadal wskazywać obecność pyłków.";
+  }
+  if (forecast === "low") return "Prognoza na dziś jest jednak niska — pogoda mocno zmienia rzeczywiste pylenie.";
+  switch (state) {
+    case "start":
+      return "Warto częściej sprawdzać aktualną prognozę.";
+    case "active":
+      return "Sprawdź aktualne stężenia powyżej — pogoda może mocno zmieniać rzeczywiste pylenie.";
+    case "peak":
+      return forecast === "elevated"
+        ? "Prognoza potwierdza wyższe stężenia również dziś."
+        : "Aktualna prognoza pokaże, czy wysokie stężenia występują również dziś.";
+    case "end":
+      return "Stężenia mogą nadal występować lokalnie.";
+  }
+}
+
+export function seasonSummary(view: CalendarView, forecast: ForecastLevel): SeasonSummary {
+  const state = seasonState(view.active);
+  return {
+    state,
+    icon: SEASON_ICON[state],
+    title: SEASON_TITLE[state],
+    text: seasonText(state, view.active),
+    context: seasonContext(state, forecast),
+  };
+}
+
+export const CALENDAR_CTA = "Zobacz kalendarz sezonów";
+export const CALENDAR_HOW_TITLE = "Jak działa kalendarz?";
+export const CALENDAR_HOW_INTRO =
+  "Kalendarz pokazuje, kiedy dany alergen zwykle pyli w Polsce. To typowy przebieg sezonu, nie pomiar i nie prognoza — aktualne stężenia pokazuje prognoza pyłków.";
+
+// ---- the day the calendar was computed for ----------------------------------------------------
+// The calendar is fetched on mount, on pull-to-refresh and when the device's day changes
+// (usePollenCalendar), so it can only be a day old if that fetch failed. The compact card then says
+// which day its status is for instead of presenting it as "now".
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+export function localIsoDay(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// "Stan na 2 paź." when the calendar is for another day than the device's today; else null.
+export function calendarDateNote(view: Pick<CalendarView, "date">, nowMs: number): string | null {
+  if (view.date === null || view.date.slice(0, 10) === localIsoDay(nowMs)) return null;
+  const day = formatDay(view.date);
+  return day ? `Stan na ${day}.` : null;
 }

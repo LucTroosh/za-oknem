@@ -6,6 +6,7 @@
 import { type AirIndexView, airIndexView } from "./aqi";
 import { MODEL_NOTE, NO_STATION_HEADLINE, airCoverage } from "./coverage";
 import { type OutdoorLevel, outdoorView } from "./outdoor";
+import type { ForecastLevel } from "./pollenCalendar";
 import { POLLEN_NAME, type PollenLevel, pollenView } from "./pollen";
 import { type LineState, type ReadingLine, type ReadingsView, airView, formatNumber } from "./readings";
 import { weatherCodeText, weatherView } from "./weather";
@@ -289,6 +290,13 @@ const POLLEN_HEADLINE: Record<PollenLevel, string> = {
   SEASON: "Sezon pylenia",
   PEAK: "Szczyt pylenia",
 };
+// What today's forecast headline means for the seasonal-calendar card (it never reclassifies a
+// level: it only reads the headline the status model above already produced).
+export function pollenForecastLevel(headline: string | undefined): ForecastLevel {
+  if (headline === POLLEN_HEADLINE.BELOW_SEASON) return "low";
+  if (headline === POLLEN_HEADLINE.SEASON || headline === POLLEN_HEADLINE.PEAK) return "elevated";
+  return "unknown";
+}
 // The values are a CAMS model forecast, never a trap measurement (rule #7).
 export const POLLEN_CARD_TITLE = "Prognoza pyłków";
 export const POLLEN_FORECAST_NOTE = "Prognoza modelu CAMS";

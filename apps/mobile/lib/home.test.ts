@@ -6,6 +6,7 @@ import {
   UNAVAILABLE_HEADLINE,
   airArriving,
   awaitingFirstData,
+  pollenForecastLevel,
   pollingOff,
   pollingPending,
   selectArea,
@@ -249,5 +250,15 @@ describe("air card coverage (ADR-029)", () => {
     expect(c).toMatchObject({ state: "unavailable", level: "UNKNOWN", headline: "Brak stacji pomiarowej w okolicy", supporting: null });
     const noBlock = statusCards({ air: null, weather: null, coverage: { air: "none" } }, null, NOW, NOW)[0];
     expect(noBlock.headline).toBe("Brak stacji pomiarowej w okolicy");
+  });
+});
+
+describe("pollenForecastLevel", () => {
+  it("reads the forecast headline the status model produced", () => {
+    expect(pollenForecastLevel("Niskie")).toBe("low");
+    expect(pollenForecastLevel("Sezon pylenia")).toBe("elevated");
+    expect(pollenForecastLevel("Szczyt pylenia")).toBe("elevated");
+    expect(pollenForecastLevel("Dane chwilowo niedostępne")).toBe("unknown");
+    expect(pollenForecastLevel(undefined)).toBe("unknown");
   });
 });

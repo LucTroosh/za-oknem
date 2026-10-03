@@ -4,10 +4,16 @@ import {
   CALENDAR_COVERAGE_FALLBACK,
   CALENDAR_EMPTY_FALLBACK,
   type PollenCalendarBlock,
+  type CalendarActiveLine,
+  calendarDateNote,
   daysUntilText,
+  formatAllergens,
   formatDay,
   formatRange,
+  localIsoDay,
   pollenCalendarView,
+  seasonState,
+  seasonSummary,
 } from "./pollenCalendar";
 
 const block = (over: Partial<PollenCalendarBlock> = {}): PollenCalendarBlock => ({
@@ -99,12 +105,12 @@ describe("pollenCalendarView", () => {
     expect(v?.attribution).toBe("Kalendarz: własne zestawienie");
   });
 
-  it("labels peak and end phases; no peak window after the start phase", () => {
+  it("labels peak and end phases and keeps the peak window in every phase", () => {
     const a = block().active[0];
     const peak = pollenCalendarView(block({ active: [{ ...a, phase: "peak", peak: true }] }));
     const end = pollenCalendarView(block({ active: [{ ...a, phase: "end" }] }));
-    expect(peak?.active[0]).toMatchObject({ phaseText: "szczyt sezonu", peakRange: null });
-    expect(end?.active[0]).toMatchObject({ phaseText: "koniec sezonu", peakRange: null });
+    expect(peak?.active[0]).toMatchObject({ phaseText: "szczyt sezonu", peakRange: "szczyt 1–31 mar" });
+    expect(end?.active[0]).toMatchObject({ phaseText: "koniec sezonu", peakRange: "szczyt 1–31 mar" });
   });
 
   it("empty active is never 'nothing pollinates': server message, else the fallback", () => {
@@ -173,5 +179,135 @@ describe("pollenCalendarView", () => {
       }),
     );
     expect(wrap?.upcoming[0].text).toBe("typowy start sezonu za 5 dni (5 sty)");
+  });
+});
+
+describe("season card (dashboard)", () => {
+  const taxon = (name: string, phase: "start" | "peak" | "end" | null): PollenCalendarBlock["active"][number] => ({
+    key: name,
+    name_pl: name,
+    category: "tree",
+    phase: phase as "start" | "peak" | "end", // null = a payload without a phase (parsed defensively)
+    peak: phase === "peak",
+    season_start: "2026-02-01",
+    season_end: "2026-04-10",
+    peak_start: "2026-03-01",
+    peak_end: "2026-03-31",
+    note: "n",
+    source_ids: ["a"],
+  });
+  const summary = (active: PollenCalendarBlock["active"], forecast: "low" | "elevated" | "unknown" = "unknown") => {
+    const v = pollenCalendarView(block({ active }));
+    if (!v) throw new Error("not a calendar");
+    return seasonSummary(v, forecast);
+  };
+  const line = (phase: CalendarActiveLine["phase"]) => ({ phase }) as CalendarActiveLine;
+
+  it("formats allergen lists", () => {
+    expect(formatAllergens([])).toBe("");
+    expect(formatAllergens(["brzoza"])).toBe("brzoza");
+    expect(formatAllergens(["brzoza", "olsza"])).toBe("brzoza i olsza");
+    expect(formatAllergens(["brzoza", "olsza", "trawy"])).toBe("brzoza, olsza i trawy");
+    expect(formatAllergens(["a", "b", "c", "d"])).toBe("a, b, c i 1 inny");
+    expect(formatAllergens(["a", "b", "c", "d", "e"])).toBe("a, b, c i 2 inne");
+    expect(formatAllergens(["a", "b", "c", "d", "e", "f", "g", "h"])).toBe("a, b, c i 5 innych");
+  });
+
+  it("picks the headline: peak wins, one shared phase is named, a mix is 'season under way'", () => {
+    expect(seasonState([])).toBe("out");
+    expect(seasonState([line("end"), line("peak"), line("start")])).toBe("peak");
+    expect(seasonState([line("start"), line("start")])).toBe("start");
+    expect(seasonState([line("end"), line("end")])).toBe("end");
+    expect(seasonState([line("end"), line("start")])).toBe("active"); // not "start of the season"
+    expect(seasonState([line("end"), line(null), line("start")])).toBe("active");
+    expect(seasonState([line(null)])).toBe("active");
+  });
+
+  it("A. outside the season: calm status, never 'nothing pollinates'", () => {
+    const s = summary([]);
+    expect(s).toMatchObject({ state: "out", title: "Poza sezonem pylenia", icon: "leaf-outline" });
+    expect(s.text).toBe("Żaden z monitorowanych alergenów nie jest teraz w typowym okresie pylenia.");
+    expect(s.context).toBe("Aktualna prognoza może nadal wskazywać obecność pyłków.");
+  });
+
+  it("A. outside the season but the forecast shows pollen: the card says so, not 'quiet'", () => {
+    const s = summary([], "elevated");
+    expect(s.context).toBe("Prognoza pokazuje jednak wyższe stężenia pyłków — sprawdź ją powyżej.");
+    expect(s.text).not.toMatch(/nie pyli|nic nie/i);
+  });
+
+  it("B. start of the season names the starting allergens", () => {
+    const s = summary([taxon("brzoza", "start"), taxon("olsza", "start")]);
+    expect(s).toMatchObject({ state: "start", title: "Początek sezonu" });
+    expect(s.text).toBe("Rozpoczyna się typowy okres pylenia: brzoza i olsza.");
+    expect(s.context).toBe("Warto częściej sprawdzać aktualną prognozę.");
+  });
+
+  it("C. active season lists everything that is in season", () => {
+    const s = summary([taxon("trawy", "end"), taxon("bylica", "start")]);
+    expect(s).toMatchObject({ state: "active", title: "Trwa sezon pylenia" });
+    expect(s.text).toBe("W typowym sezonie są teraz: trawy i bylica.");
+    expect(s.context).toContain("pogoda może mocno zmieniać rzeczywiste pylenie");
+  });
+
+  it("D. peak names only the allergens at their peak", () => {
+    const s = summary([taxon("leszczyna", "peak"), taxon("olsza", "start")]);
+    expect(s).toMatchObject({ state: "peak", title: "Szczyt sezonu", icon: "trending-up" });
+    expect(s.text).toBe("To typowo jeden z najbardziej intensywnych okresów pylenia: leszczyna.");
+    expect(s.context).toBe("Aktualna prognoza pokaże, czy wysokie stężenia występują również dziś.");
+    expect(summary([taxon("leszczyna", "peak")], "elevated").context).toBe("Prognoza potwierdza wyższe stężenia również dziś.");
+  });
+
+  it("E. end of the season", () => {
+    const s = summary([taxon("brzoza", "end")]);
+    expect(s).toMatchObject({ state: "end", title: "Sezon dobiega końca", icon: "trending-down" });
+    expect(s.text).toBe("Typowy okres pylenia brzoza zbliża się do końca.");
+    expect(s.context).toBe("Stężenia mogą nadal występować lokalnie.");
+  });
+
+  it("in season but the forecast is low: the context says the forecast is what counts today", () => {
+    expect(summary([taxon("trawy", "end"), taxon("bylica", "start")], "low").context).toBe(
+      "Prognoza na dziś jest jednak niska — pogoda mocno zmienia rzeczywiste pylenie.",
+    );
+  });
+
+  it("the card copy has no shouting and no methodology", () => {
+    for (const active of [[], [taxon("a", "start")], [taxon("a", null)], [taxon("a", "peak")], [taxon("a", "end")]]) {
+      for (const forecast of ["low", "elevated", "unknown"] as const) {
+        const s = summary(active, forecast);
+        const all = `${s.title} ${s.text} ${s.context}`;
+        expect(all).not.toMatch(/\bNIE\b|dekad|takson|nie obejmuje|ambrozj|pokrzywowat/);
+      }
+    }
+  });
+
+  it("the details keep everything the card dropped (coverage, disclaimer, 'not covered', source)", () => {
+    const v = pollenCalendarView(block({ active: [] }));
+    expect(v?.notCovered).toBe("nie obejmuje: ambrozja");
+    expect(v?.coverageWarning).not.toBe("");
+    expect(v?.disclaimer).not.toBe("");
+    expect(v?.attribution).not.toBe("");
+    expect(v?.emptyMessage).not.toBeNull();
+  });
+});
+
+describe("calendar day note", () => {
+  const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime(); // device-local
+
+  it("localIsoDay is the device's calendar day", () => {
+    expect(localIsoDay(at(2026, 10, 3, 0))).toBe("2026-10-03");
+    expect(localIsoDay(at(2026, 1, 9, 23))).toBe("2026-01-09");
+  });
+
+  it("says nothing while the calendar is for today", () => {
+    expect(calendarDateNote({ date: "2026-10-03" }, at(2026, 10, 3))).toBeNull();
+  });
+
+  it("names the day when the calendar is for another day (a failed refresh after midnight)", () => {
+    expect(calendarDateNote({ date: "2026-10-02" }, at(2026, 10, 3))).toBe("Stan na 2 paź.");
+  });
+
+  it("makes no claim without a usable date", () => {
+    expect(calendarDateNote({ date: null }, at(2026, 10, 3))).toBeNull();
   });
 });

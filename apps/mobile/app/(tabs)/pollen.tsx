@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
 import useDashboard from "../../components/DashboardProvider";
@@ -14,13 +15,14 @@ import { SkeletonCard } from "../../components/Skeleton";
 import useArea from "../../components/useArea";
 import useNow from "../../components/useNow";
 import useTheme, { useThemedStyles } from "../../components/useTheme";
-import { statusCards } from "../../lib/home";
+import { pollenForecastLevel, statusCards } from "../../lib/home";
 import { type Theme, space, typo } from "../../lib/theme";
 
 // Pollen (production UI v1 §11): risk headline -> taxa rows (CAMS MODEL forecast, never a trap
-// measurement, rule #7) -> the seasonal calendar as a visibly separate section ("outside typical
-// season" is never "no pollen"). Hero wording comes from the same status model as the Start tile.
+// measurement, rule #7) -> the typical season as one compact status (details on their own screen;
+// "outside typical season" is never "no pollen"). Hero wording comes from the same status model as the Start tile.
 export default function PollenDetails() {
+  const router = useRouter();
   const d = useDashboard();
   const area = useArea();
   const now = useNow();
@@ -68,7 +70,12 @@ export default function PollenDetails() {
             {d.calendar === null && !d.calendarError ? (
               <SkeletonCard label="Ładowanie kalendarza pylenia" lines={2} />
             ) : (
-              <PollenCalendarCard calendar={d.calendar} error={d.calendarError} />
+              <PollenCalendarCard
+                calendar={d.calendar}
+                error={d.calendarError}
+                forecast={unavailable ? "unknown" : pollenForecastLevel(card?.headline)}
+                onOpenCalendar={() => router.push("/pollen-calendar")}
+              />
             )}
           </View>
         </>

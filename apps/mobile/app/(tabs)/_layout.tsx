@@ -29,7 +29,7 @@ const tabLabel = (title: string) =>
     );
   };
 
-const HIDDEN = ["air", "weather", "pollen", "alert", "rivers", "appearance", "accessibility", "privacy", "sources", "about"] as const;
+const HIDDEN = ["air", "weather", "pollen", "pollen-calendar", "alert", "rivers", "appearance", "accessibility", "privacy", "sources", "about"] as const;
 
 export default function TabsLayout() {
   const { colors, scheme } = useTheme();
