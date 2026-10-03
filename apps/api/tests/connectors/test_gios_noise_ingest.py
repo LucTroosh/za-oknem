@@ -258,3 +258,20 @@ def test_cli_requires_a_period_and_a_single_combination_for_a_file(capsys):
         ing.main([])
     with pytest.raises(SystemExit):
         ing.main(["--year", "2024", "--file", "x.json"])  # all combinations: ambiguous for one file
+
+
+def test_a_duplicate_says_whether_it_is_identical_or_differs_in_which_fields(db_session):
+    same = rec("D_1")
+    other = rec("D_1", przekroczenie=1.5, miejscowosc="Inna")  # same natural key, other fields
+    client = FakeHalas({("Droga", "ŚLĄSKIE"): [[rec("D_1"), same, other]]})
+    run(db_session, client)
+    details = sorted(
+        q.detail for q in db_session.query(IngestQuarantine).filter_by(reason="duplicate_record")
+    )
+    assert details == ["differs: miejscowosc, przekroczenie", "identical"]
+
+
+def test_a_null_result_is_a_missing_value_not_a_type_error(db_session):
+    client = FakeHalas({("Droga", "ŚLĄSKIE"): [[rec("D_1"), rec("D_2", wynikPomiaru=None)]]})
+    run(db_session, client)
+    assert [q.reason for q in db_session.query(IngestQuarantine)] == ["value_missing"]

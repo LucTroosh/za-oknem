@@ -76,7 +76,7 @@ def test_optional_text_fields_may_be_absent():
         ({"coordWgs84X": 185897.4, "coordWgs84Y": 678640.9}, "coords_outside_poland"),  # projected
         ({"coordWgs84X": 2.35, "coordWgs84Y": 48.85}, "coords_outside_poland"),  # Paris
         ({"wynikPomiaru": "64,5"}, "value_not_number"),  # a string is never read as a number
-        ({"wynikPomiaru": None}, "value_not_number"),
+        ({"wynikPomiaru": None}, "value_missing"),  # the source gave no result for this slot
         ({"wynikPomiaru": False}, "value_not_number"),
         ({"przekroczenie": "TAK"}, "exceedance_not_number"),
         ({"pora": None}, "missing_period_of_day"),

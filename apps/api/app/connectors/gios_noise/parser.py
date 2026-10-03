@@ -134,6 +134,10 @@ def normalize(raw: dict) -> NoiseRecord:
         raise RecordRejected("coords_outside_poland", f"X={lon} Y={lat}")
     value = _number(raw.get("wynikPomiaru"))
     if value is None:
+        # null = the source published a measurement slot without a result (seen live, 2026-10-03):
+        # not shown, but not a contract problem either. Any other non-number is drift.
+        if raw.get("wynikPomiaru") is None:
+            raise RecordRejected("value_missing")
         raise RecordRejected("value_not_number", repr(raw.get("wynikPomiaru")))
     exceed_raw = raw.get("przekroczenie")
     exceedance = _number(exceed_raw)

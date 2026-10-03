@@ -60,6 +60,13 @@ def request_filters(category: str, voivodeship: str, date_from: date, date_to: d
     }
 
 
+def _duplicate_detail(first: dict, dup: dict) -> str:
+    """Tells a verbatim republished record from a different one sharing the natural key (which
+    would mean the key is too coarse): `identical` or `differs: <fields>`."""
+    fields = sorted(k for k in set(first) | set(dup) if first.get(k) != dup.get(k))
+    return "identical" if not fields else "differs: " + ", ".join(fields)
+
+
 class NoiseStore:
     """The runner's `store` callback for one combination: normalizes a page, quarantines what does
     not fit, skips duplicates, refuses records that contradict the request filters."""
@@ -67,7 +74,7 @@ class NoiseStore:
     def __init__(self, category: str, voivodeship: str):
         self.category = category
         self.voivodeship = voivodeship
-        self._seen: set[str] = set()
+        self._seen: dict[str, dict] = {}  # natural key -> the raw record accepted first
 
     def __call__(self, db: Session, snapshot: DatasetSnapshot, records: list[dict]) -> int:
         rejected = 0
@@ -78,13 +85,14 @@ class NoiseStore:
                     raise RecordRejected(
                         "filter_mismatch", f"{record.category}/{record.voivodeship}"
                     )
-                if record.natural_key in self._seen:
-                    raise RecordRejected("duplicate_record")
+                first = self._seen.get(record.natural_key)
+                if first is not None:
+                    raise RecordRejected("duplicate_record", _duplicate_detail(first, raw))
             except RecordRejected as exc:
                 snapshots.quarantine(db, snapshot, reason=exc.reason, raw=raw, detail=exc.detail)
                 rejected += 1
                 continue
-            self._seen.add(record.natural_key)
+            self._seen[record.natural_key] = raw
             db.add(
                 NoiseMeasurement(
                     snapshot_id=snapshot.id,
