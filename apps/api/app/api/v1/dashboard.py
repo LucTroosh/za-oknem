@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.air_index import air_index
 from app.alert_geo import filter_alerts_for_area
 from app.api.v1.air import RECENT_MAX_AGE as air_recent_max_age
-from app.api.v1.air import AirIndex, AirParam
+from app.api.v1.air import AirIndex, AirParam, current_air_ids, latest_air_stations
 from app.api.v1.air import freshness as air_freshness
 from app.api.v1.alerts import AlertOut, SourceStatusOut, alerts_source_status, current_alerts
 from app.api.v1.pollen import PollenValues, latest_pollen, pollen_block
@@ -26,7 +26,7 @@ from app.connectors.gios.discovery import assignment_candidates
 from app.connectors.open_meteo_pollen.parser import SOURCE_ID as POLLEN_SOURCE_ID
 from app.db import get_db
 from app.geo import classify_air_coverage, coverage_radius_km, pick_air_station
-from app.models import GeoArea, Measurement, WeatherSnapshot
+from app.models import GeoArea, WeatherSnapshot
 from app.outdoor import USABLE_FRESHNESS, OutdoorInputs, Reading, evaluate
 from app.places import alert_match_codes
 from app.source_status import source_freshness
@@ -282,33 +282,7 @@ def dashboard_latest(
         )
         areas = db.execute(area_stmt).scalars().all()
 
-    # source_id filter: `measurements` is shared with other connectors (e.g.
-    # imgw_hydro's water_level_cm) — without it the nearest-station join could
-    # match a river gauge instead of an air station (Codex review).
-    station_stmt = (
-        select(Measurement)
-        .where(Measurement.source_id == "gios")
-        .distinct(Measurement.station_id, Measurement.param_code)
-        .order_by(Measurement.station_id, Measurement.param_code, Measurement.observed_at.desc())
-    )
-    stations: dict[str, dict] = {}
-    for row in db.execute(station_stmt).scalars().all():
-        station = stations.setdefault(
-            row.station_id,
-            {
-                "station_id": row.station_id,
-                "station_name": row.station_name,
-                "latitude": row.latitude,
-                "longitude": row.longitude,
-                "params": {},
-            },
-        )
-        station["params"][row.param_code] = {
-            "value": row.value,
-            "unit": row.unit,
-            "observed_at": row.observed_at.isoformat(),
-            "freshness": air_freshness(row.observed_at),
-        }
+    stations = latest_air_stations(db)
     # ADR-025: catalog is the authority for who may be assigned and where they are.
     # Geography (coverage) comes from the whole catalog; the `air` block only from stations
     # that already have measurements. A nearer station without data is not skipped.
@@ -350,7 +324,13 @@ def dashboard_latest(
         # block (coverage "none"), never a farther fallback.
         # ADR-025 (amended): nearest station WITH data; coverage reflects the station actually
         # used. With none having data, geography (nearest catalog station) still says "exists".
-        match, geo_match = pick_air_station(area.latitude, area.longitude, points, set(stations))
+        match, geo_match = pick_air_station(
+            area.latitude,
+            area.longitude,
+            points,
+            set(stations),
+            current_ids=current_air_ids(stations),
+        )
         shown = match or geo_match
         air_coverage = classify_air_coverage(shown.distance_km if shown else None)
 

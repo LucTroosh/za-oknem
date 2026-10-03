@@ -34,7 +34,7 @@ push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowan
 | Metryka (MVP wg Master Planu) | Status |
 |---|---|
 | PM2.5, PM10, NO2, SO2, O3, CO, C6H6 | ✅ DONE — GIOŚ, pełny zestaw parametrów MVP (TASK-4.1, PR #48), `GET /api/v1/air/latest`, w dashboardzie |
-| indeks jakości powietrza + indeksy cząstkowe | ✅ DONE — **Europejski Indeks Jakości Powietrza (EAQI, EEA)**, nie natywny indeks GIOŚ: `app/air_index.py` (progi EEA zweryfikowane 2026-09-30, najgorszy z cząstkowych, minimalny zestaw, STALE/inna jednostka = brak), pole `index` w `/air/latest` i w bloku `air` dashboardu, mobile `AirIndexBadge` (TASK-4.2, ADR-015, PR #63). Opcja A (gotowy indeks GIOŚ `aqindex/getIndex`) pozostaje odłożona. Nasze decyzje poza specyfikacją EEA (granice dla wartości ułamkowych, typ stacji, polskie nazwy pasm) w ADR-015 |
+| indeks jakości powietrza + indeksy cząstkowe | ✅ DONE — **Europejski Indeks Jakości Powietrza (EAQI, EEA)**, nie natywny indeks GIOŚ: `app/air_index.py` (progi EEA zweryfikowane 2026-09-30, najgorszy z cząstkowych, minimalny zestaw, STALE/inna jednostka = brak), pole `index` w `/air/latest` i w bloku `air` dashboardu, mobile `AirIndexBadge` (TASK-4.2, ADR-015, PR #63). Indeks GIOŚ `aqindex/getIndex` jest osobnym dodatkiem do review (ADR-033), z flagą rollout domyślnie off. Nasze decyzje poza specyfikacją EEA (granice dla wartości ułamkowych, typ stacji, polskie nazwy pasm) w ADR-015 |
 | Sensor.Community, CAMS Air (MVP+) | ⬜ TODO (poza MVP na razie) |
 
 ### 2.2. Pogoda (§5)
@@ -83,8 +83,9 @@ push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowan
 
 **Kierunek produktu (decyzja właściciela 2026-10-03):** „Za Oknem” = aktualny stan, to, co będzie (prognoza), i krótka
 historia. Dane ogólne/historyczne to **ciekawostki** (np. trendy przez lata) i nie mają pierwszeństwa przed bieżącymi;
-błędy i podejrzane odczyty zgłaszamy do GIOŚ. Dlatego moduł poniżej jest zamrożony po hałasie (PRTR, ZZR/ZDR, wody,
-NEC i inne sekcje: odłożone), a pierwszeństwo ma GIOS-03.
+błędy i podejrzane odczyty zgłaszamy do GIOŚ. Dlatego moduł historyczny jest **on hold, także hałas** (kod pozostaje, flaga domyślnie off).
+Pierwszeństwo ma GIOS-03; aktualne taski: `docs/data/gios/09-current-data-plan.md` (ADR-033).
+Kolejność: implementacja danych → Design Lead → finalny UI → build i testy urządzenia.
 
 Moduł addytywny: wiersz na Start → ukryty ekran; bez nowej zakładki, mapy, konta i push. Każda sekcja ma własną flagę
 (domyślnie wyłączoną), źródło, okres danych i stany braku pokrycia / rekordów / awarii. Historyczne dane nie są Alertami.
@@ -96,17 +97,17 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-00 | evidence i bramki per operacja, wpisy `gios_*` w Source Registry | 🟡 PARTIAL — rejestr i macierz gotowe (PR-A), **żywa weryfikacja po stronie operatora** (B-8) |
 | GIOS-01 | ADR-032, kontrakt `/neighborhood`, flagi | ✅ ADR-032 (kontrakt OpenAPI przy pierwszej implementacji) |
 | GIOS-02 | wspólny fundament ingestu (`app/gios_open/`): klient (BLAD przy HTTP 200, retry ≤ 2, limiter na każdą próbę), paginacja (pętla / nakładanie / limit stron = błąd, koniec = potwierdzona pusta strona), snapshoty staging → active z blokadą per usługa w bazie, kwarantanna, `probe` dla operatora | ✅ DONE (PR-B, migracja 0017); bez żadnego connectora; paginację na żywo rozstrzyga `probe` (B-6) |
-| GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | 🟡 PARTIAL — **03a ✅** zapis wszystkich niepustych wartości z odpowiedzi `getData` (`size`, okno ok. 66 h, luki uzupełniane, zmiana czasu 02:00 ×2); **03b ✅** `GET /api/v1/air/history?geo_area_id=&param=&hours=` (jeden parametr, ta sama stacja co `/air/latest`, z naszej bazy, luki jawne `gaps`, `availability`: available / no_station / no_data); 🟡 03c mini-wykres 24–48 h na ekranie Powietrze — implementacja do review: wybór 7 parametrów, oś czasu z lukami, jawne zero, jednostka/stacja/aktualność, lista pomiarów dla dostępności; QA na urządzeniu przed merge; indeks dostawcy i stare stacje: później |
-| GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | 🟡 PARTIAL — backend gotowy (parser, import `--validate-only`/`--file`, kwarantanna, migracja 0018); probe paginacji zaliczony na prawdziwym GIOŚ (346 rekordów / 7 stron, Droga × ŚLĄSKIE × 2024); `--validate-only` zaliczony (346/346, 0 odrzuconych); **gate niezaliczony** do pełnego importu kraju i odpowiedzi na filtry bez danych (B-6, B-8) |
-| GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
-| GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⛔ BLOCKED — brak słownika powiat → TERYT (B-9); liczby emisji dodatkowo — jednostki (B-1) |
-| GIOS-07 | rejestr ZZR/ZDR i historia zdarzeń | ⬜ TODO; zdarzenia UNVERIFIED (brak próbki) |
-| GIOS-08 | wody powierzchniowe — plan monitoringu + discovery wyników | ⛔ BLOCKED dla UI — brak niepustego rekordu i wyników/geometrii (B-3, B-4) |
-| GIOS-09 | wody podziemne | ⛔ BLOCKED dla geo — CRS i polygony JCWPd (B-2, B-3) |
-| GIOS-10 | powietrze historyczne (16 operacji) | ⬜ TODO (po hałasie) |
-| GIOS-11 | NEC (ekosystemy) | ⬜ TODO; stanowiska IMPLEMENTABLE (gate niezaliczony), wyniki UNVERIFIED |
-| GIOS-12 | pozostałe obszary (gleby, PEM, promieniowanie, przyroda, morze, CLC, INSPIRE) | ⬜ TODO — tylko discovery |
-| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | 🟡 PARTIAL — `GET /api/v1/neighborhood` + flaga `NEIGHBORHOOD_NOISE_ENABLED` (domyślnie off) i ekran „Twoja okolica” (wiersz na Start tylko przy `enabled`) gotowe; niezweryfikowane na urządzeniu i na prawdziwych danych GIOŚ |
+| GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | 🟡 PARTIAL — **03a ✅** zapis wszystkich niepustych wartości z odpowiedzi `getData` (`size`, okno ok. 66 h, luki uzupełniane, zmiana czasu 02:00 ×2); **03b ✅** `GET /api/v1/air/history?geo_area_id=&param=&hours=` (jeden parametr, ta sama stacja co `/air/latest`, z naszej bazy, luki jawne `gaps`, `availability`: available / no_station / no_data); 🟡 03c mini-wykres 24–48 h na ekranie Powietrze — implementacja do review: wybór 7 parametrów, oś czasu z lukami, jawne zero, jednostka/stacja/aktualność, lista pomiarów dla dostępności; QA na urządzeniu przed merge; indeks GIOŚ, paginacja sensorów i preferencja bieżącej stacji: implementacja do review (ADR-033), indeks pod flagą off |
+| GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | ⏸ ON HOLD — 🟡 PARTIAL — backend gotowy (parser, import `--validate-only`/`--file`, kwarantanna, migracja 0018); probe paginacji zaliczony na prawdziwym GIOŚ (346 rekordów / 7 stron, Droga × ŚLĄSKIE × 2024); `--validate-only` zaliczony (346/346, 0 odrzuconych); pełny import kraju odnotowany w `07-operation-gates.md`; otwarte bramki i QA pozostają w tym dokumencie|
+| GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⏸ ON HOLD — ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
+| GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⏸ ON HOLD — ⛔ BLOCKED — brak słownika powiat → TERYT (B-9); liczby emisji dodatkowo — jednostki (B-1) |
+| GIOS-07 | rejestr ZZR/ZDR i historia zdarzeń | ⏸ ON HOLD — ⬜ TODO; zdarzenia UNVERIFIED (brak próbki)|
+| GIOS-08 | wody powierzchniowe — plan monitoringu + discovery wyników | ⏸ ON HOLD — ⛔ BLOCKED dla UI — brak niepustego rekordu i wyników/geometrii (B-3, B-4) |
+| GIOS-09 | wody podziemne | ⏸ ON HOLD — ⛔ BLOCKED dla geo — CRS i polygony JCWPd (B-2, B-3) |
+| GIOS-10 | powietrze historyczne (16 operacji) | ⏸ ON HOLD — brak bieżących pomiarów w tym zakresie |
+| GIOS-11 | NEC (ekosystemy) | ⏸ ON HOLD — ⬜ TODO; stanowiska IMPLEMENTABLE (gate niezaliczony), wyniki UNVERIFIED |
+| GIOS-12 | pozostałe obszary (gleby, PEM, promieniowanie, przyroda, morze, CLC, INSPIRE) | ⏸ ON HOLD — ⬜ TODO — tylko discovery |
+| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | ⏸ ON HOLD — 🟡 PARTIAL — `GET /api/v1/neighborhood` + flaga `NEIGHBORHOOD_NOISE_ENABLED` (domyślnie off) i ekran „Twoja okolica” (wiersz na Start tylko przy `enabled`) gotowe; niezweryfikowane na urządzeniu i na prawdziwych danych GIOŚ|
 
 ---
 

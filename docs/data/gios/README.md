@@ -5,6 +5,9 @@ Zakres: dokumentacja i plan rozwoju; ten pakiet NIE oznacza, że nowe funkcje s�
 
 ## Kolejność czytania
 
+Aktualny scope bieżących danych i lista tasków: [09-current-data-plan.md](09-current-data-plan.md).
+Zbiory bez bieżących pomiarów są on hold; poniższy katalog pozostaje dokumentacją discovery.
+
 1. [Wnioski, obszary i produkt](01-scope-and-product.md).
 2. [Integracja, baza, kontrakty i geo](02-development-contract.md).
 3. [Licencje i Source Approval Gate](03-licensing-and-source-gates.md).

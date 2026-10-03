@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-10-03T19:04:32.757345+00:00",
+  "method": "curl GET; raw body preserved; parsed JSON verified",
+  "operations": [
+    {
+      "url": "https://api.gios.gov.pl/pjp-api/v1/rest/aqindex/getIndex/52",
+      "file": "index-52.json",
+      "sha256": "e944229fef19463b153aa37d2d1f2416c3787285bc23dff8e019b53095d95a7e",
+      "source_data_local": "2026-10-03 20:00:00"
+    },
+    {
+      "url": "https://api.gios.gov.pl/pjp-api/v1/rest/aqindex/getIndex/11",
+      "file": "index-11.json",
+      "sha256": "38d96fb07c1450f00719e9ea9f365d7577842dd54fcbb679539021d7426b5b53",
+      "source_data_local": "2026-10-03 20:00:00"
+    }
+  ]
+}

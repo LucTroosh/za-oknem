@@ -485,6 +485,33 @@ export type PollenValues = {
   ragweed: number | null;
 };
 
+export type ProviderIndexPayload = {
+  critical_pollutant: "PYL" | "OZON" | null;
+  index: ProviderIndexValue;
+  params: Record<string, ProviderIndexValue>;
+  status: boolean | null;
+};
+
+export type ProviderIndexResponse = {
+  attribution?: string;
+  availability: "available" | "no_index" | "no_data" | "no_station" | "disabled";
+  data: ProviderIndexPayload | null;
+  fetched_at: string | null;
+  freshness: "FRESH" | "RECENT" | "STALE" | "UNAVAILABLE";
+  kind?: "provider_index";
+  retrieval_status: "ok" | "degraded" | "none";
+  scale?: "POLISH_AIR_QUALITY_INDEX";
+  source?: "gios";
+  station: AirHistoryStation | null;
+};
+
+export type ProviderIndexValue = {
+  calculated_at: string | null;
+  label: string | null;
+  level: 0 | 1 | 2 | 3 | 4 | 5 | null;
+  observed_at: string | null;
+};
+
 export type ResolvedGeoArea = {
   geo_area_id: number;
   name: string;

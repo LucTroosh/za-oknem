@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # Values are hourly and the source keeps only ~66 h per sensor (observed 2026-10-03), so this
     # is a ceiling, not a promise. Still ONE request per sensor (portal terms bound the count).
     gios_data_size: int = Field(default=100, ge=1, le=500)
+    # Rollout after migration 0019; independent of measurement ingestion.
+    gios_provider_index_enabled: bool = False
 
     # ADR-032: per-section switches for "Twoja okolica" (default off: a section is shown only after
     # its source passed the operator check). Noise: nearest measurement point within the radius.
