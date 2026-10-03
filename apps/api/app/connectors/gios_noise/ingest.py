@@ -69,14 +69,44 @@ def _duplicate_detail(first: dict, dup: dict) -> str:
     return "identical" if not fields else "differs: " + ", ".join(fields)
 
 
+def _differing_fields(first: dict, dup: dict) -> list[str]:
+    return sorted(k for k in set(first) | set(dup) if first.get(k) != dup.get(k))
+
+
 class NoiseStore:
     """The runner's `store` callback for one combination: normalizes a page, quarantines what does
-    not fit, skips duplicates, refuses records that contradict the request filters."""
+    not fit, folds duplicates, refuses records that contradict the request filters.
+
+    The source publishes some measurements twice, differing only in `przekroczenie` (live,
+    2026-10-03: 78 of 208k; one copy usually null, the other a number). Null is the absence of
+    information, so the number completes the row; two different numbers contradict each other, so
+    the row keeps the measurement and states no exceedance. First-come-wins would let page order
+    decide what the user sees."""
 
     def __init__(self, category: str, voivodeship: str):
         self.category = category
         self.voivodeship = voivodeship
-        self._seen: dict[str, dict] = {}  # natural key -> the raw record accepted first
+        # natural key -> (the row accepted first, its raw record)
+        self._rows: dict[str, tuple[NoiseMeasurement, dict]] = {}
+        self._conflict: set[str] = set()  # keys whose copies disagree on przekroczenie
+
+    def _fold_duplicate(self, key: str, raw: dict, exceedance: float | None) -> str:
+        row, first_raw = self._rows[key]
+        if _differing_fields(first_raw, raw) != ["przekroczenie"]:
+            return _duplicate_detail(first_raw, raw)
+        mine = row.exceedance_db
+        if key in self._conflict:
+            return "conflict: przekroczenie"
+        if mine == exceedance:
+            return "identical"
+        if mine is None:
+            row.exceedance_db = exceedance
+            return "merged: przekroczenie taken from this copy"
+        if exceedance is None:
+            return "merged: przekroczenie kept, this copy had none"
+        self._conflict.add(key)
+        row.exceedance_db = None
+        return f"conflict: przekroczenie {mine} vs {exceedance}"
 
     def __call__(self, db: Session, snapshot: DatasetSnapshot, records: list[dict]) -> int:
         rejected = 0
@@ -87,35 +117,34 @@ class NoiseStore:
                     raise RecordRejected(
                         "filter_mismatch", f"{record.category}/{record.voivodeship}"
                     )
-                first = self._seen.get(record.natural_key)
-                if first is not None:
-                    raise RecordRejected("duplicate_record", _duplicate_detail(first, raw))
+                if record.natural_key in self._rows:
+                    detail = self._fold_duplicate(record.natural_key, raw, record.exceedance_db)
+                    raise RecordRejected("duplicate_record", detail)
             except RecordRejected as exc:
                 snapshots.quarantine(db, snapshot, reason=exc.reason, raw=raw, detail=exc.detail)
                 rejected += 1
                 continue
-            self._seen[record.natural_key] = raw
-            db.add(
-                NoiseMeasurement(
-                    snapshot_id=snapshot.id,
-                    natural_key=record.natural_key,
-                    point_code=record.point_code,
-                    category=record.category,
-                    voivodeship=record.voivodeship,
-                    powiat=record.powiat,
-                    gmina=record.gmina,
-                    locality=record.locality,
-                    latitude=record.latitude,
-                    longitude=record.longitude,
-                    period_label=record.period_label,
-                    purpose=record.purpose,
-                    date_from=record.date_from,
-                    date_to=record.date_to,
-                    value_db=record.value_db,
-                    exceedance_db=record.exceedance_db,
-                    raw=raw,
-                )
+            row = NoiseMeasurement(
+                snapshot_id=snapshot.id,
+                natural_key=record.natural_key,
+                point_code=record.point_code,
+                category=record.category,
+                voivodeship=record.voivodeship,
+                powiat=record.powiat,
+                gmina=record.gmina,
+                locality=record.locality,
+                latitude=record.latitude,
+                longitude=record.longitude,
+                period_label=record.period_label,
+                purpose=record.purpose,
+                date_from=record.date_from,
+                date_to=record.date_to,
+                value_db=record.value_db,
+                exceedance_db=record.exceedance_db,
+                raw=raw,
             )
+            self._rows[record.natural_key] = (row, raw)
+            db.add(row)
         return rejected
 
     @staticmethod

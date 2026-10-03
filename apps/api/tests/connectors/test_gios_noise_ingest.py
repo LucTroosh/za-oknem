@@ -323,3 +323,52 @@ def test_count_only_makes_one_small_request_per_combination_and_estimates_the_ti
     # (89 + 2) pages + the final empty page of each non-empty combination (2), 5 s each
     assert summary["estimated_minutes"] == round((91 + 2) * 5 / 60, 1)
     assert db_session.query(DatasetSnapshot).count() == 0  # nothing written
+
+
+def _exceedance_after(db_session, *copies):
+    """Imports the copies of ONE measurement (same natural key, differing only in przekroczenie)."""
+    client = FakeHalas({("Droga", "ŚLĄSKIE"): [[rec("D_1", przekroczenie=c) for c in copies]]})
+    run(db_session, client)
+    (row,) = rows(db_session)
+    details = [q.detail for q in db_session.query(IngestQuarantine).order_by(IngestQuarantine.id)]
+    return row.exceedance_db, details
+
+
+def test_a_null_exceedance_copy_is_completed_by_the_copy_that_has_a_number(db_session):
+    value, details = _exceedance_after(db_session, None, 0.5)
+    assert value == 0.5 and details == ["merged: przekroczenie taken from this copy"]
+
+
+def test_page_order_does_not_change_the_result(db_session):
+    first, _ = _exceedance_after(db_session, 0.5, None)
+    assert first == 0.5  # the number wins whichever copy came first
+
+
+def test_zero_is_kept_over_null_it_is_a_statement_of_the_source(db_session):
+    value, details = _exceedance_after(db_session, 0, None)
+    assert value == 0.0 and details == ["merged: przekroczenie kept, this copy had none"]
+
+
+def test_two_different_numbers_leave_the_measurement_without_an_exceedance(db_session):
+    value, details = _exceedance_after(db_session, 0.6, 0.5)
+    assert value is None and details == ["conflict: przekroczenie 0.6 vs 0.5"]
+
+
+def test_a_third_copy_cannot_resolve_a_conflict(db_session):
+    value, details = _exceedance_after(db_session, 0.6, 0.5, 0.7)
+    assert value is None and details[-1] == "conflict: przekroczenie"
+
+
+def test_a_copy_that_differs_in_other_fields_does_not_touch_the_exceedance(db_session):
+    client = FakeHalas(
+        {
+            ("Droga", "ŚLĄSKIE"): [
+                [rec("D_1", przekroczenie=None), rec("D_1", przekroczenie=2.0, powiat="inny")]
+            ]
+        }
+    )
+    run(db_session, client)
+    (row,) = rows(db_session)
+    assert row.exceedance_db is None  # not merged: it is not the same record
+    (q,) = db_session.query(IngestQuarantine).all()
+    assert q.detail == "differs: powiat, przekroczenie"
