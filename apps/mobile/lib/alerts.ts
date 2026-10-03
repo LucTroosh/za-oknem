@@ -29,7 +29,7 @@ export type SourceFreshness = SourceStatusOut["freshness"];
 export type AlertsBlock = Omit<DashboardAlerts, "items"> & { items: AlertItem[] };
 
 const SOURCE_LABEL: Record<string, string> = {
-  imgw_warningshydro: "IMGW – ostrzeżenia hydrologiczne",
+  imgw_warningsmeteo: "IMGW · ostrzeżenia meteorologiczne", imgw_warningshydro: "IMGW – ostrzeżenia hydrologiczne",
 };
 
 // What the alerts section may claim (ADR-012). An empty list is a confirmed
@@ -41,7 +41,7 @@ export type AlertsSummary =
   | { kind: "none-confirmed"; sources: string[] }
   | { kind: "unavailable"; lastSuccessAt: string | null };
 
-// Same bound as the server's alert RECENT_MAX_AGE (api/v1/alerts.py, 6h). The
+// Hydro bound is 6h; meteo is safety-critical and must be rechecked within 15 min. The
 // server's freshness is computed once per response, but this screen stays open
 // (or is resumed from background) for hours without refetching - so a status
 // that was FRESH at fetch time must stop counting as healthy once it ages past
@@ -51,17 +51,19 @@ const MAX_HEALTHY_AGE_MS = 6 * 60 * 60 * 1000;
 function isHealthy(
   s: { freshness: SourceFreshness; last_success_at: string | null },
   now: number,
+  source: string,
 ): boolean {
   if (s.freshness !== "FRESH" && s.freshness !== "RECENT") return false;
   const last = s.last_success_at === null ? NaN : Date.parse(s.last_success_at);
-  return Number.isFinite(last) && now - last <= MAX_HEALTHY_AGE_MS;
+  const maxAge = source === "imgw_warningsmeteo" ? 15 * 60 * 1000 : MAX_HEALTHY_AGE_MS;
+  return Number.isFinite(last) && now - last >= -5 * 60 * 1000 && now - last <= maxAge;
 }
 
 export function summarizeAlerts(block: AlertsBlock, now: number = Date.now()): AlertsSummary {
   // `?? {}`: an older API without source_status must degrade to "unavailable",
   // not throw and take the whole Home screen down (rule #1, client side).
   const statuses = Object.entries(block.source_status ?? {});
-  const unhealthy = statuses.filter(([, s]) => !isHealthy(s, now));
+  const unhealthy = statuses.filter(([source, s]) => !isHealthy(s, now, source));
   // No sources listed at all can't confirm anything either.
   const healthy = statuses.length > 0 && unhealthy.length === 0;
   // Oldest last success among unhealthy sources; one never-fetched source -> null.

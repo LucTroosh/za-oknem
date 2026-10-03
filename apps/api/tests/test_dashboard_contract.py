@@ -146,7 +146,7 @@ def test_openapi_documents_every_dashboard_block():
     expected |= {"air", "weather", "forecast", "outdoor", "pollen", "local_alerts"}
     expected |= {"weather_polling_active"}  # TASK-6.2(8): "no data" vs "source broken"
     expected |= {"coverage"}  # ADR-029: what the numbers represent (station distance / grid)
-    assert set(area["properties"]) == expected
+    assert set(area["properties"]) == expected | {"selected_weather"}
     assert set(area["required"]) == expected  # null = "no data", never an absent key
     assert set(comps["DashboardAlerts"]["properties"]) == {
         "scope",
@@ -205,3 +205,10 @@ def test_openapi_documents_places_endpoints():
 @pytest.mark.parametrize("name", ["DashboardAir", "DashboardWeather", "DashboardForecast"])
 def test_source_blocks_carry_attribution(name):
     assert "attribution" in app.openapi()["components"]["schemas"][name]["properties"]
+
+
+@pytest.fixture(autouse=True)
+def _legacy_hydro_publication(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "imgw_hydro_publication_enabled", True)

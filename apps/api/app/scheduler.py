@@ -10,10 +10,11 @@ import logging
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 from sqlalchemy import func, or_, select
 
-from app.config import warn_if_open_meteo_host_unusual
+from app.config import settings, warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.discovery import (
     AIR_STATIONS_PER_AREA,
@@ -30,6 +31,8 @@ from app.connectors.imgw_hydro.ingest import ingest_snapshot as ingest_hydro_sna
 from app.connectors.imgw_hydro.ingest import snapshot_failure
 from app.connectors.imgw_warningshydro import client as imgw_warnings_client
 from app.connectors.imgw_warningshydro.ingest import ingest_raw
+from app.connectors.imgw_warningsmeteo.ingest import run as run_imgw_warningsmeteo
+from app.connectors.imgw_weather.ingest import run as run_imgw_observations
 from app.connectors.open_meteo.ingest import (
     ingest_geo_area,
     polling_areas,
@@ -431,6 +434,7 @@ def main(*, iterations: int | None = None) -> None:
         float("-inf")
     )
     last_retention = last_place_expiry = float("-inf")
+    last_imgw_observations = last_imgw_meteo_warnings = float("-inf")
     bootstrap_attempts: dict[int, tuple[int, float]] = {}
     air_bootstrap_attempts: dict[str, tuple[int, float]] = {}
     last_health = float("-inf")
@@ -457,6 +461,20 @@ def main(*, iterations: int | None = None) -> None:
         if now - last_imgw_warnings >= IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS:
             _run_job_safely("imgw_warningshydro", run_imgw_warningshydro)
             last_imgw_warnings = now
+        if (
+            settings.imgw_observations_enabled
+            and now - last_imgw_observations >= settings.imgw_observations_interval_seconds
+        ):
+            for dataset in ("meteo", "synop"):
+                _run_job_safely(
+                    "imgw_" + dataset,
+                    partial(run_imgw_observations, dataset),
+                    track_status=False,
+                )
+            last_imgw_observations = now
+        if settings.imgw_warnings_enabled and now - last_imgw_meteo_warnings >= 300:
+            _run_job_safely("imgw_warningsmeteo", run_imgw_warningsmeteo, track_status=False)
+            last_imgw_meteo_warnings = now
         if now - last_retention >= RAW_RETENTION_INTERVAL_SECONDS:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now

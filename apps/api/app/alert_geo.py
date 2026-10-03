@@ -13,7 +13,7 @@ Fail-safe (rule #10, safety data): what cannot be resolved is never silently dro
 
 from typing import Any, Literal
 
-GeoMatch = Literal["voivodeship", "unresolved"]
+GeoMatch = Literal["voivodeship", "county", "unresolved"]
 
 # TERC voivodeship codes (GUS), keyed by the lowercase name as IMGW writes it.
 VOIVODESHIP_TERYT: dict[str, str] = {
@@ -87,7 +87,26 @@ def filter_alerts_for_area(alerts: list[dict], area_teryt: str | None) -> list[d
     `geo_match`. Order is preserved."""
     out = []
     for alert in alerts:
-        match = match_alert(alert["areas"], area_teryt)
+        if alert.get("source") == "imgw_warningsmeteo":
+            # Extract a county from a verified TERC gmina code, then compare exactly.
+            county = (
+                area_teryt[:4]
+                if area_teryt and len(area_teryt) in (4, 7) and area_teryt.isdigit()
+                else None
+            )
+            codes = [a.get("teryt") for a in alert["areas"] if isinstance(a, dict)]
+            valid = bool(codes) and all(
+                isinstance(c, str) and len(c) == 4 and c.isdigit() for c in codes
+            )
+            match = (
+                "county"
+                if valid and county in codes
+                else "unresolved"
+                if not valid or county is None
+                else None
+            )
+        else:
+            match = match_alert(alert["areas"], area_teryt)
         if match is not None:
             out.append({**alert, "geo_match": match})
     return out

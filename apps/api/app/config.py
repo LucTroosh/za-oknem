@@ -1,5 +1,7 @@
 import logging
+import math
 from datetime import date
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,6 +53,20 @@ class Settings(BaseSettings):
     # Rollout after migration 0019; independent of measurement ingestion.
     gios_provider_index_enabled: bool = False
 
+    # ADR-034: independent activation/publication gates. Empty timezone is deliberate:
+    # the JSON timestamps have no offset and must not be inferred from the clock.
+    imgw_observations_enabled: bool = False
+    imgw_observations_publication_enabled: bool = False
+    imgw_weather_timezone: str | None = None
+    imgw_weather_semantics_verified: bool = False
+    imgw_warnings_enabled: bool = False
+    imgw_warnings_timezone: str | None = None
+    imgw_hydro_publication_enabled: bool = False
+    imgw_observations_interval_seconds: int = Field(default=600, ge=600)
+    imgw_observation_max_distance_km: float = Field(default=25, gt=0, le=25)
+    # Verified location elevations only, never inferred from a town name.
+    imgw_area_elevations_m: dict[int, float] = {}
+
     # ADR-032: per-section switches for "Twoja okolica" (default off: a section is shown only after
     # its source passed the operator check). Noise: nearest measurement point within the radius.
     neighborhood_noise_enabled: bool = False
@@ -60,6 +76,29 @@ class Settings(BaseSettings):
     # Widen it only together with a re-import over the wider range.
     neighborhood_noise_coverage_from: date = date(2015, 1, 1)
     neighborhood_noise_coverage_to: date = date(2026, 12, 31)
+
+    @field_validator("imgw_weather_timezone", "imgw_warnings_timezone", mode="before")
+    @classmethod
+    def _imgw_timezone(cls, value: object) -> object:
+        if value is None or value == "":
+            return None
+        if not isinstance(value, str):
+            raise ValueError("IMGW timezone must be an IANA zone")
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("IMGW timezone must be an IANA zone") from exc
+        return value
+
+    @field_validator("imgw_area_elevations_m")
+    @classmethod
+    def _imgw_elevations(cls, value: dict[int, float]) -> dict[int, float]:
+        if any(
+            key <= 0 or not math.isfinite(height) or not -500 <= height <= 9000
+            for key, height in value.items()
+        ):
+            raise ValueError("invalid verified area elevation")
+        return value
 
     @field_validator("gios_open_base_url", mode="before")
     @classmethod

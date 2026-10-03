@@ -119,3 +119,9 @@ describe("alertKey", () => {
     expect(keys.size).toBe(3);
   });
 });
+
+it("expires a confirmed empty meteo snapshot after 15 min on the device", () => {
+  const b = block(0, { imgw_warningsmeteo: ["FRESH", new Date(NOW - 14 * 60 * 1000).toISOString()] });
+  expect(summarizeAlerts(b, NOW).kind).toBe("none-confirmed");
+  expect(summarizeAlerts(b, NOW + 2 * 60 * 1000).kind).toBe("unavailable");
+});

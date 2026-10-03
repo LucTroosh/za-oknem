@@ -450,37 +450,51 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
 Próba odczytu `api.dane.gov.pl` nie powiodła się (błąd uprawnień narzędzia),
 wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręcznie.
 
-## imgw_warningsmeteo (ostrzeżenia meteorologiczne — Alert, ZABLOKOWANE na weryfikacji)
+## imgw_warningsmeteo (ostrzeżenia meteorologiczne — etap pod flagą, ADR-034)
 
-- **regulamin IMGW (audyt 2026-10-01; ten sam regulamin co `imgw_hydro`):** nieodpłatnie do celów prywatnych; użycie komercyjne
-  (działalność gospodarcza, w tym strona z reklamami) wymaga płatnej umowy
-  (biznes@imgw.pl); wyjątek: dane o wysokiej wartości (HVD, rozp. UE 2023/138) —
-  NIEZWERYFIKOWANE, czy hydro/ostrzeżenia to HVD. Zbiór plikowy IMGW na dane.gov.pl ma
-  CC BY-NC-ND 4.0 (rekord 3120); związek z API niewyjaśniony (ND kłóci się z normalizacją
-  danych) → do wyjaśnienia z IMGW przed monetyzacją (checklista ADR-003).
-- **connector:** `imgw_warningsmeteo` — CZĘŚCIOWY: `client.py` (fetch + retry)
-  i `parser.py::parse_warnings()` (dispatch listy/pustego stanu) gotowe i
-  zweryfikowane. `normalize()` (mapowanie pól pojedynczego ostrzeżenia) i
-  `ingest.py` CELOWO nie zaimplementowane — patrz niżej.
-- **endpoint:** `https://danepubliczne.imgw.pl/api/data/warningsmeteo` —
-  zweryfikowane na żywo 2026-09-29; przy braku ostrzeżeń zwraca
-  `{"message": "Brak ostrzeżeń meteorologicznych"}` (potwierdzone na żywo)
-- **blocker:** w chwili implementacji API nie zwracało ŻADNEGO aktywnego
-  ostrzeżenia meteo, więc — w przeciwieństwie do `warningshydro`, gdzie miałem
-  żywy przykład z realnymi wartościami pól — nie ma zweryfikowanego kształtu
-  pojedynczego rekordu ostrzeżenia. Nieoficjalne źródła (scrapery stron
-  trzecich) sugerują INNY schemat niż hydro (`id`, `stopien` 1–3, `tresc`,
-  `teryt[]` — kody powiatów, nie województw jak w hydro) — nie zweryfikowane
-  na żywo, więc świadomie NIE wpisane do `normalize()` (rule #10: nigdy nie
-  zgadywać kształtu danych bezpieczeństwa; rule #15: Source Approval Gate
-  wymaga realnej weryfikacji, nie inferencji). Decyzja użytkownika: poczekać
-  na realny przykład zamiast budować na niepotwierdzonym schemacie.
-- **license/rate_limit/attribution:** jak `imgw_hydro` wyżej (ten sam regulamin)
-- **status:** DISCOVERY (częściowo IMPLEMENTED — patrz wyżej) — dokończyć
-  `normalize()`/`ingest.py`/`GET /api/v1/alerts/latest` (rozszerzyć o
-  `source_id="imgw_warningsmeteo"`) dopiero po zaobserwowaniu żywego,
-  aktywnego ostrzeżenia meteo
-- **last_verified_at:** 2026-09-29
+- **endpoint:** https://danepubliczne.imgw.pl/api/data/warningsmeteo
+- **owner/terms:** IMGW-PIB, https://dane.imgw.pl/apiinfo; regulamin sprawdzony 2026-10-03.
+- **HVD basis:** ostrzeżenia meteorologiczne, UE 2023/138 i §5 regulaminu IMGW;
+  kwalifikacja według researchu. Nie przypisujemy temu endpointowi licencji CC BY-NC-ND
+  z innego zbioru plikowego ani nie zakładamy, że hydrologia ma tę samą kwalifikację.
+- **evidence:** `docs/data/imgw/evidence/warningsmeteo.json` — rzeczywista niepusta odpowiedź
+  o gęstej mgle; string ID, stopień, prawdopodobieństwo, czasy bez offsetu, treść/biuro,
+  czterocyfrowe stringi TERYT powiatów. Pusty stan z wcześniejszego audytu pozostaje obsługiwany.
+- **implementation:** parser aktywnego ostrzeżenia, atomowy ingest/reconcile, scheduler,
+  źródło w alerts API, exact-county matching, per-source freshness 15min na API i urządzeniu.
+- **publication:** domyślnie off; `IMGW_WARNINGS_ENABLED` + potwierdzona
+  `IMGW_WARNINGS_TIMEZONE` wymagane. Syntaktycznie poprawna strefa nie jest dowodem jej semantyki.
+- **cadence/limit:** gwarancja publikacji i limit UNKNOWN; polling 5min to własna decyzja
+  dla danych bezpieczeństwa wg researchu, nie deklaracja operatora.
+- **attribution:** wymagany tekst IMGW jak niżej; oryginalny stopień i treść bez reinterpretacji.
+- **status:** IMPLEMENTED_UNDER_GATES; strefa czasu/source approval/rollout nadal pending.
+- **last_verified_at:** 2026-10-03 (transport/kształt, nie zatwierdzenie czasu).
+
+## imgw_meteo / imgw_synop (obserwacje meteorologiczne — ADR-034)
+
+- **official URLs:** https://danepubliczne.imgw.pl/api/data/meteo i
+  https://danepubliczne.imgw.pl/api/data/synop; terms https://dane.imgw.pl/apiinfo.
+- **HVD basis:** obserwacje meteorologiczne wg researchu/UE 2023/138; commercial_status=hvd_basis,
+  license_name nieprzypisane bez konkretnej metadanej. Publication domyślnie false.
+- **evidence:** `docs/data/imgw/evidence/manifest.json`, pełne JSON-y 788 METEO i 62 SYNOP.
+  METEO ma lat/lon/wysokość; SYNOP nie ma geometrii. Czas per parametr METEO, liczby string/null.
+- **technical gate pending:** strefa czasu API i jednostki/poziomy/statystyki pomiarowe;
+  osobny katalog SYNOP z pochodzeniem współrzędnych; potwierdzone wysokości lokalizacji.
+- **flags:** OBSERVATIONS_ENABLED, OBSERVATIONS_PUBLICATION_ENABLED,
+  WEATHER_SEMANTICS_VERIFIED, WEATHER_TIMEZONE (wszystkie z prefiksem IMGW_).
+- **selection:** tylko równoważna temperatura/wilgotność, ≤25km, świeżość30min,
+  różnica potwierdzonych wysokości≤150m; w innym przypadku model fallback.
+  Pozostałe zmienne zostają osobnymi obserwacjami, bez deklaracji „opad teraz”.
+- **cadence/limit:** UNKNOWN; startowy polling10min jest własną propozycją, konfigurowalną.
+- **retention:** raw7dni, pomiary90dni; raw ostrzeżeń30dni. Katalog metadata do aktualizacji.
+- **attribution:** „Źródłem pochodzenia danych jest Instytut Meteorologii i Gospodarki Wodnej
+  – Państwowy Instytut Badawczy”. Dla przetworzenia: „Dane Instytutu Meteorologii i Gospodarki
+  Wodnej – Państwowego Instytutu Badawczego zostały przetworzone”.
+- **status:** IMPLEMENTED_UNDER_GATES; legacy weather/insights jeszcze Open-Meteo.
+- **hydro clarification:** wcześniejsze działające adaptery hydro/warningshydro pozostają,
+  ale ich publikacja jest teraz domyślnie wyłączona (`IMGW_HYDRO_PUBLICATION_ENABLED=false`)
+  zgodnie z pakietem researchu. Zgoda na użycie tych zbiorów nadal wymaga wyjaśnienia.
+
 
 ## rcb (Rządowe Centrum Bezpieczeństwa — alerty RCB)
 

@@ -1,0 +1,38 @@
+{
+  "captured_at": "2026-10-03T19:24:15.805581+00:00",
+  "responses": [
+    {
+      "url": "https://danepubliczne.imgw.pl/api/data/synop",
+      "file": "synop.json",
+      "sha256": "4b64b3eb5d8ec4d768d4e01177c9fb44c65dc6a3dbc21972eac3de8144a162f1"
+    },
+    {
+      "url": "https://danepubliczne.imgw.pl/api/data/meteo",
+      "file": "meteo.json",
+      "sha256": "fa281116b775f9056d33b286f344d755b802a66699972d79ede5c7d5844c7c19"
+    },
+    {
+      "url": "https://danepubliczne.imgw.pl/api/data/warningsmeteo",
+      "file": "warningsmeteo.json",
+      "sha256": "b490ecef8aa97a467d1fc7eaed7bdfb77a8125f80bde828d9f3d1e1e002383bb"
+    },
+    {
+      "url": "https://danepubliczne.imgw.pl/api/data/product",
+      "file": "product.json",
+      "sha256": "e2d108396537c9bbe50fc59864450047a360832acf21c30b1a9f743ce6b89445"
+    }
+  ],
+  "product_discovery": {
+    "captured_at": "2026-10-03T19:43:30.051673+00:00",
+    "cosmo": {
+      "url": "https://danepubliczne.imgw.pl/api/data/product/id/COSMO_HVD_00_00",
+      "file": "COSMO_HVD_00_00.json",
+      "sha256": "28ea2e480c5ab1f3f453cc9cbc414c94a1a1964ffb2b14e19daa102ab9caa713",
+      "scope": "manifest only; no GRIB decode"
+    },
+    "radar": {
+      "id": "COMPO_SRI.comp.sri_h5",
+      "result": "request failed (curl exit 22); no file/decoder verified"
+    }
+  }
+}

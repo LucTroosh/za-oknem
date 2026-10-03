@@ -2,12 +2,13 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.imgw_weather import selected_weather
 from app.models import Forecast, GeoArea, WeatherSnapshot
 
 router = APIRouter()
@@ -302,3 +303,47 @@ def weather_forecast(db: Session = Depends(get_db)) -> dict:
             }
         )
     return {"areas": areas}
+
+
+class SelectedWeatherParam(BaseModel):
+    value: float
+    unit: str
+    observed_at: str
+    fetched_at: str
+    freshness: Literal["FRESH", "RECENT", "STALE"]
+    source: str
+    source_type: Literal["observation", "forecast"]
+    station_id: str | None
+    station_name: str | None
+    distance_km: float | None
+    selection_reason: str | None = None
+    fallback_reason: str | None = None
+
+
+class WeatherObservationStation(BaseModel):
+    source: str
+    station_id: str
+    station_name: str
+    distance_km: float
+    elevation_m: float | None
+    retrieval_status: Literal["ok", "degraded"]
+    params: dict[str, SelectedWeatherParam]
+
+
+class SelectedWeatherResponse(BaseModel):
+    geo_area_id: int
+    params: dict[str, SelectedWeatherParam]
+    observations: list[WeatherObservationStation]
+    publication_enabled: bool
+    attribution: str
+    transformation_notice: str
+
+
+@router.get("/weather/selected", response_model=SelectedWeatherResponse)
+def weather_selected(
+    geo_area_id: int = Query(..., ge=1, le=2_147_483_647), db: Session = Depends(get_db)
+) -> dict:
+    area = db.get(GeoArea, geo_area_id)
+    if area is None:
+        raise HTTPException(404, "Unknown geo_area_id")
+    return selected_weather(db, area)

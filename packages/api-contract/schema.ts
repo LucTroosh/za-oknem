@@ -96,7 +96,7 @@ export type AlertOut = {
   external_id: string;
   fetched_at: string;
   freshness: "FRESH" | "RECENT" | "STALE";
-  geo_match: "voivodeship" | "unresolved" | null;
+  geo_match: "voivodeship" | "county" | "unresolved" | null;
   issuing_office: string;
   probability_pct: number | null;
   published_at: string;
@@ -165,6 +165,7 @@ export type DashboardArea = {
   name: string;
   outdoor: DashboardOutdoor;
   pollen: DashboardPollen;
+  selected_weather?: SelectedWeatherResponse | null;
   slug: string;
   weather: DashboardWeather | null;
   weather_polling_active: boolean;
@@ -314,6 +315,7 @@ export type HTTPValidationError = {
 
 export type HydroLatestResponse = {
   attribution: string;
+  publication_enabled?: boolean;
   source_status: SourceStatusOut;
   stations: Array<HydroStation>;
 };
@@ -519,6 +521,30 @@ export type ResolvedGeoArea = {
   teryt_code: string;
 };
 
+export type SelectedWeatherParam = {
+  distance_km: number | null;
+  fallback_reason?: string | null;
+  fetched_at: string;
+  freshness: "FRESH" | "RECENT" | "STALE";
+  observed_at: string;
+  selection_reason?: string | null;
+  source: string;
+  source_type: "observation" | "forecast";
+  station_id: string | null;
+  station_name: string | null;
+  unit: string;
+  value: number;
+};
+
+export type SelectedWeatherResponse = {
+  attribution: string;
+  geo_area_id: number;
+  observations: Array<WeatherObservationStation>;
+  params: Record<string, SelectedWeatherParam>;
+  publication_enabled: boolean;
+  transformation_notice: string;
+};
+
 export type Source = {
   checked_at: string;
   citation: string;
@@ -596,6 +622,16 @@ export type WeatherLatestParam = {
 
 export type WeatherLatestResponse = {
   areas: Array<WeatherArea>;
+};
+
+export type WeatherObservationStation = {
+  distance_km: number;
+  elevation_m: number | null;
+  params: Record<string, SelectedWeatherParam>;
+  retrieval_status: "ok" | "degraded";
+  source: string;
+  station_id: string;
+  station_name: string;
 };
 
 export type WeatherParam = {

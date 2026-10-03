@@ -64,6 +64,9 @@ def test_thresholds_are_per_source_from_their_domain(db_session):
         "imgw_hydro": "STALE",
         "imgw_warningshydro": "FRESH",
         "open_meteo_pollen": "RECENT",
+        "imgw_meteo": "UNAVAILABLE",
+        "imgw_synop": "UNAVAILABLE",
+        "imgw_warningsmeteo": "UNAVAILABLE",
     }
 
 
@@ -143,7 +146,9 @@ def test_fallback_entry_keeps_monitored_flag(db_session, monkeypatch):
     # ADR-025: an active area with no catalog yet = GIOS is expected to run (monitored).
     assert by_id["gios"]["monitored"] is True
     assert by_id["open_meteo"]["monitored"] is True
-    assert log_health_transitions(report, {}).keys() == set(SOURCES)
+    assert log_health_transitions(report, {}).keys() == {
+        e["source_id"] for e in report if e["monitored"]
+    }
 
 
 def test_sanitize_error_strips_query_secrets_and_truncates():

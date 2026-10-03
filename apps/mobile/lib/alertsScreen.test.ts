@@ -81,3 +81,10 @@ describe("areaNames", () => {
     expect(areaNames("x")).toEqual([]);
   });
 });
+
+it("groups a county-matched meteorological warning as local", () => {
+  const a = { ...alert("meteo", "county"), source: "imgw_warningsmeteo" };
+  const model = buildAlertsScreen(block([a]), [a], NOW, false);
+  expect(model.local).toEqual([a]);
+  expect(model.unresolved).toEqual([]);
+});

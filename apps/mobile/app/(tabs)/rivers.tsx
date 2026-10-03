@@ -28,6 +28,9 @@ export default function Rivers() {
   const model = d.hydro ? buildRivers(d.hydro, now, query) : null;
   const shown = model ? limitGroups(model.groups, limit) : [];
   const shownCount = shown.reduce((n, g) => n + g.items.length, 0);
+  if (d.hydro?.publication_enabled === false) {
+    return <Screen padTop><PageHeader title="Stany rzek" /><EmptyState title="Stany rzek nie są jeszcze dostępne" message="Ten temat jest w przygotowaniu." /></Screen>;
+  }
   return (
     <Screen padTop refreshing={d.refreshing} onRefresh={d.refresh} gap={16}>
       <PageHeader title="Stany rzek" subtitle="Cała Polska: stacje wodowskazowe IMGW z progami ostrzegawczym i alarmowym." />

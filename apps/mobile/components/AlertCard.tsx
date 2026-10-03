@@ -11,7 +11,7 @@ import FreshnessBadge from "./FreshnessBadge";
 import IconBox from "./IconBox";
 import useTheme, { useThemedStyles } from "./useTheme";
 
-const SOURCE_NAME: Record<string, string> = { imgw_warningshydro: "IMGW · ostrzeżenie hydrologiczne" };
+const SOURCE_NAME: Record<string, string> = { imgw_warningsmeteo: "IMGW · ostrzeżenia meteorologiczne", imgw_warningshydro: "IMGW · ostrzeżenie hydrologiczne" };
 
 // One alert in the feed (production UI v1 §12): glyph in a 36 dp container, relevance chip, source
 // meta, the source's own headline incl. its "stopień X" (rule #10, ADR-009: severity_raw is shown

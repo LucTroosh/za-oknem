@@ -587,6 +587,7 @@
               {
                 "enum": [
                   "voivodeship",
+                  "county",
                   "unresolved"
                 ],
                 "type": "string"
@@ -934,6 +935,16 @@
           },
           "pollen": {
             "$ref": "#/components/schemas/DashboardPollen"
+          },
+          "selected_weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelectedWeatherResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "slug": {
             "title": "Slug",
@@ -1780,6 +1791,11 @@
           "attribution": {
             "title": "Attribution",
             "type": "string"
+          },
+          "publication_enabled": {
+            "default": true,
+            "title": "Publication Enabled",
+            "type": "boolean"
           },
           "source_status": {
             "$ref": "#/components/schemas/SourceStatusOut"
@@ -3021,6 +3037,160 @@
         "title": "ResolvedGeoArea",
         "type": "object"
       },
+      "SelectedWeatherParam": {
+        "properties": {
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "fetched_at": {
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "freshness": {
+            "enum": [
+              "FRESH",
+              "RECENT",
+              "STALE"
+            ],
+            "title": "Freshness",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "selection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection Reason"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "observation",
+              "forecast"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "station_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Id"
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "observed_at",
+          "fetched_at",
+          "freshness",
+          "source",
+          "source_type",
+          "station_id",
+          "station_name",
+          "distance_km"
+        ],
+        "title": "SelectedWeatherParam",
+        "type": "object"
+      },
+      "SelectedWeatherResponse": {
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "geo_area_id": {
+            "title": "Geo Area Id",
+            "type": "integer"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherObservationStation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SelectedWeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "publication_enabled": {
+            "title": "Publication Enabled",
+            "type": "boolean"
+          },
+          "transformation_notice": {
+            "title": "Transformation Notice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geo_area_id",
+          "params",
+          "observations",
+          "publication_enabled",
+          "attribution",
+          "transformation_notice"
+        ],
+        "title": "SelectedWeatherResponse",
+        "type": "object"
+      },
       "Source": {
         "additionalProperties": false,
         "properties": {
@@ -3432,6 +3602,63 @@
           "areas"
         ],
         "title": "WeatherLatestResponse",
+        "type": "object"
+      },
+      "WeatherObservationStation": {
+        "properties": {
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "elevation_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation M"
+          },
+          "params": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SelectedWeatherParam"
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "retrieval_status": {
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Retrieval Status",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "station_id": {
+            "title": "Station Id",
+            "type": "string"
+          },
+          "station_name": {
+            "title": "Station Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "station_id",
+          "station_name",
+          "distance_km",
+          "elevation_m",
+          "retrieval_status",
+          "params"
+        ],
+        "title": "WeatherObservationStation",
         "type": "object"
       },
       "WeatherParam": {
@@ -4377,6 +4604,47 @@
           }
         },
         "summary": "Latest Weather"
+      }
+    },
+    "/api/v1/weather/selected": {
+      "get": {
+        "operationId": "weather_selected_api_v1_weather_selected_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "geo_area_id",
+            "required": true,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "title": "Geo Area Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelectedWeatherResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Weather Selected"
       }
     }
   }

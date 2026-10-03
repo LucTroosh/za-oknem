@@ -30,6 +30,7 @@ RETENTION_DAYS = {
     "open_meteo_pollen": 7,  # modelled forecast, re-fetchable, one small payload per area/day
     "imgw_hydro": 7,  # all-stations payload, hundreds of KB per hourly fetch
     "gios": 14,  # air quality, small payloads
+    "imgw_warningsmeteo": 30,
     "imgw_warningshydro": 30,  # safety data (rule #10): longest audit window
 }
 DEFAULT_RETENTION_DAYS = 7

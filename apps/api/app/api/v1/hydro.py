@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.alerts import SourceStatusOut
 from app.api.v1.dashboard import IMGW_ATTRIBUTION
+from app.config import settings
 from app.connectors.imgw_hydro.parser import (
     ALARM_LEVEL_PARAM,
     WARNING_LEVEL_PARAM,
@@ -70,6 +71,7 @@ class HydroStation(BaseModel):
 
 
 class HydroLatestResponse(BaseModel):
+    publication_enabled: bool = True
     stations: list[HydroStation]
     # TASK-7.2: source transparency (verbatim from source-registry.md) and ADR-012
     # source-level freshness, so a client can tell "no stations in alarm" from
@@ -82,6 +84,13 @@ class HydroLatestResponse(BaseModel):
 def latest_hydro(db: Session = Depends(get_db)) -> dict:
     """Reads only from our own DB (rule #14) - never calls IMGW on request.
     Data arrives via `python -m app.connectors.imgw_hydro.ingest` or the scheduler."""
+    if not settings.imgw_hydro_publication_enabled:
+        return {
+            "stations": [],
+            "publication_enabled": False,
+            "attribution": IMGW_ATTRIBUTION,
+            "source_status": {"freshness": "UNAVAILABLE", "last_success_at": None},
+        }
     stmt = (
         select(Measurement)
         .where(Measurement.param_code.in_((WATER_LEVEL_PARAM, *_THRESHOLD_PARAMS)))
