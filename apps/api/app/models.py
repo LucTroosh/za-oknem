@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
     true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -411,3 +412,74 @@ class Device(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DatasetSnapshot(Base):
+    """One complete pass over one operation + filters of a GIOŚ open-data service (ADR-032 pkt 8,
+    GIOS-02). Rows of a dataset are written under a `staging` snapshot, invisible to readers, and
+    the snapshot is promoted to `active` atomically only after a COMPLETE pass; the previous
+    `active` one becomes `superseded` in the same transaction. A failed or crashed run leaves the
+    previous snapshot active and untouched (rule #1, never promote an incomplete snapshot).
+
+    Two partial unique indexes carry the invariants in the database itself: at most one `staging`
+    snapshot per service (the run lock, concurrency 1 per service) and at most one `active` snapshot
+    per service + operation + canonical filters.
+    """
+
+    __tablename__ = "dataset_snapshots"
+    __table_args__ = (
+        Index(
+            "uq_dataset_snapshot_staging",
+            "source_id",
+            unique=True,
+            postgresql_where=text("status = 'staging'"),
+            sqlite_where=text("status = 'staging'"),
+        ),
+        Index(
+            "uq_dataset_snapshot_active",
+            "source_id",
+            "operation",
+            "filters_key",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(50))
+    operation: Mapped[str] = mapped_column(String(100))
+    # Canonical JSON of the request filters (sorted keys): one snapshot per operation + filters.
+    filters_key: Mapped[str] = mapped_column(String(500))
+    # staging | active | superseded | failed (app.gios_open.snapshots)
+    status: Mapped[str] = mapped_column(String(20))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    record_count: Mapped[int] = mapped_column(Integer, default=0)
+    page_count: Mapped[int] = mapped_column(Integer, default=0)
+    rejected_count: Mapped[int] = mapped_column(Integer, default=0)
+    # sha256 over the page fingerprints; sha256 of the sorted record keys seen (schema drift).
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    schema_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)  # ops only, never in the API
+    source_fetch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("source_fetches.id"), nullable=True, index=True
+    )
+
+
+class IngestQuarantine(Base):
+    """A record the connector could not accept (unknown enum, malformed field...), kept raw with the
+    reason instead of failing the whole batch (ADR-032 pkt 9). Not a Measurement/Alert (rule #7)."""
+
+    __tablename__ = "ingest_quarantine"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[int | None] = mapped_column(
+        ForeignKey("dataset_snapshots.id"), nullable=True, index=True
+    )
+    source_id: Mapped[str] = mapped_column(String(50), index=True)
+    operation: Mapped[str] = mapped_column(String(100))
+    reason: Mapped[str] = mapped_column(String(100))
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw: Mapped[Any] = mapped_column(JSON().with_variant(JSONB(), "postgresql"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

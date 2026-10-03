@@ -159,3 +159,12 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
 - Weryfikacja na żywo (powtórzenie żądań do `dane.gios.gov.pl`) nie jest możliwa z środowiska agenta
   (blokada egress); robi ją operator CLI `--validate-only` i wpisuje wynik do Source Registry. Do tego
   czasu operacje mają status wg dowodów z pakietu, nie wyżej.
+
+## Status implementacji
+
+- GIOS-02 (fundament ingestu, `app/gios_open/`, migracja `0017`): zaimplementowane zgodnie z pkt 8-9. Blokada
+  „jedna operacja na usługę” to częściowy unikalny indeks `status = 'staging'` w bazie (nie sprawdzenie w kodzie),
+  a „jeden aktywny snapshot na operację + filtry” to indeks `status = 'active'`. Limiter odstępu (1 żądanie / 5 s) działa
+  w obrębie procesu, a międzyprocesową współbieżność 1 zapewnia blokada w bazie (bez Redis: nowa zależność runtime
+  niepotrzebna, bo importy są ręczne i serializowane).
+- Operator zamyka B-6 komendą `app.gios_open.probe` (`docs/data/gios/08-operator-probe.md`).
