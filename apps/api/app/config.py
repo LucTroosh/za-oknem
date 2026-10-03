@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # A staging snapshot older than this is a dead run (crash): its lock may be taken over.
     gios_open_lock_ttl_minutes: int = Field(default=360, gt=0)
 
+    # Air (current GIOŚ API, getData): values requested per sensor (spec: default 20, max 500).
+    # Values are hourly and the source keeps only ~66 h per sensor (observed 2026-10-03), so this
+    # is a ceiling, not a promise. Still ONE request per sensor (portal terms bound the count).
+    gios_data_size: int = Field(default=100, ge=1, le=500)
+
     # ADR-032: per-section switches for "Twoja okolica" (default off: a section is shown only after
     # its source passed the operator check). Noise: nearest measurement point within the radius.
     neighborhood_noise_enabled: bool = False

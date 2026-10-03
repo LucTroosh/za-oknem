@@ -242,6 +242,13 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   godzina", potwierdzone na żywym przykładzie). Zgodnie z ADR-004: scheduler docelowo
   co godzinę dla danych, raz na dzień/tydzień dla listy stacji — do ostatecznego
   ustalenia w Phase 5.
+- **getData (zweryfikowane na żywo przez operatora 2026-10-03):** bez parametrów zwraca stronę 20 najnowszych wartości (sortowanie
+  malejące po `Data`); `size` (spec: max 500) działa — `size=100` zwróciło **66 wartości** (2026-10-01 02:00 – 2026-10-03 19:00,
+  co godzinę, bez dziur): źródło trzyma dla czujnika tylko ok. 66 godzin (okno może się zmieniać, nie zakładać stałości).
+  Opóźnienie odczytu poniżej 25 min (19:00 dostępne o 19:23 czasu lokalnego). `Data` = **czas lokalny Warszawy z DST**
+  (potwierdzone: pobranie o 19:23 CEST niosło 19:00 jako najnowszą). Godzina cofnięcia zegara (02:00 dwa razy) nie ma
+  znacznika offsetu — rozróżniana kolejnością w liście (`all_values`). Connector prosi o `size` = `GIOS_DATA_SIZE` (domyślnie
+  100) w tym samym jednym żądaniu na czujnik i zapisuje wszystkie niepuste wartości (uzupełnia luki po nieudanym odpytaniu).
 - **coverage:** Polska (sieć stacji GIOŚ, liczba i lokalizacje zmienne)
 - **license:** CC BY 4.0 (dane.gov.pl, zbiór „Jakość powietrza w Polsce - API”, rekord 313;
   audyt 2026-10-01). Czy ten rekord dotyczy API v1 (`/pjp-api/v1/rest/`): do potwierdzenia

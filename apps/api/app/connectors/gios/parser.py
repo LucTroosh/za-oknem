@@ -6,6 +6,7 @@ English camelCase shape this file originally (wrongly) assumed before we had net
 access to test it against the live service.
 """
 
+from collections import Counter
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -78,6 +79,64 @@ def latest_value(data: dict[str, Any]) -> tuple[datetime, float] | None:
     if not readings:
         return None
     return max(readings, key=lambda r: r[0])
+
+
+_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def _is_ambiguous(naive: datetime) -> bool:
+    """A local time that happens twice (the hour the clocks go back, last Sunday of October)."""
+    return (
+        naive.replace(tzinfo=GIOS_TZ, fold=0).utcoffset()
+        != naive.replace(tzinfo=GIOS_TZ, fold=1).utcoffset()
+    )
+
+
+def all_values(data: dict[str, Any]) -> list[tuple[datetime, float]]:
+    """EVERY non-null reading of the payload (not just the newest), oldest first.
+
+    `Data` is naive Warsaw local time with DST (checked 2026-10-03: a 19:23 CEST fetch carried
+    19:00 as its newest value). When the clocks go back, 02:00 occurs twice with nothing to tell
+    the copies apart but their place in the list: the API lists newest first, so the first copy
+    is the LATER instant (CET, fold=1) and the second the earlier (CEST, fold=0); an ascending
+    list is read the other way round. A lone ambiguous time (its twin missing) stays fold=0,
+    as before: it cannot be resolved from the payload."""
+    values = data.get("Lista danych pomiarowych")
+    if not isinstance(values, list):
+        raise GiosParseError(f"expected 'Lista danych pomiarowych' list, got: {type(values)!r}")
+    if not all(isinstance(entry, dict) for entry in values):
+        raise GiosParseError("malformed value entry: not an object")
+
+    stamps: list[datetime | None] = []
+    for entry in values:
+        try:
+            stamps.append(datetime.strptime(entry["Data"], _DATE_FORMAT))
+        except (KeyError, ValueError, TypeError):
+            stamps.append(None)  # judged below, and only if it carries a value
+    known = [s for s in stamps if s is not None]
+    descending = len(known) > 1 and known[0] > known[-1]
+    occurrences = Counter(known)
+    seen: Counter[datetime] = Counter()
+
+    readings: list[tuple[datetime, float]] = []
+    for entry, naive in zip(values, stamps, strict=True):
+        if naive is not None:
+            seen[naive] += 1  # a null twin still takes its place in the order
+        if entry.get("Wartość") is None:
+            continue
+        if naive is None:
+            raise GiosParseError(f"malformed value entry {entry!r}: bad or missing 'Data'")
+        try:
+            value = float(entry["Wartość"])
+        except (ValueError, TypeError) as exc:
+            raise GiosParseError(f"malformed value entry {entry!r}: {exc}") from exc
+        fold = 0
+        if occurrences[naive] == 2 and _is_ambiguous(naive):
+            first_copy = seen[naive] == 1
+            fold = 1 if first_copy == descending else 0
+        readings.append((naive.replace(tzinfo=GIOS_TZ, fold=fold), value))
+    # aware datetimes sharing a tzinfo compare by wall time (fold ignored): order by the instant
+    return sorted(readings, key=lambda r: r[0].timestamp())
 
 
 def normalize(

@@ -208,7 +208,7 @@ class TestProvenance:
     def test_payload_survives_an_unexpected_parser_crash_as_pending(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
         monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
-        monkeypatch.setattr(ingest, "latest_value", MagicMock(side_effect=RuntimeError("bug")))
+        monkeypatch.setattr(ingest, "all_values", MagicMock(side_effect=RuntimeError("bug")))
 
         with pytest.raises(RuntimeError):
             ingest.ingest_station(STATION, db_session)
@@ -325,3 +325,107 @@ class TestMain:
 
         row = db_session.get(SourceStatus, "gios")
         assert row.last_success_at is None and "429" in row.last_error
+
+
+WINDOW = {
+    "Lista danych pomiarowych": [
+        {"Data": "2026-09-28 18:00:00", "Wartość": 8.2},
+        {"Data": "2026-09-28 17:00:00", "Wartość": None},
+        {"Data": "2026-09-28 16:00:00", "Wartość": 7.1},
+        {"Data": "2026-09-28 15:00:00", "Wartość": 6.0},
+    ]
+}
+
+
+class TestWholeWindow:
+    """The response carries the last hours, not one reading: all of it is stored."""
+
+    def _run(self, monkeypatch, db_session, data):
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        fetch = MagicMock(return_value=data)
+        monkeypatch.setattr(client, "fetch_sensor_data", fetch)
+        return ingest.ingest_station(STATION, db_session), fetch
+
+    def test_every_non_null_value_is_stored_and_asked_for_in_one_request(
+        self, monkeypatch, db_session
+    ):
+        stored, fetch = self._run(monkeypatch, db_session, WINDOW)
+
+        assert stored == 1  # params with something new, as before
+        rows = db_session.query(Measurement).order_by(Measurement.observed_at).all()
+        assert [r.value for r in rows] == [6.0, 7.1, 8.2]  # the null hour is not a zero
+        assert (
+            fetch.call_count == 1
+            and fetch.call_args.kwargs["size"] == ingest.settings.gios_data_size
+        )
+        assert {r.source_fetch_id for r in rows} == {db_session.query(SourceFetch).one().id}
+
+    def test_source_record_id_keeps_the_format_older_rows_already_use(
+        self, monkeypatch, db_session
+    ):
+        self._run(monkeypatch, db_session, SENSOR_DATA)
+        row = db_session.query(Measurement).one()
+        assert row.source_record_id == "25988:2026-09-28T18:00:00+02:00"
+
+    def test_a_missed_run_is_filled_in_by_the_next_one(self, monkeypatch, db_session):
+        self._run(monkeypatch, db_session, SENSOR_DATA)  # only the 18:00 reading is known
+        stored, _ = self._run(monkeypatch, db_session, WINDOW)
+
+        assert stored == 1
+        assert db_session.query(Measurement).count() == 3  # 15:00, 16:00 added, 18:00 not doubled
+
+    def test_nothing_new_in_the_window_stores_nothing(self, monkeypatch, db_session):
+        self._run(monkeypatch, db_session, WINDOW)
+        stored, _ = self._run(monkeypatch, db_session, WINDOW)
+        assert stored == 0 and db_session.query(Measurement).count() == 3
+
+    def test_an_older_invalid_value_does_not_hold_back_the_rest(self, monkeypatch, db_session):
+        data = {
+            "Lista danych pomiarowych": [
+                {"Data": "2026-09-28 18:00:00", "Wartość": 8.2},
+                {"Data": "2026-09-28 17:00:00", "Wartość": -3.0},  # negative: rejected by normalize
+                {"Data": "2026-09-28 16:00:00", "Wartość": 7.1},
+            ]
+        }
+        stored, _ = self._run(monkeypatch, db_session, data)
+        assert stored == 1
+        assert sorted(r.value for r in db_session.query(Measurement)) == [7.1, 8.2]
+
+    def test_an_invalid_newest_value_is_still_a_failed_run(self, monkeypatch, db_session):
+        data = {
+            "Lista danych pomiarowych": [
+                {"Data": "2026-09-28 18:00:00", "Wartość": -3.0},
+                {"Data": "2026-09-28 17:00:00", "Wartość": 7.1},
+            ]
+        }
+        stored, _ = self._run(monkeypatch, db_session, data)
+        assert stored is None  # the only attempted param failed
+        assert db_session.query(Measurement).count() == 0
+        assert db_session.query(SourceFetch).one().validation_status == provenance.INVALID
+
+    def test_both_copies_of_the_hour_the_clocks_go_back_are_stored(self, monkeypatch, db_session):
+        data = {
+            "Lista danych pomiarowych": [
+                {"Data": "2026-10-25 03:00:00", "Wartość": 4.0},
+                {"Data": "2026-10-25 02:00:00", "Wartość": 3.0},
+                {"Data": "2026-10-25 02:00:00", "Wartość": 2.0},
+            ]
+        }
+        self._run(monkeypatch, db_session, data)
+        assert sorted(r.value for r in db_session.query(Measurement)) == [2.0, 3.0, 4.0]
+
+    def test_a_race_with_another_run_is_retried_once(self, monkeypatch, db_session):
+        from sqlalchemy.exc import IntegrityError
+
+        real_commit = db_session.commit
+        calls = {"n": 0}
+
+        def flaky_commit():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise IntegrityError("insert", {}, Exception("duplicate"))
+            return real_commit()
+
+        monkeypatch.setattr(db_session, "commit", flaky_commit)
+        stored, _ = self._run(monkeypatch, db_session, WINDOW)
+        assert stored == 1 and db_session.query(Measurement).count() == 3
