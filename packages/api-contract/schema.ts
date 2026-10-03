@@ -15,6 +15,45 @@ export type ActiveTaxon = {
   source_ids: Array<string>;
 };
 
+export type AirHistoryGap = {
+  after: string;
+  before: string;
+  missing_hours: number;
+};
+
+export type AirHistoryPoint = {
+  observed_at: string;
+  value: number;
+};
+
+export type AirHistoryResponse = {
+  attribution: string;
+  availability: "available" | "no_station" | "no_data";
+  gaps: Array<AirHistoryGap>;
+  hours: number;
+  interval_minutes: number;
+  kind: "measurement_history";
+  latest_freshness: "FRESH" | "RECENT" | "STALE" | null;
+  latest_observed_at: string | null;
+  param: "PM2.5" | "PM10" | "NO2" | "SO2" | "O3" | "CO" | "C6H6";
+  points: Array<AirHistoryPoint>;
+  station: AirHistoryStation | null;
+  unit: string | null;
+  window_end: string;
+  window_start: string;
+};
+
+export type AirHistoryStation = {
+  assignment_method: string;
+  coverage: "exact" | "nearby" | "regional";
+  coverage_radius_km: number | null;
+  distance_km: number;
+  latitude: number;
+  longitude: number;
+  station_id: string;
+  station_name: string;
+};
+
 export type AirIndex = {
   complete: boolean;
   dominant: Array<string>;
