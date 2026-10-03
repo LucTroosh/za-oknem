@@ -13,6 +13,8 @@ from app.models import (
     Alert,
     Forecast,
     GeoArea,
+    GiosStation,
+    Measurement,
     PollenSnapshot,
     SourceFetch,
     WeatherSnapshot,
@@ -582,6 +584,136 @@ class TestNewAreaBootstrap:
         assert scheduler.run_new_area_bootstrap({}, 0.0) == 0
 
 
+class TestNewAreaAirBootstrap:
+    """ADR-029 (amended): a new place gets its own nearest stations fetched right away, so the
+    API does not have to disclose a station 100 km away until the hourly GIOŚ job runs."""
+
+    NOW = datetime.now(UTC)
+
+    def _setup(self, monkeypatch, db_session):
+        monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
+        ingest = MagicMock(return_value=1)
+        monkeypatch.setattr(scheduler, "ingest_station", ingest)
+        return ingest
+
+    def _station(self, db, sid, lat, lon):
+        db.add(
+            GiosStation(
+                station_id=sid, station_name=f"s{sid}", latitude=lat, longitude=lon,
+                raw={"Identyfikator stacji": int(sid)}, fetched_at=self.NOW,
+            )
+        )  # fmt: skip
+        db.commit()
+
+    def _measure(self, db, sid):
+        db.add(
+            Measurement(
+                source_id="gios", source_record_id=f"m{sid}", station_id=sid, station_name="s",
+                latitude=50.0, longitude=19.0, param_code="PM2.5", value=1.0, unit="ug/m3",
+                observed_at=self.NOW, fetched_at=self.NOW,
+            )
+        )  # fmt: skip
+        db.commit()
+
+    def _place(self, db, slug="knurow", lat=50.22, lon=18.67, place_id=1):
+        a = GeoArea(
+            slug=slug, name=slug, latitude=lat, longitude=lon, place_id=place_id,
+            weather_polling_active=True,
+        )  # fmt: skip
+        db.add(a)
+        db.commit()
+        return a
+
+    @staticmethod
+    def _fetched(ingest):
+        return [c.args[0]["Identyfikator stacji"] for c in ingest.call_args_list]
+
+    def test_fetches_the_nearest_stations_of_a_new_place(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session)
+        for sid, lat, lon in (  # Knurów area: 3 nearby, one far (Kraków, ~100 km) not in top 3
+            ("1", 50.22, 18.67), ("2", 50.30, 18.70), ("3", 50.32, 18.78), ("4", 50.06, 19.94),
+        ):  # fmt: skip
+            self._station(db_session, sid, lat, lon)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 1
+
+        assert sorted(self._fetched(ingest)) == [1, 2, 3]
+
+    def test_stations_that_already_have_data_are_not_fetched(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session)
+        for sid, lat in (("1", 50.22), ("2", 50.30)):
+            self._station(db_session, sid, lat, 18.67)
+        self._measure(db_session, "1")
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 1
+
+        assert self._fetched(ingest) == [2]
+
+    def test_nothing_to_do_when_all_stations_have_data(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session)
+        self._station(db_session, "1", 50.22, 18.67)
+        self._measure(db_session, "1")
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
+        ingest.assert_not_called()
+
+    def test_seed_areas_are_left_to_the_hourly_job(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session, place_id=None)
+        self._station(db_session, "1", 50.22, 18.67)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
+        ingest.assert_not_called()
+
+    def test_empty_catalog_is_skipped(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
+        ingest.assert_not_called()
+
+    def test_attempts_are_spaced_and_capped(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session)
+        self._station(db_session, "1", 50.22, 18.67)  # never yields data (mock stores nothing)
+        attempts: dict[int, tuple[int, float]] = {}
+        retry = scheduler.BOOTSTRAP_RETRY_SECONDS
+
+        assert scheduler.run_new_area_air_bootstrap(attempts, 0.0) == 1
+        assert scheduler.run_new_area_air_bootstrap(attempts, 60.0) == 0  # too soon
+        assert scheduler.run_new_area_air_bootstrap(attempts, retry) == 1
+        assert scheduler.run_new_area_air_bootstrap(attempts, 2 * retry) == 1
+        assert scheduler.run_new_area_air_bootstrap(attempts, 10 * retry) == 0  # cap reached
+        assert ingest.call_count == scheduler.BOOTSTRAP_MAX_ATTEMPTS
+
+    def test_a_shared_station_is_fetched_once_per_tick(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        self._place(db_session, "a", place_id=1)
+        self._place(db_session, "b", lat=50.23, lon=18.68, place_id=2)
+        self._station(db_session, "1", 50.22, 18.67)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 2
+        assert self._fetched(ingest) == [1]
+
+    def test_one_failing_station_does_not_stop_the_others(self, monkeypatch, db_session):
+        ingest = self._setup(monkeypatch, db_session)
+        ingest.side_effect = [RuntimeError("boom"), 1]
+        self._place(db_session)
+        self._station(db_session, "1", 50.22, 18.67)
+        self._station(db_session, "2", 50.30, 18.70)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 1
+        assert ingest.call_count == 2
+
+    def test_database_failure_never_raises(self, monkeypatch):
+        monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
+
+
 class TestRunPlaceExpiry:
     def test_switches_off_idle_place_areas(self, monkeypatch, db_session):
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
@@ -698,6 +830,7 @@ class TestMain:
             monkeypatch.setattr(scheduler, name, mock)
         # Runs every tick (not gated by an interval), so it is not part of `mocks`.
         monkeypatch.setattr(scheduler, "run_new_area_bootstrap", MagicMock())
+        monkeypatch.setattr(scheduler, "run_new_area_air_bootstrap", MagicMock())
         monkeypatch.setattr(scheduler.time, "sleep", MagicMock())
         monkeypatch.setattr(scheduler, "_record_run", MagicMock())
         monkeypatch.setattr(scheduler, "_check_source_health", MagicMock())
@@ -721,6 +854,17 @@ class TestMain:
         scheduler.main(iterations=1)
 
         assert order.mock_calls[0] == ("run_place_expiry", (), {})
+
+    def test_bootstraps_run_every_tick_but_health_check_is_gated(self, monkeypatch):
+        self._mock_all_jobs(monkeypatch)
+        ticks = iter([0.0, 15.0, scheduler.HEALTH_CHECK_INTERVAL_SECONDS + 1])
+        monkeypatch.setattr(scheduler.time, "monotonic", lambda: next(ticks))
+
+        scheduler.main(iterations=3)
+
+        assert scheduler.run_new_area_bootstrap.call_count == 3
+        assert scheduler.run_new_area_air_bootstrap.call_count == 3
+        assert scheduler._check_source_health.call_count == 2  # tick 1 and tick 3
 
     def test_second_iteration_skips_jobs_before_interval_elapses(self, monkeypatch):
         mocks = self._mock_all_jobs(monkeypatch)

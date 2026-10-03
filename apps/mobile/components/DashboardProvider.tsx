@@ -7,7 +7,7 @@ import type { DashboardArea, DashboardSourceStatus, LoadState } from "../lib/das
 import type { HydroBlock } from "../lib/hydro";
 import { createLatestGuard } from "../lib/latest";
 import { isNetworkFailure } from "../lib/stateArt";
-import { pollingOff, pollingPending } from "../lib/home";
+import { FIRST_DATA_POLL_MAX, FIRST_DATA_POLL_MS, awaitingFirstData, pollingOff, pollingPending, selectArea } from "../lib/home";
 import { EXPIRED_AREA_MESSAGE } from "../lib/places";
 import type { PollenCalendarBlock } from "../lib/pollenCalendar";
 import useLocation from "./LocationProvider";
@@ -113,6 +113,22 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
     const area = shown.current?.areas.find((a) => a.geo_area_id === geoAreaId) ?? null;
     if (shown.current === null || pollingOff(area) || pollingPending(area)) void loadDashboard();
   }, [activations, geoAreaId, loadDashboard]);
+
+  // A new place is filled in by the backend within seconds: re-read on our own while its first
+  // data is still on its way, bounded (FIRST_DATA_POLL_MAX), only from our own API (rule #14).
+  // A failed read leaves `dashboard` unchanged, which ends the loop: pull-to-refresh remains.
+  const sawPending = useRef(false);
+  const firstDataReads = useRef(0);
+  useEffect(() => {
+    const area = dashboard ? selectArea(dashboard.areas, geoAreaId) : null;
+    if (pollingPending(area)) sawPending.current = true;
+    if (!awaitingFirstData(area, sawPending.current) || firstDataReads.current >= FIRST_DATA_POLL_MAX) return;
+    const timer = setTimeout(() => {
+      firstDataReads.current += 1;
+      void loadDashboard();
+    }, FIRST_DATA_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [dashboard, geoAreaId, loadDashboard]);
 
   const refresh = useCallback(() => {
     const isLatest = guards.current.refresh();

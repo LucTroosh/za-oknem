@@ -4,6 +4,8 @@ import {
   GLYPH_CHAR,
   STALE_NOTE,
   UNAVAILABLE_HEADLINE,
+  airArriving,
+  awaitingFirstData,
   pollingOff,
   pollingPending,
   selectArea,
@@ -175,6 +177,33 @@ describe("pollingPending", () => {
     expect(pollingPending({ weather_polling_active: true, weather: {}, forecast: null })).toBe(false);
     expect(pollingPending({ weather_polling_active: false, weather: null, forecast: null })).toBe(false);
     expect(pollingPending(null)).toBe(false);
+  });
+});
+
+describe("awaitingFirstData", () => {
+  const fresh = { weather_polling_active: true, weather: null, forecast: null };
+  const landed = { weather_polling_active: true, weather: {}, forecast: {} };
+
+  it("waits while the first weather has not landed", () => {
+    expect(awaitingFirstData(fresh, false)).toBe(true);
+  });
+
+  it("keeps waiting for the place's own air station only once the screen saw the place as new", () => {
+    const far = { ...landed, air: { station_name: "Kraków" }, coverage: { air: "regional" } };
+    expect(awaitingFirstData(far, true)).toBe(true);
+    expect(awaitingFirstData(far, false)).toBe(false); // a seed city with a far station: no chasing
+  });
+
+  it("a station in range without data yet counts as arriving; none in range never does", () => {
+    expect(airArriving({ air: null, coverage: { air: "nearby" } })).toBe(true);
+    expect(airArriving({ air: null, coverage: { air: "none" } })).toBe(false);
+    expect(airArriving({ air: { station_name: "Knurów" }, coverage: { air: "exact" } })).toBe(false);
+    expect(airArriving(null)).toBe(false);
+  });
+
+  it("stops once everything is there", () => {
+    expect(awaitingFirstData({ ...landed, air: { station_name: "Knurów" }, coverage: { air: "exact" } }, true)).toBe(false);
+    expect(awaitingFirstData(null, true)).toBe(false);
   });
 });
 

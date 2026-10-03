@@ -17,7 +17,9 @@ from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.discovery import (
     air_areas,
+    area_station_ids,
     assigned_station_ids,
+    catalog_points,
     ensure_catalog,
     stations_by_id,
 )
@@ -34,7 +36,7 @@ from app.connectors.open_meteo.ingest import (
 )
 from app.connectors.open_meteo_pollen.ingest import ingest_areas as ingest_pollen_areas
 from app.db import SessionLocal
-from app.models import GeoArea, PollenSnapshot, WeatherSnapshot
+from app.models import GeoArea, Measurement, PollenSnapshot, WeatherSnapshot
 from app.places import expire_idle_areas
 from app.provenance import purge_expired_payloads
 from app.source_health import collect_source_health, log_health_transitions
@@ -57,7 +59,10 @@ IMGW_HYDRO_INTERVAL_SECONDS = 60 * 60
 IMGW_WARNINGS_HYDRO_INTERVAL_SECONDS = 60 * 60
 # ADR-014: payload retention is coarse (days), so once a day is plenty.
 RAW_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60
-POLL_INTERVAL_SECONDS = 60
+# The loop tick. Jobs are gated by their own intervals, so a short tick only makes the bootstrap
+# of a newly activated place (ADR-029) start within seconds instead of up to a minute.
+POLL_INTERVAL_SECONDS = 15
+HEALTH_CHECK_INTERVAL_SECONDS = 60
 # ADR-029: idle place-areas are switched off once a day (TTL is days, so daily is plenty).
 PLACE_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
 # ADR-029: a freshly activated place gets its first weather/pollen fetch within a minute
@@ -165,6 +170,73 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
         return min(len(due), BOOTSTRAP_BATCH)
     except Exception:
         logger.exception("new-area bootstrap failed - regular cycle still runs (rule #1)")
+        if db is not None:
+            db.rollback()
+        return 0
+    finally:
+        if db is not None:
+            db.close()
+
+
+def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -> int:
+    """First air fetch for a freshly activated place (ADR-029, amended).
+
+    The hourly GIOŚ job only learns a new area's stations at its next run, and until then the
+    API can only offer a station polled for some other area - possibly 100 km away
+    ("regional"). So for place-based areas whose nearest AIR_STATIONS_PER_AREA catalog stations
+    have no measurement yet, those stations are fetched now.
+
+    Same bounds as the weather bootstrap: BOOTSTRAP_MAX_ATTEMPTS tries, BOOTSTRAP_RETRY_SECONDS
+    apart, BOOTSTRAP_BATCH areas per tick; `attempts` lives in the loop (area id -> (count, time
+    of the last one)). A station that never yields data (no sensors, GIOŚ 400) therefore costs
+    at most BOOTSTRAP_MAX_ATTEMPTS tries. Needs a catalog: the first catalog walk belongs to the
+    hourly job (2 req/min). Records no source_status; never raises (rule #1). Returns the number
+    of areas attempted."""
+    db = None
+    try:
+        db = SessionLocal()
+        points = catalog_points(db)
+        if not points:
+            return 0
+        wanted = {
+            area.id: ids
+            for area in air_areas(db)
+            if area.place_id is not None and (ids := area_station_ids(area, points))
+        }
+        all_ids = {sid for ids in wanted.values() for sid in ids}
+        have = set(
+            db.execute(
+                select(Measurement.station_id)
+                .where(Measurement.source_id == "gios", Measurement.station_id.in_(all_ids))
+                .distinct()
+            ).scalars()
+        )
+        missing = {aid: [s for s in ids if s not in have] for aid, ids in wanted.items()}
+        missing = {aid: ids for aid, ids in missing.items() if ids}
+        for stale in set(attempts) - set(missing):
+            del attempts[stale]  # data landed (or the area left): a later re-activation may retry
+        due = [
+            aid
+            for aid in sorted(missing)
+            if attempts.get(aid, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
+            and now - attempts.get(aid, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
+        ]
+        done: set[str] = set()  # one station is fetched once per tick even if areas share it
+        for aid in due[:BOOTSTRAP_BATCH]:
+            attempts[aid] = (attempts.get(aid, (0, 0.0))[0] + 1, now)
+            todo = [s for s in missing[aid] if s not in done]
+            done.update(missing[aid])
+            for station in stations_by_id(db, todo):
+                try:
+                    ingest_station(station, db)  # per-station failure is logged inside (rule #1)
+                except Exception:
+                    logger.exception(
+                        "air bootstrap: station %s failed", station.get("Identyfikator stacji")
+                    )
+                    db.rollback()
+        return min(len(due), BOOTSTRAP_BATCH)
+    except Exception:
+        logger.exception("new-area air bootstrap failed - regular cycle still runs (rule #1)")
         if db is not None:
             db.rollback()
         return 0
@@ -341,6 +413,8 @@ def main(*, iterations: int | None = None) -> None:
     )
     last_retention = last_place_expiry = float("-inf")
     bootstrap_attempts: dict[int, tuple[int, float]] = {}
+    air_bootstrap_attempts: dict[int, tuple[int, float]] = {}
+    last_health = float("-inf")
     health_state: dict[str, str] = {}
     count = 0
     while iterations is None or count < iterations:
@@ -368,7 +442,10 @@ def main(*, iterations: int | None = None) -> None:
             _run_job_safely("raw_retention", run_raw_retention, track_status=False)
             last_retention = now
         run_new_area_bootstrap(bootstrap_attempts, now)
-        _check_source_health(health_state)
+        run_new_area_air_bootstrap(air_bootstrap_attempts, now)
+        if now - last_health >= HEALTH_CHECK_INTERVAL_SECONDS:
+            _check_source_health(health_state)
+            last_health = now
         count += 1
         if iterations is None or count < iterations:
             time.sleep(POLL_INTERVAL_SECONDS)

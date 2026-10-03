@@ -159,6 +159,20 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
   `pg_advisory_xact_lock` (Postgres; zwalniany przy commit), więc równoległe aktywacje nie
   przekroczą `max_active_areas()`.
 - **Bootstrap:** max 5 obszarów na tick (`BOOTSTRAP_BATCH`), reszta w kolejnych tickach.
+- **Bootstrap powietrza (aneks):** godzinny job GIOŚ poznaje stacje nowego obszaru dopiero przy
+  następnym przebiegu, a do tego czasu API może pokazać tylko stację pollowaną dla innego obszaru
+  (nawet ~100 km dalej, pasmo `regional`). Dlatego scheduler dla obszarów z `place_id`, których
+  `AIR_STATIONS_PER_AREA` najbliższych stacji katalogu nie ma jeszcze żadnego pomiaru, pobiera te
+  stacje od razu (`run_new_area_air_bootstrap`). Te same granice co bootstrap pogody (3 próby co
+  15 min, 5 obszarów na tick, pamięć procesu); stacja bez danych (brak czujników, 400 z GIOŚ)
+  kosztuje najwyżej 3 próby. Wymaga katalogu (pierwszy przegląd katalogu zostaje godzinnemu jobowi:
+  2 req/min). Nie zapisuje `source_status`. Wybór stacji w API bez zmian (`pick_air_station`: najbliższa
+  stacja Z DANYMI), więc po pierwszym pobraniu pokazuje stację z okolicy zamiast odległej.
+- **Tick pętli 15 s (było 60 s):** joby mają własne interwały, więc krótszy tick przyspiesza tylko
+  bootstrap (start w kilka sekund). Sprawdzenie zdrowia źródeł zostaje co 60 s.
+- **Klient odświeża sam:** gdy miejscowość jest nowa (ekran widział brak pierwszej pogody), Start
+  ponawia odczyt `/dashboard/latest` co 8 s, najwyżej 12 razy, dopóki pogoda albo stacja powietrza
+  z okolicy nie dotrą. Tylko nasze API (#14); po limicie zostaje pull-to-refresh.
 - **Klucz limitu per IP:** `client_key()` — IPv6 zwinięty do /64. Za Caddy `request.client` to
   prawdziwy klient tylko przy `uvicorn --proxy-headers` + `FORWARDED_ALLOW_IPS` = adres Caddy
   (w obrazie jest `--proxy-headers`; `FORWARDED_ALLOW_IPS` ustawia deployment — **bloker
