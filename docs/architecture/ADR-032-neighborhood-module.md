@@ -117,8 +117,9 @@ i promocją snapshotu — wybrane; cykliczność dopiero po potwierdzeniu cyklu 
    20 s, najwyżej 2 ponowienia (timeout/429/5xx, `Retry-After` + jitter), BEZ ponowień dla błędu walidacji.
    Limiter własny (nie limit GIOŚ): 1 żądanie / 5 s na usługę, równoległość 1, konfigurowalny.
 9. **Poprawność odpowiedzi nowych API:** HTTP 200 z `wynik.status=BLAD` to błąd źródła; `SUKCES` z
-   `liczbaRekordow=0` i bez `strona` to zaobserwowany pusty wynik; `liczbaRekordow` NIE jest sumą wszystkich
-   rekordów (w próbach równa rozmiarowi strony); koniec paginacji wg potwierdzonej pustej strony, z ochroną
+   `liczbaRekordow=0` i bez `strona` to zaobserwowany pusty wynik; `liczbaRekordow` nie jest podstawą kompletności
+   (w pierwszych próbach równa rozmiarowi strony; dla `pomiar-halasu-w-srodowisku` probe 2026-10-03 zaobserwował
+   sumę, 346 rekordów w 7 stronach, dla pozostałych operacji nieznane); koniec paginacji wg potwierdzonej pustej strony, z ochroną
    przed powtórzoną stroną (hash) i limitem stron. Nieznane pola trafiają do `raw`, nieznane enumy do
    kwarantanny. `wynik.data` nie jest datą pomiaru.
 10. **Geo (deterministyczne, testowalne, reguła #9):**

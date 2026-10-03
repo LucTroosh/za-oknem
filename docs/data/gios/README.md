@@ -20,7 +20,7 @@ Zakres: dokumentacja i plan rozwoju; ten pakiet NIE oznacza, że nowe funkcje s�
 
 - API wód powierzchniowych ma jedną operację: programy monitoringu. Nie dostarcza w tym kontrakcie pomiarów pH, temperatury ani klasy stanu ekologicznego. Nie budować na nim karty „jakość wody”.
 - PRTR i PA/SEVESO nie mają współrzędnych zakładów w opublikowanych schematach. Lokalizacja administracyjna jest dostępna, odległość od użytkownika wymaga dodatkowego wiarygodnego źródła geometrii.
-- `liczbaRekordow` nie może być traktowane jako liczba wszystkich wyników: w próbach przy rozmiarze 1 zwracano 1. Semantykę paginacji trzeba potwierdzić, nie wnioskować z nazwy.
+- `liczbaRekordow` nie jest podstawą kompletności: w pierwszych próbach przy rozmiarze 1 zwracano 1. Dla `pomiar-halasu-w-srodowisku` probe operatora (2026-10-03, jedna kombinacja) zaobserwował sumę (346 rekordów w 7 stronach); dla pozostałych operacji semantykę trzeba potwierdzić, nie wnioskować z nazwy. Kod nie polega na tym polu: koniec = potwierdzona pusta strona.
 - HTTP 200 może zawierać `wynik.status=BLAD`. Taką odpowiedź traktować jako błąd źródła.
 - Rzeczywiste typy różnią się od OpenAPI, m.in. współrzędne i flagi wód podziemnych. Katalog specyfikacji jest kontraktem deklarowanym, próbki są dowodem zachowania serwera.
 - Siedem nowych grup OpenAPI plus istniejące API bieżącego powietrza to zakres pakietu. Komunikat o „8 nowych API” nie dowodzi istnienia ósmej nowej specyfikacji.
