@@ -12,11 +12,11 @@ import pytest
 from app.connectors.gios.parser import (
     GIOS_TZ,
     GiosParseError,
-    all_values,
     find_pm25_sensor,
     find_sensor,
     latest_value,
     normalize,
+    parse_values,
 )
 
 STATION = {
@@ -163,32 +163,49 @@ def test_normalize_rejects_unknown_param_code():
         )
 
 
+def _values(data):
+    return parse_values(data).readings
+
+
 def _data(*entries):
     return {"Lista danych pomiarowych": [{"Data": d, "Wartość": v} for d, v in entries]}
 
 
-def test_all_values_returns_every_non_null_reading_oldest_first():
+def test_parse_values_returns_every_non_null_reading_oldest_first():
     # the API lists newest first; null hours are skipped, not turned into zeros
     data = _data(
         ("2026-09-28 19:00:00", 7.0),
         ("2026-09-28 18:00:00", None),
         ("2026-09-28 17:00:00", 6.8),
     )
-    assert [(t.hour, v) for t, v in all_values(data)] == [(17, 6.8), (19, 7.0)]
+    assert [(t.hour, v) for t, v in _values(data)] == [(17, 6.8), (19, 7.0)]
 
 
-def test_all_values_of_an_empty_or_all_null_payload_is_empty():
-    assert all_values({"Lista danych pomiarowych": []}) == []
-    assert all_values(_data(("2026-09-28 14:00:00", None))) == []
+def test_parse_values_of_an_empty_or_all_null_payload_is_empty():
+    assert _values({"Lista danych pomiarowych": []}) == []
+    assert _values(_data(("2026-09-28 14:00:00", None))) == []
 
 
-def test_all_values_rejects_a_changed_shape():
+def test_a_changed_overall_shape_raises():
     with pytest.raises(GiosParseError):
-        all_values({"unexpected": "shape"})
+        parse_values({"unexpected": "shape"})
     with pytest.raises(GiosParseError):
-        all_values(_data(("not a date", 5.0)))
-    with pytest.raises(GiosParseError):
-        all_values(_data(("2026-09-28 14:00:00", "abc")))
+        parse_values({"Lista danych pomiarowych": ["not an object"]})
+
+
+def test_one_malformed_entry_does_not_discard_the_readings_around_it():
+    data = _data(
+        ("2026-09-28 19:00:00", 7.0),
+        ("not a date", 5.0),  # unreadable time
+        ("2026-09-28 17:00:00", "abc"),  # not a number
+        ("2026-09-28 16:00:00", float("nan")),  # not finite
+        ("2026-09-28 15:00:00", 6.0),
+    )
+    parsed = parse_values(data)
+    assert [(t.hour, v) for t, v in parsed.readings] == [(15, 6.0), (19, 7.0)]
+    assert len(parsed.rejected) == 3
+    # the ones with a readable time say which hour they were listed under
+    assert sorted(n.hour for n, _why in parsed.rejected if n is not None) == [16, 17]
 
 
 def _utc_hours(readings):
@@ -206,7 +223,7 @@ def test_the_hour_the_clocks_go_back_is_two_different_instants_newest_first():
         ("2026-10-25 02:00:00", 2.0),
         ("2026-10-25 01:00:00", 1.0),
     )
-    assert _utc_hours(all_values(data)) == [
+    assert _utc_hours(_values(data)) == [
         ("24 23:00", 1.0),
         ("25 00:00", 2.0),
         ("25 01:00", 3.0),
@@ -221,7 +238,7 @@ def test_the_same_hour_read_from_an_oldest_first_list_gives_the_same_instants():
         ("2026-10-25 02:00:00", 3.0),
         ("2026-10-25 03:00:00", 4.0),
     )
-    assert _utc_hours(all_values(data)) == [
+    assert _utc_hours(_values(data)) == [
         ("24 23:00", 1.0),
         ("25 00:00", 2.0),
         ("25 01:00", 3.0),
@@ -235,14 +252,20 @@ def test_a_null_twin_keeps_the_other_copy_on_the_right_side_of_the_change():
         ("2026-10-25 02:00:00", 3.0),
         ("2026-10-25 02:00:00", None),
     )
-    assert _utc_hours(all_values(data)) == [("25 01:00", 3.0), ("25 02:00", 4.0)]
+    assert _utc_hours(_values(data)) == [("25 01:00", 3.0), ("25 02:00", 4.0)]
 
 
 def test_a_lone_ambiguous_hour_is_read_as_before_summer_time():
     # its twin is missing: nothing in the payload says which one it is; unchanged old behaviour
-    assert _utc_hours(all_values(_data(("2026-10-25 02:00:00", 2.0)))) == [("25 00:00", 2.0)]
+    assert _utc_hours(_values(_data(("2026-10-25 02:00:00", 2.0)))) == [("25 00:00", 2.0)]
 
 
 def test_source_record_ids_for_ordinary_hours_keep_their_old_format():
-    ((t, _v),) = all_values(_data(("2026-09-28 18:00:00", 8.2)))
+    ((t, _v),) = _values(_data(("2026-09-28 18:00:00", 8.2)))
     assert t.isoformat() == "2026-09-28T18:00:00+02:00"
+
+
+def test_the_parser_version_marks_the_whole_window_output():
+    from app.connectors.gios.parser import PARSER_VERSION
+
+    assert PARSER_VERSION == "2"

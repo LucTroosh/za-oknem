@@ -173,7 +173,7 @@ class TestProvenance:
         fetch = db_session.query(SourceFetch).one()
         assert db_session.query(Measurement).one().source_fetch_id == fetch.id
         assert fetch.source_id == "gios"
-        assert fetch.endpoint.endswith("/data/getData/25988")
+        assert fetch.endpoint.endswith("/data/getData/25988?size=100")  # the request that was made
         assert fetch.payload == SENSOR_DATA
         assert fetch.parser_version == PARSER_VERSION
         assert fetch.validation_status == provenance.VALID
@@ -208,7 +208,7 @@ class TestProvenance:
     def test_payload_survives_an_unexpected_parser_crash_as_pending(self, monkeypatch, db_session):
         monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
         monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=SENSOR_DATA))
-        monkeypatch.setattr(ingest, "all_values", MagicMock(side_effect=RuntimeError("bug")))
+        monkeypatch.setattr(ingest, "parse_values", MagicMock(side_effect=RuntimeError("bug")))
 
         with pytest.raises(RuntimeError):
             ingest.ingest_station(STATION, db_session)
@@ -429,3 +429,45 @@ class TestWholeWindow:
         monkeypatch.setattr(db_session, "commit", flaky_commit)
         stored, _ = self._run(monkeypatch, db_session, WINDOW)
         assert stored == 1 and db_session.query(Measurement).count() == 3
+
+
+class TestPartialAndUnusableEntries:
+    def _run(self, monkeypatch, db_session, data):
+        monkeypatch.setattr(client, "fetch_sensors", MagicMock(return_value=SENSORS))
+        monkeypatch.setattr(client, "fetch_sensor_data", MagicMock(return_value=data))
+        return ingest.ingest_station(STATION, db_session)
+
+    def test_a_clean_window_is_valid(self, monkeypatch, db_session):
+        self._run(monkeypatch, db_session, WINDOW)
+        assert db_session.query(SourceFetch).one().validation_status == provenance.VALID
+
+    def test_rejected_older_entries_make_the_fetch_partial_not_valid(self, monkeypatch, db_session):
+        data = {
+            "Lista danych pomiarowych": [
+                {"Data": "2026-09-28 18:00:00", "Wartość": 8.2},
+                {"Data": "2026-09-28 17:00:00", "Wartość": "abc"},  # unparseable
+                {"Data": "2026-09-28 16:00:00", "Wartość": -3.0},  # fails normalize
+                {"Data": "2026-09-28 15:00:00", "Wartość": 6.0},
+            ]
+        }
+        stored = self._run(monkeypatch, db_session, data)
+        assert stored == 1
+        assert sorted(r.value for r in db_session.query(Measurement)) == [6.0, 8.2]
+        assert db_session.query(SourceFetch).one().validation_status == provenance.PARTIAL
+
+    def test_an_unreadable_newest_entry_fails_the_run_even_with_good_older_ones(
+        self, monkeypatch, db_session
+    ):
+        data = {
+            "Lista danych pomiarowych": [
+                {"Data": "2026-09-28 18:00:00", "Wartość": "abc"},
+                {"Data": "2026-09-28 17:00:00", "Wartość": 7.1},
+            ]
+        }
+        stored = self._run(monkeypatch, db_session, data)
+        assert stored is None and db_session.query(Measurement).count() == 0
+        assert db_session.query(SourceFetch).one().validation_status == provenance.INVALID
+
+    def test_a_payload_with_no_usable_value_is_a_failed_run(self, monkeypatch, db_session):
+        data = {"Lista danych pomiarowych": [{"Data": "2026-09-28 18:00:00", "Wartość": "abc"}]}
+        assert self._run(monkeypatch, db_session, data) is None

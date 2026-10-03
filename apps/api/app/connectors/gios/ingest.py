@@ -23,9 +23,9 @@ from app.connectors.gios.parser import (
     PARAM_UNITS,
     PARSER_VERSION,
     GiosParseError,
-    all_values,
     find_sensor,
     normalize,
+    parse_values,
 )
 from app.db import SessionLocal
 from app.models import Measurement
@@ -79,7 +79,8 @@ def _ingest_param(
             logger.info("station %s: no %s sensor, skipping", station_id, formula)
             return NO_SENSOR
         sensor_id = str(sensor["Identyfikator stanowiska"])
-        data = client.fetch_sensor_data(sensor_id, size=settings.gios_data_size)
+        size = settings.gios_data_size
+        data = client.fetch_sensor_data(sensor_id, size=size)
     except (client.GiosApiError, GiosParseError, KeyError) as exc:
         # KeyError: malformed sensor dict (e.g. missing "Identyfikator stanowiska")
         # must stay inside this param's isolation too (Codex review) — otherwise it
@@ -101,13 +102,25 @@ def _ingest_param(
     fetch_id = provenance.record_fetch(
         db,
         source_id="gios",
-        endpoint=f"{client.BASE_URL}/data/getData/{sensor_id}",
+        endpoint=f"{client.BASE_URL}{client.sensor_data_path(sensor_id, size)}",
         payload=data,
         fetched_at=fetched_at,
         parser_version=PARSER_VERSION,
     )
     try:
-        readings = all_values(data)
+        parsed = parse_values(data)
+        readings = parsed.readings
+        skipped = len(parsed.rejected)
+        # The CURRENT reading must be usable (a failed run, as before): if the newest entry that
+        # carries a value is one we could not use, the window is not trustworthy. Older entries we
+        # cannot use are skipped and counted.
+        if parsed.rejected and not readings:
+            raise GiosParseError(f"no usable value in the payload ({parsed.rejected[0][1]})")
+        dated = [(naive, why) for naive, why in parsed.rejected if naive is not None]
+        if readings and dated:
+            naive, why = max(dated, key=lambda r: r[0])
+            if naive > readings[-1][0].replace(tzinfo=None):
+                raise GiosParseError(f"newest reading unusable ({why})")
         records: list[dict] = []
         for index, (observed_at, value) in enumerate(readings):
             try:
@@ -124,13 +137,15 @@ def _ingest_param(
                 if index == len(readings) - 1:
                     raise  # the CURRENT reading must be valid: a failed run, as before
                 # an older value we cannot use must not hold back the rest of the window
+                skipped += 1
                 logger.warning(
                     "station %s (%s): skipping an older invalid value (%s)",
                     station_id,
                     formula,
                     exc,
                 )
-        status = provenance.VALID
+        # ADR-014: VALID = every record validated; PARTIAL = some were rejected (never silent)
+        status = provenance.PARTIAL if skipped else provenance.VALID
     except (GiosParseError, KeyError) as exc:
         logger.warning(
             "station %s (%s): FAILED (%s), skipping — see rule #1", station_id, formula, exc

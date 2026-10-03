@@ -249,6 +249,8 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   (potwierdzone: pobranie o 19:23 CEST niosło 19:00 jako najnowszą). Godzina cofnięcia zegara (02:00 dwa razy) nie ma
   znacznika offsetu — rozróżniana kolejnością w liście (`all_values`). Connector prosi o `size` = `GIOS_DATA_SIZE` (domyślnie
   100) w tym samym jednym żądaniu na czujnik i zapisuje wszystkie niepuste wartości (uzupełnia luki po nieudanym odpytaniu).
+  Pojedynczy wadliwy starszy wpis jest pomijany (provenance `partial`), nieczytelny NAJNOWSZY wpis to nieudane odpytanie;
+  `PARSER_VERSION` = 2 (okno wartości, DST), a zapisany endpoint zawiera `?size=` użyte w żądaniu.
 - **coverage:** Polska (sieć stacji GIOŚ, liczba i lokalizacje zmienne)
 - **license:** CC BY 4.0 (dane.gov.pl, zbiór „Jakość powietrza w Polsce - API”, rekord 313;
   audyt 2026-10-01). Czy ten rekord dotyczy API v1 (`/pjp-api/v1/rest/`): do potwierdzenia

@@ -6,7 +6,9 @@ English camelCase shape this file originally (wrongly) assumed before we had net
 access to test it against the live service.
 """
 
+import math
 from collections import Counter
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -37,7 +39,8 @@ GIOS_TZ = ZoneInfo("Europe/Warsaw")
 
 # Stored with every raw fetch (ADR-014). Bump when parse/normalize output changes
 # (including the set of requested fields), so old payloads stay interpretable.
-PARSER_VERSION = "1"
+# "2": a payload yields its whole window of readings (was: the newest one), DST-aware.
+PARSER_VERSION = "2"
 
 
 class GiosParseError(Exception):
@@ -92,8 +95,20 @@ def _is_ambiguous(naive: datetime) -> bool:
     )
 
 
-def all_values(data: dict[str, Any]) -> list[tuple[datetime, float]]:
-    """EVERY non-null reading of the payload (not just the newest), oldest first.
+@dataclass(frozen=True)
+class ParsedValues:
+    """`readings`: every usable reading, oldest first. `rejected`: the entries that carried a value
+    but could not be used, as the local time they were listed under (None = no readable `Data`)
+    plus why; they are counted, never silently lost."""
+
+    readings: list[tuple[datetime, float]]
+    rejected: list[tuple[datetime | None, str]]
+
+
+def parse_values(data: dict[str, Any]) -> ParsedValues:
+    """EVERY non-null reading of the payload (not just the newest), each entry judged on its own:
+    one malformed old value must not discard the readings around it. Only a payload whose overall
+    shape changed raises.
 
     `Data` is naive Warsaw local time with DST (checked 2026-10-03: a 19:23 CEST fetch carried
     19:00 as its newest value). When the clocks go back, 02:00 occurs twice with nothing to tell
@@ -119,24 +134,32 @@ def all_values(data: dict[str, Any]) -> list[tuple[datetime, float]]:
     seen: Counter[datetime] = Counter()
 
     readings: list[tuple[datetime, float]] = []
+    rejected: list[tuple[datetime | None, str]] = []
     for entry, naive in zip(values, stamps, strict=True):
         if naive is not None:
             seen[naive] += 1  # a null twin still takes its place in the order
-        if entry.get("Wartość") is None:
+        raw_value = entry.get("Wartość")
+        if raw_value is None:
             continue
         if naive is None:
-            raise GiosParseError(f"malformed value entry {entry!r}: bad or missing 'Data'")
+            rejected.append((None, f"bad or missing 'Data' in {entry!r}"))
+            continue
         try:
-            value = float(entry["Wartość"])
-        except (ValueError, TypeError) as exc:
-            raise GiosParseError(f"malformed value entry {entry!r}: {exc}") from exc
+            value = float(raw_value)
+        except (ValueError, TypeError):
+            rejected.append((naive, f"non-numeric 'Wartość' {raw_value!r}"))
+            continue
+        if not math.isfinite(value):
+            rejected.append((naive, f"non-finite 'Wartość' {raw_value!r}"))
+            continue
         fold = 0
         if occurrences[naive] == 2 and _is_ambiguous(naive):
             first_copy = seen[naive] == 1
             fold = 1 if first_copy == descending else 0
         readings.append((naive.replace(tzinfo=GIOS_TZ, fold=fold), value))
     # aware datetimes sharing a tzinfo compare by wall time (fold ignored): order by the instant
-    return sorted(readings, key=lambda r: r[0].timestamp())
+    readings.sort(key=lambda r: r[0].timestamp())
+    return ParsedValues(readings, rejected)
 
 
 def normalize(

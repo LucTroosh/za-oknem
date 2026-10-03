@@ -128,9 +128,13 @@ def fetch_sensors(station_id: str) -> list[dict]:
         raise GiosApiError(f"unexpected sensors response shape: missing {exc}") from exc
 
 
+def sensor_data_path(sensor_id: str, size: int | None = None) -> str:
+    """The request path of getData; one builder for the call AND the provenance record (ADR-014)."""
+    return f"/data/getData/{sensor_id}" + (f"?size={size}" if size else "")
+
+
 def fetch_sensor_data(sensor_id: str, size: int | None = None) -> dict:
     """GET /data/getData/{sensorId} — time series of values for one sensor, newest first.
     Without `size` the API returns its default page of 20 hourly values; `size` (max 500)
     asks for more in the SAME single request (the source keeps ~66 h per sensor)."""
-    suffix = f"?size={size}" if size else ""
-    return _get(f"/data/getData/{sensor_id}{suffix}")
+    return _get(sensor_data_path(sensor_id, size))
