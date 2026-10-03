@@ -58,7 +58,7 @@ poza publicznymi danymi GIOŚ (CC BY 4.0).
 
 ---
 
-# Import hałasu (GIOS-04): walidacja, import, włączenie sekcji
+# Import hałasu (GIOS-04): rozmiar, walidacja, import, włączenie sekcji
 
 Kolejność ma znaczenie: najpierw walidacja bez zapisu, dopiero potem import i flaga. Import jest **ręczny** — cykl
 publikacji GIOŚ jest nieznany (wyjątek od reguły #16, ADR-032 pkt 8), nic nie biegnie w tle.
@@ -71,6 +71,11 @@ kategorie są krótsze) — puść w tle. Zakres musi być **ten sam** przy każ
 (inny zakres = osobny, równoległy snapshot).
 
 ```bash
+# 0) ILE tego jest: jedno małe żądanie na kombinację, nic nie zapisuje (64 żądania ≈ 5 min). Podaje liczbę
+#    rekordów i stron per kombinacja oraz szacunek czasu importu. Wartości to deklaracja źródła, nie potwierdzenie.
+docker compose exec api python -m app.connectors.gios_noise.ingest \
+  --date-from 2015-01-01 --date-to 2026-12-31 --count-only
+
 # 1) Walidacja bez zapisu do bazy: ile rekordów, ile stron, co odrzucone i dlaczego
 docker compose exec api python -m app.connectors.gios_noise.ingest \
   --date-from 2015-01-01 --date-to 2026-12-31 \
@@ -96,6 +101,36 @@ for q in db.query(Q).filter(Q.source_id == 'gios_noise').all():
 "
 ```
 
+- **Postęp w trakcie importu:** terminal drukuje `[n/64] kategoria województwo: ok (records=… pages=…)` po każdej
+  kombinacji. Z drugiego terminala (gotowe kombinacje i ich rozmiary):
+  ```bash
+  docker compose exec api python -c "
+  import json
+  from app.db import SessionLocal
+  from app.models import DatasetSnapshot as S
+  db = SessionLocal()
+  rows = db.query(S).filter(S.source_id=='gios_noise', S.status=='active').all()
+  print(len(rows), 'z 64 kombinacji gotowe, rekordów:', sum(s.record_count for s in rows))
+  for s in sorted(rows, key=lambda s: s.filters_key):
+      f = json.loads(s.filters_key); print(f['kategoria'], f['wojewodztwo'], s.record_count, 'rek.', s.page_count, 'str.')
+  "
+  ```
+  Ile zostało = wynik z punktu 0 minus to, co już gotowe.
+- **Czy sięgać aż do 2015?** To wybór, nie wymóg: zakres decyduje, jak stare pomiary jeszcze pokazujemy i jakie lata
+  podaje komunikat „brak punktu”. Węższy zakres (np. od 2020) kosztuje mniej czasu, ale punkty mierzone ostatnio
+  przed 2020 znikną. Rozkład po imporcie jednej kombinacji (ile punktów ma najnowszy pomiar w którym roku):
+  ```bash
+  docker compose exec api python -c "
+  from collections import Counter
+  from sqlalchemy import func
+  from app.db import SessionLocal
+  from app.models import NoiseMeasurement as N
+  db = SessionLocal()
+  rows = db.query(N.point_code, func.max(N.date_to)).group_by(N.point_code).all()
+  print(sorted(Counter(d.year for _, d in rows).items()))
+  "
+  ```
+  Zmiana zakresu = ten sam zakres w imporcie i `NEIGHBORHOOD_NOISE_COVERAGE_FROM`.
 - Kombinacja, która się nie uda, jest raportowana (kod wyjścia 1), a poprzedni aktywny snapshot **zostaje** i dalej
   jest serwowany. Inny trwający import tej usługi = kod 2.
 - Rekordy niepasujące do kształtu (zła kolejność współrzędnych, tekst zamiast liczby, kategoria sprzeczna z filtrem,

@@ -19,6 +19,7 @@ do not fit the verified shape are quarantined with a reason, never repaired.
 import argparse
 import json
 import logging
+import math
 import sys
 from collections import Counter
 from collections.abc import Iterator
@@ -27,6 +28,7 @@ from datetime import date
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.connectors.gios_noise.parser import (
     CATEGORIES,
     PARSER_VERSION,
@@ -39,7 +41,7 @@ from app.db import SessionLocal
 from app.gios_open import snapshots
 from app.gios_open.client import GiosOpenClient, Page, parse_envelope
 from app.gios_open.errors import GiosOpenError, SnapshotLockedError
-from app.gios_open.paging import iter_pages
+from app.gios_open.paging import PAGE_PARAM, SIZE_PARAM, iter_pages
 from app.gios_open.runner import ingest_snapshot
 from app.models import DatasetSnapshot, NoiseMeasurement
 
@@ -162,6 +164,34 @@ def import_combination(
     }
 
 
+def count_combination(
+    client: GiosOpenClient, category: str, voivodeship: str, date_from: date, date_to: date
+) -> dict:
+    """ONE request (page size 1): how many records the source reports for this combination.
+    `liczbaRekordow` was seen to be the total for Droga x SLASKIE; for every other combination this
+    is the source's own claim until an import confirms it, so the result is an estimate."""
+    filters = request_filters(category, voivodeship, date_from, date_to)
+    page = client.get_page(PATH, {**filters, PAGE_PARAM: 0, SIZE_PARAM: 1})
+    reported = 0 if page.empty_observed else page.reported_count
+    pages = None if reported is None else math.ceil(reported / settings.gios_open_page_size)
+    return {"records_reported": reported, "pages": pages}
+
+
+def count_summary(results: list[dict]) -> dict:
+    """Totals and a time estimate: every page, plus the final empty page of each non-empty
+    combination, at one request per `gios_open_min_interval_seconds`."""
+    ok = [r for r in results if r["status"] == "ok" and r["records_reported"] is not None]
+    pages = sum(r["pages"] for r in ok)
+    requests = pages + sum(1 for r in ok if r["pages"])
+    return {
+        "combinations": results,
+        "total_records": sum(r["records_reported"] for r in ok),
+        "total_pages": pages,
+        "estimated_minutes": round(requests * settings.gios_open_min_interval_seconds / 60, 1),
+        "note": "estimate: records as reported by the source, not yet confirmed by an import",
+    }
+
+
 def validate_combination(
     pages: Iterator[tuple[int, Page]], category: str, voivodeship: str
 ) -> dict:
@@ -204,14 +234,25 @@ def run(
     date_to: date,
     validate_only: bool,
     file: str | None = None,
+    count_only: bool = False,
 ) -> list[dict]:
     """One result dict per combination; a failing combination is reported, the others continue."""
     results: list[dict] = []
+    total = len(categories) * len(voivodeships)
     for category in categories:
         for voivodeship in voivodeships:
             filters = request_filters(category, voivodeship, date_from, date_to)
             row: dict = {"category": category, "voivodeship": voivodeship}
             try:
+                if count_only:
+                    assert client is not None
+                    row.update(count_combination(client, category, voivodeship, date_from, date_to))
+                    row["status"] = "ok"
+                    results.append(row)
+                    logger.info(
+                        "[%d/%d] %s %s: %s", len(results), total, category, voivodeship, row
+                    )
+                    continue
                 if file:
                     pages = pages_from_file(file)
                 else:
@@ -240,6 +281,11 @@ def run(
             except GiosOpenError as exc:
                 row.update(status="failed", error=f"{type(exc).__name__}: {exc}")
             results.append(row)
+            logger.info(
+                "[%d/%d] %s %s: %s (records=%s pages=%s)",
+                len(results), total, category, voivodeship,  # fmt: skip
+                row["status"], row.get("records"), row.get("pages"),
+            )  # fmt: skip
     return results
 
 
@@ -252,6 +298,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--category", action="append", choices=CATEGORIES, help="default: all")
     parser.add_argument(
         "--validate-only", action="store_true", help="fetch and check, write nothing"
+    )
+    parser.add_argument(
+        "--count-only",
+        action="store_true",
+        help="ONE request per combination: how many records/pages and how long an import takes",
     )
     parser.add_argument(
         "--file",
@@ -271,8 +322,10 @@ def main(argv: list[str] | None = None) -> None:
     voivodeships = args.voivodeship or list(VOIVODESHIPS)
     if args.file and (len(categories) != 1 or len(voivodeships) != 1):
         parser.error("--file needs exactly one --category and one --voivodeship")
+    if args.count_only and (args.file or args.validate_only):
+        parser.error("--count-only cannot be combined with --file or --validate-only")
 
-    db = None if args.validate_only else SessionLocal()
+    db = None if args.validate_only or args.count_only else SessionLocal()
     try:
         results = run(
             db=db,
@@ -283,6 +336,7 @@ def main(argv: list[str] | None = None) -> None:
             date_to=date_to,
             validate_only=args.validate_only,
             file=args.file,
+            count_only=args.count_only,
         )
     except SnapshotLockedError as exc:
         print(f"{exc}", file=sys.stderr)
@@ -290,7 +344,8 @@ def main(argv: list[str] | None = None) -> None:
     finally:
         if db is not None:
             db.close()
-    print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
+    output = count_summary(results) if args.count_only else results
+    print(json.dumps(output, ensure_ascii=False, indent=2, default=str))
     failed = [r for r in results if r["status"] != "ok"]
     if failed:
         print(f"{len(failed)} of {len(results)} combinations FAILED", file=sys.stderr)
