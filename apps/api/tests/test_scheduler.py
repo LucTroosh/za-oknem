@@ -675,19 +675,21 @@ class TestNewAreaAirBootstrap:
         assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
         ingest.assert_not_called()
 
-    def test_attempts_are_spaced_and_capped(self, monkeypatch, db_session):
+    def test_only_one_attempt_per_area(self, monkeypatch, db_session):
+        # GIOŚ terms: at most two downloads an hour. One bootstrap try + the hourly job = two;
+        # a failed first try is retried by the hourly job, not by a second bootstrap try.
         ingest = self._setup(monkeypatch, db_session)
         self._place(db_session)
         self._station(db_session, "1", 50.22, 18.67)  # never yields data (mock stores nothing)
         attempts: dict[int, tuple[int, float]] = {}
-        retry = scheduler.BOOTSTRAP_RETRY_SECONDS
 
         assert scheduler.run_new_area_air_bootstrap(attempts, 0.0) == 1
-        assert scheduler.run_new_area_air_bootstrap(attempts, 60.0) == 0  # too soon
-        assert scheduler.run_new_area_air_bootstrap(attempts, retry) == 1
-        assert scheduler.run_new_area_air_bootstrap(attempts, 2 * retry) == 1
-        assert scheduler.run_new_area_air_bootstrap(attempts, 10 * retry) == 0  # cap reached
-        assert ingest.call_count == scheduler.BOOTSTRAP_MAX_ATTEMPTS
+        assert scheduler.run_new_area_air_bootstrap(attempts, 60.0) == 0
+        assert (
+            scheduler.run_new_area_air_bootstrap(attempts, 10 * scheduler.BOOTSTRAP_RETRY_SECONDS)
+            == 0
+        )
+        assert ingest.call_count == scheduler.AIR_BOOTSTRAP_MAX_ATTEMPTS == 1
 
     def test_a_shared_station_is_fetched_once_per_tick(self, monkeypatch, db_session):
         ingest = self._setup(monkeypatch, db_session)

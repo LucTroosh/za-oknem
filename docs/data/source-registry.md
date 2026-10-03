@@ -247,15 +247,25 @@ Cel: ewentualny pomiar (Measurement, rule #7) obok modelowej prognozy CAMS — o
   audyt 2026-10-01). Czy ten rekord dotyczy API v1 (`/pjp-api/v1/rest/`): do potwierdzenia
   (nie rozstrzygnięte w audycie). Dokumentacja GIOŚ: „jasne i wyraźne wskazanie źródła”
 - **commercial_use:** TAK (CC BY 4.0, z atrybucją)
-- **terms_note:** regulamin portalu zaleca nie częściej niż 2×/h
+- **terms_note:** regulamin portalu powietrze.gios.gov.pl (sprawdzony 2026-10-03, treść wklejona przez
+  właściciela): korzystanie bezpłatne; dane można ponownie wykorzystywać w całości lub istotnej części
+  (szczegółowe warunki: BIP GIOŚ, „Ponowne wykorzystywanie” — nie sprawdzone); **użytkownik API
+  zobowiązuje się pobierać dane nie częściej niż 2 razy na godzinę** (to zobowiązanie, nie zalecenie —
+  stąd godzinny cykl i JEDNA próba bootstrapu na nowy obszar, ADR-029); trzeba czytelnie wskazać
+  źródło, czas wytworzenia informacji oraz informację o przetworzeniu, jeśli dane zmieniamy. Kontakt
+  w razie wątpliwości: gios@gios.gov.pl (użycie), api@gios.gov.pl (problemy techniczne z API).
 - **redistribution:** dozwolona z atrybucją źródła
 - **caching:** zgodnie z regułą #14 (CLAUDE.md) — mobile API czyta wyłącznie z naszej
   bazy, nigdy nie woła GIOŚ na żądanie użytkownika
-- **rate_limit:** 2 zapytania/min (endpointy standardowe, np. listy stacji),
-  1500 zapytań/min (dane bieżące i indeks jakości powietrza) — wg dokumentacji GIOŚ
-- **attribution:** wg regulaminu portalu: „Źródło danych: GIOŚ - EKOINFONET” + informacja o
-  przetworzeniu danych (poprzednio w UI: "Dane: Główny Inspektorat Ochrony Środowiska
-  (GIOŚ)" — do ujednolicenia z regulaminem) — wymagane w ekranie Źródła
+- **rate_limit:** wg regulaminu: metadane stacji i stanowisk, archiwum, statystyki roczne, mapy,
+  przekroczenia — 2 zapytania/min; bieżące dane pomiarowe (do 3 dób wstecz) i indeks jakości
+  powietrza — 1500/min; lista stacji — 2 i 1500/min. Dodatkowo: pobierać dane nie częściej niż
+  2×/h (patrz terms_note)
+- **attribution:** „Źródło danych: GIOŚ - EKOINFONET” (dopuszczalnie też „Źródło danych: Dane
+  gromadzone w systemie EKOINFONET GIOŚ”) — dokładnie tak wysyła API (`GIOS_ATTRIBUTION`) i tak
+  pokazuje ekran Źródła. Czas wytworzenia: `observed_at` + świeżość przy każdym pomiarze. Pomiary
+  przekazujemy bez zmian; wskaźniki, które liczymy sami (EAQI, ocena warunków), mają własne
+  oznaczenie jako nasze przetworzenie (poniżej, `eaqi` i verdict).
 - **status:** IMPLEMENTED (connector `gios` — client/parser/ingest — oraz
   `GET /api/v1/air/latest` gotowe; VERIFIED na żywo 2026-09-28, użytkownik uruchomił
   connector przeciwko prawdziwemu API). **Realny kształt odpowiedzi różni się istotnie od pierwotnie

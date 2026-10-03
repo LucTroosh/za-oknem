@@ -163,9 +163,10 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
   następnym przebiegu, a do tego czasu API może pokazać tylko stację pollowaną dla innego obszaru
   (nawet ~100 km dalej, pasmo `regional`). Dlatego scheduler dla obszarów z `place_id`, których
   `AIR_STATIONS_PER_AREA` najbliższych stacji katalogu nie ma jeszcze żadnego pomiaru, pobiera te
-  stacje od razu (`run_new_area_air_bootstrap`). Te same granice co bootstrap pogody (3 próby co
-  15 min, 5 obszarów na tick, pamięć procesu); stacja bez danych (brak czujników, 400 z GIOŚ)
-  kosztuje najwyżej 3 próby. Wymaga katalogu (pierwszy przegląd katalogu zostaje godzinnemu jobowi:
+  stacje od razu (`run_new_area_air_bootstrap`). **Jedna próba na obszar** (regulamin GIOŚ: dane
+  pobierać nie częściej niż 2 razy na godzinę; bootstrap + godzinny job = 2; nieudaną próbę ponawia
+  godzinny job), 5 obszarów na tick, pamięć procesu; stacja bez danych (brak czujników, 400 z GIOŚ)
+  kosztuje jedno dodatkowe pobranie. Wymaga katalogu (pierwszy przegląd katalogu zostaje godzinnemu jobowi:
   2 req/min). Nie zapisuje `source_status`. Wybór stacji w API bez zmian (`pick_air_station`: najbliższa
   stacja Z DANYMI), więc po pierwszym pobraniu pokazuje stację z okolicy zamiast odległej.
 - **Tick pętli 15 s (było 60 s):** joby mają własne interwały, więc krótszy tick przyspiesza tylko

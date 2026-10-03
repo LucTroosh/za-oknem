@@ -210,7 +210,7 @@ def test_dashboard_air_has_source_transparency_fields():
 
     air = body["areas"][0]["air"]
     assert air["source"] == "gios"
-    assert air["attribution"] == "Dane: Główny Inspektorat Ochrony Środowiska (GIOŚ)"
+    assert air["attribution"] == "Źródło danych: GIOŚ - EKOINFONET"
     assert air["observed_at"] == air["params"]["PM2.5"]["observed_at"]
 
 

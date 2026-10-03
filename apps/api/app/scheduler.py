@@ -69,6 +69,10 @@ PLACE_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
 # instead of waiting for the 3 h / 24 h cycle. Bounded so a failing area cannot burn budget.
 BOOTSTRAP_MAX_ATTEMPTS = 3
 BOOTSTRAP_RETRY_SECONDS = 15 * 60
+# GIOŚ terms: data is to be downloaded no more often than twice an hour. The air bootstrap is one
+# extra fetch of a station that has no data yet, so with the hourly job that is at most two per
+# hour; a failed first try is retried by the hourly job, never by a second bootstrap try.
+AIR_BOOTSTRAP_MAX_ATTEMPTS = 1
 BOOTSTRAP_BATCH = 5  # areas per tick: a burst of activations spreads over ticks, not one stall
 
 
@@ -186,12 +190,12 @@ def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: floa
     ("regional"). So for place-based areas whose nearest AIR_STATIONS_PER_AREA catalog stations
     have no measurement yet, those stations are fetched now.
 
-    Same bounds as the weather bootstrap: BOOTSTRAP_MAX_ATTEMPTS tries, BOOTSTRAP_RETRY_SECONDS
-    apart, BOOTSTRAP_BATCH areas per tick; `attempts` lives in the loop (area id -> (count, time
-    of the last one)). A station that never yields data (no sensors, GIOŚ 400) therefore costs
-    at most BOOTSTRAP_MAX_ATTEMPTS tries. Needs a catalog: the first catalog walk belongs to the
-    hourly job (2 req/min). Records no source_status; never raises (rule #1). Returns the number
-    of areas attempted."""
+    Bounds: ONE attempt per area (AIR_BOOTSTRAP_MAX_ATTEMPTS: GIOŚ allows downloading at most
+    twice an hour, the hourly job is the retry), BOOTSTRAP_BATCH areas per tick; `attempts` lives
+    in the loop (area id -> (count, time of the last one)). A station that never yields data
+    (no sensors, GIOŚ 400) therefore costs one extra fetch. Needs a catalog: the first catalog
+    walk belongs to the hourly job (2 req/min). Records no source_status; never raises (rule #1).
+    Returns the number of areas attempted."""
     db = None
     try:
         db = SessionLocal()
@@ -218,7 +222,7 @@ def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: floa
         due = [
             aid
             for aid in sorted(missing)
-            if attempts.get(aid, (0, float("-inf")))[0] < BOOTSTRAP_MAX_ATTEMPTS
+            if attempts.get(aid, (0, float("-inf")))[0] < AIR_BOOTSTRAP_MAX_ATTEMPTS
             and now - attempts.get(aid, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
         ]
         done: set[str] = set()  # one station is fetched once per tick even if areas share it
