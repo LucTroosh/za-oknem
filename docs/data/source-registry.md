@@ -593,3 +593,151 @@ wyszukiwanie WWW nie wskazało zbioru GIS. Status: DISCOVERY — sprawdzić ręc
 - **status:** proposed (DISCOVERY) — Source Approval Gate (#15) otwarty: potwierdzić formalnie
   licencję/atrybucję i pobrać prawdziwy plik; connector gotowy, nie produkcyjny do czasu importu
 - **last_verified_at:** 2026-10-01 (tylko treść stron GeoNames i PRNG; nie sam plik)
+
+## gios_noise (GIOŚ — hałas: pomiary w środowisku, zasięgi, ekspozycja)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_noise` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/halas` — 9 operacji; planowana pierwsza: `GET /v1/pomiar-halasu-w-srodowisku` (wymagane `kategoria`, `wojewodztwo`, `dataOd`, `dataDo`). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-halas.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** punkty pomiarowe państwowego monitoringu i innych pomiarów w 16 województwach (rzadka siatka; wiele lokalizacji nie ma punktu w okolicy)
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** pomiar z przedziału `dataOd`–`dataDo` i porą doby (`pora`, np. „Dzień 16h”), wynik w dB; to nie „hałas teraz”.
+  Nie uśredniamy decybeli, nie zamieniamy `pora` w LDWN/LN bez stwierdzenia w źródle. `przekroczenie` dotyczy tego pomiaru
+- **status:** VERIFIED (spec + 1 próbka niepusta + 1 błąd walidacji dla pomiarów); **gate dla `pomiar-halasu-w-srodowisku`: READY do implementacji z importem ręcznym** — APPROVED dopiero po `--validate-only` operatora (paginacja, zakres dat; B-6, B-8). `zasiegi-halasu` BLOCKED (brak próbki polygonu i CRS, B-2); pozostałe operacje UNVERIFIED
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_prtr (GIOŚ — PRTR: uwolnienia i transfery zanieczyszczeń)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_prtr` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/prtr` — 2 operacje: `GET /v1/uwolnienia`, `GET /v1/transfery`. Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-prtr.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** zakłady raportujące (rok raportu, medium, substancja); lokalizacja administracyjna (województwo / powiat / miejscowość), BEZ współrzędnych zakładów
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** wpis rejestru raportowego za dany rok, nie pomiar i nie ocena naruszeń. REGON nie identyfikuje jednej instalacji.
+- **status:** VERIFIED (spec + 1 próbka `uwolnienia`); **PARTIAL**: lista zakładów w obszarze administracyjnym możliwa; liczby emisji zablokowane (brak jednostki `lacznaIlosc`, B-1: `unit_unknown`, bez agregacji); `transfery` UNVERIFIED
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_major_accidents (GIOŚ — poważne awarie przemysłowe: zakłady ZZR/ZDR i zdarzenia)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_major_accidents` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/powazne-awarie` — 2 operacje: `GET /v1/zaklady` (rejestr ZZR/ZDR), `GET /v1/powazne-awarie` (zdarzenia). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-powazne-awarie.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** zakłady z adresem i hierarchią administracyjną, BEZ współrzędnych; zdarzenia historyczne
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** ZZR/ZDR to kategoria regulacyjna, nie aktywny incydent; zdarzenie historyczne jest `Event`, nie `Alert` (ADR-013), brak push. Brak rekordów nie oznacza braku ryzyka. `kodNace` bywa liczbą JSON (traci końcowe zero)
+- **status:** VERIFIED (spec + 1 próbka `zaklady`); **PARTIAL**: rejestr informacyjny z dopasowaniem administracyjnym; `powazne-awarie` UNVERIFIED (brak próbki zdarzenia)
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_surface_water_programs (GIOŚ — wody powierzchniowe: plan monitoringu)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_surface_water_programs` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/wody-powierzchniowe` — 1 operacja: `GET /v1/programy-monitoringu` (wymagana `jcwpNazwa`). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-wody-powierzchniowe.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** plan monitoringu JCWP/PPK od 2022 r., bez geometrii i bez wyników
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** zakres planowanych badań (wskaźnik, rok); brak wartości pomiarów, klas i decyzji kąpieliskowych
+- **status:** VERIFIED (spec); próbki: wynik pusty i błąd walidacji, **brak niepustego rekordu**; **BLOCKED** dla UI. To plan, nie jakość wody — karta „jakość wody” zablokowana do pozyskania wyników i geometrii z osobnego, jeszcze nieodnalezionego zbioru (B-3, B-4)
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_groundwater (GIOŚ — wody podziemne: programy, punkty, oceny stanu, trendy)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_groundwater` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/wody-podziemne` — 6 operacji (programy, pliki, punkty pomiarowe, metodyki, wyniki oceny stanu, analiza trendów). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-wody-podziemne.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** JCWPd i punkty badawcze; kod JCWPd; współrzędne punktów w układzie o NIEPOTWIERDZONYM CRS
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** ocena stanu JCWPd i etykiety trendów, nie bieżące stężenia i nie ocena prywatnej studni. Runtime wymaga co najmniej `dorzeczeNazwa` albo `jcwpdKod` albo `jcwpdNumer`; flagi to `"TAK"/"NIE"`
+- **status:** VERIFIED (spec + 1 próbka `punkty-pomiarowe-monitoringu`); **BLOCKED** dla geo (CRS i polygony JCWPd, B-2, B-3); pozostałe operacje UNVERIFIED
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_nec (GIOŚ — NEC: monitoring wpływu zanieczyszczeń na ekosystemy)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_nec` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/nec` — 3 operacje (stanowiska, wskaźniki, wyniki). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-nec.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** stanowiska z długością/szerokością geograficzną, kodem JCWP (nullable), typem ekosystemu
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** monitoring regionalny z rokiem raportowania i osobno datą pomiaru; jedno stanowisko nie opisuje całej okolicy
+- **status:** VERIFIED (spec + 1 próbka `stanowiska`, rok 2023); **READY** dla stanowisk; `wskazniki` i `wyniki` UNVERIFIED
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)
+
+## gios_air_assessments (GIOŚ — powietrze historyczne: oceny roczne i wieloletnie, PM2.5, chemizm opadów)
+
+- **owner:** Główny Inspektorat Ochrony Środowiska (instytucja publiczna)
+- **connector:** `gios_air_assessments` (planowany, ADR-032; jeszcze NIE zaimplementowany)
+- **endpoint:** `https://dane.gios.gov.pl/api/powietrze` — 16 operacji (oceny, PM2.5, metody, chemizm opadów, stanowiska, raporty, plik). Specyfikacja: `https://dane.gios.gov.pl/apispec/openapi-powietrze.yaml`
+  (kopia i suma SHA-256 w `docs/data/gios/manifest.json`)
+- **frequency:** UNKNOWN (cykl publikacji nie jest zadeklarowany ani sprawdzony). Wyjątek od reguły #16 (ADR-032
+  pkt 8): bez schedulera, import ręczny CLI po publikacji nowych danych; cykliczność dopiero po potwierdzeniu cyklu
+- **coverage:** strefa/stacja/stanowisko wg operacji; nie zastępuje bieżącego connectora `gios` (JPOAT, godzinowy)
+- **license:** CC BY 4.0 (`info.license` w OpenAPI, `https://creativecommons.org/licenses/by/4.0/`); dotyczy tego zbioru, nie innych portali ani map bazowych
+- **commercial_use:** TAK (CC BY 4.0, z atrybucją, linkiem do licencji i oznaczeniem przetworzenia). Nie oznacza
+  zatwierdzenia monetyzacji aplikacji (ADR-031 i `docs/release/business-gates.md` bez zmian)
+- **rate_limit:** UNKNOWN (specyfikacja nie deklaruje limitu ani SLA). Własny limiter: 1 żądanie / 5 s na usługę,
+  równoległość 1, konfigurowalny — to nasze ograniczenie, nie limit GIOŚ
+- **attribution:** „Źródło danych: GIOŚ · CC BY 4.0. Dane zostały uporządkowane i przetworzone przez Za Oknem. Okres danych: {period}. Pobrano: {fetched_at}.” + link do źródła i licencji (ADR-032 pkt 11)
+- **dostępność z tego środowiska:** NIE — egress agenta blokuje `dane.gios.gov.pl`; żadne żądanie nie zostało
+  powtórzone w PR wprowadzającym wpis. Dowody: `docs/data/gios/evidence/` (próbki z 2026-10-03)
+- **semantyka danych:** klasa roczna dotyczy strefy, roku, wskaźnika i celu ochrony; nie tłumaczymy jej na dzisiejszą jakość powietrza
+- **status:** VERIFIED (spec + 1 próbka `stanowisko-id`); **PARTIAL**; reszta UNVERIFIED. Rozwój po PR z hałasem (GIOS-10)
+- **last_verified_at:** 2026-10-03 (specyfikacja i próbki z pakietu; stan bramek: `docs/data/gios/07-operation-gates.md`)

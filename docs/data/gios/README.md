@@ -10,6 +10,7 @@ Zakres: dokumentacja i plan rozwoju; ten pakiet NIE oznacza, że nowe funkcje s�
 3. [Licencje i Source Approval Gate](03-licensing-and-source-gates.md).
 4. [Zadania, testy i odbiór](04-work-breakdown.md).
 5. [Gotowa instrukcja dla Claude](05-claude-prompt.md).
+   Stan bramek per operacja i blokery: [07-operation-gates.md](07-operation-gates.md); decyzje: ADR-032.
 6. `api/*.md`: kompletny katalog operacji, parametrów, odpowiedzi, schematów i enumeracji.
 7. `openapi/*`: oryginalne specyfikacje GIOŚ, zapisane bez zmian.
 8. `evidence/*` oraz [raport weryfikacji](06-verification.md): rzeczywiste odpowiedzi HTTP wraz z adresami.

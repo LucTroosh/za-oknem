@@ -79,6 +79,30 @@ push (klienta ani wysyłki), granic gmin (PRG), kąpielisk (źródło zablokowan
 | geo-matching alertu → lokalizacja użytkownika | 🟡 PARTIAL — backend (TASK-9.5 część, PR #81, ADR-013): nazwa województwa z `obszary` → kod TERC → prefiks kodu obszaru (`app/alert_geo.py`, bez LLM), `GET /api/v1/alerts/latest?geo_area_id=`, `AlertOut.geo_match` (`voivodeship`/`unresolved`), `local_alerts` per obszar w `dashboard_latest()`. Siedem miast z seedów ma kody TERYT gmin (migracja `0016`, PR #103); miejscowości z rejestru `places` (bez gminy) dopasowane po **województwie z GeoNames** (`places.alert_match_codes`, PR #105). **Poziom = województwo** (IMGW hydro nie podaje TERYT/powiatów/gmin, tylko `kod_zlewni`). Nierozpoznane obszary i miejscowość bez znanego województwa → `unresolved` (pokazane, nie ukryte). Mobile: sekcje „Dla Twojej lokalizacji” / „Do sprawdzenia” / „Pozostałe w Polsce” + szczegół alertu (PR #94, #102). Brak: `/hydro/latest` po lokalizacji, meteo (⛔) |
 | Alert Engine (§47) / Notification Engine (§50) | ⬜ TODO — poza scope'em dotychczasowych tasków, świadomie odłożone |
 
+### 2.7. Twoja okolica — dodatkowe dane GIOŚ (ADR-032, pakiet `docs/data/gios/`)
+
+Moduł addytywny: wiersz na Start → ukryty ekran; bez nowej zakładki, mapy, konta i push. Każda sekcja ma własną flagę
+(domyślnie wyłączoną), źródło, okres danych i stany braku pokrycia / rekordów / awarii. Historyczne dane nie są Alertami.
+Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo `dane.gios.gov.pl` nie jest możliwa z
+środowiska agenta (egress) — robi ją operator (`--validate-only`).
+
+| Zadanie | Zakres | Status |
+|---|---|---|
+| GIOS-00 | evidence i bramki per operacja, wpisy `gios_*` w Source Registry | 🟡 PARTIAL — rejestr i macierz gotowe (PR-A), **żywa weryfikacja po stronie operatora** (B-8) |
+| GIOS-01 | ADR-032, kontrakt `/neighborhood`, flagi | ✅ ADR-032 (kontrakt OpenAPI przy pierwszej implementacji) |
+| GIOS-02 | wspólny fundament ingestu (BLAD przy 200, paginacja, snapshot, kwarantanna, limiter) | ⬜ TODO (PR-B) |
+| GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | ⬜ TODO (PR-C) |
+| GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | ⬜ TODO (PR-D); bramka READY |
+| GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
+| GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⬜ TODO; liczby emisji ⛔ BLOCKED — jednostki (B-1) |
+| GIOS-07 | rejestr ZZR/ZDR i historia zdarzeń | ⬜ TODO; zdarzenia UNVERIFIED (brak próbki) |
+| GIOS-08 | wody powierzchniowe — plan monitoringu + discovery wyników | ⛔ BLOCKED dla UI — brak niepustego rekordu i wyników/geometrii (B-3, B-4) |
+| GIOS-09 | wody podziemne | ⛔ BLOCKED dla geo — CRS i polygony JCWPd (B-2, B-3) |
+| GIOS-10 | powietrze historyczne (16 operacji) | ⬜ TODO (po hałasie) |
+| GIOS-11 | NEC (ekosystemy) | ⬜ TODO; stanowiska READY, wyniki UNVERIFIED |
+| GIOS-12 | pozostałe obszary (gleby, PEM, promieniowanie, przyroda, morze, CLC, INSPIRE) | ⬜ TODO — tylko discovery |
+| GIOS-13 | API `/neighborhood` + ekran + flagi + runbook | ⬜ TODO (minimum razem z GIOS-04) |
+
 ---
 
 ## 3. Backend — checklist z §10 (MVP zawiera)
@@ -151,6 +175,10 @@ Index, background location, obowiązkowego konta, PWA, rozbudowanego
 social/community, zaawansowanej monetyzacji, pełnej historii danych,
 rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 
+Moduł „Twoja okolica” (ADR-032, decyzja właściciela 2026-10-03) jest rozszerzeniem poza pierwotnym MVP, ale nie łamie tej listy:
+nie ma mapy, wspólnego wskaźnika (Green Index), konta ani background location, a dane historyczne to opublikowane rejestry z
+okresem i źródłem, nie własna historia szeregów czasowych.
+
 ---
 
 ## 6. Aktywne blokady (wymagają decyzji lub zewnętrznego zdarzenia)
@@ -175,6 +203,7 @@ rozbudowanych funkcji premium. Nie zmieniać bez decyzji użytkownika + ADR.
 | Skasować pusty plik `pr.json` w katalogu głównym repo, jeśli jest w lokalnej kopii (nie jest śledzony w `main`) | Higiena repo | — |
 | Import granic gmin PRG wg `docs/data/prg-import.md` (zatwierdzone 2026-10-02) | `POST /geo/resolve` zwraca gminę; kody TERYT dla miejscowości | TASK-6.2 |
 | VPS, domena API i hosting (kraj → polityka prywatności); uzupełnienie pól `[UZUPEŁNIĆ]` w `docs/privacy/privacy-policy-draft.md`, publikacja pod stałym adresem https; produkcyjny profil EAS z HTTPS | Wdrożenie (zestaw gotowy: `docs/release/vps-runbook.md`), Google Play | TASK-15.x, ROADMAP 4a/4b |
+| GIOŚ „Twoja okolica”: (1) **weryfikacja na żywo** na maszynie z dostępem do `dane.gios.gov.pl` (`--validate-only`, gdy connector powstanie; wynik do Source Registry — status `READY` → `APPROVED`); (2) **pytania techniczne do GIOŚ** (treść gotowa w `docs/data/gios/03-licensing-and-source-gates.md`): jednostki PRTR, semantyka `liczbaRekordow`, CRS wód podziemnych i hałasu, cykl i limity, strefa czasowa `wynik.data`, geometria zakładów, wyniki jakości wód powierzchniowych — **wysłanie to decyzja właściciela, nic nie zostało wysłane** | Zmiana `READY` → `APPROVED`, odblokowanie liczb PRTR (B-1), geometrii (B-2, B-3, B-5), wyników wód (B-4), cyklicznego pollingu (B-6) | GIOS-00, `docs/data/gios/07-operation-gates.md` |
 | Build APK i weryfikacja na telefonie: zrzuty (Welcome jasny/ciemny, Lokalizacja z GPS, Start, Pogoda, Powietrze, Alerty, Ustawienia, font 130/200%, ikona launchera), TalkBack, Back na Androidzie — lista w `docs/ui/a11y-review.md` i `docs/mobile/run-and-test.md` | Zamknięcie punktów DoD z PR #102 i zmiana wielu statusów 🟡 na ✅ | TASK-12.x, PR #102 |
 
 ---
