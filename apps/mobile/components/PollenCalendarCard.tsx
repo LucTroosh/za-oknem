@@ -2,10 +2,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { CALENDAR_CTA, type ForecastLevel, pollenCalendarView, seasonSummary } from "../lib/pollenCalendar";
+import { CALENDAR_CTA, type ForecastLevel, calendarDateNote, pollenCalendarView, seasonSummary } from "../lib/pollenCalendar";
 import { MIN_TOUCH, type Theme, space, typo } from "../lib/theme";
 import Card from "./Card";
 import IconBox from "./IconBox";
+import useNow from "./useNow";
 import useTheme, { useThemedStyles } from "./useTheme";
 
 // TASK-8.10 (UI) / ADR-023, redesigned: the dashboard shows ONE status of the typical pollen season,
@@ -27,6 +28,7 @@ export default function PollenCalendarCard({
 }) {
   const styles = useThemedStyles(createStyles);
   const { colors } = useTheme();
+  const now = useNow();
   const view = pollenCalendarView(calendar);
   if (!view) {
     return error ? (
@@ -38,6 +40,7 @@ export default function PollenCalendarCard({
     ) : null;
   }
   const s = seasonSummary(view, forecast);
+  const dateNote = calendarDateNote(view, now);
   const inSeason = s.state !== "out";
   return (
     <Card>
@@ -59,6 +62,7 @@ export default function PollenCalendarCard({
       <Text style={styles.context} accessible={false} importantForAccessibility="no">
         {s.context}
       </Text>
+      {dateNote && <Text style={styles.context}>{dateNote}</Text>}
       {error && (
         <Text style={styles.error} accessibilityRole="alert">
           Nie udało się odświeżyć — pokazany sezon może być nieaktualny.

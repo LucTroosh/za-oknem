@@ -5,10 +5,12 @@ import {
   CALENDAR_EMPTY_FALLBACK,
   type PollenCalendarBlock,
   type CalendarActiveLine,
+  calendarDateNote,
   daysUntilText,
   formatAllergens,
   formatDay,
   formatRange,
+  localIsoDay,
   pollenCalendarView,
   seasonState,
   seasonSummary,
@@ -103,12 +105,12 @@ describe("pollenCalendarView", () => {
     expect(v?.attribution).toBe("Kalendarz: własne zestawienie");
   });
 
-  it("labels peak and end phases; no peak window after the start phase", () => {
+  it("labels peak and end phases and keeps the peak window in every phase", () => {
     const a = block().active[0];
     const peak = pollenCalendarView(block({ active: [{ ...a, phase: "peak", peak: true }] }));
     const end = pollenCalendarView(block({ active: [{ ...a, phase: "end" }] }));
-    expect(peak?.active[0]).toMatchObject({ phaseText: "szczyt sezonu", peakRange: null });
-    expect(end?.active[0]).toMatchObject({ phaseText: "koniec sezonu", peakRange: null });
+    expect(peak?.active[0]).toMatchObject({ phaseText: "szczyt sezonu", peakRange: "szczyt 1–31 mar" });
+    expect(end?.active[0]).toMatchObject({ phaseText: "koniec sezonu", peakRange: "szczyt 1–31 mar" });
   });
 
   it("empty active is never 'nothing pollinates': server message, else the fallback", () => {
@@ -286,5 +288,26 @@ describe("season card (dashboard)", () => {
     expect(v?.disclaimer).not.toBe("");
     expect(v?.attribution).not.toBe("");
     expect(v?.emptyMessage).not.toBeNull();
+  });
+});
+
+describe("calendar day note", () => {
+  const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime(); // device-local
+
+  it("localIsoDay is the device's calendar day", () => {
+    expect(localIsoDay(at(2026, 10, 3, 0))).toBe("2026-10-03");
+    expect(localIsoDay(at(2026, 1, 9, 23))).toBe("2026-01-09");
+  });
+
+  it("says nothing while the calendar is for today", () => {
+    expect(calendarDateNote({ date: "2026-10-03" }, at(2026, 10, 3))).toBeNull();
+  });
+
+  it("names the day when the calendar is for another day (a failed refresh after midnight)", () => {
+    expect(calendarDateNote({ date: "2026-10-02" }, at(2026, 10, 3))).toBe("Stan na 2 paź.");
+  });
+
+  it("makes no claim without a usable date", () => {
+    expect(calendarDateNote({ date: null }, at(2026, 10, 3))).toBeNull();
   });
 });

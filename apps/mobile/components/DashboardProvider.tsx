@@ -11,6 +11,8 @@ import { FIRST_DATA_POLL_MAX, FIRST_DATA_POLL_MS, awaitingFirstData, pollingOff,
 import { EXPIRED_AREA_MESSAGE } from "../lib/places";
 import type { PollenCalendarBlock } from "../lib/pollenCalendar";
 import useLocation from "./LocationProvider";
+import { localIsoDay } from "../lib/pollenCalendar";
+import useNow from "./useNow";
 import usePollenCalendar from "./usePollenCalendar";
 
 // The shared data of the tabs, each from its own request (rule #1: one failing never blanks
@@ -52,7 +54,7 @@ export function DashboardProvider({ geoAreaId, children }: { geoAreaId: number; 
   const [refreshing, setRefreshing] = useState(false);
   const [loadedAt, setLoadedAt] = useState(() => Date.now());
   const [refreshTick, setRefreshTick] = useState(0);
-  const calendar = usePollenCalendar(refreshTick);
+  const calendar = usePollenCalendar(refreshTick, localIsoDay(useNow()));
   const guards = useRef({ dashboard: createLatestGuard(), hydro: createLatestGuard(), refresh: createLatestGuard() });
 
   const loadDashboard = useCallback(() => {

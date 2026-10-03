@@ -32,7 +32,7 @@ export type CalendarActiveLine = {
   phase: "start" | "peak" | "end" | null;
   phaseText: string;
   range: string | null; // "typowy sezon 1 lut – 1 kwi"
-  peakRange: string | null; // only before the peak: "szczyt 1–31 mar"
+  peakRange: string | null; // "szczyt 1–31 mar", in every phase
 };
 
 export type CalendarUpcomingLine = { key: string; name: string; text: string };
@@ -93,7 +93,8 @@ function activeLine(raw: unknown): CalendarActiveLine | null {
   if (!isObject(raw) || !nonEmpty(raw.name_pl)) return null;
   const phase = raw.phase === "start" || raw.phase === "peak" || raw.phase === "end" ? raw.phase : null;
   const range = formatRange(raw.season_start, raw.season_end);
-  const peakRange = phase === "start" ? formatRange(raw.peak_start, raw.peak_end) : null;
+  // The detail screen lists the peak window in every phase (before, during and after the peak).
+  const peakRange = formatRange(raw.peak_start, raw.peak_end);
   return {
     key: nonEmpty(raw.key) ? raw.key : raw.name_pl,
     name: raw.name_pl,
@@ -262,3 +263,21 @@ export const CALENDAR_CTA = "Zobacz kalendarz sezonów";
 export const CALENDAR_HOW_TITLE = "Jak działa kalendarz?";
 export const CALENDAR_HOW_INTRO =
   "Kalendarz pokazuje, kiedy dany alergen zwykle pyli w Polsce. To typowy przebieg sezonu, nie pomiar i nie prognoza — aktualne stężenia pokazuje prognoza pyłków.";
+
+// ---- the day the calendar was computed for ----------------------------------------------------
+// The calendar is fetched on mount, on pull-to-refresh and when the device's day changes
+// (usePollenCalendar), so it can only be a day old if that fetch failed. The compact card then says
+// which day its status is for instead of presenting it as "now".
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+export function localIsoDay(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+// "Stan na 2 paź." when the calendar is for another day than the device's today; else null.
+export function calendarDateNote(view: Pick<CalendarView, "date">, nowMs: number): string | null {
+  if (view.date === null || view.date.slice(0, 10) === localIsoDay(nowMs)) return null;
+  const day = formatDay(view.date);
+  return day ? `Stan na ${day}.` : null;
+}
