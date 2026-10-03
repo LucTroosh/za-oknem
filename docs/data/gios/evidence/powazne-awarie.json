@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/powazne-awarie/v1/zaklady?liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"klasyfikacjaZakladu\":\"ZZR\",\"nazwaZakladu\":\"Wałbrzyskie Zakłady Koksownicze  \\\"Victoria\\\" S.A. \",\"regon\":\"000025780\",\"rodzajDzialalnosci\":\"Ogólna produkcja chemikaliów (niewymieniona powyżej)\",\"kodNace\":19.10,\"wojewodztwo\":\"dolnośląskie\",\"powiat\":\"wałbrzyski\",\"gmina\":\"Wałbrzych\",\"kodPocztowy\":\"58-305\",\"miejscowosc\":\"Wałbrzych\",\"ulica\":\"ul.Kosteckiego 9\",\"stronaWww\":\"https://www.wzkvictoria.pl/odpowiedzialny-biznes/zaklad-zwiekszonego-ryzyka/\"}]},\"wynik\":{\"idZdarzenia\":\"bca12bdf-9eb5-4c6c-b583-7f1cbc5c3548\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:23:55\"}}"
+}

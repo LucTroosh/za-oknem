@@ -1,0 +1,6 @@
+{
+  "url": "https://dane.gios.gov.pl/api/wody-podziemne/v1/punkty-pomiarowe-monitoringu?rokOd=2022&rokDo=2027&dorzeczeNazwa=Odra&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"rokOd\":2022,\"rokDo\":2027,\"dorzeczeNazwa\":\"Odra\",\"jcwpdNumer\":1,\"jcwpdKod\":\"PLGW60001\",\"jcwpdOcenaRyzyka\":\"zagrożona\",\"punktPomiarowyNumer\":2694,\"punktPomiarowyKod\":\"PLGW60001_001\",\"polozenieAdministracyjne\":\"zachodniopomorskie\",\"punktPomiarowyWspolrzedne\":{\"x\":185897.4314,\"y\":678640.9271},\"punktPomiarowyCharakter\":\"Zw. swobodne\",\"punktPomiarowyRodzaj\":\"piezometr\",\"stratygrafia\":\"Q\",\"kompleksWodonosny\":1,\"punktPomiarowyFunkcja\":{\"monitoringChemDiag\":\"TAK\",\"monitoringChemOper\":\"TAK\",\"monitoringIlosciowy\":\"TAK\",\"monitoringBadawczy\":\"TAK\",\"monitoringWplywJcwpsElzpdz\":\"TAK\",\"monitoringWplywJcwpsSpozycie\":\"TAK\"}}]},\"wynik\":{\"idZdarzenia\":\"04708448-1a01-4a37-9e19-58514e19a9d0\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:25:05\"}}"
+}

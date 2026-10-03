@@ -1,0 +1,208 @@
+openapi: 3.1.1
+info:
+  title: WODY-POWIERZCHNIOWE API
+  description: |-
+      WODY-POWIERZCHNIOWE - Interfejs API udostępniający programy monitoringu wód powierzchniowych
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/wody-powierzchniowe
+tags:
+  - name: Programy monitoringu wód powierzchniowych
+    description: Zaplanowany zakres pomiarowy w jednolitych częściach wód powierzchniowych
+paths:
+  /v1/programy-monitoringu:
+    get:
+      tags:
+        - Programy monitoringu wód powierzchniowych
+      summary: Programy monitoringu jednolitych części wód powierzchniowych
+      description: Usługa sieciowa udostępniająca zaplanowane programy monitoringu jednolitych części wód powierzchniowych (dane dostępne od 2022 roku)
+      operationId: getProgramyMonitoringuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: jcwpKod
+          in: query
+          description: 'Kod jednolitej części wód powierzchniowych (jcwp). Kody jcwp znajdują się na Portalu Jakości Wód Powierzchniowych [https://wody.gios.gov.pl/pjwp/maps/](https://wody.gios.gov.pl/pjwp/maps/)'
+          schema:
+            type: string
+            maxLength: 30
+        - name: jcwpNazwa
+          in: query
+          description: 'Nazwa jednolitej części wód powierzchniowych (jcwp). Nazwy jcwp znajdują się na Portalu Jakości Wód Powierzchniowych [https://wody.gios.gov.pl/pjwp/maps/](https://wody.gios.gov.pl/pjwp/maps/)'
+          required: true
+          schema:
+            type: string
+            maxLength: 200
+        - name: ppkKod
+          in: query
+          description: 'Kod punktu pomiarowo-kontrolnego (ppk). Kody ppk znajdują się na Portalu Jakości Wód Powierzchniowych [https://wody.gios.gov.pl/pjwp/maps/](https://wody.gios.gov.pl/pjwp/maps/)'
+          schema:
+            type: string
+            maxLength: 50
+        - name: ppkNazwa
+          in: query
+          description: 'Nazwa punktu pomiarowo-kontrolnego (ppk). Nazwy ppk znajdują się na Portalu Jakości Wód Powierzchniowych [https://wody.gios.gov.pl/pjwp/maps/](https://wody.gios.gov.pl/pjwp/maps/)'
+          schema:
+            type: string
+            maximum: 150
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: wskaznik
+          in: query
+          description: 'Nazwa wskaźnika. Wykaz wskaźników zamieszczony jest w zał. 3 rozporządzeniu  Ministra Infrastruktury z dnia 13 lipca 2021 r. w sprawie form i sposobu prowadzenia monitoringu jednolitych części wód powierzchniowych i jednolitych części wód podziemnych [https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20210001576](https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20210001576)'
+          schema:
+            type: string
+            maxLength: 200
+        - name: rok
+          in: query
+          description: Rok badania (dane dostępne od 2022 roku)
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwodaProgramyMonitoringuOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    JwodaProgramyMonitoringuRekord:
+      type: object
+      properties:
+        jcwpKod:
+          type: string
+          description: Kod jednolitej części wód powierzchniowych (jcwp)
+          maxLength: 30
+        jcwpNazwa:
+          type: string
+          description: Nazwa jednolitej części wód powierzchniowych (jcwp)
+          maxLength: 200
+        ppkKod:
+          type: string
+          description: Kod punktu pomiarowo-kontrolnego (ppk)
+          maxLength: 50
+        ppkNazwa:
+          type: string
+          description: Nazwa punktu pomiarowo-kontrolnego (ppk)
+          maxLength: 150
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        wskaznik:
+          type: string
+          description: Nazwa wskaźnika
+          maxLength: 200
+        rok:
+          type: string
+          description: Rok badania
+      required:
+        - jcwpNazwa
+        - jcwpKod
+        - rok
+        - wojewodztwo
+    JwodaProgramyMonitoringuOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/JwodaProgramyMonitoringuRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    WojewodztwoEnum:
+      type: string
+      enum:
+        - DOLNOŚLĄSKIE
+        - KUJAWSKO-POMORSKIE
+        - LUBELSKIE
+        - LUBUSKIE
+        - ŁÓDZKIE
+        - MAŁOPOLSKIE
+        - MAZOWIECKIE
+        - OPOLSKIE
+        - PODKARPACKIE
+        - PODLASKIE
+        - POMORSKIE
+        - ŚLĄSKIE
+        - ŚWIĘTOKRZYSKIE
+        - WARMIŃSKO-MAZURSKIE
+        - WIELKOPOLSKIE
+        - ZACHODNIOPOMORSKIE
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

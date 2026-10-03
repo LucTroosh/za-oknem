@@ -1,0 +1,586 @@
+openapi: 3.1.1
+info:
+  title: WODY-PODZIEMNE API
+  description: |-
+      WODY-PODZIEMNE - Interfejs API udostępniający programy monitoringu wód podziemnych
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/wody-podziemne
+tags:
+  - name: Programy monitoringu jednolitych części wód podziemnych
+    description: Opracowywane na kolejne 6-letnie okresy czasu (na potrzeby opracowania kolejnych 6-letnich planów gospodarowania wodami na obszarach dorzeczy). Programy określają przedmiot, zakres i częstotliwość badań oraz sieć pomiarową
+  - name: Metodyki i oceny stanu jednolitych części wód podziemnych
+    description: Informacje na temat sposobu dokonywania oceny stanu jednolitych części wód podziemnych oraz wyniki oceny stanu jednolitych części wód podziemnych (składającej się z części opisowej i zestawienia tabelarycznego podsumowującego wyniki tej oceny) dokonywanej co 6 lat, a także wyniki analizy trendów zmian stężeń wskaźników fizyczno-chemicznych w wodach podziemnych dokonywanej w ramach ww. oceny stanu
+  - name: Pobranie dokumentu
+    description: Możliwość pobrania 6-letnich programów monitoringu jednolitych części wód podziemnych oraz pobrania metodyki i wyników oceny stanu jednolitych części wód podziemnych
+paths:
+  /v1/programy-monitoringu:
+    get:
+      tags:
+        - Programy monitoringu jednolitych części wód podziemnych
+      summary: Programy monitoringu jednolitych części wód podziemnych
+      description: Usługa sieciowa udostępniająca część opisową programu monitoringu jednolitych części wód podziemnych
+      operationId: getProgramyMonitoringuV1 
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rokOd
+          in: query
+          description: Rok programu od (dane dostępne od 2022 roku co 6 lat)
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+        - name: rokDo
+          in: query
+          description: Rok programu do
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgramyMonitoringuOdpowiedz'
+  /v1/plik/{id}:
+    get:
+      tags:
+        - Pobranie dokumentu
+      summary: Pobieranie dokumentu w postaci pliku PDF lub JSON
+      description: 'Usługa sieciowa pozwalająca na pobranie dokumentu. Identyfikator dokumentu należy pobrać wywołując jedną z poniższych usług podając parametry zapytania zgodnie z dokumentacją: <br>
+                - Programy monitoringu jednolitych części wód podziemnych (/v1/programy-monitoringu)<br>
+                - Pobieranie opisu metodyki i wyników oceny stanu jednolitych części wód podziemnych (/v1/metodyki-oceny-stanu)'
+      operationId: getDokumentV1
+      parameters:
+        - name: id
+          in: path
+          description: Id dokumentu
+          required: true
+          schema:
+            format: int64
+            minimum: 1
+            maximum: 9223372036854775807
+        - name: format
+          in: query
+          description: Format pliku
+          required: true
+          schema:
+            $ref: '#/components/schemas/FormatPlikuEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      wynik:
+                        $ref: '#/components/schemas/WynikTyp'
+                  - type: object
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+  /v1/punkty-pomiarowe-monitoringu:
+    get:
+      tags:
+        - Programy monitoringu jednolitych części wód podziemnych
+      summary: Pobieranie zestawienia danych o sieci pomiarowej monitoringu jednolitych części wód podziemnych
+      description: Usługa sieciowa udostępniająca zestawienie danych o punktach pomiarowych krajowej sieci pomiarowej
+      operationId: getPunktyPomiaroweMonitoringuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rokOd
+          in: query
+          description: Rok programu od (dane dostępne od 2022 roku co 6 lat)
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+        - name: rokDo
+          in: query
+          description: Rok programu do
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+        - name: dorzeczeNazwa
+          in: query
+          description: Nazwa dorzecza (np. Wisła) (wymagane, jeśli brak jcwpdNumer lub jcwpdKod)
+          schema:
+            type: string
+            maxLength: 50
+        - name: jcwpdNumer
+          in: query
+          description: 'Numer JCWPd (wymagane, jeśli brak dorzeczeNazwa lub jcwpdKod). Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 999999999
+        - name: jcwpdKod
+          in: query
+          description: 'Kod JCWPd (wymagane, jeśli brak dorzeczeNazwa lub jcwpdNumer). Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Lista punktów pomiarowych monitoringu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PunktyPomiaroweOdpowiedz'
+  /v1/metodyki-oceny-stanu:
+    get:
+      tags:
+        - Metodyki i oceny stanu jednolitych części wód podziemnych
+      summary: Pobieranie opisu metodyki i wyników oceny stanu jednolitych części wód podziemnych
+      description: Usługa sieciowa udostępniająca opis metodyki i wyniki oceny stanu jednolitych części wód podziemnych
+      operationId: getMetodykiOcenyStanuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok, którego dotyczy ocena stanu (dane dostępne od 2022) lub rok opracowania metodyki (dane dostępne od 2020)
+          required: true
+          schema:
+            type: integer
+            minimum: 2020
+            maximum: 9999
+      responses:
+        '200':
+          description: Metadane plików opisujących metodyki i wyniki oceny stanu jednolitych wód podziemnych
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetodykaOcenyOdpowiedz'
+  /v1/wyniki-oceny-stanu:
+    get:
+      tags:
+        - Metodyki i oceny stanu jednolitych części wód podziemnych
+      summary: Pobieranie podsumowania wyników oceny stanu jednolitych części wód podziemnych
+      description: Usługa sieciowa udostępniająca podsumowanie wyników oceny stanu jednolitych części wód podziemnych
+      operationId: getWynikiOcenyStanuV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok opracowania (dane dostępne od 2022 roku)
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+        - name: dorzeczeNazwa
+          in: query
+          description: Nazwa dorzecza (np. Wisła)
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+        - name: jcwpdNumer
+          in: query
+          description: 'Numer JCWPd. Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 999999999
+        - name: jcwpdKod
+          in: query
+          description: 'Kod JCWPd. Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Wyniki oceny stanu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WynikiOcenyOdpowiedz'
+  /v1/wyniki-analizy-trendow:
+    get:
+      tags:
+        - Metodyki i oceny stanu jednolitych części wód podziemnych
+      summary: Pobieranie wyników analizy trendów jednolitych części wód podziemnych
+      description: Usługa sieciowa udostępniająca wyniki analizy trendów zmian stężeń wskaźników fizyczno-chemicznych w punktach pomiarowych monitoringu stanu chemicznego JCWPD
+      operationId: getWynikiAnalizyTrendowV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok opracowania (dane dostępne od 2022 roku)
+          required: true
+          schema:
+            type: integer
+            minimum: 2022
+            maximum: 9999
+        - name: monitoringId
+          in: query
+          description: 'ID monitoringu. Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 999999999
+        - name: punktPomiarowyNumer
+          in: query
+          description: 'Numer punktu pomiarowego. Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 999999999
+        - name: punktPomiarowyKod
+          in: query
+          description: 'Identyfikator UE punktu pomiarowego. Wartości są dostępne na stronie internetowej monitoringu jakości wód podziemnych pod adresem: [https://mjwp.gios.gov.pl/](https://mjwp.gios.gov.pl/)'
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+        - name: trendyZmianStezen
+          in: query
+          description: Trendy zmian stężeń wskaźników fizyczno-chemicznych
+          required: true
+          schema:
+            $ref: '#/components/schemas/TrendyZmianStezenEnum'
+      responses:
+        '200':
+          description: Wyniki analizy trendów
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WynikiAnalizyTrendowOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    ProgramyMonitoringRekord:
+      type: object
+      properties:
+        plikId:
+          type: integer
+        plikNazwa:
+          type: string
+          maxLength: 255
+        dokumentTytul:
+          type: string
+          maxLength: 255
+        dataPowstania:
+          type: string
+          format: date
+        rokOd:
+          type: integer
+        rokDo:
+          type: integer
+    PunktyPomiaroweRekord:
+      type: object
+      properties:
+        rokOd:
+          type: integer
+        rokDo:
+          type: integer
+        dorzeczeNazwa:
+          type: string
+          maxLength: 255
+        jcwpdNumer:
+          type: integer
+        jcwpdKod:
+          type: string
+          maxLength: 255
+        jcwpdOcenaRyzyka:
+          type: string
+          maxLength: 255
+        punktPomiarowyNumer:
+          type: integer
+        punktPomiarowyKod:
+          type: string
+          maxLength: 255
+        polozenieAdministracyjne:
+          type: string
+          maxLength: 255
+        punktPomiarowyWspolrzedne:
+          type: string
+          maxLength: 255
+        punktPomiarowyCharakter:
+          type: string
+          maxLength: 255
+        punktPomiarowyRodzaj:
+          type: string
+          maxLength: 255
+        stratygrafia:
+          type: string
+        kompleksWodonosny:
+          type: integer
+        punktPomiarowyFunkcja:
+          type: object
+          properties:
+            monitoringChemDiag:
+              type: boolean
+            monitoringChemOper:
+              type: boolean
+            monitoringIlosciowy:
+              type: boolean
+            monitoringBadawczy:
+              type: boolean
+            monitoringWplywJcwpsElzpdz:
+              type: boolean
+            monitoringWplywJcwpsSpozycie:
+              type: boolean
+    MetodykaOcenyRekord:
+      type: object
+      properties:
+        plikId:
+          type: integer
+        plikNazwa:
+          type: string
+          maxLength: 255
+        dokumentTytul:
+          type: string
+          maxLength: 255
+        dataPowstania:
+          type: string
+          format: date
+        rok:
+          type: integer
+    WynikiOcenyRekord:
+      type: object
+      properties:
+        rok:
+          type: integer
+        jcwpdNumer:
+          type: integer
+        jcwpdKod:
+          type: string
+          maxLength: 255
+        dorzeczeNazwa:
+          type: string
+          maxLength: 255
+        jcwpdKompleksyLiczba:
+          type: integer
+        jcwpdRyzykoOcena:
+          type: string
+          maxLength: 255
+        jcwpdStanChemOcena:
+          type: string
+          maxLength: 255
+        jcwpdStanIloscOcena:
+          type: string
+          maxLength: 255
+        jcwpdStanOgolnyOcena:
+          type: string
+          maxLength: 255
+    WynikiAnalizyTrendowRekord:
+      type: object
+      properties:
+        rok:
+          type: integer
+        monitoringId:
+          type: integer
+        punktPomiarowyNumer:
+          type: integer
+        punktPomiarowyKod:
+          type: string
+          maxLength: 255
+        trendyZmianStezen:
+          $ref: '#/components/schemas/TrendyZmianStezenEnum'
+        jcwpdNumer:
+          type: string
+          maxLength: 255
+        jcwpdKod:
+          type: string
+          maxLength: 255
+        badaniaRok:
+          type: integer
+        analizaTrenduWyniki:
+          type: object
+          properties:
+            pewTeren: { type: string, maxLength: 255 }
+            as: { type: string, maxLength: 255 }
+            sb: { type: string, maxLength: 255 }
+            nh4: { type: string, maxLength: 255 }
+            no3: { type: string, maxLength: 255 }
+            no2: { type: string, maxLength: 255 }
+            ba: { type: string, maxLength: 255 }
+            be: { type: string, maxLength: 255 }
+            b: { type: string, maxLength: 255 }
+            cl: { type: string, maxLength: 255 }
+            zn: { type: string, maxLength: 255 }
+            f: { type: string, maxLength: 255 }
+            al: { type: string, maxLength: 255 }
+            cd: { type: string, maxLength: 255 }
+            co: { type: string, maxLength: 255 }
+            mg: { type: string, maxLength: 255 }
+            cu: { type: string, maxLength: 255 }
+            mo: { type: string, maxLength: 255 }
+            ni: { type: string, maxLength: 255 }
+            pb: { type: string, maxLength: 255 }
+            k: { type: string, maxLength: 255 }
+            se: { type: string, maxLength: 255 }
+            so4: { type: string, maxLength: 255 }
+            na: { type: string, maxLength: 255 }
+            tl: { type: string, maxLength: 255 }
+            ti: { type: string, maxLength: 255 }
+            u: { type: string, maxLength: 255 }
+            v: { type: string, maxLength: 255 }
+            ca: { type: string, maxLength: 255 }
+            toc: { type: string, maxLength: 255 }
+            hco3: { type: string, maxLength: 255 }
+    ProgramyMonitoringuOdpowiedz:
+      type: object
+      properties:
+        dane:
+            type: object
+            properties:
+              strona:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProgramyMonitoringRekord'
+              liczbaRekordow:
+                type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PunktyPomiaroweOdpowiedz:
+      type: object
+      properties:
+        dane:
+            type: object
+            properties:
+              strona:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PunktyPomiaroweRekord'
+              liczbaRekordow:
+                type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    MetodykaOcenyOdpowiedz:
+      type: object
+      properties:
+        dane:
+            type: object
+            properties:
+              strona:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MetodykaOcenyRekord'
+              liczbaRekordow:
+                type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    WynikiOcenyOdpowiedz:
+      type: object
+      properties:
+        dane:
+            type: object
+            properties:
+              strona:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WynikiOcenyRekord'
+              liczbaRekordow:
+                type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    WynikiAnalizyTrendowOdpowiedz:
+        type: object
+        properties:
+          dane:
+            type: object
+            properties:
+              strona:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WynikiAnalizyTrendowRekord'
+              liczbaRekordow:
+                type: integer
+          wynik:
+            $ref: '#/components/schemas/WynikTyp'
+    FormatPlikuEnum:
+      type: string
+      enum:
+        - PDF
+        - JSON
+    TrendyZmianStezenEnum:
+      type: string
+      enum:
+        - Bez prognozy
+        - Z prognozą
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

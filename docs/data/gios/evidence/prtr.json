@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/prtr/v1/uwolnienia?liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"typUwolnienia\":\"Woda\",\"lacznaIlosc\":2060,\"zanieczyszczenie\":\"Cynk i jego związki (jako Zn)\",\"kodZanieczyszczenia\":24,\"dzialalnoscGlowna\":\"Górnictwo odkrywkowe i kamieniołomy\",\"kodDzialalnosciGlownej\":\"3.(b)\",\"rokRaportu\":2007,\"zaklad\":\"PAK Kopalnia Węgla Brunatnego Adamów S.A., Odkrywka Koźmin\",\"regon\":\"000019910\",\"wojewodztwo\":\"WIELKOPOLSKIE\",\"powiat\":\"Powiat turecki\",\"miejscowosc\":\"Koźmin\"}]},\"wynik\":{\"idZdarzenia\":\"9b59ebbd-4d03-4039-b7a3-24865487e4b9\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:23:55\"}}"
+}

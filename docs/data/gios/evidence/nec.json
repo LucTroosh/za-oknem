@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/nec/v1/monitorowanie/stanowiska?rokRaportowania=2023&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\"dane\":{\"liczbaRekordow\":1,\"strona\":[{\"rokRaportowania\":2023,\"kodKraju\":\"PL\",\"krajowyKodStacji\":312,\"nazwaStacji\":\"SPO MI Krucz\",\"kodEuropejski\":null,\"kodStacjiMonitoringowejRDW\":null,\"kodJCWP\":null,\"nazwaSieciMonitoringu\":\"ICP Forests level II\",\"dlugoscGeograficzna\":16.417398,\"szerokoscGeograficzna\":52.812828,\"typEkosystemuMAES\":\"lasy i inne tereny zadrzewione\",\"typEkosystemuEUNIS\":null,\"statusObszaru\":\"nieobjęty ochroną\",\"regionBiogeograficzny\":\"kontynentalny\",\"parametry\":null}]},\"wynik\":{\"idZdarzenia\":\"8c24fbea-ff00-49ba-87c0-389a7da988b6\",\"status\":\"SUKCES\",\"data\":\"2026-10-03T10:23:55\"}}"
+}

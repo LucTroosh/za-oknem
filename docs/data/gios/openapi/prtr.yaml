@@ -1,0 +1,346 @@
+openapi: 3.1.1
+info:
+  title: PRTR API
+  description: |-
+      PRTR - Interfejs API udostępniający dane w zakresie emisji - baza Krajowy Rejestr Uwalniania i Transferu Zanieczyszczeń 
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/prtr
+tags:
+  - name: Krajowy Rejestr Uwalniania i Transferu Zanieczyszczeń
+    description: Informacje o typie i ilości uwolnień zanieczyszczeń do środowiska i transferów zanieczyszczeń oraz o ilości odpadów transferowanych poza miejsce powstawania
+paths:
+  /v1/uwolnienia:
+    get:
+      tags:
+        - Krajowy Rejestr Uwalniania i Transferu Zanieczyszczeń
+      summary: Uwolnienia i transfery zanieczyszczeń
+      description: Usługa sieciowa udostępniająca informacje o typie i ilości uwolnień zanieczyszczeń do środowiska oraz transferów zanieczyszczeń
+      operationId: getUwolnieniaITransferyZanieczyszczenV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: typUwolnienia
+          in: query
+          description: Typ uwolnienia (powietrze, woda, gleba, ścieki)
+          schema:
+            $ref: '#/components/schemas/PrtrTypUwolnieniaEnum'
+        - name: rokRaportu
+          in: query
+          description: Rok raportu (dane dostępne od 2007 roku)
+          schema:
+            type: integer
+            minimum: 2007
+            maximum: 9999
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: miejscowosc
+          in: query
+          description: Miejscowość
+          schema:
+            type: string
+            maximum: 256
+        - name: zaklad
+          in: query
+          description: Nazwa zakładu
+          schema:
+            type: string
+            maxLength: 1024
+        - name: kodZanieczyszczenia
+          in: query
+          description: 'Opis kodów zanieczyszczenia znajduje się pod adresem: [https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=12](https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=12), Kod zanieczyszczenia pochodzi z kolumny Nr. Przykład: 2'
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9999
+        - name: kodDzialalnosciGlownej
+          in: query
+          description: 'Opis kodów działalności głównej znajduje się pod adresem: [https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=8](https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=8), Przykład: 1.(c)'
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrtrZanieczyszczeniaOdpowiedz'
+  /v1/transfery:
+    get:
+      tags:
+        - Krajowy Rejestr Uwalniania i Transferu Zanieczyszczeń
+      summary: Transfer odpadów poza miejsce powstawania
+      description: Usługa sieciowa udostępniająca informacje o ilości odpadów transferowanych poza miejsce powstawania
+      operationId: getTransferOdpadowPozaMiejscePowstawaniaV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: typTransferu
+          in: query
+          description: Typ transferu
+          schema:
+            $ref: '#/components/schemas/PrtrTypTransferuEnum'
+        - name: rokRaportu
+          in: query
+          description: Rok raportu (dane dostępne od 2007 roku)
+          schema:
+            type: integer
+            minimum: 2007
+            maximum: 9999
+        - name: procesZagospodarowaniaOdpadow
+          in: query
+          description: Proces zagospodarowania odpadów, R - odzysk, D - unieszkodliwianie
+          schema:
+            $ref: '#/components/schemas/PrtrProcesZagospodarowaniaOdpadowEnum'
+        - name: kodDzialalnosciGlownej
+          in: query
+          description: 'Opis kodów działalności głównej znajduje się pod adresem: [https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=8](https://eur-lex.europa.eu/legal-content/PL/TXT/PDF/?uri=CELEX:32006R0166#page=8), Przykład: 1.(c)'
+          schema:
+            type: string
+            maxLength: 20
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrtrTransportOdpadowOdpowiedz'
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    PrtrZanieczyszczeniaRekord:
+      type: object
+      properties:
+        typUwolnienia:
+          description: Typ uwolnienia
+          $ref: '#/components/schemas/PrtrTypUwolnieniaEnum'
+        lacznaIlosc:
+          type: string
+          description: Łączna ilość
+        zanieczyszczenie:
+          type: string
+          description: Zanieczyszczenie
+          maxLength: 255
+        kodZanieczyszczenia:
+          type: integer
+          description: Kod zanieczyszczenia
+        dzialalnoscGlowna:
+          type: string
+          description: Działalność główna
+          maxLength: 1000
+        kodDzialalnosciGlownej:
+          type: string
+          description: Kod działalności głównej
+          maxLength: 20
+        rokRaportu:
+          type: integer
+          description: Rok raportu
+          examples: 
+            - 2021
+        zaklad:
+          type: string
+          description: Zakład
+          maxLength: 1024
+        regon:
+          type: string
+          description: Regon
+          maxLength: 20
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+          maxLength: 240
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 256
+      required:
+        - typUwolnienia
+        - zanieczyszczenie
+        - dzialalnoscGlowna
+        - rokRaportu
+        - miejscowosc
+    PrtrZanieczyszczeniaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrtrZanieczyszczeniaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PrtrTransportOdpadowRekord:
+      type: object
+      properties:
+        masaOdpadow:
+          type: string
+          description: Masa odpadów
+        procesZagospodatrowaniaOdpadow:
+          description: Proces zagospodarowania odpadów
+          $ref: '#/components/schemas/PrtrProcesZagospodarowaniaOdpadowEnum'
+        typTransferu:
+          description: Typ transferu
+          $ref: '#/components/schemas/PrtrTypTransferuEnum'
+        dzialalnoscGlowna:
+          type: string
+          description: Działalność główna
+          maxLength: 1000
+        kodDzialalnosciGlownej:
+          type: string
+          description: Kod działalności głównej
+          maxLength: 20
+        rokRaportu:
+          type: integer
+          description: Rok raportu
+        zaklad:
+          type: string
+          description: Zakład
+          maxLength: 1024
+        regon:
+          type: string
+          description: Regon
+          maxLength: 20
+        wojewodztwo:
+          description: Województwo
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        powiat:
+          type: string
+          description: Powiat
+          maxLength: 240
+        miejscowosc:
+          type: string
+          description: Miejscowość
+          maxLength: 256
+    PrtrTransportOdpadowOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrtrTransportOdpadowRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PrtrTypUwolnieniaEnum:
+      type: string
+      enum:
+        - Powietrze
+        - Woda
+        - Gleba
+        - Ścieki
+    PrtrProcesZagospodarowaniaOdpadowEnum:
+      type: string
+      description: Proces zagospodarowania odpadów, R - odzysk, D - unieszkodliwianie
+      enum:
+        - R
+        - D
+    PrtrRodzajOdpadowEnum:
+      type: string
+      enum:
+        - Niebezpieczne
+        - Inne niż niebezpieczne
+    PrtrTypTransferuEnum:
+      type: string
+      enum:
+        - Transfer odpadów niebezpiecznych w granicach kraju
+        - Transfer odpadów niebezpiecznych do innych krajów
+        - Transfer odpadów innych niż niebezpieczne
+    WojewodztwoEnum:
+      type: string
+      enum:
+        - DOLNOŚLĄSKIE
+        - KUJAWSKO-POMORSKIE
+        - LUBELSKIE
+        - LUBUSKIE
+        - ŁÓDZKIE
+        - MAŁOPOLSKIE
+        - MAZOWIECKIE
+        - OPOLSKIE
+        - PODKARPACKIE
+        - PODLASKIE
+        - POMORSKIE
+        - ŚLĄSKIE
+        - ŚWIĘTOKRZYSKIE
+        - WARMIŃSKO-MAZURSKIE
+        - WIELKOPOLSKIE
+        - ZACHODNIOPOMORSKIE
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

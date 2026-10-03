@@ -1,0 +1,1747 @@
+openapi: 3.1.1
+info:
+  title: POWIETRZE API
+  description: |-
+    Interfejs API udostępniający dane w zakresie monitoringu jakości powietrza
+  contact:
+    name: Punkt kontaktowy API
+    url: https://dane.gios.gov.pl/kontakt
+  license:
+    name: CC BY 4.0
+    url: https://creativecommons.org/licenses/by/4.0/
+  version: 1.0.0
+servers:
+  - url: https://dane.gios.gov.pl/api/powietrze
+tags:
+  - name: Wyniki rocznych ocen jakości powietrza
+    description: Wyniki rocznych ocen jakości powietrza wraz z parametrami i metadanymi oraz stężenia zanieczyszczeń uwzględnionych w ocenie jakości powietrza
+  - name: Wyniki ocen wieloletnich
+    description: Wyniki ocen na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza
+  - name: Raporty - oceny jakości powietrza
+    description: Wyniki ocen rocznych oraz wieloletnich na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza z możliwością pobrania dokumentu
+  - name: Monitoring składu chemicznego pyłu zawieszonego PM2,5
+    description: Informacje na temat monitoringu składu chemicznego pyłu zawieszonego PM2,5 w zakresie wyników pomiarów stężeń oraz wartości stężeń średnich rocznych
+  - name: Metody pomiarowe
+    description: Informacje o stosowaniu referencyjnych metod pomiarowych
+  - name: Monitoring chemizmu opadów atmosferycznych (depozycji)
+    description: Informacje z zakresu monitoringu chemizmu opadów atmosferycznych (depozycji) w zakresie metadanych, metod pomiaru oraz wyników pomiarów i średnich stężeń rocznych
+  - name: Stanowiska pomiarowe
+    description: Usługi zwracające listę id stanowisk (parametr stanowiskoId) na potrzeby innych usług
+paths:
+  /v1/wyniki-ocen-rocznych:
+    get:
+      tags:
+        - Wyniki rocznych ocen jakości powietrza
+      summary: Wyniki ocen jakości powietrza - wyniki ocen wraz z parametrami i metadanymi 
+      description: Usługa sieciowa udostępniająca dane dotyczące wyników rocznych ocen jakości powietrza zgromadzone w Ekoinfonet - JPOAT 3.0, w zakresie wyników ocen wraz z parametrami i metadanymi, w tym. m.in. informacje o metodach oceny, stanowiskach pomiarowych, informacje o przekroczeniu
+      operationId: getWynikiOcenRocznychV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: ocenianyRok
+          in: query
+          description: Oceniany rok (rok, dla którego wykonywana jest ocena) np. 2022. – dostępne są dane od 2004 roku
+          schema:
+            type: integer
+            minimum: 2004
+            maximum: 9999
+          required: true
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+        - name: powiat
+          in: query
+          description: Powiat, np. 'Warszawa', 'wałbrzyski'
+          schema:
+            type: string
+            maxLength: 50
+        - name: gmina
+          in: query
+          description: Gmina, np. 'Warszawa', 'Wrocław', 'Gryfino'
+          schema:
+            type: string
+            maxLength: 50
+        - name: strefa
+          in: query
+          description: Strefa, np. 'aglomeracja rybnicko-jastrzębska', 'miasto Gorzów Wielkopolski', 'strefa warmińsko-mazurska'
+          schema:
+            type: string
+            maxLength: 50
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'arsen w PM10', 'benzen', 'benzo(a)piren w PM10', 'dwutlenek azotu', 'dwutlenek siarki', 'kadm w PM10', 'nikiel w PM10', 'ołów w PM10', 'ozon', 'pył zawieszony PM10', 'pył zawieszony PM2.5', 'tlenek węgla', 'tlenki azotu'
+          schema:
+            type: string
+            maxLength: 100
+        - name: typNormy
+          in: query
+          description: Typ normy, np. 'Poziom alarmowy', 'Poziom celu dlugoterminowego', 'Poziom docelowy', 'Poziom dopuszczalny', 'Poziom dopuszczalny (II faza)', 'Poziom dopuszczalny (ochr. rośl.)', 'Poziom informowania'
+          schema:
+            type: string
+            maxLength: 100
+        - name: celOchrony
+          in: query
+          description: Cel ochrony (OZ oznacza kryterium pod kątem ochrony zdrowia ludzi, OR oznacza kryterium pod kątem ochrony roślin)
+          schema:
+            $ref: '#/components/schemas/PowietrzeCelOchronyEnum'
+        - name: wynikOceny
+          in: query
+          description: "Wynik oceny rocznej, np. 'A', 'A1', 'B', 'C', 'C1', 'D1', 'D2'.<br>Ocena: A, A1, D1 oznacza brak przekroczeń; ocena C, C1, D2 oznacza przekroczenie"
+          schema:
+            type: string
+            maxLength: 10
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzewynikiOcenRocznychOdpowiedz'
+  /v1/wyniki-ocen-stezenia:
+    get:
+      tags:
+        - Wyniki rocznych ocen jakości powietrza
+      summary: Wyniki ocen jakości powietrza - stężenia zanieczyszczeń uwzględnionych w ocenie jakości powietrza i danych uzupełniających
+      description: Usługa sieciowa udostępniająca dane dotyczące wyników rocznych ocen jakości powietrza zgromadzone w Ekoinfonet - JPOAT 3.0, w zakresie dot. stężeń zanieczyszczeń uwzględnionych w ocenie i danych uzupełniających
+      operationId: getWynikiOcenStezeniaV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok statystyk, np. 2022
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9999
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego, np. 52 . Lista identyfikatorów stanowisk znajduje się w usłudze [Lista stanowisk monitoringu jakości powietrza](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeWynikiOcenStezeniaOdpowiedz'
+  /v1/wyniki-ocen-wieloletnich:
+    get:
+      tags:
+        - Wyniki ocen wieloletnich
+      summary: Wyniki ocen na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza
+      description: Usługa sieciowa udostępniająca wyniki ocen na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza (tzw. ocen wieloletnich)
+      operationId: getWynikOcenWieloletnichV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: zakresLat
+          in: query
+          description: Zakres lat objętych oceną, np. '2019 - 2023'. Dane udostępniane w zakresach od 2009 roku (zakres lat '2009 - 2013') 
+          schema:
+            type: string
+            maxLength: 11
+          required: true
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: strefa
+          in: query
+          description: Strefa, np. 'aglomeracja rybnicko-jastrzębska', 'miasto Gorzów Wielkopolski', 'strefa warmińsko-mazurska'
+          schema:
+            type: string
+            maxLength: 50
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. arsen w 'PM10', 'benzen', 'benzo(a)piren w PM10', 'dwutlenek azotu', 'dwutlenek siarki', 'kadm w PM10', 'nikiel w PM10', 'ołów w PM10', 'ozon', 'pył zawieszony PM10', 'pył zawieszony PM2.5', 'tlenek węgla', 'tlenki azotu'
+          schema:
+            type: string
+            maxLength: 100
+        - name: celOchrony
+          in: query
+          description: Cel ochrony (OZ oznacza kryterium pod kątem ochrony zdrowia ludzi, OR oznacza kryterium pod kątem ochrony roślin)
+          schema:
+            $ref: '#/components/schemas/PowietrzeCelOchronyEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeWynikiOcenWieloletnichOdpowiedz'
+  /v1/pm25-metadane-metody:
+    get:
+      tags:
+        - Monitoring składu chemicznego pyłu zawieszonego PM2,5
+      summary: Monitoring składu chemicznego pyłu zawieszonego PM2,5 - metadane stanowisk, metody pomiaru
+      description: Usługa sieciowa udostępniająca informacje na temat monitoringu składu chemicznego pyłu zawieszonego PM2,5, w zakresie  metadanych stanowisk, metod pomiaru
+      operationId: getPm25MetadaneStanowiskV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego, np. 52 . Lista identyfikatorów stanowisk znajduje się w usłudze [Lista stanowisk monitoringu jakości powietrza](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'amony w PM2.5', 'azotany w PM2.5', 'chlorki w PM2.5', 'magnez w PM2.5', 'potas w PM2.5', 'siarczany w PM2.5', 'sód w PM2.5', 'wapń w PM2.5', 'węgiel organiczny (OC) w PM2.5', 'wolny węgiel (EC) w PM2.5'
+          schema:
+            type: string
+            maxLength: 100
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzePm25MetadaneStanowiskOdpowiedz'
+  /v1/pm25-wyniki-pomiarow:
+    get:
+      tags:
+        - Monitoring składu chemicznego pyłu zawieszonego PM2,5
+      summary: Monitoring składu chemicznego pyłu zawieszonego PM2,5 - wyniki pomiarów stężeń
+      description: Usługa sieciowa udostępniająca informacje na temat monitoringu składu chemicznego pyłu zawieszonego PM2,5, w zakresie wyników pomiarów stężeń
+      operationId: getPm25WynikiPomiarowV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego, np. 52 . Lista identyfikatorów stanowisk znajduje się w usłudze [Lista stanowisk monitoringu jakości powietrza](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: dataDo
+          in: query
+          description: Data końcowa wyszukiwanych pomiarów w formacie RRRR-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: rok
+          in: query
+          description: Rok wyszukiwanych danych, np. 2022
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9999
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzePm25WynikiPomiarowOdpowiedz'
+  /v1/pm25-statystyki:
+    get:
+      tags:
+        - Monitoring składu chemicznego pyłu zawieszonego PM2,5
+      summary: Monitoring składu chemicznego pyłu zawieszonego PM2,5 - statystyki
+      description: Usługa sieciowa udostępniająca informacje na temat monitoringu składu chemicznego pyłu zawieszonego PM2,5, w zakresie wartości stężeń średnich rocznych
+      operationId: getPm25StatystykiV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego, np. 52 . Lista identyfikatorów stanowisk znajduje się w usłudze [Lista stanowisk monitoringu jakości powietrza](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: rok
+          in: query
+          description: Rok wyszukiwanych danych, np. 2022
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9999
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzePm25StatystykiOdpowiedz'
+  /v1/metody-pomiarowe:
+    get:
+      tags:
+        - Metody pomiarowe
+      summary: Metody pomiarowe
+      description: Usługa sieciowa udostępniająca informacje o stosowaniu referencyjnych metod pomiarowych
+      operationId: getMetodyPomiaroweV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego, np. 52 . Lista identyfikatorów stanowisk znajduje się w usłudze [Lista stanowisk monitoringu jakości powietrza](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'dwutlenek azotu'
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeMetodyPomiaroweOdpowiedz'
+  /v1/chemizm-opadow:
+    get:
+      tags:
+        - Monitoring chemizmu opadów atmosferycznych (depozycji)
+      summary: Monitoring chemizmu opadów atmosferycznych (depozycji) - metadane, metody pomiaru
+      description: Usługa sieciowa udostępniająca informacje z zakresu monitoringu chemizmu opadów atmosferycznych (depozycji) w zakresie  metadanych, metod pomiaru 
+      operationId: getChemizmOpadowV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'arsen (całk. depozycja)', 'benzo(a)antracen (całk. depozycja)', 'benzo(a)piren (całk. depozycja)', 'benzo(b)fluoranten (całk. depozycja)', 'benzo(j)fluoranten (całk. depozycja)', 'benzo(k)fluoranten (całk. depozycja)', 'dibenzo(a,h)antracen (całk. depozycja)', 'indeno(1,2,3-cd)piren (całk. depozycja)', 'kadm (całk. depozycja)', 'nikiel (całk. depozycja)', 'rtęć (całk. depozycja)''
+          schema:
+            type: string
+            maxLength: 100
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego monitoringu chemizmu opadów atmosferycznych (depozycji),  np. 417. Lista identyfikatorów stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji) znajduje się w usłudze [Lista stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji)](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id-dep)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowOdpowiedz'
+  /v1/chemizm-opadow-wyniki-pomiarow:
+    get:
+      tags:
+        - Monitoring chemizmu opadów atmosferycznych (depozycji)
+      summary: Monitoring chemizmu opadów atmosferycznych (depozycji) - wyniki pomiarów
+      description: Usługa sieciowa udostępniająca informacje z zakresu monitoringu chemizmu opadów atmosferycznych (depozycji) w zakresie wyników pomiarów
+      operationId: getChemizmOpadowWynikiPomiarowV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: dataOd
+          in: query
+          description: Data początkowa wyszukiwanych pomiarów w formacie RRRR-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: dataDo
+          in: query
+          description: Data końcowa wyszukiwanych pomiarów w formacie RRRR-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego monitoringu chemizmu opadów atmosferycznych (depozycji),  np. 417. Lista identyfikatorów stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji) znajduje się w usłudze [Lista stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji)](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id-dep)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'arsen (całk. depozycja)', 'benzo(a)antracen (całk. depozycja)', 'benzo(a)piren (całk. depozycja)', 'benzo(b)fluoranten (całk. depozycja)', 'benzo(j)fluoranten (całk. depozycja)', 'benzo(k)fluoranten (całk. depozycja)', 'dibenzo(a,h)antracen (całk. depozycja)', 'indeno(1,2,3-cd)piren (całk. depozycja)', 'kadm (całk. depozycja)', 'nikiel (całk. depozycja)', 'rtęć (całk. depozycja)'
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowWynikiPomiarowOdpowiedz'
+  /v1/chemizm-opadow-agregaty:
+    get:
+      tags:
+        - Monitoring chemizmu opadów atmosferycznych (depozycji)
+      summary: Monitoring chemizmu opadów atmosferycznych (depozycji) - wartości agregatów
+      description: Usługa sieciowa udostępniająca agregaty ze stanowisk zawierające informacje z zakresu monitoringu chemizmu opadów atmosferycznych
+      operationId: getChemizmOpadowAgregatyV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: dataOd
+          in: query
+          description: Data początkowa wyszukiwanych pomiarów w formacie RRRR-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: dataDo
+          in: query
+          description: Data końcowa wyszukiwanych pomiarów w formacie RRRR-MM-DD
+          schema:
+            type: string
+            format: date
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego monitoringu chemizmu opadów atmosferycznych (depozycji),  np. 417. Lista identyfikatorów stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji) znajduje się w usłudze [Lista stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji)](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id-dep)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: wskaznik
+          in: query
+          description: Wskaźnik, np. 'arsen (całk. depozycja)', 'benzo(a)antracen (całk. depozycja)', 'benzo(a)piren (całk. depozycja)', 'benzo(b)fluoranten (całk. depozycja)', 'benzo(j)fluoranten (całk. depozycja)', 'benzo(k)fluoranten (całk. depozycja)', 'dibenzo(a,h)antracen (całk. depozycja)', 'indeno(1,2,3-cd)piren (całk. depozycja)', 'kadm (całk. depozycja)', 'nikiel (całk. depozycja)', 'rtęć (całk. depozycja)'
+          schema:
+            type: string
+            maxLength: 100
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+      responses:
+        '200':
+          description: Succes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowAgregatyOdpowiedz'
+  /v1/chemizm-opadow-srednie-roczne:
+    get:
+      tags:
+        - Monitoring chemizmu opadów atmosferycznych (depozycji)
+      summary: Monitoring chemizmu opadów atmosferycznych (depozycji) - średnie stężenia roczne
+      description: Usługa sieciowa udostępniająca informacje z zakresu monitoringu chemizmu opadów atmosferycznych (depozycji) w zakresie średnich stężeń rocznych
+      operationId: getChemizmOpadowSrednieRoczneV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rok
+          in: query
+          description: Rok np. 2022
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9999
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska pomiarowego monitoringu chemizmu opadów atmosferycznych (depozycji),  np. 417. Lista identyfikatorów stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji) znajduje się w usłudze [Lista stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji)](https://dane.gios.gov.pl/api/powietrze/v1/stanowisko-id-dep)
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowSrednieRoczneOdpowiedz'
+  /v1/stanowisko-id:
+    get:
+      tags:
+        - Stanowiska pomiarowe
+      summary: Lista stanowisk monitoringu jakości powietrza (stanowiskoId) 
+      description: Lista stanowisk pomiarowych monitoringu jakości powietrza udostępniająca numer id stanowiska  (stanowiskoId) na potrzeby innych usług, np. pobierania po id stanowiska
+      operationId: getStanowiskoIdV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: idStacja
+          in: query
+          description: Identyfikator stacji
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: idWskaznik
+          in: query
+          description: 'Identyfikator wskaźnika - liczba. Przykład: 1 (id dla dwutlenek siarki), 3 (id dla  pyłu zawieszonego PM10), 5 (id dla ozonu), 6 (id dla dwutlenku azotu), 8 (id dla  tlenku węgla), 10 (id dla benzenu)'
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: statusStanowisko
+          in: query
+          description: Liczba odpowiadająca statusowi stanowiska, np. '2' - dla stanowisk o statusie "aktywny"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 99999999
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeStanowiskoIdOdpowiedz'
+  /v1/stanowisko-id-dep:
+    get:
+      tags:
+        - Stanowiska pomiarowe
+      summary: Lista stanowisk dotyczących monitoringu chemizmu opadów atmosferycznych (depozycji) (stanowiskoId)
+      description: Lista stanowisk pomiarowych dotyczących monitoringu chemizmu opadów atmosferycznych - depozycji udostępniająca numer id  stanowiska (stanowiskoId) na potrzeby innych usług, np. pobierania po id stanowiska
+      operationId: getIdStanowiskoIdDepV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: stanowiskoId
+          in: query
+          description: Identyfikator stanowiska
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: idStacja
+          in: query
+          description: Identyfikator stacji
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: idWskaznik
+          in: query
+          description: 'Identyfikator wskaźnika - liczba. Przykład: 43 (id dla stanowiska DsOsieczow21-BjF(cdepoz)-1m)'
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 99999999
+        - name: statusStanowisko
+          in: query
+          description: Liczba odpowiadająca statusowi stanowiska, np. '2' - dla stanowisk o statusie "aktywny"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 99999999
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeStanowiskoIdDepOdpowiedz'
+  /v1/raporty-oceny-roczne:
+    get:
+      tags:
+        - Raporty - oceny jakości powietrza
+      summary: Raporty - Wyniki ocen jakości powietrza
+      description: Usługa sieciowa udostępniająca raporty z rocznych ocen jakości powietrza, w zakresie raportów z rocznych ocen jakości powietrza za dany rok
+      operationId: getRaportyOcenyRoczneV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: ocenianyRok
+          in: query
+          description: Oceniany rok np. 2022. – dostępne są dane od 2012 roku
+          schema:
+            type: integer
+            minimum: 2012
+            maximum: 9999
+          required: true
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeRaportOcenaRocznaOdpowiedz'
+  /v1/raporty-oceny-wieloletnie:
+    get:
+      tags:
+        - Raporty - oceny jakości powietrza
+      summary: Raporty - Wyniki ocen na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza
+      description: Usługa sieciowa udostępniająca raporty z ocen wykonywanych  na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza w poszczególnych strefach (tzw. ocen wieloletnich) 
+      operationId: getRaportyOcenyWieloletnieV1
+      parameters:
+        - $ref: '#/components/parameters/numerStrony'
+        - $ref: '#/components/parameters/liczbaElementowNaStronie'
+        - name: rokOd
+          in: query
+          description: Rok raportu od
+          schema:
+            type: integer
+            minimum: 2014
+            maximum: 9999
+          required: true
+        - name: rokDo
+          in: query
+          description: Rok raportu do
+          schema:
+            type: integer
+            minimum: 2014
+            maximum: 9999
+        - name: wojewodztwo
+          in: query
+          description: Województwo
+          schema:
+            $ref: '#/components/schemas/WojewodztwoEnum'
+          required: true
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PowietrzeRaportOcenaWieloletniaOdpowiedz'
+  /v1/plik/{id}:
+    get:
+      tags:
+        - Raporty - oceny jakości powietrza
+      summary: Pobieranie dokumentu w postaci pliku PDF lub JSON
+      description: 'Usługa sieciowa pozwalająca na pobranie dokumentu. Identyfikator dokumentu należy pobrać wywołując jedną z poniższych usług podając parametry zapytania zgodnie z dokumentacją: <br>
+                - Raporty - Wyniki ocen jakości powietrza (/v1/raporty-oceny-roczne)<br>
+                - Raporty - Wyniki ocen na potrzeby ustalenia metod wykonywania rocznych ocen jakości powietrza (/v1/raporty-oceny-wieloletnie)'
+      operationId: getDokumentV1
+      parameters:
+        - name: id
+          in: path
+          description: Identyfikator pliku
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 9223372036854775807
+        - name: format
+          in: query
+          description: Format pliku
+          required: true
+          schema:
+            $ref: '#/components/schemas/FormatPlikuEnum'
+      responses:
+        '200':
+          description: Sukces
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      wynik:
+                        $ref: '#/components/schemas/WynikTyp'
+                  - type: object
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+components:
+  parameters:
+    numerStrony:
+      in: query
+      name: numerStrony
+      description: Parametr mechanizmu stronicowania określający, którą stronę wyników chce pobrać użytkownik. Numer indeksu żądanej strony (liczony od zera). Domyślna wartość → 0
+      example: 0
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 99999
+        default: 0
+    liczbaElementowNaStronie:
+      in: query
+      name: liczbaElementowNaStronie
+      example: 10
+      description: Parametr mechanizmu stronicowania określający ilość oczekiwanych rekordów w odpowiedzi na stronie. Jest to dodatnia liczba całkowita podawana z kluczem parametru. Domyślna wartość → 10, Maksymalna wartość → 50
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+  schemas:
+    PowietrzeWynikiRocznychRekord:
+      type: object
+      properties:
+        idOcenaRoczna:
+          type: integer
+        ocenianyRok:
+          type: integer
+        wojewodztwo:
+          $ref: '#/components/schemas/Wojewodztwo'
+        ocena:
+            type: object
+            properties:
+              status:
+                type: integer
+              kod:
+                type: string
+                maxLength: 20
+        odnosnikDoRaportu:
+          type: string
+          maxLength: 255
+        czyAktualnaWersja:
+          type: boolean
+        idWynikuOcenyRocznejDlaWsk:
+          type: integer
+        klasaStrefyDlaWskaznika:
+          type: string
+        strefa:
+          $ref: '#/components/schemas/Strefa'
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'
+        celOchrony:
+          type: string
+          maxLength: 255
+        typNormy:
+          type: string
+          maxLength: 100
+        idWynikOcenyDlaParametru:
+          type: integer
+        idCeluSrodowiskowego:
+          type: integer
+        miaraRaportowania:
+          type: string
+          maxLength: 50
+        metodaOceny:
+          type: string
+          maxLength: 2
+        czyWykorzystanoMetodaPomiarowa:
+          type: boolean
+        czyWykorzystanoMetodePomiarowAutomatycznych:
+          type: boolean
+        czyWykorzystanoMetodePomiarowManualnych:
+          type: boolean
+        czyWykorzystanoMetodePomiarowPasywnych:
+          type: boolean
+        czyWykorzystanoMetodeModelowania:
+          type: boolean
+        czyWykorzystanoMetodeSzacowania:
+          type: boolean
+        komentarzDoOceny:
+          type: string
+          maxLength: 4000
+        najgorszaWartoscStatystyki:
+          type: number
+        wynikOceny:
+          type: string
+        kodPrzekroczenia:
+          type: string
+          maxLength: 100
+        czyTypObszaruMiejski:
+          type: boolean
+        czyTypObszaruPodmiejski:
+          type: boolean
+        czyTypObszaruPozamiejski:
+          type: boolean
+        powierzchniaPrzekroczenia:
+          type: number
+        dlugoscDrogiZPrzekroczeniem:
+          type: number
+        liczbaMieszkancowNarazonych:
+          type: integer
+        komentarzDoPrzekroczenia:
+          type: string
+          maxLength: 4000
+        idStatusOdliczenia:
+          type: integer
+        przyczynyPrzekroczenia:
+          type: string
+          maxLength: 4000
+        idGminyPrzekroczenia:
+          type: integer
+        kodTerytGminyPrzekroczenia:
+          type: string
+        nazwaGminyPrzekroczenia:
+          type: string
+        nazwaGminyZTypemPrzekroczenia:
+          type: string
+        typGminyPrzekroczenia:
+          type: string
+        nazwaPowiatuPrzekroczenia:
+          type: string
+        nazwaWojewodztwaPrzekroczenia:
+          type: string
+    PowietrzewynikiOcenRocznychOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeWynikiRocznychRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeWynikiOcenStezeniaRekord:
+      type: object
+      properties:
+        rok:
+          type: integer
+        stanowiskoId:
+          type: integer
+        sredniaRoczna:
+          type: number
+        sredniaZimowa:
+          type: number
+        minRoczne:
+          type: number
+        maxRoczne:
+          type: number
+        maxDobowe:
+          type: number
+        max8Godzinne:
+          type: number
+        kompletnosc:
+          type: number
+        kodStanowiska:
+          type: string
+        wskaznik:
+          type: object
+          properties:
+            id:
+              type: integer
+            nazwa:
+              type: string
+        czasUsredniania:
+          type: string
+        jednostka:
+          type: string
+    PowietrzeWynikiOcenStezeniaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeWynikiOcenStezeniaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeWynikiOcenWieloletnichRekord:
+      type: object
+      properties:
+        idOceny:
+          type: integer
+        rokWykonaniaOceny:
+          type: integer
+        wojewodztwo:
+          $ref: '#/components/schemas/Wojewodztwo'
+        ocena:
+          type: object
+          properties:
+            status:
+              type: integer
+            kod:
+              type: string
+              maxLength: 20
+            zakresLat:
+              type: string
+        odnosnikDoRaportu:
+          type: string
+          maxLength: 255
+        idWynikuOcenyWieloletniejDlaWskaznika:
+          type: integer
+        klasaStrefyDlaWskaznika:
+          type: string
+          maxLength: 3
+        strefa:
+          $ref: '#/components/schemas/Strefa'
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'
+        celOchrony:
+          type: string
+          maxLength: 255
+        liczbaMieszkancowStrefy:
+          type: integer
+        komentarzDoWynikuOceny:
+          type: string
+        idWynikuOcenyWieloletniejDlaParametru:
+          type: string
+          maxLength: 4000
+        idCeluSrodowiskowego:
+          type: integer
+        miaraRaportowania:
+          type: string
+          maxLength: 50
+        klasaStrefyDlaParametru:
+          type: string
+          maxLength: 3
+        plan:
+          type: object
+          properties:
+            pomiaryIntensywne:
+              type: boolean
+            pomiaryWskaznikowe:
+              type: boolean
+            modelowanie:
+              type: boolean
+        wymagane:
+          type: object
+          properties:
+            pomiaryIntensywne:
+              type: boolean
+            inne:
+              type: boolean
+        liczbaStanowiskIst:
+          type: object
+          properties:
+            tla:
+              type: integer
+            komunikacyjnych:
+              type: integer
+            przemyslowych:
+              type: integer
+        liczbaStanowiskPlan:
+          type: object
+          properties:
+            tla:
+              type: integer
+            komunikacyjnych:
+              type: integer
+            przemyslowych:
+              type: integer
+        liczbaStanowiskWym:
+          type: object
+          properties:
+            tla:
+              type: integer
+            komunikacyjnych:
+              type: integer
+            przemyslowych:
+              type: integer
+        liczbaStanowiskWymInne:
+          type: object
+          properties:
+            tla:
+              type: integer
+            komunikacyjnych:
+              type: integer
+            przemyslowych:
+              type: integer
+    PowietrzeWynikiOcenWieloletnichOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeWynikiOcenWieloletnichRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzePm25MetadaneStanowiskRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'
+        stacja:
+          $ref: '#/components/schemas/Stacja'
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        czasUsredniania:
+          type: string
+          maxLength: 100
+        metodaAnalizy: 
+          type: string
+        dataPoczatkuMetodyAnalizy:
+          type: string
+          format: date
+        dataKoncaMetodyAnalizy:
+          type: string
+          format: date
+        metodaPoboruProby:
+          type: string
+        dataPoczatkuMetodyPoboruProby:
+          type: string
+          format: date
+        dataKoncaMetodyPoboruProby:
+          type: string
+          format: date
+    PowietrzePm25MetadaneStanowiskOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzePm25MetadaneStanowiskRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzePm25WynikiPomiarowRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        dataPomiaru:
+          type: string
+          format: date
+        wartosc:
+          type: number
+        jednostkaPomiaru:
+          type: string
+          maxLength: 100
+        dane:
+          $ref: '#/components/schemas/Dane'
+        rok:
+          type: integer
+        miesiac:
+          type: integer
+        dzien:
+          type: integer
+    PowietrzePm25WynikiPomiarowOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzePm25WynikiPomiarowRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzePm25StatystykiRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'
+        czasUsredniania:
+          type: string
+          maxLength: 100
+        stacja:
+          $ref: '#/components/schemas/Stacja'
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        sredniaRoczna:
+          type: number
+          format: double
+        jednostkaPomiaru:
+          type: string
+          maxLength: 100
+        kompletnosc:
+          type: number
+          format: double
+        rok:
+          type: integer
+        czyWPMS:
+          type: boolean
+        czyWykorzystane:
+          type: boolean        
+    PowietrzePm25StatystykiOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzePm25StatystykiRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeMetodaPomiarowaRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        wskaznik:
+          $ref: '#/components/schemas/WskaznikNazwaKod'
+        czasUsredniania:
+          type: string
+          maxLength: 100
+        stacja:
+          $ref: '#/components/schemas/Stacja'
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        rok:
+          type: integer
+        referencyjnoscMetody :
+          type: string
+    PowietrzeMetodyPomiaroweOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeMetodaPomiarowaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeChemizmOpadowRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/StanowiskoRozszerzony'
+        stacja:
+          $ref: '#/components/schemas/StacjaRozszerzony'    
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        gegrLat:
+          type: string
+          maxLength: 50
+        gegrLon:
+          type: string
+          maxLength: 50
+        coord1992X:
+          type: string
+          maxLength: 50
+        coord1992Y:
+          type: string
+          maxLength: 50
+        wysokoscNMP:
+          type: string
+          maxLength: 50
+        typObszaru:
+          type: string
+        adres:
+          type: string
+          maxLength: 255
+        komentarzDotOtoczenia:
+          type: string
+          maxLength: 2048
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'      
+        pomiar:
+          $ref: '#/components/schemas/PomiarTypTryb'
+        czasUsredniania:
+          type: string
+          maxLength: 100
+        metodaAnalizy:
+          type: string
+        dataPoczatkuMetodyAnalizy:
+          type: string
+          format: date
+        dataKoncaMetodyAnalizy:
+          type: string
+          format: date
+        metodaPomiaru:
+          type: string
+        dataPoczatkuMetodyPomiaru:
+          type: string
+          format: date
+        dataKoncaMetodyPomiaru:
+          type: string
+          format: date
+        metodaPoboruProby:
+          type: string
+        dataPoczatkuMetodyPoboruProby:
+          type: string
+          format: date
+        dataKoncaMetodyPoboruProby:
+          type: string
+          format: date
+    PowietrzeChemizmOpadowOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeChemizmOpadowWynikiPomiarowRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        wskaznik:
+          $ref: '#/components/schemas/Wskaznik'
+        czasUsredniania:
+          type: string
+        dataPoczatkuPomiaru:
+          type: string
+          format: date
+        dataKoncaPomiaru:
+          type: string
+          format: date
+        wartosc:
+          type: number
+        jednostkaPomiaru:
+          type: string
+          maxLength: 100
+        weryfikacjaDanych:
+          $ref: '#/components/schemas/WeryfikacjaDanych'
+        jakoscDanych:
+          $ref: '#/components/schemas/JakoscDanych'
+        czyArchiwalny:
+          type: boolean
+        rok:
+          type: integer
+        miesiac:
+          type: integer
+        dzien:
+          type: integer      
+    PowietrzeChemizmOpadowWynikiPomiarowOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowWynikiPomiarowRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeChemizmOpadowAgregatyRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        wskaznik:
+          $ref: '#/components/schemas/WskaznikNazwaKod'
+        czasUsredniania:
+          type: string
+          maxLength: 100
+        stacja:
+          $ref: '#/components/schemas/Stacja'
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        dzienPomiaru:
+          type: string
+          format: date
+        wartoscSredniaDobowaStezenia:
+          type: number
+        kompletnoscDanychDoSredniej:
+          type: number
+        wartoscSumyDobowej:
+          type: number
+        kompletnoscSumyDobowej:
+          type: number
+        jednostkaPomiaru:
+          type: string
+          maxLength: 100
+    PowietrzeChemizmOpadowAgregatyOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowAgregatyRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeChemizmOpadowSrednieRoczneRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/Stanowisko'
+        stacja:
+          $ref: '#/components/schemas/Stacja'
+        gmina:
+          type: string
+          maxLength: 50
+        powiat:
+          type: string
+          maxLength: 50
+        wojewodztwo:
+          $ref: '#/components/schemas/WojewodztwoEnum'
+        sredniaRoczna:
+          type: number
+        kompletnosc:
+          type: number
+        rok:
+          type: integer
+        czyWpms:
+          type: boolean
+        rocznaSumaOdpaduMokrego:
+          type: number
+        roczneSredniowazoneStezenie:
+          type: number
+        sredniRocznyOdczynPh:
+          type: number
+        rocznyLadunekOpadzieMokrym:
+          type: number
+        rocznyLadunekOpadzieCalkowitym:
+          type: number
+        jednostkaPomiaru:
+          type: string
+    PowietrzeChemizmOpadowSrednieRoczneOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeChemizmOpadowSrednieRoczneRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeStanowiskoIdRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/StanowiskoRozszerzony'
+        stacja:
+          type: object
+          properties:
+            id:
+              type: integer
+        wskaznik:
+          type: object
+          properties:
+            id:
+              type: integer
+        pomiar:
+          $ref: '#/components/schemas/PomiarTypTryb'
+        godzinaPoboru:
+          type: string
+        czyStanowiskoMaDaneObliczane:
+          type: boolean
+    PowietrzeStanowiskoIdOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeStanowiskoIdRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeIdStanowiskoIdDepRekord:
+      type: object
+      properties:
+        stanowisko:
+          $ref: '#/components/schemas/StanowiskoRozszerzony'
+        stacja:
+          type: object
+          properties:
+            id:
+              type: integer
+        wskaznik:
+          type: object
+          properties:
+            id:
+              type: integer
+        pomiar:
+          $ref: '#/components/schemas/PomiarTypTryb'
+        godzinaPoboru:
+          type: string
+          maxLength: 10
+        czyStanowiskoMaDaneObliczane:
+          type: string
+          maxLength: 1
+    PowietrzeStanowiskoIdDepOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeIdStanowiskoIdDepRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeRaportOcenaRocznaRekord:
+      type: object
+      properties:
+        plikId:
+          type: integer
+        plikNazwa:
+          type: string
+        dokumentTytul:
+          type: string
+        dataWykonania:
+          type: string
+          format: date
+        ocenianyRok:
+          type: integer
+    PowietrzeRaportOcenaRocznaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeRaportOcenaRocznaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeRaportOcenaWieloletniaRekord:
+      type: object
+      properties:
+        plikId:
+          type: integer
+        plikNazwa:
+          type: string
+        dokumentTytul:
+          type: string
+        dataWykonania:
+          type: string
+          format: date
+        rokOd:
+          type: integer
+        rokDo:
+          type: integer
+    PowietrzeRaportOcenaWieloletniaOdpowiedz:
+      type: object
+      properties:
+        dane:
+          type: object
+          properties:
+            strona:
+              type: array
+              items:
+                $ref: '#/components/schemas/PowietrzeRaportOcenaWieloletniaRekord'
+            liczbaRekordow:
+              type: integer
+        wynik:
+          $ref: '#/components/schemas/WynikTyp'
+    PowietrzeCelOchronyEnum:
+      type: string
+      enum:
+        - OZ
+        - OR
+    Wojewodztwo:
+      type: object
+      properties:
+        id:
+          type: integer
+        nazwa:
+          type: string
+          maxLength: 50
+    Strefa:
+      type: object
+      properties:
+        id:
+          type: integer
+        kod:
+          type: string
+          maxLength: 50
+        nazwa:
+          type: string
+          maxLength: 50
+    Wskaznik:
+      type: object
+      properties:
+        id:
+          type: integer
+        nazwa:
+          type: string
+          maxLength: 100
+        kod:
+          type: string
+          maxLength: 50
+    WskaznikNazwaKod:
+      type: object
+      properties:
+        nazwa:
+          type: string
+          maxLength: 100
+        kod:
+          type: string
+          maxLength: 50
+    Stanowisko:
+      type: object
+      properties:
+        id:
+          type: integer
+        kod:
+          type: string
+          maxLength: 60
+    StanowiskoRozszerzony:
+      type: object
+      properties:
+        id:
+          type: integer
+        kod:
+          type: string
+        status:
+          type: integer
+        dataUruchomienia:
+          type: string
+          format: date
+        dataZamkniecia:
+          type: string
+          format: date
+        typ:
+          type: integer
+        opis:
+          type: string
+    Metoda:
+      type: object
+      properties:
+        poboruProby:
+          type: string
+        analizy:
+          type: string
+        pomiaru:
+          type: string
+    Stacja:
+      type: object
+      properties:
+        id:
+          type: integer
+        kod:
+          type: string
+          maxLength: 50
+        kodUE:
+          type: string
+          maxLength: 50
+        nazwa:
+          type: string
+          maxLength: 255
+    StacjaRozszerzony:
+      type: object
+      properties:
+        id:
+          type: integer
+        kod:
+          type: string
+          maxLength: 50
+        kodUE:
+          type: string
+          maxLength: 50
+        nazwa:
+          type: string
+          maxLength: 255
+        dataUruchomienia:
+          type: string
+          format: date
+        dataZamkniecia:
+          type: string
+          format: date
+        status:
+          type: string
+          maxLength: 255
+        wlasciciel:
+          type: string
+        typ:
+          type: string
+        rodzaj:
+          type: string
+        dodatkowyOpis:
+          type: string
+          maxLength: 255
+    PomiarTypTryb:
+      type: object
+      properties:
+        typ:
+          type: string
+          maxLength: 50
+        tryb:
+          type: string
+          maxLength: 50
+    WeryfikacjaDanych:
+      type: object
+      properties:
+        status:
+          type: string
+          maxLength: 50
+        kod:
+          type: string
+          maxLength: 50
+    JakoscDanych:
+      type: object
+      properties:
+        status:
+          type: string
+          maxLength: 50
+        kod:
+          type: string
+          maxLength: 50      
+    Dane:
+      type: object
+      properties:
+        status:
+          type: string
+          maxLength: 50
+        kod:
+          type: string
+          maxLength: 50
+    FormatPlikuEnum:
+      type: string
+      enum:
+        - PDF
+        - JSON
+    WojewodztwoEnum:
+      type: string
+      enum:
+        - dolnośląskie
+        - kujawsko-pomorskie
+        - lubelskie
+        - lubuskie
+        - łódzkie
+        - małopolskie
+        - mazowieckie
+        - opolskie
+        - podkarpackie
+        - podlaskie
+        - pomorskie
+        - śląskie
+        - świętokrzyskie
+        - warmińsko-mazurskie
+        - wielkopolskie
+        - zachodniopomorskie
+    WynikTyp:
+      type: object
+      description: Wynik wykonania operacji
+      required:
+        - idZdarzenia
+        - status
+        - data
+      properties:
+        idZdarzenia:
+          type: string
+          format: uuid
+          description: Unikalny identyfikator zdarzenia (UUID)
+          examples:
+            - "e1933560-9691-4ff5-9335-6096911ff5fa"
+        status:
+          type: string
+          enum:
+            - SUKCES
+            - BLAD
+          description: Status wykonania operacji
+        data:
+          type: string
+          format: date-time
+          description: Data i czas wykonania operacji (ISO 8601, UTC)
+        blad:
+          $ref: '#/components/schemas/BladTyp'
+    BladTyp:
+      type: object
+      description: Szczegóły błędu występującego podczas przetwarzania
+      required:
+        - kod
+        - opis
+      properties:
+        kod:
+          type: string
+          description: Kod błędu zgodny z katalogiem błędów systemu
+        opis:
+          type: string
+          description: Szczegółowy opis błędu

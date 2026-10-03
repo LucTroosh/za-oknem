@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/halas/v1/pomiar-halasu-w-srodowisku?kategoria=Droga&wojewodztwo=%C5%9Bl%C4%85skie&dataOd=2024-01-01&dataDo=2024-12-31&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\n    \"wynik\": {\n        \"idZdarzenia\": \"756aef9b-8829-434f-9e3d-18979a70b7d5\",\n        \"status\": \"BLAD\",\n        \"data\": \"2026-10-03T10:23:54\",\n        \"blad\": {\n            \"kod\": \"400\",\n            \"opis\": \"Parametr wojewodztwo ma niepoprawną wartość\"\n        }\n    }\n}"
+}

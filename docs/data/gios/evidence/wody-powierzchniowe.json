@@ -1,0 +1,7 @@
+{
+  "url": "https://dane.gios.gov.pl/api/wody-powierzchniowe/v1/programy-monitoringu?jcwpNazwa=Odra&rok=2025&liczbaElementowNaStronie=1",
+  "checked_at": "2026-10-03",
+  "http_status": 200,
+  "content_type": "application/json; charset=UTF-8",
+  "body": "{\n    \"dane\": {\n        \"liczbaRekordow\": 0\n    },\n    \"wynik\": {\n        \"idZdarzenia\": \"2bf943c4-74f9-492b-823c-4d59c78954b9\",\n        \"status\": \"SUKCES\",\n        \"data\": \"2026-10-03T10:23:55\"\n    }\n}"
+}
