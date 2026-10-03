@@ -138,7 +138,10 @@ for q in db.query(Q).filter(Q.source_id == 'gios_noise').all():
   (1 `duplicate_record`, 1 pozycja bez wyniku: `wynikPomiaru: null`) — punkt 4 pokazuje, co to było. Powody: `value_missing`
   (źródło nie podało wyniku), `value_not_number` (wynik innego typu niż liczba = zmiana kontraktu, do zgłoszenia),
   `duplicate_record` z `detail`: `identical` (ten sam rekord opublikowany dwa razy) albo `differs: <pola>` (klucz
-  rekordu byłby wtedy zbyt gruby — do zgłoszenia).
+  rekordu byłby wtedy zbyt gruby — do zgłoszenia). Od #144 duplikaty różniące się tylko `przekroczenie` są scalane:
+  `null` + liczba ⇒ liczba (`merged: …`), dwie różne liczby ⇒ pomiar bez przekroczenia (`conflict: …`). Dane zaimportowane
+  przed tą zmianą mają regułę „pierwszy wygrywa” dla 78 z 208 826 rekordów (0,04%) — poprawią się przy następnym
+  imporcie, nie trzeba powtarzać pełnego importu tylko z tego powodu.
 - „W pobliżu nie ma punktu pomiarowego” (`no_coverage`) pojawia się dopiero, gdy **każda** z 64 kombinacji ma aktywny
   import obejmujący cały zakres `NEIGHBORHOOD_NOISE_COVERAGE_FROM` – `…_TO` (domyślnie 2015-01-01 – 2026-12-31).
   Przy imporcie częściowym albo jednego roku API zwraca `unavailable` (brak punktu w niepełnych danych nie dowodzi

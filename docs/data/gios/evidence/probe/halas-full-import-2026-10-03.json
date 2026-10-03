@@ -1,0 +1,30 @@
+{
+  "_meta": "Pełny import kraju hałasu, zakres dat 2015-01-01 – 2026-12-31, operator, 2026-10-03. Wyniki zapytań operatora do bazy. Obraz api sprzed #142 (stare nazwy powodów, brak detail duplikatów).",
+  "active_snapshots": {"wide_range_2015_2026": 64, "extra_narrow_2024_droga_slaskie": 1},
+  "missing_combinations": [],
+  "records_total": 208826,
+  "rejected_total": 4248,
+  "quarantine_by_reason": [
+    {"reason": "value_not_number", "detail": "None", "count": 4171, "meaning": "wynikPomiaru = null (pozycja bez wyniku); od #142 powód value_missing"},
+    {"reason": "duplicate_record", "count": 78, "differs_in": "przekroczenie (wszystkie 78)"},
+    {"reason": "date_order", "detail": "2025-11-15 > 2025-11-14", "count": 1}
+  ],
+  "duplicate_pairs_przekroczenie_accepted_vs_copy_top15": [
+    {"accepted": null, "copy": 0, "count": 31},
+    {"accepted": 0.0, "copy": null, "count": 24},
+    {"accepted": 0.6, "copy": 0.5, "count": 2},
+    {"accepted": 1.8, "copy": 2.8, "count": 1},
+    {"accepted": 10.0, "copy": null, "count": 1},
+    {"accepted": 3.6, "copy": null, "count": 1},
+    {"accepted": null, "copy": 4, "count": 1},
+    {"accepted": null, "copy": 5.2, "count": 1},
+    {"accepted": -0.6, "copy": null, "count": 1},
+    {"accepted": null, "copy": 6, "count": 1},
+    {"accepted": 3.4, "copy": null, "count": 1},
+    {"accepted": null, "copy": 4.8, "count": 1},
+    {"accepted": null, "copy": 1.9, "count": 1},
+    {"accepted": 2.7, "copy": null, "count": 1},
+    {"accepted": 3.5, "copy": null, "count": 1}
+  ],
+  "note": "9 par z licznikiem 1 nie weszło do wydruku (limit 15 wierszy)."
+}
