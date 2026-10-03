@@ -94,7 +94,7 @@ Szczegóły bramek: `docs/data/gios/07-operation-gates.md`. Weryfikacja na żywo
 | GIOS-03 | rozszerzenie bieżącego powietrza GIOŚ (audyt connectora, wielostronicowe sensory, indeks) | ⬜ TODO (PR-C) |
 | GIOS-04 | hałas — pomiary historyczne (import ręczny, najbliższy punkt do 10 km) | 🟡 PARTIAL — backend gotowy (parser, import `--validate-only`/`--file`, kwarantanna, migracja 0018); **gate niezaliczony** (paginacja, pusty wynik: B-6) — import na prawdziwym GIOŚ po stronie operatora |
 | GIOS-05 | hałas — zasięgi i ekspozycja punktu | ⛔ BLOCKED — próbka polygonu + CRS (B-2) |
-| GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⬜ TODO; liczby emisji ⛔ BLOCKED — jednostki (B-1) |
+| GIOS-06 | PRTR — lista zakładów w obszarze administracyjnym | ⛔ BLOCKED — brak słownika powiat → TERYT (B-9); liczby emisji dodatkowo — jednostki (B-1) |
 | GIOS-07 | rejestr ZZR/ZDR i historia zdarzeń | ⬜ TODO; zdarzenia UNVERIFIED (brak próbki) |
 | GIOS-08 | wody powierzchniowe — plan monitoringu + discovery wyników | ⛔ BLOCKED dla UI — brak niepustego rekordu i wyników/geometrii (B-3, B-4) |
 | GIOS-09 | wody podziemne | ⛔ BLOCKED dla geo — CRS i polygony JCWPd (B-2, B-3) |
@@ -305,6 +305,7 @@ okresem i źródłem, nie własna historia szeregów czasowych.
 | #135 | ADR-032 „Twoja okolica”, 7 wpisów `gios_*` w Source Registry, macierz bramek operacji (`07-operation-gates.md`) |
 | #136 | Fundament ingestu nowych API GIOŚ (`app/gios_open/`, migracja 0017) i `probe` dla operatora; bez connectora |
 | #137 | Backend hałasu historycznego: connector `gios_noise` (parser, import ręczny, kwarantanna), `noise_measurements` (migracja 0018), `GET /api/v1/neighborhood`, flagi `NEIGHBORHOOD_NOISE_*` (domyślnie off) — 🟡 gate GIOŚ niezaliczony (B-6), jeszcze bez importu na prawdziwym GIOŚ |
+| #138 | Mobile: wiersz „Twoja okolica” na Start (tylko gdy API zgłasza `enabled`) i ekran z sekcją hałasu (stany available / no_coverage / unavailable / degraded, atrybucja CC BY 4.0) — 🟡 niezweryfikowane na urządzeniu |
 
 ---
 

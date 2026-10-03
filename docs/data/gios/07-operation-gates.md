@@ -56,6 +56,7 @@ specyfikacji, nie innych portali, map bazowych ani grafik.
 | B-6 Semantyka `liczbaRekordow`, paginacja, maks. zakres dat, cykl publikacji, limity | cykliczny polling, pewność kompletności snapshotu | testy stron 0/1/ostatniej przez operatora (`--validate-only`) + pytanie do GIOŚ; do tego czasu import ręczny i ochrona przed pętlą |
 | B-7 Strefa czasowa `wynik.data` (bez offsetu) | użycie `wynik.data` | nie używamy jej jako czasu pomiaru; własne `fetched_at` w UTC |
 | B-8 Żywa weryfikacja z sieci | zmiana statusu `IMPLEMENTABLE` → `APPROVED` w Source Registry | operator: `python -m app.connectors.<źródło>.ingest --validate-only` na maszynie z dostępem; wynik do rejestru |
+| B-9 Słownik jednostek administracyjnych (nazwa powiatu → kod TERYT) | dopasowanie PRTR i ZZR/ZDR do lokalizacji | brak w repo (mamy TERYT gminy w `geo_areas` i GeoNames-owe nazwy w `places`, a PRTR/ZZR zwracają tylko nazwy: „Powiat turecki”, małe litery bez „Powiat”). Potrzebny wiarygodny słownik (np. TERC GUS) przez Source Approval Gate (#15) i ADR/wpis w rejestrze. **Nie dopasowywać po samej nazwie** (homonimy powiatów i miejscowości) |
 
 ## Korekty pomysłu produktowego wynikające z kodu i źródeł
 
