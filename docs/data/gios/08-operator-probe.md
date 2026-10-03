@@ -100,7 +100,10 @@ for q in db.query(Q).filter(Q.source_id == 'gios_noise').all():
   jest serwowany. Inny trwający import tej usługi = kod 2.
 - Rekordy niepasujące do kształtu (zła kolejność współrzędnych, tekst zamiast liczby, kategoria sprzeczna z filtrem,
   duplikat) trafiają do `ingest_quarantine` z powodem; import idzie dalej. W Droga × ŚLĄSKIE było ich 2 z 4415
-  (1 `duplicate_record`, 1 `value_not_number`) — punkt 4 pokazuje, co to było.
+  (1 `duplicate_record`, 1 pozycja bez wyniku: `wynikPomiaru: null`) — punkt 4 pokazuje, co to było. Powody: `value_missing`
+  (źródło nie podało wyniku), `value_not_number` (wynik innego typu niż liczba = zmiana kontraktu, do zgłoszenia),
+  `duplicate_record` z `detail`: `identical` (ten sam rekord opublikowany dwa razy) albo `differs: <pola>` (klucz
+  rekordu byłby wtedy zbyt gruby — do zgłoszenia).
 - „W pobliżu nie ma punktu pomiarowego” (`no_coverage`) pojawia się dopiero, gdy **każda** z 64 kombinacji ma aktywny
   import obejmujący cały zakres `NEIGHBORHOOD_NOISE_COVERAGE_FROM` – `…_TO` (domyślnie 2015-01-01 – 2026-12-31).
   Przy imporcie częściowym albo jednego roku API zwraca `unavailable` (brak punktu w niepełnych danych nie dowodzi

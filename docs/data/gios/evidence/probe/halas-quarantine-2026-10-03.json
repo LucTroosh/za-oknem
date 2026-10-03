@@ -1,0 +1,13 @@
+{
+  "_meta": "Dwa rekordy odrzucone przy imporcie Droga x SLASKIE, 2015-01-01 - 2026-12-31 (4415 rekordow, 4413 przyjetych), wypisane z ingest_quarantine przez operatora 2026-10-03. Stan sprzed rozdzielenia value_missing / value_not_number.",
+  "records": [
+    {
+      "reason": "duplicate_record",
+      "raw": {"pora": "Dzień 16h", "gmina": "Skoczów (miasto)", "dataDo": "2016-10-21T08:00:00.000+02:00", "dataOd": "2016-04-19T08:00:00.000+02:00", "powiat": "cieszyński", "kategoria": "Droga", "celPomiaru": "Państwowy monitoring środowiska, art. 26 Poś", "coordWgs84X": 18.795389, "coordWgs84Y": 49.801639, "miejscowosc": "Skoczów", "wojewodztwo": "ŚLĄSKIE", "wynikPomiaru": 65.6, "przekroczenie": 0.5, "kodPunktuPomiarowego": "D_24_000149_001"}
+    },
+    {
+      "reason": "value_not_number",
+      "raw": {"pora": "Noc 8h", "gmina": "Żywiec (gmina miejska)", "dataDo": "2020-09-16T08:00:00.000+02:00", "dataOd": "2020-07-31T00:00:00.000+02:00", "powiat": "żywiecki", "kategoria": "Droga", "celPomiaru": "Państwowy monitoring środowiska, art. 26 Poś", "coordWgs84X": 19.237333, "coordWgs84Y": 49.715861, "miejscowosc": "Żywiec", "wojewodztwo": "ŚLĄSKIE", "wynikPomiaru": null, "przekroczenie": null, "kodPunktuPomiarowego": "D_24_000310_001"}
+    }
+  ]
+}
