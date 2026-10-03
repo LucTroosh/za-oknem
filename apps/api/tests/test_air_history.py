@@ -159,3 +159,14 @@ def test_history_gaps_threshold_and_size():
     assert history_gaps([t0, t0 + GAP_AFTER]) == []  # exactly 1.5 intervals is not yet a gap
     (g,) = history_gaps([t0, t0 + timedelta(hours=3)])
     assert g["missing_hours"] == 2
+
+
+def test_a_future_dated_reading_is_outside_the_window_and_never_fresh(db_session, client, area):
+    reading(db_session, 1, 10.0)
+    reading(db_session, -3, 99.0)  # stamped 3 h ahead: source clock skew or bad data
+    body = history(client, area)
+    assert [p["value"] for p in body["points"]] == [10.0]
+    assert (
+        body["latest_freshness"] == "FRESH"
+        and body["latest_observed_at"] == body["points"][0]["observed_at"]
+    )

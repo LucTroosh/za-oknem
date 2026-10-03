@@ -305,6 +305,7 @@ def air_history(
             Measurement.station_id == assigned["station_id"],
             Measurement.param_code == param,
             Measurement.observed_at >= start,
+            Measurement.observed_at <= now,  # a future-dated reading is not part of the window
         )
         .order_by(Measurement.observed_at, Measurement.id)
     ).scalars()
