@@ -81,14 +81,16 @@ def get_neighborhood(
     area = db.get(GeoArea, geo_area_id)
     if area is None:
         raise HTTPException(status_code=404, detail="Unknown geo_area_id")
-    sections: list[dict] = []
+    sections: list[NoiseSectionOut] = []
     if settings.neighborhood_noise_enabled:
         max_km = settings.neighborhood_noise_max_km
         try:
-            sections.append(build_noise_section(db, area.latitude, area.longitude, max_km))
+            sections.append(
+                NoiseSectionOut(**build_noise_section(db, area.latitude, area.longitude, max_km))
+            )
         except Exception:  # one section must not take the response down (rule #1)
             logger.exception("neighborhood noise section failed")
-            sections.append(failed_noise_section(max_km))
+            sections.append(NoiseSectionOut(**failed_noise_section(max_km)))
     return NeighborhoodOut(
         geo_area_id=area.id,
         area_name=area.name,
