@@ -591,6 +591,7 @@ class TestNewAreaAirBootstrap:
     NOW = datetime.now(UTC)
 
     def _setup(self, monkeypatch, db_session):
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
         monkeypatch.setattr(scheduler, "SessionLocal", lambda: db_session)
         ingest = MagicMock(return_value=1)
         monkeypatch.setattr(scheduler, "ingest_station", ingest)
@@ -628,17 +629,19 @@ class TestNewAreaAirBootstrap:
     def _fetched(ingest):
         return [c.args[0]["Identyfikator stacji"] for c in ingest.call_args_list]
 
-    def test_fetches_the_nearest_stations_of_a_new_place(self, monkeypatch, db_session):
+    def test_fetches_the_nearest_stations_of_a_new_place_nearest_first(
+        self, monkeypatch, db_session
+    ):
         ingest = self._setup(monkeypatch, db_session)
         self._place(db_session)
-        for sid, lat, lon in (  # Knurów area: 3 nearby, one far (Kraków, ~100 km) not in top 3
-            ("1", 50.22, 18.67), ("2", 50.30, 18.70), ("3", 50.32, 18.78), ("4", 50.06, 19.94),
+        for sid, lat, lon in (  # 3 nearby (ids 1-3), one ~95 km away (4) not in the top 3
+            ("3", 50.32, 18.78), ("1", 50.22, 18.67), ("2", 50.30, 18.70), ("4", 50.06, 19.94),
         ):  # fmt: skip
             self._station(db_session, sid, lat, lon)
 
-        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 1
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 3
 
-        assert sorted(self._fetched(ingest)) == [1, 2, 3]
+        assert self._fetched(ingest) == [1, 2, 3]
 
     def test_stations_that_already_have_data_are_not_fetched(self, monkeypatch, db_session):
         ingest = self._setup(monkeypatch, db_session)
@@ -675,13 +678,23 @@ class TestNewAreaAirBootstrap:
         assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
         ingest.assert_not_called()
 
-    def test_only_one_attempt_per_area(self, monkeypatch, db_session):
+    def test_explicit_station_list_is_the_exact_allowed_set(self, monkeypatch, db_session):
+        # GIOS_STATION_IDS is an override (ADR-007): no request to any other station.
+        ingest = self._setup(monkeypatch, db_session)
+        monkeypatch.setenv("GIOS_STATION_IDS", "38")
+        self._place(db_session)
+        self._station(db_session, "1", 50.22, 18.67)
+
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0
+        ingest.assert_not_called()
+
+    def test_only_one_attempt_per_station(self, monkeypatch, db_session):
         # GIOŚ terms: at most two downloads an hour. One bootstrap try + the hourly job = two;
         # a failed first try is retried by the hourly job, not by a second bootstrap try.
         ingest = self._setup(monkeypatch, db_session)
         self._place(db_session)
         self._station(db_session, "1", 50.22, 18.67)  # never yields data (mock stores nothing)
-        attempts: dict[int, tuple[int, float]] = {}
+        attempts: dict[str, tuple[int, float]] = {}
 
         assert scheduler.run_new_area_air_bootstrap(attempts, 0.0) == 1
         assert scheduler.run_new_area_air_bootstrap(attempts, 60.0) == 0
@@ -691,14 +704,38 @@ class TestNewAreaAirBootstrap:
         )
         assert ingest.call_count == scheduler.AIR_BOOTSTRAP_MAX_ATTEMPTS == 1
 
-    def test_a_shared_station_is_fetched_once_per_tick(self, monkeypatch, db_session):
+    def test_a_shared_failing_station_is_not_refetched_for_another_area(
+        self, monkeypatch, db_session
+    ):
         ingest = self._setup(monkeypatch, db_session)
         self._place(db_session, "a", place_id=1)
-        self._place(db_session, "b", lat=50.23, lon=18.68, place_id=2)
         self._station(db_session, "1", 50.22, 18.67)
+        attempts: dict[str, tuple[int, float]] = {}
+        assert scheduler.run_new_area_air_bootstrap(attempts, 0.0) == 1
 
-        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 2
+        self._place(db_session, "b", lat=50.23, lon=18.68, place_id=2)  # shares station 1
+
+        assert scheduler.run_new_area_air_bootstrap(attempts, 15.0) == 0
         assert self._fetched(ingest) == [1]
+
+    def test_a_tick_is_bounded_and_the_nearest_station_of_every_area_goes_first(
+        self, monkeypatch, db_session
+    ):
+        # Each station costs ~30 s of GIOŚ throttling: 5 areas x 3 stations must not be one tick.
+        ingest = self._setup(monkeypatch, db_session)
+        for i in range(5):  # areas 1 degree of longitude apart: no station is shared
+            lon = 10.0 + i * 1.5
+            self._place(db_session, f"p{i}", lat=50.0, lon=lon, place_id=i + 1)
+            for rank, dlat in enumerate((0.0, 0.2, 0.4)):  # nearest = rank 0
+                self._station(db_session, str(100 * (i + 1) + rank), 50.0 + dlat, lon)
+        attempts: dict[str, tuple[int, float]] = {}
+        cap = scheduler.AIR_BOOTSTRAP_STATIONS_PER_TICK
+
+        assert scheduler.run_new_area_air_bootstrap(attempts, 0.0) == cap
+        # the nearest station of areas 1..3 (ids 100, 200, 300), not 3 stations of area 1
+        assert self._fetched(ingest) == [100, 200, 300]
+        assert scheduler.run_new_area_air_bootstrap(attempts, 1.0) == cap
+        assert self._fetched(ingest)[cap:] == [400, 500, 101]
 
     def test_one_failing_station_does_not_stop_the_others(self, monkeypatch, db_session):
         ingest = self._setup(monkeypatch, db_session)
@@ -707,10 +744,11 @@ class TestNewAreaAirBootstrap:
         self._station(db_session, "1", 50.22, 18.67)
         self._station(db_session, "2", 50.30, 18.70)
 
-        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 1
+        assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 2
         assert ingest.call_count == 2
 
     def test_database_failure_never_raises(self, monkeypatch):
+        monkeypatch.delenv("GIOS_STATION_IDS", raising=False)
         monkeypatch.setattr(scheduler, "SessionLocal", MagicMock(side_effect=RuntimeError("db")))
 
         assert scheduler.run_new_area_air_bootstrap({}, 0.0) == 0

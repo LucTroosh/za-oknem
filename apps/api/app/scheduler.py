@@ -16,6 +16,7 @@ from sqlalchemy import func, or_, select
 from app.config import warn_if_open_meteo_host_unusual
 from app.connectors.gios import client as gios_client
 from app.connectors.gios.discovery import (
+    AIR_STATIONS_PER_AREA,
     air_areas,
     area_station_ids,
     assigned_station_ids,
@@ -73,6 +74,9 @@ BOOTSTRAP_RETRY_SECONDS = 15 * 60
 # extra fetch of a station that has no data yet, so with the hourly job that is at most two per
 # hour; a failed first try is retried by the hourly job, never by a second bootstrap try.
 AIR_BOOTSTRAP_MAX_ATTEMPTS = 1
+# The GIOŚ client waits ~30 s between sensor-list requests (2 req/min): this bounds one tick to
+# about a minute and a half instead of stalling the single scheduler process.
+AIR_BOOTSTRAP_STATIONS_PER_TICK = 3
 BOOTSTRAP_BATCH = 5  # areas per tick: a burst of activations spreads over ticks, not one stall
 
 
@@ -182,7 +186,7 @@ def run_new_area_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -
             db.close()
 
 
-def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: float) -> int:
+def run_new_area_air_bootstrap(attempts: dict[str, tuple[int, float]], now: float) -> int:
     """First air fetch for a freshly activated place (ADR-029, amended).
 
     The hourly GIOŚ job only learns a new area's stations at its next run, and until then the
@@ -190,12 +194,19 @@ def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: floa
     ("regional"). So for place-based areas whose nearest AIR_STATIONS_PER_AREA catalog stations
     have no measurement yet, those stations are fetched now.
 
-    Bounds: ONE attempt per area (AIR_BOOTSTRAP_MAX_ATTEMPTS: GIOŚ allows downloading at most
-    twice an hour, the hourly job is the retry), BOOTSTRAP_BATCH areas per tick; `attempts` lives
-    in the loop (area id -> (count, time of the last one)). A station that never yields data
-    (no sensors, GIOŚ 400) therefore costs one extra fetch. Needs a catalog: the first catalog
-    walk belongs to the hourly job (2 req/min). Records no source_status; never raises (rule #1).
-    Returns the number of areas attempted."""
+    Bounds, all per STATION (a station shared by areas is one request, not one per area):
+    - ONE attempt per station (AIR_BOOTSTRAP_MAX_ATTEMPTS): GIOŚ allows downloading at most
+      twice an hour and the hourly job is the retry, so a station that never yields data (no
+      sensors, GIOŚ 400) costs one extra fetch. `attempts` lives in the loop (station id ->
+      (count, time of the last one)).
+    - AIR_BOOTSTRAP_STATIONS_PER_TICK stations per tick: the GIOŚ client waits ~30 s between
+      sensor-list requests, so a tick must stay short or it would stall the single scheduler
+      process. Order: the nearest station of every area first, then the second nearest...
+    Skipped when GIOS_STATION_IDS is set (the explicit station list is the exact allowed set,
+    ADR-007) and without a catalog (its first walk belongs to the hourly job, 2 req/min).
+    Records no source_status; never raises (rule #1). Returns the number of stations fetched."""
+    if _gios_station_ids():
+        return 0
     db = None
     try:
         db = SessionLocal()
@@ -215,30 +226,34 @@ def run_new_area_air_bootstrap(attempts: dict[int, tuple[int, float]], now: floa
                 .distinct()
             ).scalars()
         )
-        missing = {aid: [s for s in ids if s not in have] for aid, ids in wanted.items()}
-        missing = {aid: ids for aid, ids in missing.items() if ids}
-        for stale in set(attempts) - set(missing):
-            del attempts[stale]  # data landed (or the area left): a later re-activation may retry
+        missing = all_ids - have
+        for stale in set(attempts) - missing:
+            del attempts[
+                stale
+            ]  # data landed (or no area wants it): a later re-activation may retry
+        ordered: list[str] = []  # nearest-of-every-area first; area id order breaks ties
+        for rank in range(AIR_STATIONS_PER_AREA):
+            for aid in sorted(wanted):
+                ids = wanted[aid]
+                if rank < len(ids) and ids[rank] in missing and ids[rank] not in ordered:
+                    ordered.append(ids[rank])
         due = [
-            aid
-            for aid in sorted(missing)
-            if attempts.get(aid, (0, float("-inf")))[0] < AIR_BOOTSTRAP_MAX_ATTEMPTS
-            and now - attempts.get(aid, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
-        ]
-        done: set[str] = set()  # one station is fetched once per tick even if areas share it
-        for aid in due[:BOOTSTRAP_BATCH]:
-            attempts[aid] = (attempts.get(aid, (0, 0.0))[0] + 1, now)
-            todo = [s for s in missing[aid] if s not in done]
-            done.update(missing[aid])
-            for station in stations_by_id(db, todo):
-                try:
-                    ingest_station(station, db)  # per-station failure is logged inside (rule #1)
-                except Exception:
-                    logger.exception(
-                        "air bootstrap: station %s failed", station.get("Identyfikator stacji")
-                    )
-                    db.rollback()
-        return min(len(due), BOOTSTRAP_BATCH)
+            sid
+            for sid in ordered
+            if attempts.get(sid, (0, float("-inf")))[0] < AIR_BOOTSTRAP_MAX_ATTEMPTS
+            and now - attempts.get(sid, (0, float("-inf")))[1] >= BOOTSTRAP_RETRY_SECONDS
+        ][:AIR_BOOTSTRAP_STATIONS_PER_TICK]
+        for sid in due:
+            attempts[sid] = (attempts.get(sid, (0, 0.0))[0] + 1, now)
+        for station in stations_by_id(db, due):
+            try:
+                ingest_station(station, db)  # per-station failure is logged inside (rule #1)
+            except Exception:
+                logger.exception(
+                    "air bootstrap: station %s failed", station.get("Identyfikator stacji")
+                )
+                db.rollback()
+        return len(due)
     except Exception:
         logger.exception("new-area air bootstrap failed - regular cycle still runs (rule #1)")
         if db is not None:
@@ -417,7 +432,7 @@ def main(*, iterations: int | None = None) -> None:
     )
     last_retention = last_place_expiry = float("-inf")
     bootstrap_attempts: dict[int, tuple[int, float]] = {}
-    air_bootstrap_attempts: dict[int, tuple[int, float]] = {}
+    air_bootstrap_attempts: dict[str, tuple[int, float]] = {}
     last_health = float("-inf")
     health_state: dict[str, str] = {}
     count = 0

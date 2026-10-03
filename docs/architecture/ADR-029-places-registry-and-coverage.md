@@ -163,12 +163,17 @@ Brak PostGIS-owej kolumny `geom` w `places` — nie ma zapytań przestrzennych p
   następnym przebiegu, a do tego czasu API może pokazać tylko stację pollowaną dla innego obszaru
   (nawet ~100 km dalej, pasmo `regional`). Dlatego scheduler dla obszarów z `place_id`, których
   `AIR_STATIONS_PER_AREA` najbliższych stacji katalogu nie ma jeszcze żadnego pomiaru, pobiera te
-  stacje od razu (`run_new_area_air_bootstrap`). **Jedna próba na obszar** (regulamin GIOŚ: dane
-  pobierać nie częściej niż 2 razy na godzinę; bootstrap + godzinny job = 2; nieudaną próbę ponawia
-  godzinny job), 5 obszarów na tick, pamięć procesu; stacja bez danych (brak czujników, 400 z GIOŚ)
-  kosztuje jedno dodatkowe pobranie. Wymaga katalogu (pierwszy przegląd katalogu zostaje godzinnemu jobowi:
-  2 req/min). Nie zapisuje `source_status`. Wybór stacji w API bez zmian (`pick_air_station`: najbliższa
-  stacja Z DANYMI), więc po pierwszym pobraniu pokazuje stację z okolicy zamiast odległej.
+  stacje od razu (`run_new_area_air_bootstrap`). Granice liczone **na stację** (stacja wspólna dla
+  kilku obszarów to jedno żądanie): **jedna próba na stację** (regulamin GIOŚ: dane pobierać nie
+  częściej niż 2 razy na godzinę; bootstrap + godzinny job = 2; nieudaną próbę ponawia godzinny job,
+  a stacja bez danych — brak czujników, 400 z GIOŚ — kosztuje jedno dodatkowe pobranie) oraz
+  **3 stacje na tick** (`AIR_BOOTSTRAP_STATIONS_PER_TICK`: klient GIOŚ czeka ~30 s między
+  żądaniami listy czujników, więc tick nie może blokować jedynego procesu schedulera; kolejność:
+  najbliższa stacja każdego obszaru, potem druga najbliższa...). Pomijany przy `GIOS_STATION_IDS`
+  (jawna lista = dokładny zbiór dozwolonych stacji, ADR-007). Wymaga katalogu (pierwszy przegląd
+  katalogu zostaje godzinnemu jobowi: 2 req/min). Pamięć procesu. Nie zapisuje `source_status`.
+  Wybór stacji w API bez zmian (`pick_air_station`: najbliższa stacja Z DANYMI), więc po pierwszym
+  pobraniu pokazuje stację z okolicy zamiast odległej.
 - **Tick pętli 15 s (było 60 s):** joby mają własne interwały, więc krótszy tick przyspiesza tylko
   bootstrap (start w kilka sekund). Sprawdzenie zdrowia źródeł zostaje co 60 s.
 - **Klient odświeża sam:** gdy miejscowość jest nowa (ekran widział brak pierwszej pogody), Start
